@@ -1,5 +1,6 @@
 import React, { createContext, useState, useEffect } from 'react';
 import axios from 'axios';
+import { getApiUrl } from '../../../core/api/axiosConfig';
 
 export const AdminAuthContext = createContext({});
 
@@ -41,7 +42,7 @@ export const AdminAuthProvider = ({ children }) => {
   }, []);
 
   const adminLogin = async (identifier, password) => {
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api/v1';
+    const API_URL = getApiUrl();
 
     try {
       const response = await axios.post(`${API_URL}/auth/login`, {
@@ -77,7 +78,7 @@ export const AdminAuthProvider = ({ children }) => {
   };
 
   const adminLogout = async () => {
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api/v1';
+    const API_URL = getApiUrl();
     try {
       await axios.post(`${API_URL}/auth/logout/admin`, {}, { withCredentials: true });
     } catch (err) {

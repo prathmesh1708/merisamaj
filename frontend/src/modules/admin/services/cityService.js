@@ -1,6 +1,7 @@
 import { axiosPrivate } from '../../../core/api/axiosPrivate';
+import { getApiUrl } from '../../../core/api/axiosConfig';
 
-const API_BASE = `${import.meta.env.VITE_API_URL || 'http://localhost:5001/api/v1'}/admin/cities`;
+const API_BASE = `${getApiUrl()}/admin/cities`;
 
 export const cityService = {
   fetchCities: async () => {

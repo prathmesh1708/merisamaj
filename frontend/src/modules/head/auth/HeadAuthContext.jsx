@@ -1,5 +1,6 @@
 import React, { createContext, useState, useEffect } from 'react';
 import axios from 'axios';
+import { getApiUrl } from '../../../core/api/axiosConfig';
 
 export const HeadAuthContext = createContext({});
 
@@ -42,7 +43,7 @@ export const HeadAuthProvider = ({ children }) => {
 
   const headLogin = async (loginId, password) => {
     const normalizedIdentifier = loginId.trim();
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api/v1';
+    const API_URL = getApiUrl();
 
     try {
       const response = await axios.post(`${API_URL}/auth/login`, {
