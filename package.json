@@ -1,0 +1,10 @@
+{
+  "name": "merisamaj-monorepo",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "install": "npm install --prefix backend && npm install --prefix frontend",
+    "build": "npm install --prefix backend",
+    "start": "npm start --prefix backend"
+  }
+}
