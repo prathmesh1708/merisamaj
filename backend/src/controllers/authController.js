@@ -220,7 +220,7 @@ const loginUser = async (req, res) => {
     if (user.accountStatus === 'deleted') {
       return res.status(403).json({ message: 'Your account has been deleted.' });
     }
-    if (user.role === 'head' && (user.accountStatus === 'inactive' || user.accountStatus === 'suspended')) {
+    if (['head', 'sub_head'].includes(user.role) && (user.accountStatus === 'inactive' || user.accountStatus === 'suspended')) {
       return res.status(403).json({ message: 'Your Community Head account is currently inactive.' });
     }
 
@@ -232,13 +232,13 @@ const loginUser = async (req, res) => {
     if (isMatch) {
       const { accessToken, refreshToken } = generateTokens(user);
       
-      const isPrivileged = ['admin', 'head'].includes(user.role);
+      const isPrivileged = ['admin', 'head', 'sub_head'].includes(user.role);
       const maxAge = isPrivileged ? 1 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
       const cookieOptions = getCookieOptions(maxAge);
 
       if (user.role === 'admin') {
         res.cookie('admin_jwt', refreshToken, cookieOptions);
-      } else if (user.role === 'head') {
+      } else if (user.role === 'head' || user.role === 'sub_head') {
         res.cookie('head_jwt', refreshToken, cookieOptions);
       } else {
         res.cookie('member_jwt', refreshToken, cookieOptions);
@@ -398,7 +398,7 @@ const refreshHead = async (req, res) => {
       .populate('communityId', 'name slug isActive settings logoUrl description city')
       .populate('assignedCommunityIds', 'name slug isActive settings logoUrl description city');
 
-    if (!user || !['head', 'admin'].includes(user.role)) {
+    if (!user || !['head', 'admin', 'sub_head'].includes(user.role)) {
       return res.status(401).json({ message: 'Head user not found' });
     }
 

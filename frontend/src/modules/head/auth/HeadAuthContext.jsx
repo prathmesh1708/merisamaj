@@ -53,8 +53,9 @@ export const HeadAuthProvider = ({ children }) => {
 
       const { user, accessToken } = response.data;
 
-      // Verify the user actually has the Head role to access this panel
-      if (!['head', 'admin'].includes(user.role)) {
+      // Verify the user actually has Head Panel access (Community Head, Admin,
+      // or a Sub-Head/Local Head account created by a Head)
+      if (!['head', 'admin', 'sub_head'].includes(user.role)) {
         throw new Error('Access denied. You do not have Head Panel permissions.');
       }
 

@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const User = require('../../models/User');
+const Community = require('../../models/Community');
 const MatrimonialProfile = require('../../models/MatrimonialProfile');
 const Event = require('../../models/Event');
 const Professional = require('../../models/Professional');
@@ -346,3 +347,65 @@ exports.updateCommunityBanner = async (req, res) => {
     res.status(500).json({ status: 'error', message: 'Failed to update community banner' });
   }
 };
+
+// 12. Get Community details (including accountDetails)
+exports.getCommunityDetails = async (req, res) => {
+  try {
+    const communityId = req.communityId || req.user?.communityId;
+    if (!communityId) {
+      return res.status(400).json({ status: 'error', message: 'Community ID not associated with this head account' });
+    }
+
+    const community = await Community.findById(communityId).lean();
+    if (!community) {
+      return res.status(404).json({ status: 'error', message: 'Community not found' });
+    }
+
+    res.status(200).json({ status: 'success', data: community });
+  } catch (error) {
+    console.error('Get Community Details Error:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to retrieve community details' });
+  }
+};
+
+// 13. Update Community Account details
+exports.updateCommunityAccountDetails = async (req, res) => {
+  try {
+    const communityId = req.communityId || req.user?.communityId;
+    if (!communityId) {
+      return res.status(400).json({ status: 'error', message: 'Community ID not associated with this head account' });
+    }
+
+    const { bankName, accountNumber, ifscCode, upiId, accountHolderName } = req.body;
+
+    const updatedCommunity = await Community.findByIdAndUpdate(
+      communityId,
+      {
+        $set: {
+          accountDetails: {
+            bankName: bankName || '',
+            accountNumber: accountNumber || '',
+            ifscCode: ifscCode || '',
+            upiId: upiId || '',
+            accountHolderName: accountHolderName || ''
+          }
+        }
+      },
+      { new: true }
+    );
+
+    if (!updatedCommunity) {
+      return res.status(404).json({ status: 'error', message: 'Community not found' });
+    }
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Community account details updated successfully',
+      data: updatedCommunity
+    });
+  } catch (error) {
+    console.error('Update Community Account Details Error:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to update community account details' });
+  }
+};
+

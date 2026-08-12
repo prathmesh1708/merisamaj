@@ -42,6 +42,10 @@ router.use('/matrimonial', headMatrimonialRoutes);
 const headLeadershipRoutes = require('./headLeadershipRoutes');
 router.use('/leadership', headLeadershipRoutes);
 
+// Local Community — Local Head account management Routes
+const headLocalCommunityRoutes = require('./headLocalCommunityRoutes');
+router.use('/local-community', headLocalCommunityRoutes);
+
 // Census Management Routes
 const headCensusRoutes = require('./censusRoutes');
 router.use('/census', headCensusRoutes);
