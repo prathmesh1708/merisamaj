@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { 
-  LayoutDashboard, Wallet, Vote, Send, Settings, LogOut, Menu, X, Award, ShieldCheck, Shield, Users, Calendar, Briefcase, Heart, Search, BarChart3, HeartHandshake, User, ChevronDown, ChevronUp, Mail, LayoutTemplate, Home, Share2, Megaphone
+  LayoutDashboard, Wallet, Vote, Send, Settings, LogOut, Menu, X, Award, ShieldCheck, Shield, Users, Calendar, Briefcase, Heart, Search, BarChart3, HeartHandshake, User, ChevronDown, ChevronUp, Mail, LayoutTemplate, Home, Share2, Megaphone, MapPin
 } from 'lucide-react';
 import { useData } from '../../member/context/DataProvider';
 import { useHeadAuth } from '../auth/useHeadAuth';
@@ -146,6 +146,12 @@ export const HeadLayout = () => {
           path: '/head/leadership',
           permKey: 'canViewLeadership',
           icon: Shield
+        },
+        {
+          name: 'Local Community',
+          path: '/head/local-community',
+          icon: MapPin,
+          headOnly: true
         }
       ]
     },
@@ -163,15 +169,24 @@ export const HeadLayout = () => {
           path: '/head/home-content',
           permKey: 'canViewHomeContent',
           icon: LayoutTemplate
+        },
+        {
+          name: 'Community Settings',
+          path: '/head/settings',
+          icon: Settings
         }
       ]
     }
   ];
 
   // Filter sections and items based on permissions
+  // `headOnly` items (e.g. Local Community) are hidden for Sub-Head/Local Head
+  // accounts — only the Community Head (or Admin) manages Local Heads.
   const filteredNavigationConfig = navigationConfig.map(section => ({
     ...section,
-    items: section.items.filter(item => isModuleAllowed(item.permKey))
+    items: section.items.filter(item =>
+      isModuleAllowed(item.permKey) && (!item.headOnly || isSuperAdmin || headUser?.role === 'head')
+    )
   })).filter(section => section.items.length > 0);
 
   // Auto-expand active category

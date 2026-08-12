@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Building2, Palette, LayoutTemplate, Link, UserPlus, FileSpreadsheet, Users, Heart, Calendar, Briefcase, Award, Bell, Mail, MessageSquare, Phone, FileText, Network, Zap, ShieldCheck, ShieldAlert, HardDrive, History, Clock, Settings, Save } from 'lucide-react';
+import { Building2, Palette, LayoutTemplate, Link, UserPlus, FileSpreadsheet, Users, Heart, Calendar, Briefcase, Award, Bell, Mail, MessageSquare, Phone, FileText, Network, Zap, ShieldCheck, ShieldAlert, HardDrive, History, Clock, Settings, Save, Wallet, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useCommunitySettings } from '../../hooks/useCommunitySettings';
-import { useData } from '../../hooks/useData';
+import { useCommunitySettings } from './hooks/useCommunitySettings';
+import { useData } from '../../../member/context/DataProvider';
 
 import { GeneralInfoTab } from './components/GeneralInfoTab';
 import { BrandingTab } from './components/BrandingTab';
 import { ThemeSettings } from './components/ThemeSettings';
 import { HomepageSettings } from './components/HomepageSettings';
+import { BankAccountSettings } from './components/BankAccountSettings';
 import { RegistrationSettings } from './components/RegistrationSettings';
 import { RegistrationFormBuilder } from './components/RegistrationFormBuilder';
 import { DirectorySettings } from './components/DirectorySettings';
@@ -36,7 +37,8 @@ const NAV_SECTIONS = [
       { id: 'general', label: 'General Information', icon: Building2, component: GeneralInfoTab },
       { id: 'branding', label: 'Branding', icon: Palette, component: BrandingTab },
       { id: 'theme', label: 'Theme Customization', icon: LayoutTemplate, component: ThemeSettings },
-      { id: 'homepage', label: 'Homepage Content', icon: Link, component: HomepageSettings }
+      { id: 'homepage', label: 'Homepage Content', icon: Link, component: HomepageSettings },
+      { id: 'bank', label: 'Bank Account Details', icon: Wallet, component: BankAccountSettings }
     ]
   },
   {

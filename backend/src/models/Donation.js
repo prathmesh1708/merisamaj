@@ -1,14 +1,26 @@
 const mongoose = require('mongoose');
 
 const donationSchema = new mongoose.Schema({
-  title: { type: String, trim: true, required: true },
+  title: { 
+    type: String, 
+    trim: true, 
+    required: function() { 
+      return !this.txnId && !this.orderId && !this.paymentId; 
+    } 
+  },
   shortDescription: { type: String, trim: true },
   description: { type: String, trim: true },
   purpose: { type: String, trim: true },
   category: { type: String, default: 'General', trim: true },
   priority: { type: String, enum: ['Low', 'Medium', 'High'], default: 'Medium' },
 
-  targetAmount: { type: Number, required: true, min: 0 },
+  targetAmount: { 
+    type: Number, 
+    min: 0,
+    required: function() { 
+      return !this.txnId && !this.orderId && !this.paymentId; 
+    } 
+  },
   raisedAmount: { type: Number, default: 0, min: 0 },
   expenseAmount: { type: Number, default: 0, min: 0 },
   donorCount: { type: Number, default: 0, min: 0 },
@@ -26,7 +38,7 @@ const donationSchema = new mongoose.Schema({
 
   status: {
     type: String,
-    enum: ['Draft', 'Pending', 'Scheduled', 'Active', 'Completed', 'Closed', 'Suspended', 'Archived'],
+    enum: ['Draft', 'Pending', 'Scheduled', 'Active', 'Completed', 'Closed', 'Suspended', 'Archived', 'Approved', 'Failed', 'Cancelled'],
     default: 'Active',
     index: true
   },

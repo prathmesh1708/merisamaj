@@ -62,7 +62,9 @@ exports.getCampaigns = async (req, res) => {
 // Get single campaign details
 exports.getCampaignById = async (req, res) => {
   try {
-    const campaign = await Donation.findById(req.params.id).populate('createdBy', 'name avatar role');
+    const campaign = await Donation.findById(req.params.id)
+      .populate('createdBy', 'name avatar role')
+      .populate('communityId');
     if (!campaign) {
       return res.status(404).json({ success: false, status: 'error', message: 'Campaign not found' });
     }
@@ -139,6 +141,7 @@ exports.getCampaignById = async (req, res) => {
       coverImage: campaign.coverImage || null,
       documents: campaign.documents || [],
       createdBy: campaign.createdBy ? (typeof campaign.createdBy === 'object' ? campaign.createdBy : { name: 'Community Admin' }) : null,
+      communityId: campaign.communityId || null,
       donorCount,
       contributorsCount: donorCount,
       recentDonations: combinedRecentDonations,

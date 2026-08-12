@@ -96,7 +96,13 @@ const communitySchema = new mongoose.Schema(
         default: 'head_admin'
       }
     },
-
+    accountDetails: {
+      bankName: { type: String, default: '' },
+      accountNumber: { type: String, default: '' },
+      ifscCode: { type: String, default: '' },
+      upiId: { type: String, default: '' },
+      accountHolderName: { type: String, default: '' }
+    }
   },
   {
     timestamps: true,

@@ -145,6 +145,10 @@ const userSchema = new mongoose.Schema({
     ref: 'User',
     default: null
   },
+  // Discriminates the purpose of a sub_head account created by a Head
+  // (e.g. Leadership team member vs. Local Head module) so each module's
+  // list view only shows the accounts it created.
+  accountType: { type: String, enum: ['leadership', 'local_head'] },
   designation: { type: String, default: 'Member' },
   department: { type: String },
   termYears: { type: String, default: '2024-2027' },

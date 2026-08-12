@@ -142,8 +142,8 @@ exports.getSubLeaders = async (req, res) => {
   try {
     const communityId = req.user.communityId || req.communityId;
 
-    // Fetch User sub-heads linked to head
-    const subHeadUsers = await User.find({ parentHeadId: req.user._id, role: 'sub_head' })
+    // Fetch User sub-heads linked to head (excluding Local Heads, managed in their own module)
+    const subHeadUsers = await User.find({ parentHeadId: req.user._id, role: 'sub_head', accountType: { $ne: 'local_head' } })
       .select('name email phone city state designation department avatar headPermissions accountStatus joiningDate createdAt')
       .sort({ createdAt: -1 })
       .lean();
