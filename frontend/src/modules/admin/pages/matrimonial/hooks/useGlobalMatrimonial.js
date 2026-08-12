@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { io } from 'socket.io-client';
 import { matrimonialService } from '../services/matrimonialService';
 
 export const useGlobalMatrimonial = () => {
@@ -47,23 +48,21 @@ export const useGlobalMatrimonial = () => {
 
   // ─── Socket.IO Auto-Refresh ───────────────────────────────────────────────
   useEffect(() => {
-    import('socket.io-client').then(({ io }) => {
-      const SOCKET_URL = import.meta.env.VITE_SOCKET_URL
-        || (import.meta.env.VITE_API_URL?.replace(/\/api\/v1\/?$/, ''))
-        || 'http://localhost:5000';
-      const token = localStorage.getItem('admin_auth_token');
-      
-      const socket = io(SOCKET_URL, {
-        auth: { token, role: 'admin' },
-        transports: ['websocket']
-      });
+    const SOCKET_URL = import.meta.env.VITE_SOCKET_URL
+      || (import.meta.env.VITE_API_URL?.replace(/\/api\/v1\/?$/, ''))
+      || 'http://localhost:5000';
+    const token = localStorage.getItem('admin_auth_token');
+    
+    const socket = io(SOCKET_URL, {
+      auth: { token, role: 'admin' },
+      transports: ['websocket']
+    });
 
-      socket.on('admin:matrimonial_update', () => {
-        fetchAllData(); // Auto refresh all stats and lists
-      });
+    socket.on('admin:matrimonial_update', () => {
+      fetchAllData(); // Auto refresh all stats and lists
+    });
 
-      return () => socket.disconnect();
-    }).catch(err => console.error('Failed to load socket client', err));
+    return () => socket.disconnect();
   }, [fetchAllData]);
 
   const refreshData = () => fetchAllData();

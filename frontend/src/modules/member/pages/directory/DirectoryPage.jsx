@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { axiosPublic } from '../../../../core/api/axiosConfig';
 import { useData } from '../../context/DataProvider';
 import { 
   Search, 
@@ -53,7 +54,6 @@ const DirectoryPage = () => {
   useEffect(() => {
     const loadCities = async () => {
       try {
-        const { axiosPublic } = await import('../../../../core/api/axiosConfig');
         const res = await axiosPublic.get('/auth/cities');
         if (res.data.success) {
           setCities(['All Cities', ...res.data.data.map(c => c.name)]);

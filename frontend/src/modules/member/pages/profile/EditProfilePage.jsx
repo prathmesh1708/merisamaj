@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { axiosPublic } from '../../../../core/api/axiosConfig';
 import { ArrowLeft, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
 import { useData } from '../../context/DataProvider';
 import { Avatar } from '../../components/common/Avatar';
@@ -40,7 +41,6 @@ const EditProfilePage = () => {
   useEffect(() => {
     const loadCities = async () => {
       try {
-        const { axiosPublic } = await import('../../../../core/api/axiosConfig');
         const res = await axiosPublic.get('/auth/cities');
         if (res.data.success) {
           const grouped = {};

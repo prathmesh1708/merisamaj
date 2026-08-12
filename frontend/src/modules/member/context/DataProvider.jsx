@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { useAuth } from '../../../core/auth/useAuth';
 import { useHeadAuth } from '../../head/auth/useHeadAuth';
 import { axiosPrivate } from '../../../core/api/axiosPrivate';
+import { authService } from '../../../core/auth/authService';
 
 // Import initial mocks
 import { currentUser as initialUser, mockMembers as initialMembers, mockAdmins as initialAdmins } from '../data/mockUsers';
@@ -1097,7 +1098,6 @@ export const DataProvider = ({ children }) => {
 
   const updateProfile = async (updatedData) => {
     try {
-      const { authService } = await import('../../../core/auth/authService');
       const response = await authService.updateProfile(updatedData);
       localStorage.setItem('merisamaj_user', JSON.stringify(response));
       setCurrentUser(response);
