@@ -6,7 +6,8 @@ const {
   getInvitationById,
   updateRSVP,
   deleteInvitation,
-  updateInvitation
+  updateInvitation,
+  trackInvitationOpened
 } = require('../../controllers/member/invitationController');
 // Routes are protected at the parent level in routes/index.js
 const upload = require('../../middleware/uploadMiddleware');
@@ -23,5 +24,8 @@ router.route('/:id')
 
 router.route('/:id/rsvp')
   .put(updateRSVP);
+
+router.route('/:id/open')
+  .post(trackInvitationOpened);
 
 module.exports = router;

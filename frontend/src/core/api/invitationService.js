@@ -32,6 +32,12 @@ const updateRSVP = async (id, status) => {
   return response.data;
 };
 
+// Record that the logged-in member opened this invitation
+const trackOpened = async (id) => {
+  const response = await axiosPrivate.post(`${API_URL}/${id}/open`);
+  return response.data;
+};
+
 // Delete invitation
 const deleteInvitation = async (id) => {
   const response = await axiosPrivate.delete(`${API_URL}/${id}`);
@@ -54,6 +60,7 @@ const invitationService = {
   getInvitations,
   getInvitationById,
   updateRSVP,
+  trackOpened,
   deleteInvitation,
   updateInvitation
 };

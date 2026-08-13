@@ -1,15 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, X } from 'lucide-react';
+import { MapPin, X, Eye, PartyPopper, UserX, BarChart3 } from 'lucide-react';
+import { useData } from '../../../context/DataProvider';
+import { buildInvitationAnalytics, isInvitationCreator } from '../utils/invitationAnalytics';
 
 /**
  * Renders an invitation as a sealed envelope. Tapping it plays the open
  * animation (flap swings back in 3D, letter slides out) and then reveals the
  * full invitation card. Tapping "Close" reverses the whole sequence.
  *
+ * Invitations the logged-in user created also carry an inline analytics banner
+ * (opened / attending / declined counts) that opens the full insights modal.
+ *
  * phase: 'closed' -> 'opening' -> 'open' -> 'closing' -> 'closed'
  */
-export default function EnvelopeInvitationCard({ inv, onOpenDetail }) {
+export default function EnvelopeInvitationCard({ inv, onOpenDetail, isSentTab = false, onOpenAnalytics }) {
+  const { currentUser, members, trackInvitationOpened } = useData();
   const [phase, setPhase] = useState('closed');
   const [flapBehind, setFlapBehind] = useState(false);
   const [fullscreenImg, setFullscreenImg] = useState(null);
@@ -27,8 +33,14 @@ export default function EnvelopeInvitationCard({ inv, onOpenDetail }) {
 
   const isOpening = phase === 'opening' || phase === 'open';
 
+  const isCreator = isInvitationCreator(inv, currentUser);
+  const showAnalytics = isCreator || isSentTab;
+  const stats = showAnalytics ? buildInvitationAnalytics(inv, members) : null;
+
   const handleOpen = () => {
     if (phase !== 'closed') return;
+    // Registers this member under the creator's "Who Opened" list (no-op for the creator)
+    trackInvitationOpened?.(detailId);
     timers.current.forEach(clearTimeout);
     timers.current = [];
     setPhase('opening');
@@ -79,19 +91,19 @@ export default function EnvelopeInvitationCard({ inv, onOpenDetail }) {
               ease: [0.22, 1, 0.36, 1],
               delay: isOpening ? 0.38 : 0,
             }}
-            className="absolute left-[7%] right-[7%] top-[9%] h-[74%] z-10 rounded-2xl bg-gradient-to-br from-[#3B1578] via-[#4C1D95] to-[#5B21B6] border border-white/15 shadow-[0_12px_28px_rgba(0,0,0,0.35)] flex flex-col items-center justify-center text-center px-6 overflow-hidden"
+            className="absolute left-[7%] right-[7%] top-[9%] h-[74%] z-10 rounded-2xl bg-white border border-slate-200/80 shadow-[0_12px_28px_rgba(0,0,0,0.25)] flex flex-col items-center justify-center text-center px-6 overflow-hidden"
           >
             <div
-              className="absolute inset-0 opacity-10 pointer-events-none"
-              style={{ backgroundImage: 'radial-gradient(#ffffff 1.5px, transparent 1.5px)', backgroundSize: '12px 12px' }}
+              className="absolute inset-0 opacity-[0.12] pointer-events-none"
+              style={{ backgroundImage: 'radial-gradient(#4C1D95 1.5px, transparent 1.5px)', backgroundSize: '12px 12px' }}
             />
-            <h3 className="font-extrabold text-[17px] tracking-tight relative z-10 leading-snug max-w-[90%] text-amber-200 line-clamp-2">
+            <h3 className="font-extrabold text-[17px] tracking-tight relative z-10 leading-snug max-w-[90%] text-purple-950 line-clamp-2">
               {displayTitle}
             </h3>
-            <p className="text-[11.5px] font-bold mt-1.5 z-10 uppercase tracking-wider text-purple-100 truncate max-w-full">
+            <p className="text-[11.5px] font-bold mt-1.5 z-10 uppercase tracking-wider text-purple-700 truncate max-w-full">
               {displayHost}
             </p>
-            <p className="text-[9.5px] text-purple-200 mt-2.5 z-10 border-t border-white/15 pt-1.5 px-5 font-semibold uppercase tracking-widest">
+            <p className="text-[9.5px] text-purple-600 mt-2.5 z-10 border-t border-purple-100 pt-1.5 px-5 font-semibold uppercase tracking-widest">
               - Cordially Invited -
             </p>
           </motion.div>
@@ -266,32 +278,68 @@ export default function EnvelopeInvitationCard({ inv, onOpenDetail }) {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 mt-4 pt-3.5 border-t border-slate-100">
+              <div className="mt-4 pt-3.5 border-t border-slate-100">
                 <button
                   onClick={() => onOpenDetail(detailId)}
-                  className="flex-1 bg-purple-50 text-purple-700 font-bold text-[11.5px] py-2.5 rounded-xl border border-purple-100 hover:bg-purple-100/60 active:scale-95 transition-all press-scale"
+                  className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md shadow-purple-500/20 font-bold text-[12.5px] py-2.5 rounded-xl active:scale-95 transition-all press-scale flex items-center justify-center gap-1.5"
                 >
-                  View Card
-                </button>
-                <a
-                  href={inv.mapLink || '#'}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex-1 bg-emerald-50 text-emerald-700 font-bold text-[11.5px] py-2.5 rounded-xl text-center border border-emerald-100 hover:bg-emerald-100/60 active:scale-95 transition-all press-scale"
-                >
-                  Navigate
-                </a>
-                <button
-                  onClick={() => onOpenDetail(detailId)}
-                  className="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md shadow-purple-500/20 font-bold text-[11.5px] py-2.5 rounded-xl active:scale-95 transition-all press-scale"
-                >
-                  RSVP
+                  View Details
                 </button>
               </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ---------- Creator analytics banner (Sent tab) ---------- */}
+      {showAnalytics && stats && (
+        <div className="px-4 pb-4 pt-1">
+          <div className="rounded-2xl border border-purple-100 bg-gradient-to-br from-purple-50/70 to-indigo-50/50 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[9.5px] font-black uppercase tracking-wider text-purple-500">Sender Insights</span>
+              <span className="text-[9.5px] font-bold text-slate-400">
+                {stats.pendingCount} pending
+              </span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 mt-2.5">
+              <div className="flex items-center gap-1.5 bg-white/80 border border-indigo-100/70 rounded-xl px-2 py-2">
+                <Eye size={14} className="text-indigo-600 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-[13px] font-black text-slate-800 leading-none">{stats.openedCount}</p>
+                  <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400 mt-0.5">Opened</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 bg-white/80 border border-emerald-100/70 rounded-xl px-2 py-2">
+                <PartyPopper size={14} className="text-emerald-600 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-[13px] font-black text-slate-800 leading-none">{stats.totalAttendingCount}</p>
+                  <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400 mt-0.5">
+                    Attending · {stats.familyCount} fam
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 bg-white/80 border border-rose-100/70 rounded-xl px-2 py-2">
+                <UserX size={14} className="text-rose-500 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-[13px] font-black text-slate-800 leading-none">{stats.declinedCount}</p>
+                  <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400 mt-0.5">Declined</p>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => onOpenAnalytics?.(inv)}
+              className="w-full mt-2.5 bg-white border border-purple-200 text-purple-700 hover:bg-purple-50 font-black text-[11.5px] py-2.5 rounded-xl transition-all press-scale flex items-center justify-center gap-1.5"
+            >
+              <BarChart3 size={13} strokeWidth={2.6} />
+              View Full List &amp; Responses (व्यू लिस्ट)
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Lightbox Fullscreen Image Modal */}
       <AnimatePresence>
