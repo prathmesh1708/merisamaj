@@ -89,5 +89,9 @@ router.use('/reports', adminReportsRoutes);
 const adminReferralRoutes = require('./adminReferralRoutes');
 router.use('/referrals', adminReferralRoutes);
 
+// App Shortcuts & Icon Management Routes
+const adminShortcutRoutes = require('./adminShortcutRoutes');
+router.use('/shortcuts', adminShortcutRoutes);
+
 module.exports = router;
 

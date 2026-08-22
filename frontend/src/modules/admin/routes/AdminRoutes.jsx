@@ -37,6 +37,7 @@ import { AdminInvitationManagement } from '../pages/invitation/AdminInvitationMa
 import { AdminVotingManagement } from '../pages/voting/AdminVotingManagement';
 import AdminReportsDesk from '../pages/reports/AdminReportsDesk';
 import AdminReferralManagement from '../pages/referral/AdminReferralManagement';
+import AdminAppShortcutsManagement from '../pages/shortcuts/AdminAppShortcutsManagement';
 
 export const AdminRoutes = () => {
   return (
@@ -113,6 +114,9 @@ export const AdminRoutes = () => {
         {/* 🎁 Refer & Earn Management */}
         <Route path="referrals" element={<AdminReferralManagement />} />
         
+        {/* ⚡ App Shortcuts & Icon Management */}
+        <Route path="shortcuts" element={<AdminAppShortcutsManagement />} />
+
         {/* Catch-all */}
         <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
       </Route>

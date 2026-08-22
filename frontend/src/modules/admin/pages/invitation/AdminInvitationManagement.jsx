@@ -131,8 +131,8 @@ export const AdminInvitationManagement = () => {
           <div className="flex items-center gap-2 text-purple-300 text-xs font-bold uppercase tracking-widest mb-1">
             <Send size={14} className="text-purple-400" /> Platform Moderation Desk
           </div>
-          <h1 className="text-2xl font-black tracking-tight">Digital Invitations Oversight</h1>
-          <p className="text-xs text-purple-200/75 mt-1">Monitor, review, and moderate digital event & ceremony invitations across all communities.</p>
+          <h1 className="text-2xl font-black tracking-tight text-white">Digital Invitations Oversight</h1>
+          <p className="text-xs text-purple-100/90 mt-1">Monitor, review, and moderate digital event & ceremony invitations across all communities.</p>
         </div>
 
         <button 

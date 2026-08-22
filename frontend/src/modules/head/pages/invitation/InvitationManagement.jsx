@@ -94,8 +94,8 @@ export default function InvitationManagement() {
           <div className="flex items-center gap-2 text-purple-300 text-xs font-bold uppercase tracking-widest mb-1">
             <Mail size={14} className="text-purple-400" /> Community Governance
           </div>
-          <h1 className="text-2xl font-black tracking-tight">Community Invitations Desk</h1>
-          <p className="text-xs text-purple-200/75 mt-1">Review, approve, and moderate digital invitations created by members of your community.</p>
+          <h1 className="text-2xl font-black tracking-tight text-white">Community Invitations Desk</h1>
+          <p className="text-xs text-purple-100/90 mt-1">Review, approve, and moderate digital invitations created by members of your community.</p>
         </div>
 
         <button 

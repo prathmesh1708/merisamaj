@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 
 // ── 1. ANIMATED INVITATIONS ICON (Electric Violet & Indigo with Glowing Sparkles) ──
@@ -275,72 +275,143 @@ export const ObituaryIcon = ({ className = "w-11 h-11" }) => {
   );
 };
 
-// ── COMPONENT CONTAINER: AnimatedIconCards (Transparent Cards with Compact Typography) ──
+// ── COMPONENT CONTAINER: AnimatedIconCards (Dynamic with Custom Admin Icon Support) ──
+import { axiosPrivate } from '../../../../core/api/axiosPrivate';
+
 export const AnimatedIconCards = ({
   invitationCount = 0,
   donationCount = 0,
   shradhanjaliCount = 0,
   onNavigate
 }) => {
-  const cards = [
+  const defaultCards = [
     {
-      id: 'invitations',
+      _id: 'invitations',
+      key: 'invitations',
       title: 'Invitations',
       subtitle: 'View new invites',
-      icon: <InvitationsIcon className="w-10 h-10" />,
+      presetIconKey: 'invitations',
+      iconType: 'preset',
+      customIconUrl: '',
+      targetRoute: '/member/invitations',
+      badgeType: 'dynamic_count',
       badgeCount: invitationCount,
-      path: '/member/invitations',
     },
     {
-      id: 'contributions',
+      _id: 'contributions',
+      key: 'contributions',
       title: 'Contributions',
       subtitle: 'Support the Samaj',
-      icon: <ContributionsIcon className="w-10 h-10" />,
+      presetIconKey: 'contributions',
+      iconType: 'preset',
+      customIconUrl: '',
+      targetRoute: '/member/donation',
+      badgeType: 'dynamic_count',
       badgeCount: donationCount,
-      path: '/member/donation',
     },
     {
-      id: 'obituary',
+      _id: 'obituary',
+      key: 'obituary',
       title: 'Obituary',
       subtitle: 'Heartfelt tributes',
-      icon: <ObituaryIcon className="w-10 h-10" />,
+      presetIconKey: 'obituary',
+      iconType: 'preset',
+      customIconUrl: '',
+      targetRoute: '/member/shradhanjali',
+      badgeType: 'dynamic_count',
       badgeCount: shradhanjaliCount,
-      path: '/member/shradhanjali',
     },
   ];
 
+  const [cards, setCards] = useState(defaultCards);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchShortcuts = async () => {
+      try {
+        const res = await axiosPrivate.get('/app-shortcuts');
+        if (res.data?.success && res.data.data?.length > 0 && isMounted) {
+          setCards(res.data.data);
+        }
+      } catch (err) {
+        // Fallback to default local cards
+      }
+    };
+    fetchShortcuts();
+    return () => { isMounted = false; };
+  }, []);
+
+  const renderCardIcon = (card) => {
+    if (card.iconType === 'custom_upload' && card.customIconUrl) {
+      return (
+        <img 
+          src={card.customIconUrl} 
+          alt={card.title} 
+          className="w-10 h-10 object-contain drop-shadow-sm transition-transform duration-200 group-hover:scale-105" 
+        />
+      );
+    }
+
+    const iconKey = card.presetIconKey || card.key;
+    switch (iconKey) {
+      case 'invitations':
+        return <InvitationsIcon className="w-10 h-10" />;
+      case 'contributions':
+        return <ContributionsIcon className="w-10 h-10" />;
+      case 'obituary':
+        return <ObituaryIcon className="w-10 h-10" />;
+      default:
+        return <InvitationsIcon className="w-10 h-10" />;
+    }
+  };
+
+  const getBadgeCount = (card) => {
+    if (card.badgeType === 'none') return 0;
+    if (card.badgeType === 'manual') return card.manualBadgeCount || 0;
+    if (card.badgeCount !== undefined) return card.badgeCount;
+    if (card.key === 'invitations') return invitationCount;
+    if (card.key === 'contributions') return donationCount;
+    if (card.key === 'obituary') return shradhanjaliCount;
+    return 0;
+  };
+
   return (
     <div className="px-3 mt-3 relative z-10 flex gap-2 sm:gap-3">
-      {cards.map((card) => (
-        <motion.div
-          key={card.id}
-          onClick={() => onNavigate && onNavigate(card.path)}
-          whileHover={{ y: -4, scale: 1.03 }}
-          whileTap={{ scale: 0.96 }}
-          transition={{ type: "spring", stiffness: 350, damping: 25 }}
-          className="flex-1 bg-transparent py-2 px-1 flex flex-col items-center justify-center text-center cursor-pointer relative transition-all duration-300 group"
-        >
-          {/* Icon Container — Clean Transparent Floating Icon */}
-          <div className="relative flex items-center justify-center p-1">
-            {card.icon}
+      {cards.filter(c => c.isActive !== false).map((card) => {
+        const badgeNum = getBadgeCount(card);
+        const navPath = card.targetRoute || card.path;
 
-            {/* Red Notification Badge */}
-            {card.badgeCount > 0 && (
-              <div className="absolute -top-1 -right-1.5 bg-red-500 text-white text-[8.5px] font-black w-[17px] h-[17px] rounded-full flex items-center justify-center border-2 border-white shadow-sm">
-                {card.badgeCount}
-              </div>
-            )}
-          </div>
+        return (
+          <motion.div
+            key={card._id || card.key}
+            onClick={() => onNavigate && onNavigate(navPath)}
+            whileHover={{ y: -4, scale: 1.03 }}
+            whileTap={{ scale: 0.96 }}
+            transition={{ type: "spring", stiffness: 350, damping: 25 }}
+            className="flex-1 bg-transparent py-2 px-1 flex flex-col items-center justify-center text-center cursor-pointer relative transition-all duration-300 group"
+          >
+            {/* Icon Container — Clean Transparent Floating Icon */}
+            <div className="relative flex items-center justify-center p-1">
+              {renderCardIcon(card)}
 
-          {/* Title & Subtitle — Compact Sleek Typography */}
-          <h4 className="text-[11.5px] font-extrabold text-slate-800 mt-1.5 tracking-tight leading-tight group-hover:text-purple-700 transition-colors">
-            {card.title}
-          </h4>
-          <p className="text-[8.5px] font-semibold text-slate-400 mt-0.5 leading-tight">
-            {card.subtitle}
-          </p>
-        </motion.div>
-      ))}
+              {/* Red Notification Badge */}
+              {badgeNum > 0 && (
+                <div className="absolute -top-1 -right-1.5 bg-red-500 text-white text-[8.5px] font-black w-[17px] h-[17px] rounded-full flex items-center justify-center border-2 border-white shadow-sm">
+                  {badgeNum}
+                </div>
+              )}
+            </div>
+
+            {/* Title & Subtitle — Compact Sleek Typography */}
+            <h4 className="text-[11.5px] font-extrabold text-slate-800 mt-1.5 tracking-tight leading-tight group-hover:text-purple-700 transition-colors">
+              {card.title}
+            </h4>
+            <p className="text-[8.5px] font-semibold text-slate-400 mt-0.5 leading-tight">
+              {card.subtitle}
+            </p>
+          </motion.div>
+        );
+      })}
     </div>
   );
 };

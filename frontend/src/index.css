@@ -1170,32 +1170,27 @@ main .card:hover, main .card-neo:hover, main .bg-white.shadow-sm.rounded-3xl:hov
    👑 HEAD PANEL UNIFIED DESIGN SYSTEM STANDARDIZATIONS
    ────────────────────────────────────────────────────────────────── */
 
-/* 1. Global Typography & Headings */
+/* 1. Global Typography & Headings (Without overriding explicit Tailwind color utilities) */
 main h1 {
-  font-size: 1.5rem !important;
-  font-weight: 900 !important;
-  color: #0f172a !important;
-  letter-spacing: -0.03em !important;
+  font-size: 1.5rem;
+  font-weight: 900;
+  letter-spacing: -0.03em;
 }
 main h2 {
-  font-size: 1.25rem !important;
-  font-weight: 800 !important;
-  color: #1e293b !important;
-  letter-spacing: -0.02em !important;
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 main h3 {
-  font-size: 1.05rem !important;
-  font-weight: 700 !important;
-  color: #334155 !important;
+  font-size: 1.05rem;
+  font-weight: 700;
 }
 main h4 {
-  font-size: 0.9rem !important;
-  font-weight: 600 !important;
-  color: #475569 !important;
+  font-size: 0.9rem;
+  font-weight: 600;
 }
 main p {
-  font-size: 0.85rem !important;
-  color: #64748b !important;
+  font-size: 0.85rem;
 }
 
 /* 2. Unified Card & Stats Elements */
