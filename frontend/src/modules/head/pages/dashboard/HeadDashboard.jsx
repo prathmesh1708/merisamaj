@@ -200,64 +200,64 @@ export const HeadDashboard = () => {
         )}
       </AnimatePresence>
 
-      {/* ─── STICKY HEADER BAR ─── */}
-      <div className="px-5 py-3.5 bg-white border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3 sticky top-0 z-20 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0 border border-indigo-100/60">
-            <LayoutDashboardIcon size={20} />
+      {/* ─── STICKY HEADER BAR (WEB VIEW ONLY) ─── */}
+      <div className="hidden md:flex px-5 py-3.5 bg-white/95 backdrop-blur-md border-b border-slate-200 flex-row items-center justify-between gap-3 sticky top-0 z-20 shadow-xs">
+        <div className="flex items-center gap-2.5 sm:gap-3">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0 border border-indigo-100/60">
+            <LayoutDashboardIcon size={18} />
           </div>
-          <div>
-            <h1 className="text-base font-bold text-slate-900 tracking-tight whitespace-nowrap">
+          <div className="min-w-0">
+            <h1 className="text-[15px] sm:text-base font-bold text-slate-900 tracking-tight truncate">
               President Dashboard
             </h1>
-            <p className="text-[12px] text-slate-500 font-medium mt-0.5 whitespace-nowrap flex items-center gap-1.5">
-              <span>{headUser?.community || 'Community Governance'}</span>
+            <p className="text-[11px] sm:text-[12px] text-slate-500 font-medium mt-0.5 truncate flex items-center gap-1.5">
+              <span className="truncate">{headUser?.community || 'Community Governance'}</span>
               <span>•</span>
-              <span className="text-indigo-600 font-semibold">Active Council Session</span>
+              <span className="text-indigo-600 font-semibold shrink-0">Active Council Session</span>
             </p>
           </div>
         </div>
         
-        <div className="flex flex-wrap md:flex-nowrap items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto scrollbar-hide -mx-3.5 px-3.5 sm:mx-0 sm:px-0 pb-0.5 sm:pb-0">
           <button
             onClick={() => setActiveModal('approve')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold transition-all active:scale-95 cursor-pointer"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-[11px] sm:text-xs font-bold transition-all active:scale-95 cursor-pointer shrink-0 whitespace-nowrap"
           >
-            <Check size={14} className="text-emerald-600" />
+            <Check size={13} className="text-emerald-600" />
             <span>Approve Members</span>
             {pendingList.length > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 min-w-[18px] text-center rounded-full bg-rose-500 text-white text-[9px] font-extrabold leading-none animate-pulse">
+              <span className="ml-1 px-1.5 py-0.5 min-w-[16px] text-center rounded-full bg-rose-500 text-white text-[9px] font-extrabold leading-none animate-pulse">
                 {pendingList.length}
               </span>
             )}
           </button>
           <button
             onClick={() => setActiveModal('event')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold transition-all active:scale-95 cursor-pointer"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-[11px] sm:text-xs font-bold transition-all active:scale-95 cursor-pointer shrink-0 whitespace-nowrap"
           >
-            <Plus size={14} className="text-indigo-600" />
+            <Plus size={13} className="text-indigo-600" />
             <span>Create Event</span>
           </button>
           <button
             onClick={() => setActiveModal('announce')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold transition-all active:scale-95 cursor-pointer"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-[11px] sm:text-xs font-bold transition-all active:scale-95 cursor-pointer shrink-0 whitespace-nowrap"
           >
-            <Send size={13} className="text-purple-600" />
+            <Send size={12} className="text-purple-600" />
             <span>Broadcast Announcement</span>
           </button>
           <button
             onClick={fetchDashboardStats}
             title="Refresh Data"
             disabled={loading}
-            className="p-2 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-100 text-xs font-bold transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+            className="p-1.5 sm:p-2 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-100 text-xs font-bold transition-all active:scale-95 cursor-pointer disabled:opacity-50 shrink-0"
           >
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
           </button>
         </div>
       </div>
 
       {/* ─── MAIN CONTENT BODY ─── */}
-      <div className="p-6 flex-1 overflow-y-auto space-y-6">
+      <div className="p-3.5 sm:p-6 flex-1 overflow-y-auto space-y-4 sm:space-y-6">
 
         {loading && !statsData ? (
           <div className="flex flex-col items-center justify-center py-24 text-center">
@@ -277,108 +277,110 @@ export const HeadDashboard = () => {
         ) : (
           <>
             {/* ─── 8 REQUIRED METRICS CARDS GRID ─── */}
-            <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <section className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
 
               {/* 1. Total Members */}
-              <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 border border-purple-100">
-                  <Users size={22} />
+              <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col sm:flex-row items-start sm:items-center gap-2.5 sm:gap-4">
+                <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 border border-purple-100">
+                  <Users size={18} className="sm:w-5.5 sm:h-5.5" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Members</p>
-                  <h3 className="text-2xl font-black text-slate-900 tracking-tight mt-0.5">{summary.totalMembers || 0}</h3>
-                  <p className="text-[11px] text-emerald-600 font-semibold mt-0.5">Active Accounts: {summary.activeMembersCount || 0}</p>
+                  <p className="text-[9.5px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">Total Members</p>
+                  <h3 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight mt-0.5">{summary.totalMembers || 0}</h3>
+                  <p className="text-[10px] sm:text-[11px] text-emerald-600 font-semibold mt-0.5 truncate">Active: {summary.activeMembersCount || 0}</p>
                 </div>
               </div>
 
               {/* 2. Pending Member Approvals */}
-              <div className={`bg-white p-5 rounded-2xl border shadow-sm flex items-center gap-4 transition-all ${pendingList.length > 0 ? 'border-rose-200 bg-rose-50/20' : 'border-slate-100'}`}>
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${pendingList.length > 0 ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
-                  <UserCheck size={22} />
+              <div className={`bg-white p-3.5 sm:p-5 rounded-2xl border shadow-sm flex flex-col sm:flex-row items-start sm:items-center gap-2.5 sm:gap-4 transition-all ${pendingList.length > 0 ? 'border-rose-200 bg-rose-50/20' : 'border-slate-100'}`}>
+                <div className={`w-9 h-9 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center shrink-0 ${pendingList.length > 0 ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
+                  <UserCheck size={18} className="sm:w-5.5 sm:h-5.5" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pending Approvals</p>
-                  <h3 className="text-2xl font-black text-slate-900 tracking-tight mt-0.5">{summary.pendingMembersCount || 0}</h3>
-                  <p className="text-[11px] text-slate-400 font-medium mt-0.5">Verification Desk</p>
+                  <div className="flex items-center justify-between gap-1">
+                    <p className="text-[9.5px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">Pending</p>
+                    {pendingList.length > 0 ? (
+                      <span className="text-[8px] sm:text-[9px] font-extrabold text-rose-600 bg-rose-100/70 px-1.5 py-0.2 rounded-full uppercase tracking-wider shrink-0">Action</span>
+                    ) : (
+                      <span className="text-[8px] sm:text-[9px] font-extrabold text-emerald-600 bg-emerald-100/70 px-1.5 py-0.2 rounded-full uppercase tracking-wider shrink-0">Clear</span>
+                    )}
+                  </div>
+                  <h3 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight mt-0.5">{summary.pendingMembersCount || 0}</h3>
+                  <p className="text-[10px] sm:text-[11px] text-slate-400 font-medium mt-0.5 truncate">Verification</p>
                 </div>
-                {pendingList.length > 0 ? (
-                  <span className="text-[9px] font-extrabold text-rose-600 bg-rose-100/70 px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0">Action</span>
-                ) : (
-                  <span className="text-[9px] font-extrabold text-emerald-600 bg-emerald-100/70 px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0">Clear</span>
-                )}
               </div>
 
               {/* 3. Active Matrimonial Profiles */}
-              <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-pink-50 text-pink-600 flex items-center justify-center shrink-0 border border-pink-100">
-                  <Heart size={22} />
+              <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col sm:flex-row items-start sm:items-center gap-2.5 sm:gap-4">
+                <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl bg-pink-50 text-pink-600 flex items-center justify-center shrink-0 border border-pink-100">
+                  <Heart size={18} className="sm:w-5.5 sm:h-5.5" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Active Matrimonial</p>
-                  <h3 className="text-2xl font-black text-slate-900 tracking-tight mt-0.5">{summary.activeMatrimonialCount || 0}</h3>
-                  <p className="text-[11px] text-slate-400 font-medium mt-0.5">Verified Match Profiles</p>
+                  <p className="text-[9.5px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">Matrimonial</p>
+                  <h3 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight mt-0.5">{summary.activeMatrimonialCount || 0}</h3>
+                  <p className="text-[10px] sm:text-[11px] text-slate-400 font-medium mt-0.5 truncate">Verified Match</p>
                 </div>
               </div>
 
               {/* 4. Upcoming Events */}
-              <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 border border-indigo-100">
-                  <Calendar size={22} />
+              <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col sm:flex-row items-start sm:items-center gap-2.5 sm:gap-4">
+                <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 border border-indigo-100">
+                  <Calendar size={18} className="sm:w-5.5 sm:h-5.5" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Upcoming Events</p>
-                  <h3 className="text-2xl font-black text-slate-900 tracking-tight mt-0.5">{summary.upcomingEventsCount || 0}</h3>
-                  <p className="text-[11px] text-slate-400 font-medium mt-0.5">{summary.totalEventRSVPs || 0} Confirmed RSVPs ({summary.totalInterestedCount || 0} Interested)</p>
+                  <p className="text-[9.5px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">Events</p>
+                  <h3 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight mt-0.5">{summary.upcomingEventsCount || 0}</h3>
+                  <p className="text-[10px] sm:text-[11px] text-slate-400 font-medium mt-0.5 truncate">{summary.totalEventRSVPs || 0} RSVPs</p>
                 </div>
               </div>
 
               {/* 5. Professional Listings Overview */}
-              <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100">
-                  <Briefcase size={22} />
+              <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col sm:flex-row items-start sm:items-center gap-2.5 sm:gap-4">
+                <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100">
+                  <Briefcase size={18} className="sm:w-5.5 sm:h-5.5" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Professionals</p>
-                  <h3 className="text-2xl font-black text-slate-900 tracking-tight mt-0.5">{summary.totalProfessionalsCount || 0}</h3>
-                  <p className="text-[11px] text-slate-400 font-medium mt-0.5">Verified Directory</p>
+                  <p className="text-[9.5px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">Professionals</p>
+                  <h3 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight mt-0.5">{summary.totalProfessionalsCount || 0}</h3>
+                  <p className="text-[10px] sm:text-[11px] text-slate-400 font-medium mt-0.5 truncate">Directory</p>
                 </div>
               </div>
 
               {/* 6. Community Posts & Likes (Engagement) */}
-              <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100">
-                  <ThumbsUp size={22} />
+              <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col sm:flex-row items-start sm:items-center gap-2.5 sm:gap-4">
+                <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100">
+                  <ThumbsUp size={18} className="sm:w-5.5 sm:h-5.5" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Posts & Likes</p>
-                  <h3 className="text-2xl font-black text-slate-900 tracking-tight mt-0.5">{summary.totalCommunityPosts || 0}</h3>
-                  <p className="text-[11px] text-slate-400 font-medium mt-0.5">{summary.totalCommunityLikes || 0} Likes Recorded</p>
+                  <p className="text-[9.5px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">Posts & Likes</p>
+                  <h3 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight mt-0.5">{summary.totalCommunityPosts || 0}</h3>
+                  <p className="text-[10px] sm:text-[11px] text-slate-400 font-medium mt-0.5 truncate">{summary.totalCommunityLikes || 0} Likes</p>
                 </div>
               </div>
 
               {/* 7. Total Community Funds Raised */}
-              <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
-                  <DollarSign size={22} />
+              <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col sm:flex-row items-start sm:items-center gap-2.5 sm:gap-4">
+                <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
+                  <DollarSign size={18} className="sm:w-5.5 sm:h-5.5" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Community Funds</p>
-                  <h3 className="text-xl font-black text-slate-900 tracking-tight mt-0.5">₹{(summary.totalFundsRaised || 0).toLocaleString('en-IN')}</h3>
-                  <p className="text-[11px] text-slate-400 font-medium mt-0.5">Total Raised Amount</p>
+                  <p className="text-[9.5px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">Funds Raised</p>
+                  <h3 className="text-base sm:text-xl font-black text-slate-900 tracking-tight mt-0.5 truncate">₹{(summary.totalFundsRaised || 0).toLocaleString('en-IN')}</h3>
+                  <p className="text-[10px] sm:text-[11px] text-slate-400 font-medium mt-0.5 truncate">Total Raised</p>
                 </div>
               </div>
 
               {/* 8. Active Member Ratio */}
-              <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center shrink-0 border border-teal-100">
-                  <Award size={22} />
+              <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col sm:flex-row items-start sm:items-center gap-2.5 sm:gap-4">
+                <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center shrink-0 border border-teal-100">
+                  <Award size={18} className="sm:w-5.5 sm:h-5.5" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Active Member Ratio</p>
-                  <h3 className="text-2xl font-black text-slate-900 tracking-tight mt-0.5">
+                  <p className="text-[9.5px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">Active Ratio</p>
+                  <h3 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight mt-0.5">
                     {summary.totalMembers > 0 ? Math.round((summary.activeMembersCount / summary.totalMembers) * 100) : 100}%
                   </h3>
-                  <p className="text-[11px] text-emerald-600 font-semibold mt-0.5">Community Health</p>
+                  <p className="text-[10px] sm:text-[11px] text-emerald-600 font-semibold mt-0.5 truncate">Health</p>
                 </div>
               </div>
 

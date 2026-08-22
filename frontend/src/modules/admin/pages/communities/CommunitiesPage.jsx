@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { cityService } from '../../services/cityService';
 import {
   getAllCommunities,
   createCommunity,
@@ -33,7 +34,6 @@ const CreateCommunityModal = ({ onClose, onCreated }) => {
     // Fetch available cities when modal opens
     const fetchCities = async () => {
       try {
-        const { cityService } = await import('../../services/cityService');
         const cities = await cityService.fetchCities();
         setAvailableCities(cities.filter(c => c.status === 'Active'));
       } catch (err) {
@@ -210,7 +210,6 @@ const EditCommunityModal = ({ community, onClose, onUpdated }) => {
     // Fetch available cities when modal opens
     const fetchCities = async () => {
       try {
-        const { cityService } = await import('../../services/cityService');
         const cities = await cityService.fetchCities();
         setAvailableCities(cities.filter(c => c.status === 'Active'));
       } catch (err) {

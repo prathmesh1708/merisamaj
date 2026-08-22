@@ -10,6 +10,7 @@ import {
 import { useData } from '../../context/DataProvider';
 import { useAuth } from '../../../../core/auth/useAuth';
 import { authService } from '../../../../core/auth/authService';
+import { axiosPublic } from '../../../../core/api/axiosConfig';
 import {
   validateName,
   validateDOB,
@@ -255,7 +256,6 @@ const OnboardingScreen = () => {
   useEffect(() => {
     const loadCommunities = async () => {
       try {
-        const { axiosPublic } = await import('../../../../core/api/axiosConfig');
         const res = await axiosPublic.get('/auth/communities');
         if (res.data.success && res.data.data.length > 0) {
           const fetched = res.data.data.map(c => ({ label: c.name, value: c._id }));
@@ -300,7 +300,6 @@ const OnboardingScreen = () => {
         return;
       }
       try {
-        const { axiosPublic } = await import('../../../../core/api/axiosConfig');
         const res = await axiosPublic.get(`/auth/cities?communityId=${selectedCommunity}`);
         if (res.data.success && res.data.data.length > 0) {
           const fetched = res.data.data.map(c => ({ label: c.name, value: c.name }));

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { useAuth } from '../../../core/auth/useAuth';
 import { useHeadAuth } from '../../head/auth/useHeadAuth';
 import { axiosPrivate } from '../../../core/api/axiosPrivate';
+import { authService } from '../../../core/auth/authService';
 
 // Import initial mocks
 import { currentUser as initialUser, mockMembers as initialMembers, mockAdmins as initialAdmins } from '../data/mockUsers';
@@ -870,6 +871,8 @@ export const DataProvider = ({ children }) => {
 
   // Invitations State
   const [invitations, setInvitations] = useState([]);
+  // Invitation ids whose "opened" record has already been sent this session
+  const trackedInvitationOpensRef = useRef(new Set());
 
   useEffect(() => {
     const loadInvitations = async () => {
@@ -1099,7 +1102,6 @@ export const DataProvider = ({ children }) => {
 
   const updateProfile = async (updatedData) => {
     try {
-      const { authService } = await import('../../../core/auth/authService');
       const response = await authService.updateProfile(updatedData);
       localStorage.setItem('merisamaj_user', JSON.stringify(response));
       setCurrentUser(response);
@@ -2273,6 +2275,61 @@ export const DataProvider = ({ children }) => {
     }
   };
 
+  /**
+   * Records that the logged-in member opened an invitation, so its creator can
+   * see them under "Who Opened" in the Sent-tab analytics. Fired once per
+   * invitation per session; a creator opening their own card is not an "open".
+   */
+  const trackInvitationOpened = async (invitationId) => {
+    if (!invitationId || !currentUserId) return;
+
+    const key = String(invitationId);
+    if (trackedInvitationOpensRef.current.has(key)) return;
+
+    const inv = invitations.find(i => String(i._id) === key || String(i.id) === key);
+    const creator = inv?.creatorId;
+    const creatorIdStr = creator ? String(creator._id || creator.id || creator) : '';
+    if (creatorIdStr && creatorIdStr === String(currentUserId)) return;
+
+    trackedInvitationOpensRef.current.add(key);
+
+    // Optimistic: show the viewer in the list immediately, before the round trip
+    const now = new Date().toISOString();
+    const viewer = {
+      _id: currentUserId,
+      name: currentUser?.name,
+      avatar: currentUser?.avatar,
+      phone: currentUser?.phone,
+      city: currentUser?.city,
+      profession: currentUser?.profession
+    };
+
+    setInvitations(prev => prev.map(i => {
+      if (String(i._id) !== key && String(i.id) !== key) return i;
+      const openedBy = i.openedBy || [];
+      const already = openedBy.some(o => String(o.memberId?._id || o.memberId) === String(currentUserId));
+      return {
+        ...i,
+        viewCount: (i.viewCount || 0) + 1,
+        openedBy: already
+          ? openedBy.map(o => (
+              String(o.memberId?._id || o.memberId) === String(currentUserId)
+                ? { ...o, lastOpenedAt: now, openCount: (o.openCount || 1) + 1 }
+                : o
+            ))
+          : [...openedBy, { memberId: viewer, openedAt: now, lastOpenedAt: now, openCount: 1 }]
+      };
+    }));
+
+    try {
+      const updatedInv = await invitationService.trackOpened(invitationId);
+      setInvitations(prev => prev.map(i => (String(i._id) === key || String(i.id) === key) ? updatedInv : i));
+    } catch (error) {
+      trackedInvitationOpensRef.current.delete(key);
+      console.error('Failed to track invitation open', error);
+    }
+  };
+
   const createInvitation = async (invitationData) => {
     try {
       const newInv = await invitationService.createInvitation(invitationData);
@@ -2910,6 +2967,7 @@ export const DataProvider = ({ children }) => {
     createInvitation,
     addInvitesToInvitation,
     updateInvitationRSVP,
+    trackInvitationOpened,
     updateInvitationStatus,
     updateInvitation,
     deleteInvitation,

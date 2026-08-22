@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { io } from 'socket.io-client';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Heart, Search, CheckCircle, XCircle, AlertTriangle, Eye, Download,
@@ -243,23 +244,21 @@ export default function MatrimonialManagement() {
 
   // ─── Socket.IO Auto-Refresh ───────────────────────────────────────────────
   useEffect(() => {
-    import('socket.io-client').then(({ io }) => {
-      const SOCKET_URL = import.meta.env.VITE_SOCKET_URL
-        || (import.meta.env.VITE_API_URL?.replace(/\/api\/v1\/?$/, ''))
-        || 'http://localhost:5000';
-      const token = localStorage.getItem('head_auth_token');
-      
-      const socket = io(SOCKET_URL, {
-        auth: { token, role: 'head' },
-        transports: ['websocket']
-      });
+    const SOCKET_URL = import.meta.env.VITE_SOCKET_URL
+      || (import.meta.env.VITE_API_URL?.replace(/\/api\/v1\/?$/, ''))
+      || 'http://localhost:5000';
+    const token = localStorage.getItem('head_auth_token');
+    
+    const socket = io(SOCKET_URL, {
+      auth: { token, role: 'head' },
+      transports: ['websocket']
+    });
 
-      socket.on('head:matrimonial_update', () => {
-        loadAll(); // Auto refresh all stats and lists
-      });
+    socket.on('head:matrimonial_update', () => {
+      loadAll(); // Auto refresh all stats and lists
+    });
 
-      return () => socket.disconnect();
-    }).catch(err => console.error('Failed to load socket client', err));
+    return () => socket.disconnect();
   }, [loadAll]);
 
   // Derived stats
@@ -340,8 +339,8 @@ export default function MatrimonialManagement() {
         )}
       </AnimatePresence>
 
-      {/* Header */}
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Header (Web View Only) */}
+      <header className="hidden md:flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-black uppercase tracking-wider text-white flex items-center gap-2.5">
             <Heart className="text-rose-500" size={24} /> Matrimonial Management

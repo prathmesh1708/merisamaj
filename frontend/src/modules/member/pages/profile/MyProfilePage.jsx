@@ -930,9 +930,6 @@ const MyProfilePage = () => {
                   >
                     <tab.icon size={19} className={isActive ? 'stroke-[2.5px]' : 'stroke-[2px]'} />
                     <span className="text-[9px] font-black uppercase tracking-wider mt-1">{tab.label}</span>
-                    {isActive && (
-                      <motion.div layoutId="profileTabActive" className="absolute bottom-0 left-3 right-3 h-[2px] bg-brand-primary rounded-full" />
-                    )}
                   </button>
                 );
               })}

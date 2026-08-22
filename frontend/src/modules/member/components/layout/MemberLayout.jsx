@@ -22,8 +22,9 @@ export const MemberLayout = () => {
   const { auth, logout } = useAuth();
   const { headAuth } = useHeadAuth();
 
-  const effectiveRole = currentUser?.role || auth?.user?.role || headAuth?.headUser?.role;
-  const isHeadUser = ['head', 'sub_head', 'admin'].includes(effectiveRole);
+  const activeUser = auth?.isAuthenticated ? auth?.user : currentUser;
+  const effectiveRole = activeUser?.role;
+  const isHeadUser = activeUser && ['head', 'sub_head', 'admin'].includes(effectiveRole);
 
   const [isBottomNavVisible, setBottomNavVisible] = useState(true);
   const lastScrollY = useRef(0);

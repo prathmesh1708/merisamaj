@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { cardColors } from '../data/mockProfessionals';
 import { professionalService } from '../../../core/api/professionalService';
+import { axiosPublic } from '../../../core/api/axiosConfig';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  useProfessionalDirectory — API Custom Hook
@@ -25,7 +26,6 @@ const useProfessionalDirectory = (communityId, filterParams = {}) => {
       try {
         const fetchCitiesPromise = (async () => {
           try {
-            const { axiosPublic } = await import('../../../core/api/axiosConfig');
             const res = await axiosPublic.get('/auth/cities');
             return res.data?.success ? res.data.data.map(c => c.name) : [];
           } catch {

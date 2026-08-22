@@ -14,8 +14,9 @@ export const SideNav = () => {
   const { auth } = useAuth();
   const { headAuth } = useHeadAuth();
 
-  const effectiveRole = currentUser?.role || auth?.user?.role || headAuth?.headUser?.role;
-  const isHeadUser = ['head', 'sub_head', 'admin'].includes(effectiveRole);
+  const activeUser = auth?.isAuthenticated ? auth?.user : currentUser;
+  const effectiveRole = activeUser?.role;
+  const isHeadUser = activeUser && ['head', 'sub_head', 'admin'].includes(effectiveRole);
   
   const shouldHide = hiddenPaths.some(p => location.pathname.startsWith(p));
   const pathSegments = location.pathname.split('/').filter(Boolean);

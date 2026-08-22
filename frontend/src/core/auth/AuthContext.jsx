@@ -43,24 +43,9 @@ export const AuthProvider = ({ children }) => {
     let isMounted = true;
 
     const initializeAuth = async () => {
-      let savedUser  = localStorage.getItem('merisamaj_user');
-      let savedToken = localStorage.getItem('merisamaj_token');
+      const savedUser  = localStorage.getItem('merisamaj_user');
+      const savedToken = localStorage.getItem('merisamaj_token');
       const hasSession = localStorage.getItem(SESSION_FLAG_KEY);
-
-      // Fallback to Head Auth storage if user logged in via Head portal
-      if (!savedUser || !savedToken) {
-        const headUserStr = localStorage.getItem('head_auth_user');
-        const headTokenStr = localStorage.getItem('head_auth_token');
-        if (headUserStr && headTokenStr) {
-          savedUser = headUserStr;
-          savedToken = headTokenStr;
-          try {
-            localStorage.setItem('merisamaj_user', headUserStr);
-            localStorage.setItem('merisamaj_token', headTokenStr);
-            localStorage.setItem(SESSION_FLAG_KEY, '1');
-          } catch (e) {}
-        }
-      }
 
       if (savedUser && savedToken) {
         // Fast path: credentials already in localStorage
@@ -135,6 +120,11 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('head_auth_user', JSON.stringify(response.user));
         localStorage.setItem('head_auth_token', response.accessToken);
         localStorage.setItem('head_has_session', '1');
+      } else {
+        // Normal user logging in — ensure any stale head session is cleared
+        localStorage.removeItem('head_auth_user');
+        localStorage.removeItem('head_auth_token');
+        localStorage.removeItem('head_has_session');
       }
     } catch(e){}
     setAuth({

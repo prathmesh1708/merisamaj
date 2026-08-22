@@ -22,7 +22,7 @@ export const HeadAuthProvider = ({ children }) => {
     let savedUser = localStorage.getItem(STORAGE_KEYS.USER);
     let savedToken = localStorage.getItem(STORAGE_KEYS.TOKEN);
 
-    // Fallback to member auth session if user logged in via Member login
+    // Fallback to member auth session ONLY if logged in member is a Community Head, Local Head, or Admin
     if (!savedUser || !savedToken) {
       const memberUserStr = localStorage.getItem('merisamaj_user');
       const memberTokenStr = localStorage.getItem('merisamaj_token');
@@ -42,13 +42,21 @@ export const HeadAuthProvider = ({ children }) => {
 
     if (savedUser && savedToken) {
       try {
-        setHeadAuth({
-          headUser: JSON.parse(savedUser),
-          isAuthenticated: true,
-          isInitialized: true,
-        });
+        const parsed = JSON.parse(savedUser);
+        if (['head', 'sub_head', 'admin'].includes(parsed.role)) {
+          setHeadAuth({
+            headUser: parsed,
+            isAuthenticated: true,
+            isInitialized: true,
+          });
+        } else {
+          // If stored user is not a head role, do NOT grant head auth
+          localStorage.removeItem(STORAGE_KEYS.USER);
+          localStorage.removeItem(STORAGE_KEYS.TOKEN);
+          localStorage.removeItem(STORAGE_KEYS.SESSION);
+          setHeadAuth({ headUser: null, isAuthenticated: false, isInitialized: true });
+        }
       } catch {
-        // Corrupted storage — clear and proceed as guest
         localStorage.removeItem(STORAGE_KEYS.USER);
         localStorage.removeItem(STORAGE_KEYS.TOKEN);
         localStorage.removeItem(STORAGE_KEYS.SESSION);

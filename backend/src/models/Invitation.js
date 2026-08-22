@@ -10,6 +10,35 @@ const rsvpSchema = new mongoose.Schema({
     type: String,
     enum: ['attending', 'attending_family', 'not_attending', 'pending'],
     default: 'pending'
+  },
+  respondedAt: {
+    type: Date,
+    default: Date.now
+  }
+}, { _id: false });
+
+/**
+ * openedBy — one entry per member who has opened this invitation.
+ * openedAt is the first open, lastOpenedAt/openCount track repeats.
+ * The creator opening their own invitation is never recorded here.
+ */
+const openedBySchema = new mongoose.Schema({
+  memberId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  openedAt: {
+    type: Date,
+    default: Date.now
+  },
+  lastOpenedAt: {
+    type: Date,
+    default: Date.now
+  },
+  openCount: {
+    type: Number,
+    default: 1
   }
 }, { _id: false });
 
@@ -79,6 +108,12 @@ const invitationSchema = new mongoose.Schema({
     default: 'Approved' // Setting to Approved by default for immediate display
   },
   rsvps: [rsvpSchema],
+  openedBy: [openedBySchema],
+  // Total opens across all members (repeat opens included)
+  viewCount: {
+    type: Number,
+    default: 0
+  },
   invitedMemberIds: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'

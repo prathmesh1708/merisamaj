@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Share2, MapPin, Calendar, Clock, Heart, Users, Check, X, Phone, Search, UserCheck } from 'lucide-react';
+import { ChevronLeft, Share2, MapPin, Calendar, Clock, Heart, Users, Check, X, Phone, Search, UserCheck, Mail } from 'lucide-react';
 import { useData } from '../../context/DataProvider';
 import { Avatar } from '../../components/common/Avatar';
+import { extractId, isInvitationCreator } from './utils/invitationAnalytics';
 
 export default function InvitationDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { invitations, currentUser, members, updateInvitationRSVP, addNotification, groups, addInvitesToInvitation, invitationFormConfig } = useData();
+  const { invitations, currentUser, members, updateInvitationRSVP, trackInvitationOpened, addNotification, groups, addInvitesToInvitation, invitationFormConfig } = useData();
   
   const inv = invitations.find(i => String(i.id || i._id) === String(id));
   const [currentImgIndex, setCurrentImgIndex] = useState(0);
@@ -24,6 +25,7 @@ export default function InvitationDetailPage() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [activeDirectoryTab, setActiveDirectoryTab] = useState('members');
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  const [selectedProfileMember, setSelectedProfileMember] = useState(null);
 
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type });
@@ -37,6 +39,11 @@ export default function InvitationDetailPage() {
       setInvitedGroupIds(inv.invitedGroupIds || []);
     }
   }, [inv]);
+
+  // Register the view so the creator sees this member under "Who Opened"
+  useEffect(() => {
+    if (id) trackInvitationOpened?.(id);
+  }, [id]);
 
   useEffect(() => {
     if (!inv) return;
@@ -66,7 +73,9 @@ export default function InvitationDetailPage() {
 
   if (!inv) return <div className="p-10 text-center">Invitation not found.</div>;
 
-  const currentRSVP = (inv.rsvps || []).find(r => r.memberId === currentUser?.id)?.status;
+  // rsvps[].memberId arrives populated (an object) from the API, so compare on the id
+  const currentUserIdStr = String(currentUser?.id || currentUser?._id || '');
+  const currentRSVP = (inv.rsvps || []).find(r => extractId(r.memberId) === currentUserIdStr)?.status;
 
   useEffect(() => {
     setSelectedStatus(currentRSVP || null);
@@ -84,14 +93,19 @@ export default function InvitationDetailPage() {
   };
 
   const rsvpMembers = (inv.rsvps || []).map(r => {
-    const m = members.find(mem => mem.id === r.memberId);
-    return m ? { ...m, status: r.status } : null;
+    const memberId = extractId(r.memberId);
+    const m = members.find(mem => String(mem.id) === memberId);
+    const embedded = typeof r.memberId === 'object' ? r.memberId : null;
+    if (!m && !embedded) return null;
+    const merged = { ...(embedded || {}), ...(m || {}), id: memberId, status: r.status };
+    merged.initials = merged.initials || (merged.name || '?').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+    return merged;
   }).filter(Boolean);
 
   const attendingList = rsvpMembers.filter(m => m.status === 'attending');
   const familyList = rsvpMembers.filter(m => m.status === 'attending_family');
   const declinedList = rsvpMembers.filter(m => m.status === 'not_attending');
-  const isCreator = currentUser && inv.creatorId === currentUser.id;
+  const isCreator = isInvitationCreator(inv, currentUser);
 
   const displayTitle = inv.title || `Wedding of ${inv.groomName} & ${inv.brideName}`;
   const displayHost = inv.hostName || inv.familyName;
@@ -987,20 +1001,27 @@ export default function InvitationDetailPage() {
                 const isOriginalInvited = (inv.invitedMemberIds || []).includes(member.id);
                 return (
                   <div key={member.id} className="flex items-center justify-between p-3 bg-slate-50/50 border border-slate-100 rounded-xl hover:border-slate-200 hover:bg-white transition-all">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 font-extrabold flex items-center justify-center text-[12px] border border-indigo-100/30 uppercase">
-                        {member.initials}
-                      </div>
+                    <div 
+                      className="flex items-center gap-3 cursor-pointer flex-1 group"
+                      onClick={() => setSelectedProfileMember(member)}
+                    >
+                      <Avatar 
+                        initials={member.initials || (member.name || 'M').substring(0, 2).toUpperCase()} 
+                        size="md" 
+                        imageUrl={member.avatar || member.photo || member.profileImage} 
+                      />
                       <div>
-                        <h4 className="text-[13px] font-bold text-slate-800">{member.name}</h4>
-                        <p className="text-[11px] text-slate-500 font-semibold">{member.profession} • {member.city}</p>
+                        <h4 className="text-[13px] font-bold text-slate-800 group-hover:text-indigo-600 transition-colors flex items-center gap-1">
+                          {member.name}
+                        </h4>
+                        <p className="text-[11px] text-slate-500 font-semibold">{member.profession || 'Member'} • {member.city || 'Indore'}</p>
                       </div>
                     </div>
                     <button 
                       type="button"
                       disabled={isOriginalInvited}
                       onClick={() => handleToggleInvite(member)}
-                      className={`px-4 py-1.5 rounded-xl text-[11px] font-black flex items-center gap-1 transition-all press-scale ${
+                      className={`px-4 py-1.5 rounded-xl text-[11px] font-black flex items-center gap-1 transition-all press-scale shrink-0 ${
                         isInvited 
                           ? isOriginalInvited 
                             ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed' 
@@ -1020,12 +1041,20 @@ export default function InvitationDetailPage() {
                 const isOriginalInvited = (inv.invitedMemberIds || []).includes(president.id);
                 return (
                   <div key={president.id} className="flex items-center justify-between p-3 bg-indigo-50/20 border border-indigo-100/40 rounded-xl hover:border-slate-200 hover:bg-white transition-all">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-amber-500 text-white font-extrabold flex items-center justify-center text-[12px] border border-amber-600 shadow-sm uppercase shrink-0">
-                        👑
+                    <div 
+                      className="flex items-center gap-3 cursor-pointer flex-1 group"
+                      onClick={() => setSelectedProfileMember(president)}
+                    >
+                      <div className="relative shrink-0">
+                        <Avatar 
+                          initials={president.initials || (president.name || 'P').substring(0, 2).toUpperCase()} 
+                          size="md" 
+                          imageUrl={president.avatar || president.photo} 
+                        />
+                        <span className="absolute -top-1 -right-1 text-[10px] bg-amber-100 rounded-full w-4 h-4 flex items-center justify-center border border-amber-300 shadow-2xs">👑</span>
                       </div>
                       <div>
-                        <h4 className="text-[13px] font-bold text-slate-800 flex items-center gap-1.5">
+                        <h4 className="text-[13px] font-bold text-slate-800 group-hover:text-indigo-600 transition-colors flex items-center gap-1.5">
                           {president.name}
                         </h4>
                         <p className="text-[11px] text-slate-500 font-semibold">{president.role} • City: {president.city}</p>
@@ -1088,13 +1117,20 @@ export default function InvitationDetailPage() {
                 const isOriginalInvited = (inv.invitedMemberIds || []).includes(friend.id);
                 return (
                   <div key={friend.id} className="flex items-center justify-between p-3 bg-pink-50/20 border border-pink-100/40 rounded-xl hover:border-pink-200 hover:bg-white transition-all">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-pink-100 text-pink-700 font-extrabold flex items-center justify-center text-[12px] border border-pink-250 uppercase shrink-0">
-                        {friend.initials}
-                      </div>
+                    <div 
+                      className="flex items-center gap-3 cursor-pointer flex-1 group"
+                      onClick={() => setSelectedProfileMember(friend)}
+                    >
+                      <Avatar 
+                        initials={friend.initials || (friend.name || 'F').substring(0, 2).toUpperCase()} 
+                        size="md" 
+                        imageUrl={friend.avatar || friend.photo || friend.profileImage} 
+                      />
                       <div>
-                        <h4 className="text-[13px] font-bold text-slate-800">{friend.name}</h4>
-                        <p className="text-[11px] text-slate-500 font-semibold">{friend.profession} • {friend.city}</p>
+                        <h4 className="text-[13px] font-bold text-slate-800 group-hover:text-indigo-600 transition-colors flex items-center gap-1">
+                          {friend.name}
+                        </h4>
+                        <p className="text-[11px] text-slate-500 font-semibold">{friend.profession || 'Friend'} • {friend.city || 'Indore'}</p>
                       </div>
                     </div>
                     <button 
@@ -1149,6 +1185,85 @@ export default function InvitationDetailPage() {
         }`}>
           <Check size={14} strokeWidth={3} className="shrink-0" />
           <span>{toast.message}</span>
+        </div>
+      )}
+
+      {/* Member Profile Detail Modal */}
+      {selectedProfileMember && (
+        <div 
+          className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in"
+          onClick={() => setSelectedProfileMember(null)}
+        >
+          <div 
+            className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl relative border border-purple-100/50 text-center animate-scale-in"
+            onClick={e => e.stopPropagation()}
+          >
+            <button 
+              onClick={() => setSelectedProfileMember(null)}
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors"
+            >
+              <X size={16} />
+            </button>
+
+            <div className="flex flex-col items-center">
+              <div className="relative mb-3">
+                <Avatar 
+                  initials={selectedProfileMember.initials || (selectedProfileMember.name || 'M').substring(0, 2).toUpperCase()} 
+                  size="xl" 
+                  imageUrl={selectedProfileMember.avatar || selectedProfileMember.photo || selectedProfileMember.profileImage} 
+                />
+                {selectedProfileMember.isPresident && (
+                  <span className="absolute -top-1 -right-1 text-lg">👑</span>
+                )}
+              </div>
+
+              <h3 className="text-[18px] font-black text-slate-900 leading-tight">
+                {selectedProfileMember.name}
+              </h3>
+              
+              <span className="text-[11px] font-extrabold uppercase tracking-wider text-purple-700 bg-purple-50 px-3 py-1 rounded-full border border-purple-100 mt-2">
+                {selectedProfileMember.role || selectedProfileMember.profession || 'Samaj Member'}
+              </span>
+
+              <div className="w-full mt-5 space-y-2.5 text-left border-t border-slate-100 pt-4">
+                {selectedProfileMember.city && (
+                  <div className="flex items-center gap-2.5 text-slate-700 text-[13px] font-medium">
+                    <MapPin size={15} className="text-purple-600 shrink-0" />
+                    <span><strong>City:</strong> {selectedProfileMember.city}</span>
+                  </div>
+                )}
+                {selectedProfileMember.phone && (
+                  <div className="flex items-center gap-2.5 text-slate-700 text-[13px] font-medium">
+                    <Phone size={15} className="text-emerald-600 shrink-0" />
+                    <span><strong>Phone:</strong> {selectedProfileMember.phone}</span>
+                  </div>
+                )}
+                {selectedProfileMember.email && (
+                  <div className="flex items-center gap-2.5 text-slate-700 text-[13px] font-medium truncate">
+                    <Mail size={15} className="text-blue-600 shrink-0" />
+                    <span className="truncate"><strong>Email:</strong> {selectedProfileMember.email}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-2.5 w-full mt-6">
+                {selectedProfileMember.phone && (
+                  <a 
+                    href={`tel:${selectedProfileMember.phone}`}
+                    className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[12.5px] py-2.5 rounded-xl shadow-md shadow-emerald-500/20 flex items-center justify-center gap-1.5 transition-all press-scale"
+                  >
+                    <Phone size={14} /> Call Member
+                  </a>
+                )}
+                <button
+                  onClick={() => setSelectedProfileMember(null)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[12.5px] py-2.5 rounded-xl transition-all press-scale"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

@@ -3,6 +3,17 @@ const { notifyInvitationReceived, createNotification } = require('../../services
 const { sendPushNotification } = require('../../services/pushNotificationService');
 const { applyScopeFilter } = require('../../utils/queryScopeHelper');
 
+/**
+ * Fields the creator's analytics view needs for every member it lists
+ * (avatar + name for the card, phone for the one-tap call button).
+ */
+const MEMBER_ANALYTICS_FIELDS = 'name email avatar phone city profession';
+
+const withAnalyticsPopulate = (query) => query
+  .populate('creatorId', 'name email')
+  .populate('rsvps.memberId', MEMBER_ANALYTICS_FIELDS)
+  .populate('openedBy.memberId', MEMBER_ANALYTICS_FIELDS);
+
 // @desc    Create a new invitation
 // @route   POST /api/member/invitations
 // @access  Private
@@ -116,9 +127,7 @@ exports.getInvitations = async (req, res) => {
   try {
     const filter = applyScopeFilter(req, {});
 
-    const invitations = await Invitation.find(filter)
-      .populate('creatorId', 'name email')
-      .populate('rsvps.memberId', 'name')
+    const invitations = await withAnalyticsPopulate(Invitation.find(filter))
       .sort({ createdAt: -1 });
 
     res.json(invitations);
@@ -134,9 +143,7 @@ exports.getInvitations = async (req, res) => {
 exports.getInvitationById = async (req, res) => {
   try {
     const filter = applyScopeFilter(req, { _id: req.params.id });
-    const invitation = await Invitation.findOne(filter)
-      .populate('creatorId', 'name email')
-      .populate('rsvps.memberId', 'name');
+    const invitation = await withAnalyticsPopulate(Invitation.findOne(filter));
 
     if (invitation) {
       res.json(invitation);
@@ -169,9 +176,10 @@ exports.updateRSVP = async (req, res) => {
     if (rsvpIndex >= 0) {
       // Update existing RSVP
       invitation.rsvps[rsvpIndex].status = status;
+      invitation.rsvps[rsvpIndex].respondedAt = new Date();
     } else {
       // Add new RSVP
-      invitation.rsvps.push({ memberId: req.user._id, status });
+      invitation.rsvps.push({ memberId: req.user._id, status, respondedAt: new Date() });
     }
 
     await invitation.save();
@@ -193,9 +201,51 @@ exports.updateRSVP = async (req, res) => {
       }).catch(err => console.error('[RSVPNotifError]', err.message));
     }
 
-    res.json(invitation);
+    const populated = await withAnalyticsPopulate(Invitation.findById(invitation._id));
+    res.json(populated);
   } catch (error) {
     console.error('Error updating RSVP:', error);
+    res.status(500).json({ message: 'Server Error' });
+  }
+};
+
+// @desc    Record that the logged-in member opened this invitation
+// @route   POST /api/member/invitations/:id/open
+// @access  Private
+exports.trackInvitationOpened = async (req, res) => {
+  try {
+    const filter = applyScopeFilter(req, { _id: req.params.id });
+    const invitation = await Invitation.findOne(filter);
+
+    if (!invitation) {
+      return res.status(404).json({ message: 'Invitation not found' });
+    }
+
+    const viewerId = req.user._id.toString();
+    const isCreator = invitation.creatorId && invitation.creatorId.toString() === viewerId;
+
+    // A creator browsing their own invitation is not an "open" worth reporting to them.
+    if (!isCreator) {
+      const now = new Date();
+      const existing = invitation.openedBy.find(
+        (o) => o.memberId && o.memberId.toString() === viewerId
+      );
+
+      if (existing) {
+        existing.lastOpenedAt = now;
+        existing.openCount = (existing.openCount || 1) + 1;
+      } else {
+        invitation.openedBy.push({ memberId: req.user._id, openedAt: now, lastOpenedAt: now, openCount: 1 });
+      }
+
+      invitation.viewCount = (invitation.viewCount || 0) + 1;
+      await invitation.save();
+    }
+
+    const populated = await withAnalyticsPopulate(Invitation.findById(invitation._id));
+    res.json(populated);
+  } catch (error) {
+    console.error('Error tracking invitation open:', error);
     res.status(500).json({ message: 'Server Error' });
   }
 };
@@ -332,7 +382,8 @@ exports.updateInvitation = async (req, res) => {
       invitation.markModified('customFields');
     }
 
-    const updated = await invitation.save();
+    await invitation.save();
+    const updated = await withAnalyticsPopulate(Invitation.findById(invitation._id));
     res.json(updated);
   } catch (error) {
     console.error('Error updating invitation:', error);
