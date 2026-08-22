@@ -1,14 +1,21 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, Users, Heart, BookOpen, User, Settings, LogOut, MessageCircle, Gift } from 'lucide-react';
+import { Home, Users, Heart, BookOpen, User, Settings, LogOut, MessageCircle, Gift, ShieldCheck, ChevronRight } from 'lucide-react';
 import { useData } from '../../context/DataProvider';
+import { useAuth } from '../../../../core/auth/useAuth';
+import { useHeadAuth } from '../../../head/auth/useHeadAuth';
 
 const tabPaths = ['/member/home', '/member/social', '/member/matrimonial', '/member/directory', '/member/profile'];
 const hiddenPaths = ['/member/events', '/member/groups', '/member/notifications', '/member/splash', '/member/login', '/member/setup-profile', '/member/select-community', '/member/verify-otp'];
 
 export const SideNav = () => {
   const location = useLocation();
-  const { logoutUser } = useData();
+  const { logoutUser, currentUser } = useData();
+  const { auth } = useAuth();
+  const { headAuth } = useHeadAuth();
+
+  const effectiveRole = currentUser?.role || auth?.user?.role || headAuth?.headUser?.role;
+  const isHeadUser = ['head', 'sub_head', 'admin'].includes(effectiveRole);
   
   const shouldHide = hiddenPaths.some(p => location.pathname.startsWith(p));
   const pathSegments = location.pathname.split('/').filter(Boolean);
@@ -40,6 +47,22 @@ export const SideNav = () => {
           </div>
         </div>
       </div>
+
+      {/* Privileged Head Panel Switcher Button — ONLY visible to Community Head, Local Head or Admin */}
+      {isHeadUser && (
+        <div className="px-3 mb-2">
+          <NavLink
+            to="/head/dashboard"
+            className="p-3 bg-gradient-to-r from-amber-500/20 via-purple-500/20 to-indigo-500/20 border border-amber-400/40 rounded-xl text-amber-200 flex items-center justify-between shadow-sm hover:border-amber-400 hover:bg-amber-500/30 transition-all font-bold text-xs group"
+          >
+            <div className="flex items-center gap-2">
+              <ShieldCheck size={16} className="text-amber-400 animate-pulse shrink-0" />
+              <span className="truncate">{effectiveRole === 'sub_head' ? 'Local Head Panel' : 'Head Control Panel'}</span>
+            </div>
+            <ChevronRight size={14} className="text-amber-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+          </NavLink>
+        </div>
+      )}
 
       {/* Separator */}
       <div className="mx-5 h-[1px] bg-gradient-to-r from-transparent via-purple-400/20 to-transparent mb-3" />

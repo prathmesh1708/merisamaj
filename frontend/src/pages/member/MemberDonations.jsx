@@ -146,6 +146,31 @@ export const MemberDonations = () => {
     { id: 'Social', label: 'Social Welfare' }
   ];
 
+  const filteredDonations = donations.filter((item) => {
+    if (selectedCategory !== 'all') {
+      const itemCat = (item.category || '').toLowerCase();
+      const selCat = selectedCategory.toLowerCase();
+      
+      const matchesCategory = 
+        itemCat.includes(selCat) ||
+        selCat.includes(itemCat) ||
+        (selCat === 'health' && (itemCat.includes('health') || itemCat.includes('medical'))) ||
+        (selCat === 'social' && (itemCat.includes('social') || itemCat.includes('welfare'))) ||
+        (selCat === 'general' && (itemCat.includes('general') || itemCat.includes('relief')));
+
+      if (!matchesCategory) return false;
+    }
+
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      const titleMatch = (item.title || '').toLowerCase().includes(q);
+      const descMatch = (item.description || item.desc || item.shortDescription || '').toLowerCase().includes(q);
+      if (!titleMatch && !descMatch) return false;
+    }
+
+    return true;
+  });
+
   return (
     <div className="min-h-screen bg-slate-50/70 flex flex-col pb-24 font-sans select-none">
       {/* Header Bar with Hamburger Menu & Home */}
@@ -246,7 +271,7 @@ export const MemberDonations = () => {
           <AlertCircle className="w-8 h-8 mx-auto mb-2" />
           <p className="font-extrabold text-sm">{error}</p>
         </div>
-      ) : donations.length === 0 ? (
+      ) : filteredDonations.length === 0 ? (
         <div className="bg-white rounded-[28px] border border-slate-200/80 p-12 text-center text-slate-400 shadow-xs">
           <Heart className="w-12 h-12 mx-auto text-purple-300 mb-3" />
           <h3 className="text-base font-extrabold text-slate-800">No Active Donation Drives</h3>
@@ -254,7 +279,7 @@ export const MemberDonations = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {donations.map((item) => (
+          {filteredDonations.map((item) => (
             <DonationCard
               key={item._id}
               donation={item}

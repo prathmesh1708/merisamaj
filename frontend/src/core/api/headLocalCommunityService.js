@@ -8,6 +8,11 @@ const headLocalCommunityService = {
     return response.data;
   },
 
+  getCommunityUsers: async (search = '') => {
+    const response = await axiosPrivate.get(`${BASE_URL}/community-users`, { params: { search } });
+    return response.data;
+  },
+
   createLocalHead: async (data) => {
     const response = await axiosPrivate.post(`${BASE_URL}/local-heads`, data);
     return response.data;

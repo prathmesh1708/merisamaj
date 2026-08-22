@@ -19,8 +19,26 @@ export const HeadAuthProvider = ({ children }) => {
 
   // Restore persisted session on mount
   useEffect(() => {
-    const savedUser = localStorage.getItem(STORAGE_KEYS.USER);
-    const savedToken = localStorage.getItem(STORAGE_KEYS.TOKEN);
+    let savedUser = localStorage.getItem(STORAGE_KEYS.USER);
+    let savedToken = localStorage.getItem(STORAGE_KEYS.TOKEN);
+
+    // Fallback to member auth session if user logged in via Member login
+    if (!savedUser || !savedToken) {
+      const memberUserStr = localStorage.getItem('merisamaj_user');
+      const memberTokenStr = localStorage.getItem('merisamaj_token');
+      if (memberUserStr && memberTokenStr) {
+        try {
+          const parsed = JSON.parse(memberUserStr);
+          if (['head', 'sub_head', 'admin'].includes(parsed.role)) {
+            savedUser = memberUserStr;
+            savedToken = memberTokenStr;
+            localStorage.setItem(STORAGE_KEYS.USER, memberUserStr);
+            localStorage.setItem(STORAGE_KEYS.TOKEN, memberTokenStr);
+            localStorage.setItem(STORAGE_KEYS.SESSION, '1');
+          }
+        } catch (e) {}
+      }
+    }
 
     if (savedUser && savedToken) {
       try {
@@ -62,6 +80,13 @@ export const HeadAuthProvider = ({ children }) => {
       localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
       localStorage.setItem(STORAGE_KEYS.TOKEN, accessToken);
       localStorage.setItem(STORAGE_KEYS.SESSION, '1');
+
+      // Also set member session so user can switch seamlessly to member app
+      try {
+        localStorage.setItem('merisamaj_user', JSON.stringify(user));
+        localStorage.setItem('merisamaj_token', accessToken);
+        localStorage.setItem('merisamaj_has_session', '1');
+      } catch (e) {}
 
       setHeadAuth({
         headUser: user,

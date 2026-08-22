@@ -15,8 +15,9 @@ exports.getActiveDonations = async (req, res) => {
       isDeleted: false
     };
 
-    if (category && category !== 'all') {
-      filter.category = category;
+    if (category && category !== 'all' && category !== 'All') {
+      const cleanCat = escapeRegex(category.trim());
+      filter.category = { $regex: cleanCat, $options: 'i' };
     }
 
     if (search && search.trim()) {

@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate, NavLink } from 'react-router-dom';
 import { BottomNav } from './BottomNav';
 import { SideNav } from './SideNav';
 import { useData } from '../../context/DataProvider';
 import { useAuth } from '../../../../core/auth/useAuth';
+import { useHeadAuth } from '../../../head/auth/useHeadAuth';
 import { 
   Home, Users, Heart, BookOpen, MessageCircle, User, Vote, 
-  HeartHandshake, Briefcase, Shield, X, LogOut, Award, Mail, Settings, Gift
+  HeartHandshake, Briefcase, Shield, X, LogOut, Award, Mail, Settings, Gift,
+  ShieldCheck, ChevronRight
 } from 'lucide-react';
 import { Avatar } from '../common/Avatar';
 
@@ -17,13 +19,15 @@ export const MemberLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { isMobileMenuOpen, setMobileMenuOpen, currentUser } = useData();
-  const { logout } = useAuth();
+  const { auth, logout } = useAuth();
+  const { headAuth } = useHeadAuth();
+
+  const effectiveRole = currentUser?.role || auth?.user?.role || headAuth?.headUser?.role;
+  const isHeadUser = ['head', 'sub_head', 'admin'].includes(effectiveRole);
 
   const [isBottomNavVisible, setBottomNavVisible] = useState(true);
   const lastScrollY = useRef(0);
   const scrollContainerRef = useRef(null);
-
-
 
   useEffect(() => {
     const handleToggle = (e) => {
@@ -147,8 +151,24 @@ export const MemberLayout = () => {
                     {currentUser?.community || 'Samaj Member'}
                   </p>
                 </div>
-                <div className="shrink-0 px-1.5 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider" style={{ background: 'rgba(124,58,237,0.25)', color: 'rgba(196,181,253,0.9)', border: '1px solid rgba(124,58,237,0.3)' }}>Member</div>
+                <div className="shrink-0 px-1.5 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider" style={{ background: 'rgba(124,58,237,0.25)', color: 'rgba(196,181,253,0.9)', border: '1px solid rgba(124,58,237,0.3)' }}>
+                  {effectiveRole === 'head' ? 'Community Head' : effectiveRole === 'sub_head' ? 'Local Head' : 'Member'}
+                </div>
               </div>
+
+              {/* Privileged Head Panel Switcher Button — ONLY for Community Head, Local Head or Admin */}
+              {isHeadUser && (
+                <button
+                  onClick={() => handleMenuLinkClick('/head/dashboard')}
+                  className="w-full mt-1 p-2.5 bg-gradient-to-r from-amber-500/20 via-purple-500/20 to-indigo-500/20 border border-amber-400/40 rounded-xl text-amber-200 flex items-center justify-between shadow-sm hover:border-amber-400 transition-all font-bold text-xs"
+                >
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck size={16} className="text-amber-400 animate-pulse shrink-0" />
+                    <span>{effectiveRole === 'sub_head' ? 'Local Head Panel' : 'Head Control Panel'}</span>
+                  </div>
+                  <ChevronRight size={14} className="text-amber-400 shrink-0" />
+                </button>
+              )}
             </div>
 
             {/* Separator */}
