@@ -5,13 +5,30 @@ const { sendPushNotification } = require('../../services/pushNotificationService
 const crypto = require('crypto');
 const { applyScopeFilter } = require('../../utils/queryScopeHelper');
 
+const escapeRegex = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 // Get all active campaigns — community-scoped
 exports.getCampaigns = async (req, res) => {
   try {
+    const { category, search } = req.query;
     let baseFilter = {
       isDeleted: { $ne: true },
       status: { $nin: ['Completed', 'Closed', 'Suspended', 'Archived', 'Deleted'] }
     };
+
+    if (category && category !== 'all' && category !== 'All') {
+      const cleanCat = escapeRegex(category.trim());
+      baseFilter.category = { $regex: cleanCat, $options: 'i' };
+    }
+
+    if (search && search.trim()) {
+      const escaped = escapeRegex(search.trim());
+      baseFilter.$or = [
+        { title: new RegExp(escaped, 'i') },
+        { shortDescription: new RegExp(escaped, 'i') },
+        { description: new RegExp(escaped, 'i') }
+      ];
+    }
 
     // Apply Centralized 2-Level Multi-Tenancy Scope
     const filter = applyScopeFilter(req, baseFilter, { includeCampaignTargeting: true });

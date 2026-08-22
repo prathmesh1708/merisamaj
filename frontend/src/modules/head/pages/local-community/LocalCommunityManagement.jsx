@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
   MapPin, Plus, Edit, Trash2, Loader, CheckCircle2,
-  XCircle, Mail, Phone, RefreshCw, Eye, EyeOff, Copy, Check, Shield
+  XCircle, Mail, Phone, RefreshCw, Eye, EyeOff, Copy, Check, Shield,
+  User, UserCheck, Search, X
 } from 'lucide-react';
 import headLocalCommunityService from '../../../../core/api/headLocalCommunityService';
 import { useData } from '../../../member/context/DataProvider';
@@ -14,6 +15,12 @@ export default function LocalCommunityManagement() {
   const [loading, setLoading] = useState(true);
   const [visiblePasswordId, setVisiblePasswordId] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
+
+  // Community users state for selection
+  const [communityUsers, setCommunityUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState(null);
+  const [userSearchTerm, setUserSearchTerm] = useState('');
 
   // Modal state
   const [showModal, setShowModal] = useState(false);
@@ -36,19 +43,37 @@ export default function LocalCommunityManagement() {
     }
   };
 
+  const fetchCommunityUsers = async () => {
+    setLoadingUsers(true);
+    try {
+      const res = await headLocalCommunityService.getCommunityUsers();
+      if (res.status === 'success') {
+        setCommunityUsers(res.data || []);
+      }
+    } catch (err) {
+      console.error('Failed to load community users:', err);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
   useEffect(() => {
     fetchLocalHeads();
   }, []);
 
   const openCreateModal = () => {
     setEditId(null);
+    setSelectedUserId(null);
+    setUserSearchTerm('');
     setForm(emptyForm);
     setError('');
     setShowModal(true);
+    fetchCommunityUsers();
   };
 
   const openEditModal = (localHead) => {
     setEditId(localHead._id);
+    setSelectedUserId(null);
     setForm({
       name: localHead.name || '',
       email: localHead.email || '',
@@ -59,14 +84,41 @@ export default function LocalCommunityManagement() {
     setShowModal(true);
   };
 
+  const handleSelectUser = (uId) => {
+    if (!uId) {
+      setSelectedUserId(null);
+      setForm(emptyForm);
+      return;
+    }
+    const foundUser = communityUsers.find(u => u._id === uId);
+    if (foundUser) {
+      setSelectedUserId(foundUser._id);
+      setForm({
+        name: foundUser.name || '',
+        email: foundUser.email || '',
+        phone: foundUser.phone || '',
+        password: form.password || ''
+      });
+    }
+  };
+
+  const clearSelectedUser = () => {
+    setSelectedUserId(null);
+    setForm(emptyForm);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSaving(true);
     try {
+      const payload = editId
+        ? form
+        : { ...form, userId: selectedUserId || undefined };
+
       const res = editId
-        ? await headLocalCommunityService.updateLocalHead(editId, form)
-        : await headLocalCommunityService.createLocalHead(form);
+        ? await headLocalCommunityService.updateLocalHead(editId, payload)
+        : await headLocalCommunityService.createLocalHead(payload);
 
       if (res.status === 'success') {
         setShowModal(false);
@@ -110,6 +162,16 @@ export default function LocalCommunityManagement() {
     });
   };
 
+  const filteredCommunityUsers = communityUsers.filter(u => {
+    if (!userSearchTerm) return true;
+    const term = userSearchTerm.toLowerCase();
+    return (
+      u.name?.toLowerCase().includes(term) ||
+      u.phone?.toLowerCase().includes(term) ||
+      u.email?.toLowerCase().includes(term)
+    );
+  });
+
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 font-sans">
       {/* Header Card */}
@@ -123,7 +185,7 @@ export default function LocalCommunityManagement() {
               <Shield size={14} className="text-amber-400" /> Local Community Management
             </div>
             <h1 className="text-2xl font-black text-white leading-tight">Local Heads</h1>
-            <p className="text-xs font-semibold text-purple-200/90 mt-0.5">Create login accounts for Local Heads to manage your community.</p>
+            <p className="text-xs font-semibold text-purple-200/90 mt-0.5">Select existing community members or create new accounts for Local Heads.</p>
           </div>
         </div>
 
@@ -162,7 +224,7 @@ export default function LocalCommunityManagement() {
               {loading ? (
                 <tr><td colSpan="5" className="p-8 text-center"><Loader className="animate-spin text-indigo-600 inline" /></td></tr>
               ) : localHeads.length === 0 ? (
-                <tr><td colSpan="5" className="p-8 text-center text-slate-400 font-bold">No Local Heads created yet. Click "Add Local Head" to create a login for one.</td></tr>
+                <tr><td colSpan="5" className="p-8 text-center text-slate-400 font-bold">No Local Heads created yet. Click "Add Local Head" to appoint one.</td></tr>
               ) : (
                 localHeads.map(lh => (
                   <tr key={lh._id} className="hover:bg-slate-50/50">
@@ -228,12 +290,70 @@ export default function LocalCommunityManagement() {
           <div className="bg-white w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-5 my-8 max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-black text-slate-800">{editId ? 'Edit Local Head' : 'Create Local Head'}</h3>
             <p className="text-xs text-slate-500">
-              {editId ? 'Update details or reset the login password.' : 'This account can log in to the Head panel using the email and password below.'}
+              {editId ? 'Update details or reset the login password.' : 'Select an existing community member or enter details to create a Local Head.'}
             </p>
 
             {error && (
               <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700">
                 {error}
+              </div>
+            )}
+
+            {!editId && (
+              <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <User size={14} className="text-indigo-600" /> Select Existing Member (Optional)
+                  </label>
+                  {loadingUsers && <Loader size={12} className="animate-spin text-indigo-600" />}
+                </div>
+
+                {selectedUserId ? (
+                  <div className="flex items-center justify-between p-3 bg-indigo-50 border border-indigo-200 rounded-xl">
+                    <div className="flex items-center gap-2.5">
+                      <UserCheck size={18} className="text-indigo-600" />
+                      <div>
+                        <p className="text-xs font-bold text-indigo-950">{form.name}</p>
+                        <p className="text-[10px] font-medium text-indigo-700">{form.phone} {form.email ? `• ${form.email}` : ''}</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={clearSelectedUser}
+                      className="p-1 text-slate-400 hover:text-rose-600 rounded-lg transition-colors"
+                      title="Clear selection"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {communityUsers.length > 5 && (
+                      <div className="relative">
+                        <Search size={13} className="absolute left-3 top-2.5 text-slate-400" />
+                        <input
+                          type="text"
+                          placeholder="Search members by name, phone or email..."
+                          value={userSearchTerm}
+                          onChange={(e) => setUserSearchTerm(e.target.value)}
+                          className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:border-indigo-500"
+                        />
+                      </div>
+                    )}
+                    <select
+                      onChange={(e) => handleSelectUser(e.target.value)}
+                      value={selectedUserId || ''}
+                      className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-indigo-500"
+                    >
+                      <option value="">-- Choose a user from community --</option>
+                      {filteredCommunityUsers.map(u => (
+                        <option key={u._id} value={u._id}>
+                          {u.name} ({u.phone}) {u.accountType === 'local_head' ? '• Already Local Head' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
             )}
 

@@ -115,6 +115,17 @@ export const AuthProvider = ({ children }) => {
     try {
       localStorage.setItem('merisamaj_token', response.accessToken);
       localStorage.setItem(SESSION_FLAG_KEY, '1');
+
+      if (['head', 'sub_head', 'admin'].includes(response.user.role)) {
+        localStorage.setItem('head_auth_user', JSON.stringify(response.user));
+        localStorage.setItem('head_auth_token', response.accessToken);
+        localStorage.setItem('head_has_session', '1');
+      } else {
+        // Normal user logging in — ensure any stale head session is cleared
+        localStorage.removeItem('head_auth_user');
+        localStorage.removeItem('head_auth_token');
+        localStorage.removeItem('head_has_session');
+      }
     } catch(e){}
     setAuth({
       user: response.user,

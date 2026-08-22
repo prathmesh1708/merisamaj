@@ -416,6 +416,13 @@ export const HeadLayout = () => {
             </div>
 
 
+            <NavLink
+              to="/member/home"
+              className="w-full flex items-center justify-center gap-2 py-2 rounded-lg transition-all duration-200 text-xs font-semibold text-indigo-200 bg-indigo-500/20 border border-indigo-400/30 hover:bg-indigo-500/30 cursor-pointer active:scale-95"
+            >
+              <Home size={14} className="text-indigo-400" /> <span>Switch to Member App</span>
+            </NavLink>
+
             <button 
               onClick={handleSignOut}
               className="w-full flex items-center justify-center gap-2 py-2 rounded-lg transition-all duration-200 text-xs font-semibold text-rose-300/90 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20 cursor-pointer active:scale-95"
@@ -513,6 +520,15 @@ export const HeadLayout = () => {
                   <p className="text-[10px] font-semibold text-purple-300/60 truncate mt-1.5 leading-none">{headUser?.title || 'Adhyaksh (Head)'}</p>
                 </div>
               </div>
+
+              <NavLink
+                to="/member/home"
+                onClick={() => setIsMobileOpen(false)}
+                className="w-full flex items-center justify-center gap-2 py-2 rounded-lg transition-all duration-200 text-xs font-semibold text-indigo-200 bg-indigo-500/20 border border-indigo-400/30 hover:bg-indigo-500/30 cursor-pointer active:scale-95"
+              >
+                <Home size={14} className="text-indigo-400" /> <span>Switch to Member App</span>
+              </NavLink>
+
               <button 
                 onClick={handleSignOut}
                 className="w-full flex items-center justify-center gap-2 py-2 rounded-lg transition-all duration-200 text-xs font-semibold text-rose-300/90 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20 cursor-pointer active:scale-95"

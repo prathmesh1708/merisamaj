@@ -1,7 +1,43 @@
 const User = require('../../models/User');
 const { inheritTenantPayload } = require('../../utils/queryScopeHelper');
 
-// @desc    Create a new Local Head login account (email + password)
+// @desc    Get eligible community users for promoting to Local Head
+// @route   GET /api/v1/head/local-community/community-users
+// @access  Private (Head/Admin)
+exports.getCommunityUsers = async (req, res) => {
+  try {
+    const communityId = req.user.communityId || (req.user.assignedCommunityIds && req.user.assignedCommunityIds[0]);
+    if (!communityId) {
+      return res.status(400).json({ status: 'error', message: 'No community context found.' });
+    }
+
+    const query = {
+      communityId,
+      accountStatus: { $ne: 'deleted' }
+    };
+
+    if (req.query.search) {
+      const searchRegex = new RegExp(req.query.search, 'i');
+      query.$or = [{ name: searchRegex }, { email: searchRegex }, { phone: searchRegex }];
+    }
+
+    const users = await User.find(query)
+      .select('name email phone avatar city state role accountType gotra')
+      .sort({ name: 1 })
+      .lean();
+
+    res.status(200).json({
+      status: 'success',
+      count: users.length,
+      data: users
+    });
+  } catch (error) {
+    console.error('getCommunityUsers error:', error);
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
+// @desc    Create a new Local Head login account or appoint an existing user
 // @route   POST /api/v1/head/local-community/local-heads
 // @access  Private (Head/Admin)
 exports.createLocalHead = async (req, res) => {
@@ -11,13 +47,71 @@ exports.createLocalHead = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'No community context found.' });
     }
 
-    const { name, email, phone, password } = payload;
+    const { userId, name, email, phone, password } = payload;
 
-    if (!name || !email || !phone || !password) {
-      return res.status(400).json({ status: 'fail', message: 'Name, email, phone and password are required.' });
-    }
-    if (password.length < 6) {
+    if (!password || password.length < 6) {
       return res.status(400).json({ status: 'fail', message: 'Password must be at least 6 characters.' });
+    }
+
+    // CASE 1: Promote an existing community user to Local Head
+    if (userId) {
+      const existingUser = await User.findOne({ _id: userId, communityId: payload.communityId });
+      if (!existingUser) {
+        return res.status(404).json({ status: 'fail', message: 'User not found in this community.' });
+      }
+
+      if (existingUser.role === 'sub_head' && existingUser.accountType === 'local_head') {
+        return res.status(400).json({ status: 'fail', message: 'User is already a Local Head.' });
+      }
+
+      const normalizedEmail = email ? email.toLowerCase().trim() : existingUser.email;
+      const targetPhone = phone || existingUser.phone;
+
+      if (normalizedEmail && normalizedEmail !== existingUser.email) {
+        const dupEmail = await User.findOne({ email: normalizedEmail, _id: { $ne: userId } });
+        if (dupEmail) {
+          return res.status(400).json({ status: 'fail', message: 'Email address already registered by another user.' });
+        }
+        existingUser.email = normalizedEmail;
+      }
+
+      if (targetPhone && targetPhone !== existingUser.phone) {
+        const dupPhone = await User.findOne({ phone: targetPhone, _id: { $ne: userId } });
+        if (dupPhone) {
+          return res.status(400).json({ status: 'fail', message: 'Phone number already registered by another user.' });
+        }
+        existingUser.phone = targetPhone;
+      }
+
+      if (name) existingUser.name = name;
+      existingUser.password = password; // raw — hashed by User's pre('save') hook
+      existingUser.plainPassword = password;
+      existingUser.role = 'sub_head';
+      existingUser.accountType = 'local_head';
+      existingUser.parentHeadId = req.user._id;
+      existingUser.designation = 'Local Head';
+      existingUser.department = 'Local Community';
+      existingUser.joiningDate = existingUser.joiningDate || new Date();
+      existingUser.accountStatus = 'active';
+
+      await existingUser.save();
+
+      return res.status(201).json({
+        status: 'success',
+        message: `${existingUser.name} has been made a Local Head successfully.`,
+        data: {
+          id: existingUser._id,
+          name: existingUser.name,
+          email: existingUser.email,
+          phone: existingUser.phone,
+          accountStatus: existingUser.accountStatus
+        }
+      });
+    }
+
+    // CASE 2: Create a new Local Head account from scratch
+    if (!name || !email || !phone) {
+      return res.status(400).json({ status: 'fail', message: 'Name, email, phone and password are required.' });
     }
 
     const normalizedEmail = email.toLowerCase().trim();

@@ -636,23 +636,25 @@ export const DataProvider = ({ children }) => {
   // State Definitions
   const [currentUser, setCurrentUser] = useState(() => {
     if (auth?.isAuthenticated && auth?.user) return auth.user;
-    const savedUser = localStorage.getItem('merisamaj_user');
+    if (headAuth?.isAuthenticated && headAuth?.headUser) return headAuth.headUser;
+    const savedUser = localStorage.getItem('merisamaj_user') || localStorage.getItem('head_auth_user');
     if (savedUser) {
       try {
         const parsed = JSON.parse(savedUser);
         if (parsed && (parsed.id || parsed._id || parsed.name)) return parsed;
       } catch {}
     }
-    return auth?.user || null;
+    return auth?.user || headAuth?.headUser || null;
   });
 
   useEffect(() => {
-    if (auth.isAuthenticated && auth.user) {
-      setCurrentUser(auth.user);
-    } else if (!auth.isAuthenticated) {
+    const activeUser = (auth.isAuthenticated && auth.user) ? auth.user : (headAuth.isAuthenticated && headAuth.headUser) ? headAuth.headUser : null;
+    if (activeUser) {
+      setCurrentUser(activeUser);
+    } else if (!auth.isAuthenticated && !headAuth.isAuthenticated) {
       setCurrentUser(null);
     }
-  }, [auth.isAuthenticated, auth.user]);
+  }, [auth.isAuthenticated, auth.user, headAuth.isAuthenticated, headAuth.headUser]);
 
   const [members, setMembers] = useState(() => loadState('members', initialMembers));
 
