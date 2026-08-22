@@ -259,8 +259,8 @@ export const EventManagement = () => {
         </div>
       )}
 
-      {/* HEADER SECTION */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+      {/* HEADER SECTION (WEB VIEW ONLY) */}
+      <div className="hidden md:flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
         <div>
           <h1 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
             <Calendar className="text-brand-primary" /> Community Event Desk
@@ -274,6 +274,15 @@ export const EventManagement = () => {
           <Plus size={18} /> Create Event
         </button>
       </div>
+
+      {/* MOBILE FAB FOR CREATE EVENT */}
+      <button
+        onClick={() => { resetForm(); setCreateModalOpen(true); }}
+        className="md:hidden fixed bottom-24 right-5 z-40 w-13 h-13 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-xl shadow-purple-500/30 flex items-center justify-center active:scale-90 transition-all border-2 border-white cursor-pointer"
+        title="Create Event"
+      >
+        <Plus size={24} />
+      </button>
 
       {/* REAL DASHBOARD METRICS */}
       {analytics && (

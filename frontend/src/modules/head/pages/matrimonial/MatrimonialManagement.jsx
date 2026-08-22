@@ -339,8 +339,8 @@ export default function MatrimonialManagement() {
         )}
       </AnimatePresence>
 
-      {/* Header */}
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Header (Web View Only) */}
+      <header className="hidden md:flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-black uppercase tracking-wider text-white flex items-center gap-2.5">
             <Heart className="text-rose-500" size={24} /> Matrimonial Management

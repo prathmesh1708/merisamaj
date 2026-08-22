@@ -46,48 +46,48 @@ const Toast = ({ message, type, onClose }) => {
 
 // ── Input Field Component ──
 const FormField = ({ label, icon: Icon, children, hint }) => (
-  <div className="space-y-1.5">
-    <label className="flex items-center gap-2 text-[13px] font-bold text-slate-700">
-      {Icon && <Icon size={14} className="text-purple-500" />}
-      {label}
+  <div className="space-y-1">
+    <label className="flex items-center gap-1.5 text-[12px] sm:text-[13px] font-bold text-slate-700">
+      {Icon && <Icon size={13} className="text-purple-500 shrink-0" />}
+      <span>{label}</span>
     </label>
     {children}
-    {hint && <p className="text-[11px] text-slate-400 font-medium pl-1">{hint}</p>}
+    {hint && <p className="text-[10px] sm:text-[11px] text-slate-400 font-medium pl-0.5">{hint}</p>}
   </div>
 );
 
 // ── Live Preview Card ──
 const LeadershipPreviewCard = ({ formData }) => (
-  <div className="relative w-full rounded-[20px] overflow-hidden" style={{ background: 'linear-gradient(135deg, #120b32 0%, #1e1145 50%, #2e1a6c 100%)' }}>
-    <div className="relative z-10 p-5">
-      <div className="flex items-start gap-4">
-        <div className="w-16 h-16 rounded-2xl border-2 border-amber-400/50 overflow-hidden bg-purple-900/50 shrink-0 shadow-lg">
+  <div className="relative w-full rounded-2xl sm:rounded-[20px] overflow-hidden shadow-md" style={{ background: 'linear-gradient(135deg, #120b32 0%, #1e1145 50%, #2e1a6c 100%)' }}>
+    <div className="relative z-10 p-3.5 sm:p-5">
+      <div className="flex items-center sm:items-start gap-3 sm:gap-4">
+        <div className="w-13 h-13 sm:w-16 sm:h-16 rounded-2xl border-2 border-amber-400/50 overflow-hidden bg-purple-900/50 shrink-0 shadow-lg">
           {formData.avatar ? (
             <img src={formData.avatar} className="w-full h-full object-cover" alt="Preview" />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-white/60">
-              <User size={24} />
+              <User size={22} className="sm:w-6 sm:h-6" />
             </div>
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1.5">
-            <Crown size={12} className="text-amber-400 fill-amber-400" />
-            <span className="bg-purple-500/70 text-white text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+          <div className="flex items-center gap-1.5 mb-1">
+            <Crown size={12} className="text-amber-400 fill-amber-400 shrink-0" />
+            <span className="bg-purple-500/70 text-white text-[8px] sm:text-[8.5px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
               {formData.designation || 'President'}
             </span>
           </div>
-          <h4 className="text-white text-[16px] font-black leading-tight truncate">
+          <h4 className="text-white text-[14.5px] sm:text-[16px] font-black leading-tight truncate">
             {formData.name || 'Your Name'}
           </h4>
-          <p className="text-purple-200/70 text-[11px] font-semibold mt-0.5 flex items-center gap-1.5">
-            <MapPin size={10} />
-            {formData.city || 'City'}, {formData.state || 'State'} • {formData.termYears || '2024-2027'}
+          <p className="text-purple-200/80 text-[10.5px] sm:text-[11px] font-semibold mt-0.5 flex items-center gap-1 truncate">
+            <MapPin size={10} className="shrink-0" />
+            <span className="truncate">{formData.city || 'City'}, {formData.state || 'State'} • {formData.termYears || '2024-2027'}</span>
           </p>
         </div>
       </div>
       {formData.bio && (
-        <p className="text-purple-200/60 text-[11px] font-medium mt-3 line-clamp-2 italic">
+        <p className="text-purple-200/70 text-[10.5px] sm:text-[11px] font-medium mt-2.5 sm:mt-3 line-clamp-2 italic">
           "{formData.bio}"
         </p>
       )}
@@ -271,45 +271,45 @@ const HeadProfileSettings = () => {
     );
   }
 
-  const inputClass = "w-full px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 font-medium placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 transition-all";
+  const inputClass = "w-full px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-white border border-slate-200 text-[13px] sm:text-sm text-slate-800 font-medium placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 transition-all";
   const selectClass = `${inputClass} appearance-none cursor-pointer`;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50/30 to-slate-50 pb-12">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50/30 to-slate-50 pb-28 sm:pb-12">
       {/* Toast */}
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {/* ── Header ── */}
-      <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-slate-200/60 shadow-sm">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+      {/* ── Header (Web View Only) ── */}
+      <div className="hidden md:block sticky top-0 z-40 bg-white/90 backdrop-blur-xl border-b border-slate-200/60 shadow-xs">
+        <div className="max-w-3xl mx-auto px-3.5 sm:px-6 py-2.5 sm:py-3.5 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button 
               onClick={() => navigate('/head/dashboard')} 
-              className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-600 hover:bg-slate-100 border border-slate-200 transition-all active:scale-95"
+              className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center text-slate-600 hover:bg-slate-100 border border-slate-200 transition-all active:scale-95 shrink-0 cursor-pointer"
             >
-              <ArrowLeft size={18} />
+              <ArrowLeft size={17} />
             </button>
-            <div>
-              <h1 className="text-[17px] font-black text-slate-800 tracking-tight">My Profile</h1>
-              <p className="text-[11px] text-slate-500 font-semibold">Edit your leadership details</p>
+            <div className="min-w-0">
+              <h1 className="text-[15px] sm:text-[17px] font-black text-slate-800 tracking-tight leading-tight truncate">My Profile</h1>
+              <p className="text-[10px] sm:text-[11px] text-slate-500 font-semibold truncate">Edit your leadership details</p>
             </div>
           </div>
           <button 
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-violet-600 text-white text-[13px] font-bold shadow-lg shadow-purple-500/20 hover:shadow-purple-500/30 active:scale-95 transition-all disabled:opacity-60 disabled:cursor-not-allowed border border-purple-500/20"
+            className="flex items-center gap-1.5 px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-violet-600 text-white text-[11.5px] sm:text-[13px] font-bold shadow-md shadow-purple-500/20 hover:shadow-purple-500/30 active:scale-95 transition-all disabled:opacity-60 disabled:cursor-not-allowed border border-purple-500/20 shrink-0 whitespace-nowrap cursor-pointer"
           >
-            {saving ? <Loader size={14} className="animate-spin" /> : <Save size={14} />}
-            {saving ? 'Saving...' : 'Save Changes'}
+            {saving ? <Loader size={13} className="animate-spin" /> : <Save size={13} />}
+            <span>{saving ? 'Saving...' : 'Save Changes'}</span>
           </button>
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-6 space-y-6">
+      <div className="max-w-3xl mx-auto px-3.5 sm:px-6 pt-4 sm:pt-6 space-y-4 sm:space-y-6">
 
         {/* ── Live Preview ── */}
         <div>
-          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+          <p className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
             <Shield size={12} className="text-purple-500" />
             Leadership Preview — यह ऐसा दिखेगा
           </p>
@@ -317,24 +317,24 @@ const HeadProfileSettings = () => {
         </div>
 
         {/* ── Profile Photo Section ── */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5">
-          <h3 className="text-[14px] font-black text-slate-800 mb-4 flex items-center gap-2">
-            <Camera size={16} className="text-purple-500" />
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 sm:p-5">
+          <h3 className="text-[13px] sm:text-[14px] font-black text-slate-800 mb-3.5 sm:mb-4 flex items-center gap-2">
+            <Camera size={15} className="text-purple-500" />
             Profile Photo
           </h3>
-          <div className="flex items-center gap-5">
-            <div className="relative group">
-              <div className="w-20 h-20 rounded-2xl border-2 border-purple-200 overflow-hidden bg-gradient-to-br from-purple-100 to-violet-100 shadow-inner">
+          <div className="flex items-center gap-3.5 sm:gap-5">
+            <div className="relative group shrink-0">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl border-2 border-purple-200 overflow-hidden bg-gradient-to-br from-purple-100 to-violet-100 shadow-inner">
                 {formData.avatar ? (
                   <img src={formData.avatar} className="w-full h-full object-cover" alt="Avatar" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-purple-400">
-                    <User size={28} />
+                    <User size={24} />
                   </div>
                 )}
               </div>
-              <label className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-purple-600 text-white flex items-center justify-center cursor-pointer shadow-lg hover:bg-purple-700 transition-colors border-2 border-white">
-                <Upload size={12} />
+              <label className="absolute -bottom-1 -right-1 w-6.5 h-6.5 sm:w-7 sm:h-7 rounded-full bg-purple-600 text-white flex items-center justify-center cursor-pointer shadow-lg hover:bg-purple-700 transition-colors border-2 border-white">
+                <Upload size={11} />
                 <input 
                   type="file" 
                   accept="image/*" 
@@ -343,13 +343,13 @@ const HeadProfileSettings = () => {
                 />
               </label>
             </div>
-            <div className="flex-1">
-              <p className="text-[13px] font-bold text-slate-700">अपनी प्रोफ़ाइल फोटो अपलोड करें</p>
-              <p className="text-[11px] text-slate-400 mt-1">यह फोटो Leadership पेज और HomePage पर दिखेगी</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-[12px] sm:text-[13px] font-bold text-slate-700 truncate">अपनी प्रोफ़ाइल फोटो अपलोड करें</p>
+              <p className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 line-clamp-2">यह फोटो Leadership पेज और HomePage पर दिखेगी</p>
               {formData.avatar && (
                 <button 
                   onClick={() => { setFormData(prev => ({ ...prev, avatar: '' })); setAvatarFile(null); }}
-                  className="mt-2 text-[11px] text-red-500 font-bold hover:underline"
+                  className="mt-1.5 text-[10.5px] text-red-500 font-bold hover:underline cursor-pointer"
                 >
                   Remove Photo
                 </button>
@@ -359,13 +359,13 @@ const HeadProfileSettings = () => {
         </div>
 
         {/* ── Basic Details ── */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 space-y-4">
-          <h3 className="text-[14px] font-black text-slate-800 flex items-center gap-2">
-            <User size={16} className="text-purple-500" />
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 sm:p-5 space-y-3.5 sm:space-y-4">
+          <h3 className="text-[13px] sm:text-[14px] font-black text-slate-800 flex items-center gap-2">
+            <User size={15} className="text-purple-500" />
             Basic Details
           </h3>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <FormField label="Full Name" icon={User}>
               <input 
                 type="text" value={formData.name} 
@@ -392,7 +392,7 @@ const HeadProfileSettings = () => {
               />
             </FormField>
 
-            <FormField label="Designation / पद" icon={Shield} hint="Designation is assigned based on system role and cannot be changed">
+            <FormField label="Designation / पद" icon={Shield} hint="Designation is assigned based on system role">
               <input 
                 type="text" 
                 value={formData.designation || 'Community Head'} 
@@ -416,13 +416,13 @@ const HeadProfileSettings = () => {
         </div>
 
         {/* ── Location ── */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 space-y-4">
-          <h3 className="text-[14px] font-black text-slate-800 flex items-center gap-2">
-            <MapPin size={16} className="text-purple-500" />
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 sm:p-5 space-y-3.5 sm:space-y-4">
+          <h3 className="text-[13px] sm:text-[14px] font-black text-slate-800 flex items-center gap-2">
+            <MapPin size={15} className="text-purple-500" />
             Location / स्थान
           </h3>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <FormField label="City / शहर" icon={MapPin}>
               <input 
                 type="text" value={formData.city} 
@@ -451,9 +451,9 @@ const HeadProfileSettings = () => {
         </div>
 
         {/* ── Term Period ── */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 space-y-4">
-          <h3 className="text-[14px] font-black text-slate-800 flex items-center gap-2">
-            <Calendar size={16} className="text-purple-500" />
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 sm:p-5 space-y-3.5 sm:space-y-4">
+          <h3 className="text-[13px] sm:text-[14px] font-black text-slate-800 flex items-center gap-2">
+            <Calendar size={15} className="text-purple-500" />
             Term Period / कार्यकाल
           </h3>
 
@@ -468,13 +468,13 @@ const HeadProfileSettings = () => {
         </div>
 
         {/* ── Social Links ── */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 space-y-4">
-          <h3 className="text-[14px] font-black text-slate-800 flex items-center gap-2">
-            <Globe size={16} className="text-purple-500" />
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 sm:p-5 space-y-3.5 sm:space-y-4">
+          <h3 className="text-[13px] sm:text-[14px] font-black text-slate-800 flex items-center gap-2">
+            <Globe size={15} className="text-purple-500" />
             Social Links / सामाजिक लिंक
           </h3>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <FormField label="Facebook" icon={FaFacebook}>
               <input 
                 type="url" value={formData.socialLinks.facebook} 
@@ -514,14 +514,14 @@ const HeadProfileSettings = () => {
         </div>
 
         {/* ── Connection Info ── */}
-        <div className="bg-gradient-to-r from-purple-50 to-violet-50 rounded-2xl border border-purple-200/50 p-4">
+        <div className="bg-gradient-to-r from-purple-50 to-violet-50 rounded-2xl border border-purple-200/50 p-3.5 sm:p-4">
           <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-xl bg-purple-500/10 flex items-center justify-center shrink-0">
-              <Shield size={16} className="text-purple-600" />
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-purple-500/10 flex items-center justify-center shrink-0">
+              <Shield size={15} className="text-purple-600" />
             </div>
             <div>
-              <p className="text-[13px] font-bold text-purple-800">Data Connection</p>
-              <p className="text-[11px] text-purple-600/80 mt-1 leading-relaxed">
+              <p className="text-[12px] sm:text-[13px] font-bold text-purple-800">Data Connection</p>
+              <p className="text-[10.5px] sm:text-[11px] text-purple-600/80 mt-1 leading-relaxed">
                 यहाँ save की गई details automatically <strong>Leadership Page</strong>, 
                 <strong> HomePage Core Members</strong>, और <strong>Member Directory</strong> में live reflect होंगी। 
                 सब एक ही User account से connected है — कोई duplicate data नहीं।
@@ -535,10 +535,10 @@ const HeadProfileSettings = () => {
           <button 
             onClick={handleSave}
             disabled={saving}
-            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-gradient-to-r from-purple-600 to-violet-600 text-white text-[14px] font-bold shadow-xl shadow-purple-500/25 active:scale-[0.98] transition-all disabled:opacity-60"
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-gradient-to-r from-purple-600 to-violet-600 text-white text-[13.5px] font-bold shadow-xl shadow-purple-500/25 active:scale-[0.98] transition-all disabled:opacity-60 cursor-pointer"
           >
-            {saving ? <Loader size={16} className="animate-spin" /> : <Save size={16} />}
-            {saving ? 'Saving...' : 'Save Changes'}
+            {saving ? <Loader size={15} className="animate-spin" /> : <Save size={15} />}
+            <span>{saving ? 'Saving...' : 'Save Changes'}</span>
           </button>
         </div>
       </div>

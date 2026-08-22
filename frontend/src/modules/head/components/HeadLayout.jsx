@@ -8,6 +8,7 @@ import { useHeadAuth } from '../auth/useHeadAuth';
 import { Avatar } from '../../member/components/common/Avatar';
 import { filterMembersForHead } from '../utils/headCommunityFilter';
 import { NotificationBell } from '../../member/components/layout/NotificationBell';
+import { HeadBottomNav } from './HeadBottomNav';
 
 export const HeadLayout = () => {
   const { headAuth, headLogout } = useHeadAuth();
@@ -556,9 +557,12 @@ export const HeadLayout = () => {
         </div>
 
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto px-4 md:px-8 pt-2 md:pt-3 pb-4 md:pb-8 relative">
+        <div className="flex-1 overflow-y-auto px-4 md:px-8 pt-2 md:pt-3 pb-24 md:pb-8 relative">
           <Outlet />
         </div>
+
+        {/* ─── MOBILE BOTTOM NAV (MATCHING USER APP FLOATING CAPSULE) ─── */}
+        <HeadBottomNav pendingApprovalsCount={pendingApprovalsCount} />
       </main>
     </div>
   );

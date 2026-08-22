@@ -297,10 +297,11 @@ export const MemberManagement = () => {
       </AnimatePresence>
 
       {/* ─── PAGE HEADER & STATS ─── */}
-      <section className="bg-white p-6 border border-slate-100 rounded-2xl shadow-sm relative overflow-hidden flex flex-col gap-6">
+      <section className="bg-white p-4 sm:p-6 border border-slate-100 rounded-2xl shadow-sm relative overflow-hidden flex flex-col gap-4 sm:gap-6">
         <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/5 rounded-full filter blur-3xl pointer-events-none" />
         
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+        {/* Header (Web View Only) */}
+        <div className="hidden md:flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
               <Users size={20} />

@@ -14,10 +14,10 @@ import { buildInvitationAnalytics, isInvitationCreator } from '../utils/invitati
  *
  * phase: 'closed' -> 'opening' -> 'open' -> 'closing' -> 'closed'
  */
-export default function EnvelopeInvitationCard({ inv, onOpenDetail, isSentTab = false, onOpenAnalytics }) {
+export default function EnvelopeInvitationCard({ inv, onOpenDetail, isSentTab = false, onOpenAnalytics, isOpen = false, onToggleOpen }) {
   const { currentUser, members, trackInvitationOpened } = useData();
-  const [phase, setPhase] = useState('closed');
-  const [flapBehind, setFlapBehind] = useState(false);
+  const [phase, setPhase] = useState(() => (isOpen ? 'open' : 'closed'));
+  const [flapBehind, setFlapBehind] = useState(() => (isOpen ? true : false));
   const [fullscreenImg, setFullscreenImg] = useState(null);
   const timers = useRef([]);
 
@@ -30,6 +30,17 @@ export default function EnvelopeInvitationCard({ inv, onOpenDetail, isSentTab = 
   const displayHost = inv.hostName || inv.familyName;
   const invDate = new Date(inv.date);
   const detailId = inv._id || inv.id;
+
+  // Sync with external isOpen prop changes
+  useEffect(() => {
+    if (isOpen && phase === 'closed') {
+      setPhase('open');
+      setFlapBehind(true);
+    } else if (!isOpen && phase === 'open') {
+      setPhase('closed');
+      setFlapBehind(false);
+    }
+  }, [isOpen]);
 
   const isOpening = phase === 'opening' || phase === 'open';
 
@@ -45,16 +56,23 @@ export default function EnvelopeInvitationCard({ inv, onOpenDetail, isSentTab = 
     timers.current = [];
     setPhase('opening');
     schedule(() => setFlapBehind(true), 220);   // flap slips behind the letter mid-swing
-    schedule(() => setPhase('open'), 1050);     // envelope collapses, card expands
+    schedule(() => {
+      setPhase('open');
+      onToggleOpen?.(detailId, true);
+    }, 1050);     // envelope collapses, card expands
   };
 
-  const handleClose = () => {
+  const handleClose = (e) => {
+    e?.stopPropagation();
     if (phase !== 'open') return;
     timers.current.forEach(clearTimeout);
     timers.current = [];
     setPhase('closing');                        // card collapses, envelope returns
     schedule(() => setFlapBehind(false), 420);  // flap comes forward as it swings shut
-    schedule(() => setPhase('closed'), 900);
+    schedule(() => {
+      setPhase('closed');
+      onToggleOpen?.(detailId, false);
+    }, 900);
   };
 
   return (
@@ -194,48 +212,52 @@ export default function EnvelopeInvitationCard({ inv, onOpenDetail, isSentTab = 
             transition={{ duration: 0.4, ease: 'easeInOut' }}
             className="overflow-hidden rounded-[26px]"
           >
-            {/* Banner */}
-            <div className="relative overflow-hidden flex flex-col items-center justify-center text-center border-b border-purple-100/20 min-h-[165px]">
+            {/* Banner Photo / Graphic */}
+            <div className="relative overflow-hidden flex flex-col items-center justify-center text-center border-b border-purple-100/30">
               {inv.status === 'Pending' && (
-                <span className="absolute top-3 right-3 bg-amber-50 text-amber-700 border border-amber-200/60 text-[9.5px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider z-20">
+                <span className="absolute top-3.5 right-3.5 bg-amber-500/90 backdrop-blur-md text-white text-[10px] px-3 py-1 rounded-full font-black uppercase tracking-wider z-20 shadow-md border border-amber-300/40">
                   Pending Approval
                 </span>
               )}
               {inv.status === 'Rejected' && (
-                <span className="absolute top-3 right-3 bg-rose-50 text-rose-700 border border-rose-200/60 text-[9.5px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider z-20">
+                <span className="absolute top-3.5 right-3.5 bg-rose-500/90 backdrop-blur-md text-white text-[10px] px-3 py-1 rounded-full font-black uppercase tracking-wider z-20 shadow-md border border-rose-300/40">
                   Rejected
                 </span>
               )}
 
+              {/* Close Button — Premium Glassmorphic */}
               <button
                 onClick={handleClose}
-                title="Close envelope"
-                className="absolute top-3 left-3 z-20 w-8 h-8 rounded-full bg-black/35 backdrop-blur-md border border-white/20 text-white flex items-center justify-center hover:bg-black/50 active:scale-90 transition-all"
+                title="Close and fold envelope"
+                className="absolute top-3.5 left-3.5 z-30 w-9 h-9 rounded-full bg-slate-900/60 hover:bg-slate-900/80 backdrop-blur-md border border-white/30 text-white flex items-center justify-center active:scale-90 transition-all shadow-md cursor-pointer"
               >
-                <X size={15} strokeWidth={2.6} />
+                <X size={16} strokeWidth={2.8} />
               </button>
 
               {images.length > 0 ? (
                 <div
-                  className="relative w-full min-h-[220px] max-h-[400px] overflow-hidden bg-slate-950 flex items-center justify-center p-2 group cursor-pointer"
+                  className="relative w-full aspect-[4/3] sm:aspect-[16/10] max-h-[360px] overflow-hidden bg-slate-900 flex items-center justify-center group cursor-pointer"
                   onClick={() => setFullscreenImg(images[0])}
                   title="Click to view full image"
                 >
-                  {/* Glassmorphic background blur fill */}
+                  {/* Subtle ambient backdrop */}
                   <img
                     src={images[0]}
                     alt=""
-                    className="absolute inset-0 w-full h-full object-cover blur-xl opacity-40 scale-110 pointer-events-none"
+                    className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-35 scale-125 pointer-events-none"
                   />
-                  {/* Primary card image displayed completely uncropped */}
+                  {/* Primary card image displayed clean & uncropped */}
                   <img
                     src={images[0]}
                     alt="Invitation Card"
-                    className="relative z-10 max-w-full max-h-[380px] w-auto h-auto object-contain rounded-lg drop-shadow-md transition-transform duration-300 group-hover:scale-[1.01]"
+                    className="relative z-10 w-full h-full object-contain transition-transform duration-300 group-hover:scale-[1.02]"
                   />
+                  {/* Top & bottom subtle gradient vignette for badges readability */}
+                  <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/40 to-transparent pointer-events-none z-10" />
+                  
                   {images.length > 1 && (
-                    <span className="absolute bottom-3 right-3 z-20 bg-black/60 backdrop-blur-md text-white text-[9.5px] font-bold px-2.5 py-0.5 rounded-full border border-white/20">
-                      +{images.length - 1} More Photos
+                    <span className="absolute bottom-3.5 right-3.5 z-20 bg-slate-900/75 backdrop-blur-md text-white text-[10px] font-bold px-3 py-1 rounded-full border border-white/20 shadow-md">
+                      +{images.length - 1} Photos
                     </span>
                   )}
                 </div>
@@ -259,31 +281,31 @@ export default function EnvelopeInvitationCard({ inv, onOpenDetail, isSentTab = 
               )}
             </div>
 
-            {/* Body */}
-            <div className="p-4.5 text-left">
+            {/* Card Body Info */}
+            <div className="p-4 sm:p-5 text-left">
               <div className="flex items-start gap-3.5">
-                <div className="w-12 h-12 rounded-[18px] bg-purple-50 border border-purple-100 flex flex-col items-center justify-center shrink-0 shadow-2xs">
+                <div className="w-12 h-12 rounded-2xl bg-purple-50 border border-purple-100/80 flex flex-col items-center justify-center shrink-0 shadow-2xs">
                   <span className="text-purple-600 text-[9.5px] font-extrabold leading-none block mb-0.5 uppercase tracking-wider">
                     {invDate.toLocaleString('default', { month: 'short' })}
                   </span>
-                  <span className="text-purple-700 text-[17px] font-black leading-none">{invDate.getDate()}</span>
+                  <span className="text-purple-800 text-[17px] font-black leading-none">{invDate.getDate()}</span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h4 className="font-extrabold text-slate-800 text-[15.5px] truncate tracking-tight">{displayTitle}</h4>
-                  <p className="text-slate-500 text-[12px] font-semibold mt-0.5 truncate">{displayHost}</p>
-                  <p className="text-slate-500 text-[11.5px] flex items-center gap-1 mt-1 font-medium truncate">
-                    <MapPin size={13} className="shrink-0 text-purple-600" />
-                    <span className="truncate">{inv.location}</span>
+                  <h4 className="font-extrabold text-slate-800 text-[16px] sm:text-[17px] truncate tracking-tight">{displayTitle}</h4>
+                  <p className="text-slate-500 text-[12.5px] font-bold mt-0.5 truncate">{displayHost}</p>
+                  <p className="text-slate-500 text-[12px] flex items-center gap-1.5 mt-1 font-medium truncate">
+                    <MapPin size={13.5} className="shrink-0 text-purple-600" />
+                    <span className="truncate">{inv.location || 'Indore, MP'}</span>
                   </p>
                 </div>
               </div>
 
-              <div className="mt-4 pt-3.5 border-t border-slate-100">
+              <div className="mt-4 pt-3.5 border-t border-slate-100/90 flex items-center gap-2">
                 <button
                   onClick={() => onOpenDetail(detailId)}
-                  className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md shadow-purple-500/20 font-bold text-[12.5px] py-2.5 rounded-xl active:scale-95 transition-all press-scale flex items-center justify-center gap-1.5"
+                  className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-md shadow-purple-500/20 font-bold text-[13px] py-2.5 sm:py-3 rounded-xl active:scale-95 transition-all press-scale flex items-center justify-center gap-1.5"
                 >
-                  View Details
+                  View Details (विवरण देखें)
                 </button>
               </div>
             </div>
@@ -293,46 +315,46 @@ export default function EnvelopeInvitationCard({ inv, onOpenDetail, isSentTab = 
 
       {/* ---------- Creator analytics banner (Sent tab) ---------- */}
       {showAnalytics && stats && (
-        <div className="px-4 pb-4 pt-1">
-          <div className="rounded-2xl border border-purple-100 bg-gradient-to-br from-purple-50/70 to-indigo-50/50 p-3">
+        <div className="px-3.5 sm:px-4 pb-3.5 sm:pb-4 pt-1">
+          <div className="rounded-2xl border border-purple-100 bg-gradient-to-br from-purple-50/70 to-indigo-50/50 p-2.5 sm:p-3">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[9.5px] font-black uppercase tracking-wider text-purple-500">Sender Insights</span>
-              <span className="text-[9.5px] font-bold text-slate-400">
+              <span className="text-[9px] sm:text-[9.5px] font-black uppercase tracking-wider text-purple-500">Sender Insights</span>
+              <span className="text-[9px] sm:text-[9.5px] font-bold text-slate-400">
                 {stats.pendingCount} pending
               </span>
             </div>
 
-            <div className="grid grid-cols-3 gap-2 mt-2.5">
-              <div className="flex items-center gap-1.5 bg-white/80 border border-indigo-100/70 rounded-xl px-2 py-2">
-                <Eye size={14} className="text-indigo-600 shrink-0" />
+            <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mt-2 sm:mt-2.5">
+              <div className="flex items-center gap-1 sm:gap-1.5 bg-white/85 border border-indigo-100/70 rounded-xl px-1.5 sm:px-2 py-1.5 sm:py-2">
+                <Eye size={13} className="text-indigo-600 shrink-0" />
                 <div className="min-w-0">
-                  <p className="text-[13px] font-black text-slate-800 leading-none">{stats.openedCount}</p>
-                  <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400 mt-0.5">Opened</p>
+                  <p className="text-[12px] sm:text-[13px] font-black text-slate-800 leading-none">{stats.openedCount}</p>
+                  <p className="text-[8px] sm:text-[9px] font-bold uppercase tracking-wide text-slate-400 mt-0.5 truncate">Opened</p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-1.5 bg-white/80 border border-emerald-100/70 rounded-xl px-2 py-2">
-                <PartyPopper size={14} className="text-emerald-600 shrink-0" />
+              <div className="flex items-center gap-1 sm:gap-1.5 bg-white/85 border border-emerald-100/70 rounded-xl px-1.5 sm:px-2 py-1.5 sm:py-2">
+                <PartyPopper size={13} className="text-emerald-600 shrink-0" />
                 <div className="min-w-0">
-                  <p className="text-[13px] font-black text-slate-800 leading-none">{stats.totalAttendingCount}</p>
-                  <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400 mt-0.5">
+                  <p className="text-[12px] sm:text-[13px] font-black text-slate-800 leading-none">{stats.totalAttendingCount}</p>
+                  <p className="text-[8px] sm:text-[9px] font-bold uppercase tracking-wide text-slate-400 mt-0.5 truncate">
                     Attending · {stats.familyCount} fam
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-1.5 bg-white/80 border border-rose-100/70 rounded-xl px-2 py-2">
-                <UserX size={14} className="text-rose-500 shrink-0" />
+              <div className="flex items-center gap-1 sm:gap-1.5 bg-white/85 border border-rose-100/70 rounded-xl px-1.5 sm:px-2 py-1.5 sm:py-2">
+                <UserX size={13} className="text-rose-500 shrink-0" />
                 <div className="min-w-0">
-                  <p className="text-[13px] font-black text-slate-800 leading-none">{stats.declinedCount}</p>
-                  <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400 mt-0.5">Declined</p>
+                  <p className="text-[12px] sm:text-[13px] font-black text-slate-800 leading-none">{stats.declinedCount}</p>
+                  <p className="text-[8px] sm:text-[9px] font-bold uppercase tracking-wide text-slate-400 mt-0.5 truncate">Declined</p>
                 </div>
               </div>
             </div>
 
             <button
               onClick={() => onOpenAnalytics?.(inv)}
-              className="w-full mt-2.5 bg-white border border-purple-200 text-purple-700 hover:bg-purple-50 font-black text-[11.5px] py-2.5 rounded-xl transition-all press-scale flex items-center justify-center gap-1.5"
+              className="w-full mt-2 sm:mt-2.5 bg-white border border-purple-200 text-purple-700 hover:bg-purple-50 font-black text-[11px] sm:text-[11.5px] py-2 sm:py-2.5 rounded-xl transition-all press-scale flex items-center justify-center gap-1.5 shadow-2xs"
             >
               <BarChart3 size={13} strokeWidth={2.6} />
               View Full List &amp; Responses (व्यू लिस्ट)
