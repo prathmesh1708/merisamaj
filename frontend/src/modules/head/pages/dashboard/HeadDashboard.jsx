@@ -598,7 +598,8 @@ export const HeadDashboard = () => {
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
+              {/* ─── DESKTOP TABLE VIEW ─── */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
@@ -679,6 +680,77 @@ export const HeadDashboard = () => {
                     )}
                   </tbody>
                 </table>
+              </div>
+
+              {/* ─── MOBILE CARD VIEW ─── */}
+              <div className="md:hidden divide-y divide-slate-100 p-3 space-y-2.5">
+                {filteredMembers.length === 0 ? (
+                  <div className="p-8 text-center text-xs text-slate-400">No community account matches search query.</div>
+                ) : (
+                  filteredMembers.map((member) => {
+                    const memberId = member._id || member.id;
+                    const isVerified = member.verificationStatus === 'verified' || member.accountStatus === 'active';
+                    const timeAgo = member.createdAt ? formatDistanceToNow(new Date(member.createdAt), { addSuffix: true }) : 'Recently';
+
+                    return (
+                      <div key={memberId} className="bg-slate-50/50 rounded-2xl p-3.5 border border-slate-100 space-y-2.5">
+                        {/* Top: Avatar + Name + Phone + Status Badge */}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-black flex items-center justify-center text-xs shrink-0 shadow-sm">
+                              {member.name ? member.name.substring(0, 2).toUpperCase() : 'MB'}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-bold text-slate-800 text-[13.5px] leading-tight truncate">{member.name}</p>
+                              <p className="text-[10.5px] text-slate-400 font-medium truncate mt-0.5">{member.phone}</p>
+                            </div>
+                          </div>
+                          {isVerified ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9.5px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100 shrink-0">
+                              <Check size={10} /> Verified
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9.5px] font-bold bg-amber-50 text-amber-600 border border-amber-100 shrink-0">
+                              <AlertCircle size={10} /> Pending
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Middle: Details (City, Profession, Time) */}
+                        <div className="flex items-center justify-between gap-2 text-[11px] bg-white p-2 rounded-xl border border-slate-100 text-slate-600">
+                          <span className="font-semibold text-slate-700 truncate">📍 {member.city || 'Indore'}</span>
+                          <span className="font-medium text-indigo-600 truncate">💼 {member.profession || 'Registered Member'}</span>
+                          <span className="text-slate-400 shrink-0 text-[10px]">{timeAgo}</span>
+                        </div>
+
+                        {/* Bottom: Action Buttons */}
+                        <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100">
+                          {isVerified ? (
+                            <button
+                              onClick={() => handleRevokeMember(memberId, member.name)}
+                              className="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-[11px] font-bold border border-rose-100 transition-all active:scale-95 cursor-pointer"
+                            >
+                              Revoke
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleApproveMember(memberId, member.name)}
+                              className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-[11px] font-bold border border-emerald-100 transition-all active:scale-95 cursor-pointer"
+                            >
+                              Approve
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setSelectedProofMember(member)}
+                            className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold border border-slate-200 transition-all active:scale-95 cursor-pointer"
+                          >
+                            Details
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </section>
 

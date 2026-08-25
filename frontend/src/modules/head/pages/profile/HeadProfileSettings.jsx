@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { 
   User, Camera, MapPin, Shield, Calendar, Globe, Phone, Mail, 
   Save, Loader, CheckCircle, AlertCircle, ArrowLeft, Crown,
-  MessageCircle, ChevronDown, X, Upload
+  MessageCircle, ChevronDown, X, Upload, Home, ChevronRight
 } from 'lucide-react';
 import { FaFacebook, FaLinkedin } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
@@ -58,36 +58,30 @@ const FormField = ({ label, icon: Icon, children, hint }) => (
 
 // ── Live Preview Card ──
 const LeadershipPreviewCard = ({ formData }) => (
-  <div className="relative w-full rounded-2xl sm:rounded-[20px] overflow-hidden shadow-md" style={{ background: 'linear-gradient(135deg, #120b32 0%, #1e1145 50%, #2e1a6c 100%)' }}>
+  <div className="relative w-full rounded-2xl sm:rounded-[22px] overflow-hidden shadow-md" style={{ background: 'linear-gradient(135deg, #120b32 0%, #1e1145 50%, #2e1a6c 100%)' }}>
     <div className="relative z-10 p-3.5 sm:p-5">
-      <div className="flex items-center sm:items-start gap-3 sm:gap-4">
-        <div className="w-13 h-13 sm:w-16 sm:h-16 rounded-2xl border-2 border-amber-400/50 overflow-hidden bg-purple-900/50 shrink-0 shadow-lg">
+      <div className="flex items-center gap-3.5 sm:gap-4">
+        <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl border-2 border-amber-400/50 overflow-hidden bg-purple-900/50 shrink-0 shadow-lg">
           {formData.avatar ? (
             <img src={formData.avatar} className="w-full h-full object-cover" alt="Preview" />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-white/60">
-              <User size={22} className="sm:w-6 sm:h-6" />
+              <User size={24} />
             </div>
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5 mb-1">
-            <Crown size={12} className="text-amber-400 fill-amber-400 shrink-0" />
-            <span className="bg-purple-500/70 text-white text-[8px] sm:text-[8.5px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-              {formData.designation || 'President'}
-            </span>
-          </div>
-          <h4 className="text-white text-[14.5px] sm:text-[16px] font-black leading-tight truncate">
+          <h4 className="text-white text-[16px] sm:text-[18px] font-extrabold tracking-tight leading-tight truncate">
             {formData.name || 'Your Name'}
           </h4>
-          <p className="text-purple-200/80 text-[10.5px] sm:text-[11px] font-semibold mt-0.5 flex items-center gap-1 truncate">
-            <MapPin size={10} className="shrink-0" />
+          <p className="text-purple-200/80 text-[11.5px] sm:text-[12.5px] font-semibold mt-1 flex items-center gap-1.5 truncate">
+            <MapPin size={12} className="text-purple-300 shrink-0" />
             <span className="truncate">{formData.city || 'City'}, {formData.state || 'State'} • {formData.termYears || '2024-2027'}</span>
           </p>
         </div>
       </div>
       {formData.bio && (
-        <p className="text-purple-200/70 text-[10.5px] sm:text-[11px] font-medium mt-2.5 sm:mt-3 line-clamp-2 italic">
+        <p className="text-purple-200/70 text-[11px] sm:text-[12px] font-medium mt-2.5 sm:mt-3 line-clamp-2 italic">
           "{formData.bio}"
         </p>
       )}
@@ -305,15 +299,37 @@ const HeadProfileSettings = () => {
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-3.5 sm:px-6 pt-4 sm:pt-6 space-y-4 sm:space-y-6">
+      <div className="max-w-3xl mx-auto px-1 sm:px-4 md:px-6 pt-2 sm:pt-4 space-y-3.5 sm:space-y-5">
 
         {/* ── Live Preview ── */}
         <div>
-          <p className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-            <Shield size={12} className="text-purple-500" />
-            Leadership Preview — यह ऐसा दिखेगा
-          </p>
           <LeadershipPreviewCard formData={formData} />
+        </div>
+
+        {/* ── App Mode Segmented Toggle Switch (Clean & Aesthetic) ── */}
+        <div className="bg-slate-200/70 p-1 rounded-2xl flex items-center gap-1 border border-slate-350/40 shadow-inner">
+          {/* Active: Head Panel */}
+          <div 
+            className="flex-1 py-2 sm:py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-[13px] font-black text-white shadow-md cursor-default select-none"
+            style={{
+              background: 'linear-gradient(135deg, #180d45 0%, #291361 100%)',
+              boxShadow: '0 2px 8px rgba(24, 13, 69, 0.35)'
+            }}
+          >
+            <Crown size={14} className="text-amber-400 fill-amber-400 shrink-0" />
+            <span>Head Panel</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-0.5" />
+          </div>
+
+          {/* Toggle to: Member App */}
+          <button
+            type="button"
+            onClick={() => navigate('/member/home')}
+            className="flex-1 py-2 sm:py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-[13px] font-bold text-slate-600 hover:text-purple-600 active:scale-95 transition-all cursor-pointer bg-white/80 hover:bg-white shadow-xs"
+          >
+            <Home size={14} className="text-slate-500 shrink-0" />
+            <span>Member App</span>
+          </button>
         </div>
 
         {/* ── Profile Photo Section ── */}

@@ -573,7 +573,7 @@ export const HeadLayout = () => {
         </div>
 
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto px-4 md:px-8 pt-2 md:pt-3 pb-24 md:pb-8 relative">
+        <div className="flex-1 overflow-y-auto px-2 sm:px-4 md:px-8 pt-1 sm:pt-2 md:pt-3 pb-24 md:pb-8 relative">
           <Outlet />
         </div>
 

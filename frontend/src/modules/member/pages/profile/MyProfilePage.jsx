@@ -817,6 +817,42 @@ const MyProfilePage = () => {
           </div>
         ) : (
           <>
+            {/* ─── PRIVILEGED HEAD CONTROL PANEL TOGGLE (ONLY FOR COMMUNITY HEAD / ADMIN) ─── */}
+            {(() => {
+              const rawRole = (currentUser?.role || '').toLowerCase();
+              const rawDes = (currentUser?.designation || '').toLowerCase();
+              const isHeadUser = isMe && (['head', 'sub_head', 'admin'].includes(rawRole) || rawDes === 'community head' || rawDes === 'sub head' || rawDes === 'president');
+
+              if (!isHeadUser) return null;
+
+              return (
+                <div className="mx-3.5 sm:mx-0 bg-slate-200/70 p-1 rounded-2xl flex items-center gap-1 border border-slate-350/40 shadow-inner">
+                  {/* Active: Member Profile */}
+                  <div 
+                    className="flex-1 py-2 sm:py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-[13px] font-black text-white shadow-md cursor-default select-none"
+                    style={{
+                      background: 'linear-gradient(135deg, #180d45 0%, #291361 100%)',
+                      boxShadow: '0 2px 8px rgba(24, 13, 69, 0.35)'
+                    }}
+                  >
+                    <User size={14} className="text-purple-300 shrink-0" />
+                    <span>Member Profile</span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-0.5" />
+                  </div>
+
+                  {/* Toggle to: Head Control Panel */}
+                  <button
+                    type="button"
+                    onClick={() => navigate('/head/dashboard')}
+                    className="flex-1 py-2 sm:py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-[13px] font-bold text-slate-600 hover:text-purple-600 active:scale-95 transition-all cursor-pointer bg-white/80 hover:bg-white shadow-xs"
+                  >
+                    <Crown size={14} className="text-amber-500 shrink-0" />
+                    <span>{rawRole === 'sub_head' ? 'Local Head Panel' : 'Head Control Panel'}</span>
+                  </button>
+                </div>
+              );
+            })()}
+
             {/* ─── STATISTICS CARDS (Posts, Friends, Family) ─── */}
             <div className="grid grid-cols-3 gap-3 mx-3.5 sm:mx-0">
               {/* Card 1: Posts */}

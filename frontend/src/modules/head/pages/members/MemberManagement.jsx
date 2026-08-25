@@ -35,7 +35,7 @@ export const MemberManagement = () => {
       return {
         ...m,
         city: cityName,
-        memberId: m.memberId || `AS-${1000 + Number(m.id || 1)}`,
+        memberId: m.memberId || (m._id || m.id ? `MS-${String(m._id || m.id).slice(-4).toUpperCase()}` : 'MS-1001'),
         email: m.email || `${(m.name || 'member').toLowerCase().replace(/\s/g, '')}@gmail.com`,
         gender: m.gender || (Number(m.id || 1) % 2 === 0 ? 'Female' : 'Male'),
         ageGroup: m.ageGroup || (Number(m.id || 1) % 3 === 0 ? 'Senior (60+)' : Number(m.id || 1) % 3 === 1 ? 'Youth (18-35)' : 'Adult (36-59)'),
@@ -465,8 +465,10 @@ export const MemberManagement = () => {
       {/* ─── PRIMARY CONTENT SWITCH ─── */}
       {viewMode === 'table' ? (
         /* TABLE LIST VIEW */
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
-          <div className="overflow-x-auto rounded-xl border border-slate-100 bg-white">
+        <div className="bg-white p-3 sm:p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+          
+          {/* DESKTOP TABLE VIEW */}
+          <div className="hidden md:block overflow-x-auto rounded-xl border border-slate-100 bg-white">
             <table className="w-full text-left border-collapse text-xs text-slate-700">
               <thead>
                 <tr className="border-b border-slate-100 text-[10px] font-bold uppercase text-slate-400 tracking-wider bg-slate-50/50">
@@ -569,6 +571,119 @@ export const MemberManagement = () => {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* MOBILE CARD VIEW */}
+          <div className="md:hidden space-y-3">
+            {/* Mobile Select All Row */}
+            <div className="flex items-center justify-between px-1 py-1 text-xs text-slate-500 border-b border-slate-100 pb-2">
+              <label className="flex items-center gap-2 cursor-pointer font-semibold">
+                <input 
+                  type="checkbox" 
+                  checked={selectedIds.length === filteredMembers.length && filteredMembers.length > 0}
+                  onChange={(e) => {
+                    if (e.target.checked) setSelectedIds(filteredMembers.map(m => m.id));
+                    else setSelectedIds([]);
+                  }}
+                  className="w-4 h-4 rounded bg-slate-50 border-slate-200 accent-indigo-600 cursor-pointer"
+                />
+                <span>Select All ({filteredMembers.length})</span>
+              </label>
+              {selectedIds.length > 0 && (
+                <span className="text-[11px] font-bold text-indigo-600">{selectedIds.length} selected</span>
+              )}
+            </div>
+
+            {filteredMembers.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 text-xs bg-slate-50 rounded-xl">
+                No members match the query filters.
+              </div>
+            ) : (
+              filteredMembers.map((member) => {
+                const isChecked = selectedIds.includes(member.id);
+                return (
+                  <div 
+                    key={member.id} 
+                    className={`p-3.5 rounded-2xl border transition-all ${
+                      isChecked ? 'bg-indigo-50/40 border-indigo-200 shadow-xs' : 'bg-slate-50/50 border-slate-100'
+                    }`}
+                  >
+                    {/* Top Row: Checkbox + Avatar + Name + Verification Pill */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <input 
+                          type="checkbox" 
+                          checked={isChecked}
+                          onChange={() => {
+                            if (isChecked) setSelectedIds(selectedIds.filter(id => id !== member.id));
+                            else setSelectedIds([...selectedIds, member.id]);
+                          }}
+                          className="w-4 h-4 rounded bg-white border-slate-200 accent-indigo-600 cursor-pointer shrink-0"
+                        />
+                        <Avatar initials={member.initials} size="sm" imageUrl={member.avatar} />
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-slate-800 text-[13.5px] leading-tight truncate">{member.name}</h4>
+                          <span className="text-[10px] font-mono font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 inline-block mt-0.5">
+                            {member.memberId}
+                          </span>
+                        </div>
+                      </div>
+
+                      {member.isVerified ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9.5px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100 shrink-0">
+                          <ShieldCheck size={10} /> Verified
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9.5px] font-bold bg-amber-50 text-amber-600 border border-amber-100 shrink-0 animate-pulse">
+                          <AlertCircle size={10} /> Pending
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Middle Info Box: City, Profession, Phone, Family */}
+                    <div className="mt-2.5 grid grid-cols-2 gap-2 text-[11px] bg-white p-2.5 rounded-xl border border-slate-100 text-slate-600">
+                      <div className="truncate">
+                        <span className="text-slate-400 block text-[9.5px] font-semibold uppercase">Location & Work</span>
+                        <span className="font-semibold text-slate-700 truncate block mt-0.5">
+                          {member.city} • {member.profession || 'Business'}
+                        </span>
+                      </div>
+                      <div className="truncate">
+                        <span className="text-slate-400 block text-[9.5px] font-semibold uppercase">Phone / Family</span>
+                        <span className="font-semibold text-slate-700 truncate block mt-0.5">
+                          {member.phone} ({member.familySize}M)
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Bottom Row: Actions */}
+                    <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-end gap-2">
+                      <button 
+                        onClick={() => setActiveDrawerMember(member)}
+                        className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 text-[11px] font-bold transition-all active:scale-95 flex items-center gap-1 cursor-pointer"
+                      >
+                        <Eye size={12} /> Details
+                      </button>
+                      {!member.isVerified ? (
+                        <button 
+                          onClick={() => setVerificationDoc(member)}
+                          className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-100 text-[11px] font-bold transition-all active:scale-95 cursor-pointer"
+                        >
+                          Audit Document
+                        </button>
+                      ) : (
+                        <button 
+                          onClick={() => triggerStatusChange(member, 'suspend')}
+                          className="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-100 text-[11px] font-bold transition-all active:scale-95 cursor-pointer"
+                        >
+                          Suspend
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       ) : (
