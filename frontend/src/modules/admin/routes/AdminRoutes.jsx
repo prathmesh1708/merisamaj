@@ -38,6 +38,7 @@ import { AdminVotingManagement } from '../pages/voting/AdminVotingManagement';
 import AdminReportsDesk from '../pages/reports/AdminReportsDesk';
 import AdminReferralManagement from '../pages/referral/AdminReferralManagement';
 import AdminAppShortcutsManagement from '../pages/shortcuts/AdminAppShortcutsManagement';
+import { UserAppEditsPage } from '../pages/userAppEdits/UserAppEditsPage';
 
 export const AdminRoutes = () => {
   return (
@@ -116,6 +117,9 @@ export const AdminRoutes = () => {
         
         {/* ⚡ App Shortcuts & Icon Management */}
         <Route path="shortcuts" element={<AdminAppShortcutsManagement />} />
+
+        {/* 📱 User App Edits & CMS */}
+        <Route path="user-app-edits" element={<UserAppEditsPage />} />
 
         {/* Catch-all */}
         <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />

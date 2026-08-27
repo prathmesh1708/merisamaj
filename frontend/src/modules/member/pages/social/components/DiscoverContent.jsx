@@ -1,8 +1,10 @@
 import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Search, MapPin, UserCheck, UserPlus, Compass } from 'lucide-react';
 import { useData } from '../../../context/DataProvider';
 
 export const DiscoverContent = () => {
+  const navigate = useNavigate();
   const { members = [], followRelations = [], sendFollowRequest, unfollowUser, currentUser } = useData();
   const [searchText, setSearchText] = useState('');
   
@@ -29,6 +31,12 @@ export const DiscoverContent = () => {
       unfollowUser(userId);
     } else {
       sendFollowRequest(userId);
+    }
+  };
+
+  const handleMemberClick = (userId) => {
+    if (userId) {
+      navigate(`/member/directory/${userId}`);
     }
   };
 
@@ -83,23 +91,31 @@ export const DiscoverContent = () => {
         <div className="grid grid-cols-2 gap-3.5">
           {filteredMembers.map(user => {
             const isFollowing = followedIds.includes(user.id);
+            const targetId = user.id || user._id;
             return (
-              <div key={user.id} className="bg-white rounded-[24px] border border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_25px_rgba(124,58,237,0.08)] p-4 flex flex-col items-center text-center relative overflow-hidden transition-all hover:-translate-y-0.5">
-                <div className="w-14 h-14 rounded-2xl bg-purple-50 text-purple-700 font-black text-base flex items-center justify-center mb-2.5 shadow-2xs border border-purple-100/60 shrink-0">
+              <div 
+                key={user.id} 
+                onClick={() => handleMemberClick(targetId)}
+                className="bg-white rounded-[24px] border border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_25px_rgba(124,58,237,0.08)] p-4 flex flex-col items-center text-center relative overflow-hidden transition-all hover:-translate-y-0.5 cursor-pointer active:scale-[0.98]"
+              >
+                <div className="w-14 h-14 rounded-2xl bg-purple-50 text-purple-700 font-black text-base flex items-center justify-center mb-2.5 shadow-2xs border border-purple-100/60 shrink-0 overflow-hidden">
                   {user.avatar ? <img src={user.avatar} alt={user.name} className="w-full h-full object-cover rounded-2xl" /> : (user.initials || (user.name || 'U').substring(0, 2).toUpperCase())}
                 </div>
-                <h5 className="text-[13.5px] font-extrabold text-slate-800 line-clamp-1 leading-tight">{user.name}</h5>
+                <h5 className="text-[13.5px] font-extrabold text-slate-800 line-clamp-1 leading-tight hover:text-purple-700 transition-colors">{user.name}</h5>
                 <p className="text-[11px] text-slate-500 mt-1 font-bold flex items-center justify-center gap-1 truncate w-full">
-                  <MapPin size={11} className="text-slate-400 shrink-0" /> <span className="truncate">{user.city || 'Khandwa'}</span>
+                  <MapPin size={11} className="text-slate-400 shrink-0" /> <span className="truncate">{user.city || 'Indore'}</span>
                 </p>
                 <p className="text-[10px] text-slate-400 font-medium mt-0.5 mb-3 line-clamp-1 h-3.5 w-full">{user.profession || 'Community Member'}</p>
                 
                 <button 
-                  onClick={() => handleFollowToggle(user.id, isFollowing)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleFollowToggle(user.id, isFollowing);
+                  }}
                   className={`w-full py-2 flex items-center justify-center gap-1.5 text-[11px] font-extrabold rounded-xl transition-all press-scale ${
                     isFollowing 
                       ? 'bg-slate-100 text-slate-600 border border-slate-200/60 hover:bg-slate-200' 
-                      : 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-2xs'
+                      : 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-2xs hover:opacity-95'
                   }`}
                 >
                   {isFollowing ? (

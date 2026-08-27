@@ -79,6 +79,9 @@ const loginLimiter = (req, res, next) => {
  * OTP Send Rate Limiter: 3 requests per phone per 10 minutes
  */
 const otpLimiter = (req, res, next) => {
+  if (process.env.NODE_ENV === 'development') {
+    return next();
+  }
   const phone = (req.body?.phone || '').replace(/\D/g, '') || req.ip;
   const key = getKey('otp', phone);
   const maxAttempts = 3;
@@ -99,6 +102,9 @@ const otpLimiter = (req, res, next) => {
  * Forgot Password Rate Limiter: 3 requests per IP per 15 minutes
  */
 const forgotLimiter = (req, res, next) => {
+  if (process.env.NODE_ENV === 'development') {
+    return next();
+  }
   const ip = req.ip || req.connection?.remoteAddress || 'unknown';
   const key = getKey('forgot', ip);
   const maxAttempts = 3;

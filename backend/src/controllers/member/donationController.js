@@ -232,13 +232,15 @@ exports.getRecentDonors = async (req, res) => {
       const uName = d.user ? d.user.name : (d.donorName || 'Anonymous');
       const uInitials = uName.split(' ').map(n => n[0]).join('').substring(0,2).toUpperCase();
       const dDate = new Date(d.createdAt || d.date || Date.now());
+      const uId = d.user ? (d.user._id || d.user) : null;
       return {
         id: d._id,
         name: uName,
         amount: d.amount,
         date: dDate.toISOString(),
         initials: uInitials,
-        avatar: d.user ? d.user.avatar : ''
+        avatar: d.user ? d.user.avatar : '',
+        userId: uId ? uId.toString() : null
       };
     });
 
@@ -651,7 +653,7 @@ exports.getStats = async (req, res) => {
     let topDonations = await Donation.find(topFilter)
       .sort({ amount: -1 })
       .limit(5)
-      .populate('user', 'name avatar')
+      .populate('user', 'name avatar role city designation phone profession')
       .populate('campaign', 'title')
       .lean();
 
@@ -662,6 +664,7 @@ exports.getStats = async (req, res) => {
         const uInitials = uName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
         const dDate = new Date(d.createdAt || d.date || Date.now());
         const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        const uId = d.user ? (d.user._id || d.user) : null;
 
         return {
           id: `td_${d._id}`,
@@ -671,7 +674,8 @@ exports.getStats = async (req, res) => {
           purpose: d.campaign ? d.campaign.title : (d.purpose || 'General Relief'),
           date: `${dDate.getDate()} ${months[dDate.getMonth()]} ${dDate.getFullYear()}`,
           paymentMode: d.paymentMode || 'Online (UPI)',
-          avatar: d.user ? d.user.avatar : ''
+          avatar: d.user ? d.user.avatar : '',
+          userId: uId ? uId.toString() : null
         };
       });
     }
@@ -697,7 +701,7 @@ exports.getAllDonors = async (req, res) => {
     
     let donations = await Donation.find(scopeFilter)
       .sort({ createdAt: -1, date: -1 })
-      .populate('user', 'name avatar city community')
+      .populate('user', 'name avatar city community role designation phone profession')
       .populate({ path: 'campaign', select: 'title name' })
       .lean();
 
@@ -710,6 +714,7 @@ exports.getAllDonors = async (req, res) => {
       const cObj = d.campaign;
       const cTitle = (cObj && typeof cObj === 'object' && cObj.title) ? cObj.title : null;
       const finalPurpose = cTitle || d.title || d.purpose || d.campaignTitle || 'General Samaj Fund';
+      const uId = d.user ? (d.user._id || d.user) : null;
 
       return {
         id: `don_${d._id}`,
@@ -720,7 +725,8 @@ exports.getAllDonors = async (req, res) => {
         date: `${dDate.getDate()} ${months[dDate.getMonth()]} ${dDate.getFullYear()}`,
         rawDate: dDate,
         paymentMode: d.paymentMode || 'Online (UPI)',
-        avatar: d.user ? d.user.avatar : ''
+        avatar: d.user ? d.user.avatar : '',
+        userId: uId ? uId.toString() : null
       };
     });
 

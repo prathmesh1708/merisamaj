@@ -50,7 +50,6 @@ const contributionSchema = new mongoose.Schema({
 
 contributionSchema.index({ fundId: 1, memberId: 1 });
 contributionSchema.index({ communityId: 1, fundId: 1 });
-contributionSchema.index({ memberId: 1 });
 
 module.exports = mongoose.model('Contribution', contributionSchema);
 

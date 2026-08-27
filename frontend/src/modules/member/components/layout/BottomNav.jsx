@@ -3,8 +3,8 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { Home, Users, Heart, MessageCircle, User } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-// Sub-pages where bottom nav should be hidden (Matrimonial has its own dedicated navigation)
-const hiddenPaths = ['/member/events', '/member/groups', '/member/notifications', '/member/splash', '/member/login', '/member/setup-profile', '/member/select-community', '/member/verify-otp', '/member/chat/room', '/member/chat/call', '/member/matrimonial'];
+// Sub-pages where bottom nav should be hidden
+const hiddenPaths = ['/member/events', '/member/groups', '/member/notifications', '/member/splash', '/member/login', '/member/setup-profile', '/member/select-community', '/member/verify-otp', '/member/chat/room', '/member/chat/call'];
 
 export const BottomNav = ({ isVisible = true }) => {
   const location = useLocation();
@@ -44,7 +44,7 @@ export const BottomNav = ({ isVisible = true }) => {
       >
         <div className="flex items-center justify-around h-[58px] px-2 relative">
           {navItems.map((item) => {
-            const isActive = location.pathname === item.path;
+            const isActive = location.pathname === item.path || (item.path !== '/member/home' && location.pathname.startsWith(item.path));
             const Icon = item.icon;
 
             return (

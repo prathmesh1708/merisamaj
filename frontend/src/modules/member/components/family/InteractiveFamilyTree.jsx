@@ -51,8 +51,8 @@ export default function InteractiveFamilyTree({ members, currentUser, onEditMemb
   const { nodes, edges } = useMemo(() => {
     const nodeWidth = 120;
     const nodeHeight = 140;
-    const gapX = 60;
-    const gapY = 260;
+    const gapX = 50;
+    const gapY = 220;
 
     let allNodes = [];
     let allEdges = [];
@@ -242,24 +242,57 @@ export default function InteractiveFamilyTree({ members, currentUser, onEditMemb
   }, [selectedNode]);
 
   return (
-    <div className="relative -mx-5 w-[calc(100%+2.5rem)] h-[75vh] min-h-[500px] bg-slate-50/50 rounded-3xl sm:rounded-[36px] border border-purple-100/30 overflow-hidden shadow-inner flex flex-col animate-fade-in-up mt-2">
+    <div className="relative -mx-5 w-[calc(100%+2.5rem)] h-[75vh] min-h-[500px] bg-slate-50/70 rounded-3xl sm:rounded-[36px] border border-purple-100/40 overflow-hidden shadow-inner flex flex-col animate-fade-in-up mt-2">
       
-      {/* Top Bar: Controls */}
-      <div className="absolute top-4 left-4 right-4 z-20 flex justify-end gap-3 items-start pointer-events-none">
-        <div className="flex flex-col gap-2 pointer-events-auto">
-          <div className="bg-white/80 backdrop-blur-md rounded-2xl border border-purple-100/30 shadow-lg overflow-hidden flex flex-col">
-            <button onClick={zoomIn} className="p-2.5 hover:bg-purple-50 text-slate-600 active:bg-purple-100 transition-colors"><ZoomIn size={16} /></button>
-            <div className="w-full h-px bg-purple-100/50" />
-            <button onClick={zoomOut} className="p-2.5 hover:bg-purple-50 text-slate-600 active:bg-purple-100 transition-colors"><ZoomOut size={16} /></button>
-          </div>
+      {/* Background Grid Pattern */}
+      <div 
+        className="absolute inset-0 pointer-events-none opacity-40"
+        style={{
+          backgroundImage: 'radial-gradient(circle, #7C3AED 0.75px, transparent 0.75px)',
+          backgroundSize: '24px 24px'
+        }}
+      />
 
+      {/* Top Bar: Controls */}
+      <div className="absolute top-4 right-4 z-20 flex flex-col gap-2 pointer-events-none">
+        <div className="bg-white/90 backdrop-blur-md rounded-2xl border border-purple-100/50 shadow-lg overflow-hidden flex flex-col pointer-events-auto">
+          <button 
+            onClick={zoomIn} 
+            title="Zoom In"
+            className="p-2.5 hover:bg-purple-50 text-slate-600 active:bg-purple-100 transition-colors"
+          >
+            <ZoomIn size={16} />
+          </button>
+          <div className="w-full h-px bg-purple-100/50" />
+          <button 
+            onClick={zoomOut} 
+            title="Zoom Out"
+            className="p-2.5 hover:bg-purple-50 text-slate-600 active:bg-purple-100 transition-colors"
+          >
+            <ZoomOut size={16} />
+          </button>
+          <div className="w-full h-px bg-purple-100/50" />
+          <button 
+            onClick={resetZoom} 
+            title="Center View"
+            className="p-2.5 hover:bg-purple-50 text-slate-600 active:bg-purple-100 transition-colors"
+          >
+            <Maximize size={16} />
+          </button>
         </div>
+      </div>
+
+      {/* Bottom Hint */}
+      <div className="absolute bottom-3 left-4 right-4 z-20 flex justify-center pointer-events-none">
+        <span className="bg-white/80 backdrop-blur-md border border-purple-100/40 text-slate-500 text-[10px] font-bold px-3 py-1 rounded-full shadow-sm">
+          Drag to pan · Pinch to zoom · Tap card for details
+        </span>
       </div>
 
       {/* Canvas Area */}
       <div 
         ref={containerRef}
-        className="flex-1 w-full h-full touch-none cursor-grab active:cursor-grabbing"
+        className="flex-1 w-full h-full touch-none cursor-grab active:cursor-grabbing relative overflow-hidden"
         onWheel={handleWheel}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -270,82 +303,85 @@ export default function InteractiveFamilyTree({ members, currentUser, onEditMemb
         onTouchEnd={handleTouchEnd}
       >
         <motion.div 
-          className="w-full h-full origin-center relative flex items-center justify-center"
+          className="w-full h-full relative"
           animate={{ x: transform.x, y: transform.y, scale: transform.scale }}
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
         >
-          {/* SVG Edges Layer */}
-          <svg className="absolute inset-0 w-full h-full overflow-visible pointer-events-none" style={{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
-            {edges.map((edge, i) => {
-              const sourceNode = nodes.find(n => n.treeId === edge.source);
-              const targetNode = nodes.find(n => n.treeId === edge.target);
-              if (!sourceNode || !targetNode) return null;
+          {/* Centered Anchor Point: (0, 0) is at exact 50% 50% of the canvas */}
+          <div className="absolute top-1/2 left-1/2 w-0 h-0 pointer-events-none">
+            {/* SVG Edges Layer */}
+            <svg className="absolute top-0 left-0 w-0 h-0 overflow-visible pointer-events-none">
+              {edges.map((edge, i) => {
+                const sourceNode = nodes.find(n => n.treeId === edge.source);
+                const targetNode = nodes.find(n => n.treeId === edge.target);
+                if (!sourceNode || !targetNode) return null;
 
-              // Node anchor offsets
-              let sx = sourceNode.x; let sy = sourceNode.y;
-              let tx = targetNode.x; let ty = targetNode.y;
+                // Node anchor offsets
+                let sx = sourceNode.x; let sy = sourceNode.y;
+                let tx = targetNode.x; let ty = targetNode.y;
 
-              // Adjust anchors based on relationship (bottom to top, or side to side)
-              if (edge.type === 'parent' || edge.type === 'child') {
-                if (sourceNode.y < targetNode.y) {
-                  sy += 70; ty -= 70; // Top node bottom to bottom node top
+                // Adjust anchors based on relationship
+                if (edge.type === 'parent' || edge.type === 'child') {
+                  if (sourceNode.y < targetNode.y) {
+                    sy += 65; ty -= 65;
+                  } else {
+                    sy -= 65; ty += 65; 
+                  }
                 } else {
-                  sy -= 70; ty += 70; 
+                  if (sourceNode.x < targetNode.x) {
+                    sx += 60; tx -= 60;
+                  } else {
+                    sx -= 60; tx += 60;
+                  }
                 }
-              } else {
-                if (sourceNode.x < targetNode.x) {
-                  sx += 60; tx -= 60; // Left node right to right node left
-                } else {
-                  sx -= 60; tx += 60;
-                }
-              }
 
-              return (
-                <path 
-                  key={i}
-                  d={drawCurve(sx, sy, tx, ty)}
-                  fill="none"
-                  stroke={edge.type === 'spouse' ? '#F43F5E' : '#8B5CF6'}
-                  strokeWidth="2.5"
-                  strokeDasharray={edge.type === 'spouse' ? '4 4' : 'none'}
-                  className="opacity-40"
-                />
-              );
-            })}
-          </svg>
+                return (
+                  <path 
+                    key={i}
+                    d={drawCurve(sx, sy, tx, ty)}
+                    fill="none"
+                    stroke={edge.type === 'spouse' ? '#F43F5E' : '#8B5CF6'}
+                    strokeWidth="2.5"
+                    strokeDasharray={edge.type === 'spouse' ? '4 4' : 'none'}
+                    className="opacity-45"
+                  />
+                );
+              })}
+            </svg>
 
-          {/* HTML Nodes Layer */}
-          <div className="absolute inset-0 w-full h-full pointer-events-none" style={{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
-            {nodes.map(node => {
-              const isMatch = searchQuery === '' || node.name.toLowerCase().includes(searchQuery.toLowerCase()) || node.relation.toLowerCase().includes(searchQuery.toLowerCase());
-              
-              return (
-                <div 
-                  key={node.treeId}
-                  className={`absolute w-[120px] -translate-x-1/2 -translate-y-1/2 pointer-events-auto transition-all duration-300 ${isMatch ? 'opacity-100 scale-100' : 'opacity-30 scale-95'}`}
-                  style={{ left: node.x, top: node.y }}
-                >
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); setSelectedNode(node); }}
-                    onPointerDown={(e) => e.stopPropagation()}
-                    className={`w-full bg-white/90 backdrop-blur-md p-3 rounded-[24px] flex flex-col items-center gap-2 border-2 hover:shadow-[0_8px_30px_rgba(139,92,246,0.15)] hover:-translate-y-1 transition-all ${node.isMe ? 'border-[#7C3AED] shadow-[0_4px_20px_rgba(124,58,237,0.2)]' : 'border-purple-100/50 shadow-sm'}`}
+            {/* HTML Nodes Layer */}
+            <div className="absolute top-0 left-0 w-0 h-0 pointer-events-none">
+              {nodes.map(node => {
+                const isMatch = searchQuery === '' || node.name.toLowerCase().includes(searchQuery.toLowerCase()) || node.relation.toLowerCase().includes(searchQuery.toLowerCase());
+                
+                return (
+                  <div 
+                    key={node.treeId}
+                    className={`absolute w-[120px] -translate-x-1/2 -translate-y-1/2 pointer-events-auto transition-all duration-300 ${isMatch ? 'opacity-100 scale-100' : 'opacity-30 scale-95'}`}
+                    style={{ left: `${node.x}px`, top: `${node.y}px` }}
                   >
-                    <div className="relative">
-                      <Avatar initials={node.initials} src={node.avatar} size="lg" className="w-14 h-14 rounded-full border-2 border-white shadow-sm" />
-                      {node.isMe && (
-                        <div className="absolute -bottom-1 -right-1 bg-[#7C3AED] text-white text-[9px] font-black px-1.5 py-0.5 rounded-full border border-white">
-                          YOU
-                        </div>
-                      )}
-                    </div>
-                    <div className="text-center w-full">
-                      <h4 className="text-[11px] font-black text-slate-800 truncate leading-tight">{node.name}</h4>
-                      <p className="text-[9px] font-bold text-slate-400 truncate mt-0.5 uppercase tracking-wider">{node.relation}</p>
-                    </div>
-                  </button>
-                </div>
-              );
-            })}
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); setSelectedNode(node); }}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      className={`w-full bg-white/95 backdrop-blur-md p-3 rounded-[24px] flex flex-col items-center gap-2 border-2 hover:shadow-[0_8px_30px_rgba(139,92,246,0.15)] hover:-translate-y-1 transition-all ${node.isMe ? 'border-[#7C3AED] shadow-[0_4px_20px_rgba(124,58,237,0.2)] ring-4 ring-purple-100/50' : 'border-purple-100/70 shadow-sm'}`}
+                    >
+                      <div className="relative">
+                        <Avatar initials={node.initials || node.name} src={node.avatar} size="lg" className="w-14 h-14 rounded-full border-2 border-white shadow-sm" />
+                        {node.isMe && (
+                          <div className="absolute -bottom-1 -right-1 bg-[#7C3AED] text-white text-[9px] font-black px-1.5 py-0.5 rounded-full border border-white">
+                            YOU
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-center w-full">
+                        <h4 className="text-[11px] font-black text-slate-800 truncate leading-tight">{node.name}</h4>
+                        <p className="text-[9px] font-bold text-slate-400 truncate mt-0.5 uppercase tracking-wider">{node.relation}</p>
+                      </div>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
         </motion.div>

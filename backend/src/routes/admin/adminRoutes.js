@@ -93,5 +93,9 @@ router.use('/referrals', adminReferralRoutes);
 const adminShortcutRoutes = require('./adminShortcutRoutes');
 router.use('/shortcuts', adminShortcutRoutes);
 
+// User App Edits & Customization Routes
+const adminAppContentRoutes = require('./adminAppContentRoutes');
+router.use('/user-app-edits', adminAppContentRoutes);
+
 module.exports = router;
 

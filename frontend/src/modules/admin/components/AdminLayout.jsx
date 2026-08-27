@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { 
-  LayoutDashboard, Users, Heart, Calendar, Settings, LogOut, Menu, X, ShieldAlert, Send, Search, Building2, CreditCard, Globe, ChevronDown, ChevronUp, Network, Briefcase, HeartHandshake, Megaphone, Landmark, Flame, Crown, CheckSquare, BarChart3, Gift, Sparkles
+  LayoutDashboard, Users, Heart, Calendar, Settings, LogOut, Menu, X, ShieldAlert, Send, Search, Building2, CreditCard, Globe, ChevronDown, ChevronUp, Network, Briefcase, HeartHandshake, Megaphone, Landmark, Flame, Crown, CheckSquare, BarChart3, Gift, Sparkles, LayoutTemplate
 } from 'lucide-react';
 import { useData } from '../../member/context/DataProvider';
 import { Avatar } from '../../member/components/common/Avatar';
@@ -187,6 +187,11 @@ export const AdminLayout = () => {
           name: 'App Shortcuts & Icons', 
           path: '/admin/shortcuts', 
           icon: Sparkles 
+        },
+        { 
+          name: 'User App Edits', 
+          path: '/admin/user-app-edits', 
+          icon: LayoutTemplate 
         },
         { 
           name: 'System Config', 

@@ -53,6 +53,18 @@ export const AllDonorsPage = () => {
   // Calculate total community impact
   const totalAmount = donors.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
 
+  const handleDonorClick = (donor) => {
+    let targetUserId = donor.userId;
+    if (!targetUserId && donor.user && (donor.user._id || donor.user.id)) {
+      targetUserId = donor.user._id || donor.user.id;
+    }
+    if (targetUserId) {
+      navigate(`/member/directory/${targetUserId}`);
+    } else {
+      navigate('/member/directory');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-surface pb-20 relative">
       {/* ─── GLASSMORPHIC HEADER ─── */}
@@ -101,22 +113,22 @@ export const AllDonorsPage = () => {
           </div>
         </div>
 
-        {/* ─── SEARCH FILTER ─── */}
+        {/* ─── SEARCH INPUT ─── */}
         <div className="relative">
           <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-tertiary" />
           <input
             type="text"
-            placeholder="Search by donor name or campaign..."
+            placeholder="Search donors by name or purpose..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-white rounded-2xl text-xs font-semibold text-text-primary border border-purple-100/50 shadow-sm focus:outline-none focus:border-brand-primary placeholder:text-text-tertiary/70"
+            className="w-full pl-10 pr-4 py-2.5 bg-white rounded-2xl border border-purple-100/40 text-xs font-semibold text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-[#7C3AED] shadow-sm transition-all"
           />
         </div>
 
         {/* ─── DONORS LIST ─── */}
         {loading ? (
           <div className="py-12 text-center">
-            <div className="w-8 h-8 border-3 border-brand-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+            <div className="w-8 h-8 border-3 border-[#FF2162] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
             <p className="text-xs font-semibold text-text-secondary">Loading community donors...</p>
           </div>
         ) : filteredDonors.length === 0 ? (
@@ -162,12 +174,15 @@ export const AllDonorsPage = () => {
               return (
                 <div
                   key={donor.id || idx}
-                  className="bg-white rounded-2xl p-3.5 border border-purple-100/40 shadow-sm flex items-center justify-between gap-3 hover:shadow-md transition-all"
+                  onClick={() => handleDonorClick(donor)}
+                  className="group/donor bg-white rounded-2xl p-3.5 border border-purple-100/50 hover:border-purple-300 shadow-sm flex items-center justify-between gap-3 hover:shadow-md transition-all cursor-pointer"
                 >
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     <div className="relative shrink-0">
                       {donor.avatar ? (
-                        <Avatar src={donor.avatar} alt={donor.name} size="md" />
+                        <div className="w-10 h-10 rounded-full overflow-hidden border border-purple-100 p-0.5 group-hover/donor:border-[#FF2162]/50 transition-colors">
+                          <img src={donor.avatar} alt={donor.name} className="w-full h-full object-cover rounded-full group-hover/donor:scale-105 transition-transform" />
+                        </div>
                       ) : (
                         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white font-bold text-xs shadow-sm">
                           {donor.initials || 'A'}
@@ -179,7 +194,14 @@ export const AllDonorsPage = () => {
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <h4 className="text-xs font-bold text-text-primary truncate">{donor.name}</h4>
+                      <div className="flex items-center gap-1.5">
+                        <h4 className="text-xs font-bold text-text-primary group-hover/donor:text-[#FF2162] truncate transition-colors">
+                          {donor.name}
+                        </h4>
+                        <span className="text-[9px] font-bold text-purple-600/75 opacity-0 group-hover/donor:opacity-100 transition-opacity flex items-center shrink-0">
+                          Profile <ChevronRight size={10} strokeWidth={3} />
+                        </span>
+                      </div>
                       <div className="flex items-center gap-1.5 mt-1">
                         <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg border text-[10px] font-bold ${purposeBg}`}>
                           {purposeIcon}

@@ -72,10 +72,10 @@ if (mongoSanitize) {
   app.use(mongoSanitize());
 }
 
-if (rateLimit) {
+if (rateLimit && process.env.NODE_ENV === 'production') {
   const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 1000, // Dev-friendly limit
+    max: 2000,
     message: { status: 'error', message: 'Too many requests from this IP, please try again after 15 minutes' },
     standardHeaders: true,
     legacyHeaders: false

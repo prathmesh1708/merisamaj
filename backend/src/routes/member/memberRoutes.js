@@ -91,4 +91,8 @@ router.use('/census', censusRoutes);
 const referralRoutes = require('./referralRoutes');
 router.use('/referral', referralRoutes);
 
+// ─── Dynamic Home & User App Customization ──────────────────────────────────
+const memberAppContentRoutes = require('./memberAppContentRoutes');
+router.use('/app-content', memberAppContentRoutes);
+
 module.exports = router;

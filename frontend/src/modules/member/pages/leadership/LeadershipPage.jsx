@@ -15,8 +15,10 @@ const getHindiRole = (role) => {
   if (role === 'Patron') return 'संरक्षक';
   if (role === 'Vice President') return 'उपाध्यक्ष';
   if (role === 'Secretary') return 'सचिव';
+  if (role === 'General Secretary') return 'महासचिव';
   if (role === 'Joint Secretary') return 'संयुक्त सचिव';
   if (role === 'Treasurer') return 'कोषाध्यक्ष';
+  if (role === 'Women Cell Incharge') return 'महिला प्रकोष्ठ';
   if (role.startsWith('Minister')) {
     const match = role.match(/\(([^)]+)\)/);
     const category = match ? match[1] : '';
@@ -32,22 +34,23 @@ const getHindiRole = (role) => {
   return role;
 };
 
+const getEnglishRole = (role) => {
+  if (!role) return 'Officer';
+  if (role === 'President' || role === 'Community Head') return 'President';
+  if (role === 'Community Head (President)') return 'President';
+  return role;
+};
+
 const getBadgeColor = (role) => {
   if (role === 'President' || role === 'Community Head') return 'bg-[#f08c35]';
   if (role === 'Patron') return 'bg-amber-600';
   if (role === 'Vice President') return 'bg-[#7c3aed]';
-  if (role === 'Secretary') return 'bg-[#ff3b68]';
+  if (role === 'Secretary' || role === 'General Secretary') return 'bg-[#ff3b68]';
   if (role === 'Joint Secretary') return 'bg-[#ff3b68]';
   if (role === 'Treasurer') return 'bg-[#00a651]';
+  if (role === 'Women Cell Incharge') return 'bg-[#e91e8c]';
   return 'bg-[#ff3b68]';
 };
-
-const STATS_DATA = [
-  { id: 'members', labelHi: 'कुल सदस्य', labelEn: 'Total Members', value: 248756, suffix: '+', icon: Users, color: 'from-purple-500 to-violet-600' },
-  { id: 'states', labelHi: 'राज्य', labelEn: 'States', value: 28, suffix: '', icon: Globe, color: 'from-orange-500 to-amber-600' },
-  { id: 'districts', labelHi: 'जिले', labelEn: 'Districts', value: 350, suffix: '+', icon: Landmark, color: 'from-blue-500 to-cyan-600' },
-  { id: 'villages', labelHi: 'ग्राम इकाइयाँ', labelEn: 'Village Units', value: 5000, suffix: '+', icon: Home, color: 'from-emerald-500 to-teal-600' }
-];
 
 const MISSION_PILLARS = [
   { icon: Building, labelHi: 'शिक्षा', labelEn: 'Education', desc: 'ज्ञान और विकास', color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20' },
@@ -56,16 +59,16 @@ const MISSION_PILLARS = [
   { icon: Users, labelHi: 'एकता', labelEn: 'Unity', desc: 'एक समाज, एक लक्ष्य', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' }
 ];
 
-// ─── ORIGINAL HERO BANNER UI (BOUND TO LIVE BACKEND PAYLOAD) ─────────────────────
+// ─── HERO BANNER ──────────────────────────────────────────────────────────────
 const LeaderHeroBanner = ({ leader, city, onBack, navigate, hideHeader = false, activeCityDetail }) => {
   if (!leader) return null;
 
   const rawDesignation = leader.designation || leader.role;
   const designation = (!rawDesignation || rawDesignation.toLowerCase() === 'member') ? 'Community Head' : rawDesignation;
-  const isPresident = designation === 'President' || designation === 'Community Head';
+  const isPresident = designation === 'President' || designation === 'Community Head' || designation === 'Community Head (President)';
   const isPatron = designation === 'Patron';
 
-  const roleDisplay = isPresident ? 'COMMUNITY HEAD' : isPatron ? 'PATRON' : designation.toUpperCase();
+  const roleDisplay = isPresident ? 'COMMUNITY HEAD (PRESIDENT)' : isPatron ? 'PATRON' : designation.toUpperCase();
 
   const cityHindiMap = {
     'Indore': 'इंदौर',
@@ -85,12 +88,12 @@ const LeaderHeroBanner = ({ leader, city, onBack, navigate, hideHeader = false, 
     : defaultLeaderPhoto;
 
   return (
-    <div className={`relative overflow-hidden ${city ? 'mx-[-8px] sm:mx-0 sm:rounded-[32px]' : ''}`} style={{ background: 'linear-gradient(135deg, #120b32 0%, #1e1145 50%, #2e1a6c 100%)' }}>
-      <div className="relative z-10 px-2 pt-6 pb-5">
+    <div className={`relative overflow-hidden ${city ? 'rounded-[28px]' : ''}`} style={{ background: 'linear-gradient(135deg, #120b32 0%, #1e1145 50%, #2e1a6c 100%)' }}>
+      <div className="relative z-10 px-4 pt-6 pb-5">
         
         {/* Header Row */}
         {!hideHeader && (
-          <div className="flex items-center gap-3 mb-5 px-2 pt-4">
+          <div className="flex items-center gap-3 mb-5 pt-2">
             {onBack && (
               <button onClick={onBack}
                 className="w-9 h-9 rounded-xl flex items-center justify-center text-white shrink-0 transition-all active:scale-95"
@@ -108,15 +111,15 @@ const LeaderHeroBanner = ({ leader, city, onBack, navigate, hideHeader = false, 
         {/* Hero Card Layout */}
         <div 
           onClick={() => navigate(`/member/directory/${leader._id || leader.id}`, { state: { fromCity: activeCityDetail } })}
-          className="relative w-full rounded-[24px] bg-gradient-to-r from-[#1e1145] via-[#2d1b69] to-[#4C1D95] shadow-xl shadow-purple-500/10 border border-purple-400/10 overflow-hidden py-9 px-4 shrink-0 cursor-pointer active:scale-[0.99] transition-all duration-300"
+          className="relative w-full rounded-[24px] bg-gradient-to-r from-[#1e1145] via-[#2d1b69] to-[#4C1D95] shadow-xl shadow-purple-500/10 border border-purple-400/10 overflow-hidden py-9 px-5 shrink-0 cursor-pointer active:scale-[0.99] transition-all duration-300"
         >
           {/* Dark overlay backdrop */}
           <div className="absolute inset-0 bg-gradient-to-r from-[#1e1145] via-[#2d1b69]/70 via-[#2d1b69]/15 to-transparent pointer-events-none z-0" />
 
-          {/* Blended portrait on top of overlay */}
+          {/* Blended portrait */}
           <img 
             src={avatarUrl} 
-            className="absolute right-0 top-0 bottom-0 w-[58%] h-full object-cover object-[center_30%] pointer-events-none z-10" 
+            className="absolute right-0 top-0 bottom-0 w-[55%] h-full object-cover object-[center_30%] pointer-events-none z-10" 
             style={{
               WebkitMaskImage: 'linear-gradient(to right, transparent 0%, rgba(0,0,0,0.05) 15%, black 45%)',
               maskImage: 'linear-gradient(to right, transparent 0%, rgba(0,0,0,0.05) 15%, black 45%)'
@@ -129,18 +132,18 @@ const LeaderHeroBanner = ({ leader, city, onBack, navigate, hideHeader = false, 
           />
 
           {/* Left content */}
-          <div className="relative z-20 flex flex-col justify-between h-full max-w-[52%]">
+          <div className="relative z-20 flex flex-col justify-between h-full max-w-[55%]">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-full border-2 border-amber-400/60 flex items-center justify-center bg-black/20 shadow-sm shrink-0">
                 <Crown size={14} className="text-amber-400 fill-amber-400" />
               </div>
-              <span className="bg-purple-500/80 backdrop-blur-sm text-white text-[7.5px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider border border-purple-400/30">
+              <span className="bg-purple-500/80 backdrop-blur-sm text-white text-[7px] font-extrabold px-2 py-1 rounded-full uppercase tracking-wider border border-purple-400/30 leading-none">
                 {roleDisplay}
               </span>
             </div>
 
             <div className="mt-3">
-              <h4 className="text-white text-[15.5px] font-black leading-tight tracking-tight drop-shadow-sm">
+              <h4 className="text-white text-[16px] font-black leading-tight tracking-tight drop-shadow-sm">
                 {leader.name}
               </h4>
               {(() => {
@@ -148,7 +151,7 @@ const LeaderHeroBanner = ({ leader, city, onBack, navigate, hideHeader = false, 
                 const term = leader.termYears ? `Term: ${leader.termYears}` : '';
                 const meta = [loc, term].filter(Boolean).join(' • ');
                 return meta ? (
-                  <p className="text-purple-200/90 text-[11px] font-bold mt-1">
+                  <p className="text-purple-200/90 text-[11px] font-bold mt-1.5">
                     {meta}
                   </p>
                 ) : null;
@@ -161,39 +164,46 @@ const LeaderHeroBanner = ({ leader, city, onBack, navigate, hideHeader = false, 
   );
 };
 
-// ─── MEMBER SLIDER CARD UI ───────────────────────────────────────────────────
+// ─── MEMBER SLIDER CARD UI (matches HomePage core member card style) ─────────
 const MemberSliderCard = ({ member, navigate, activeCityDetail }) => {
-  const badgeColor = getBadgeColor(member.designation || member.role);
-  const hindiRole = getHindiRole(member.designation || member.role);
-  const avatarUrl = member.avatar || `https://i.pravatar.cc/150?u=${member.initials || member.name}`;
+  const rawRole = member.designation || member.role;
+  const badgeColor = getBadgeColor(rawRole);
+  const displayRole = rawRole && rawRole !== 'user' ? rawRole : 'Executive Member';
+  const avatarUrl = member.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name)}&background=6C3BFF&color=ffffff&bold=true`;
 
   return (
     <div 
       onClick={() => navigate(`/member/directory/${member._id || member.id}`, { state: { fromCity: activeCityDetail } })}
-      className="bg-white rounded-2xl p-2.5 border border-purple-100/60 shadow-[0_2px_12px_rgba(0,0,0,0.02)] flex flex-col items-center shrink-0 w-[105px] cursor-pointer hover:border-purple-200 transition-all group"
+      className="shrink-0 w-[calc((100vw-56px)/3.1)] max-w-[130px] bg-white rounded-3xl flex flex-col items-center cursor-pointer transition-all duration-300 pb-2.5 shadow-[0_4px_16px_rgba(0,0,0,0.03)] border border-purple-50 hover:border-purple-200 overflow-hidden"
     >
-      <div className="relative w-12 h-12 rounded-full overflow-hidden bg-gray-100 mb-1.5 border border-purple-100/80 shadow-sm group-hover:scale-105 transition-transform">
+      {/* Full Width Portrait Photo */}
+      <div className="w-full aspect-[4/3.8] overflow-hidden bg-gray-50 shrink-0 mb-1.5 pointer-events-none rounded-t-3xl">
         <img src={avatarUrl} className="w-full h-full object-cover" alt={member.name} />
       </div>
-
-      <span className={`text-[6.5px] font-black text-white px-1.5 py-0.5 rounded-md mb-1 text-center truncate max-w-full ${badgeColor}`}>
-        {hindiRole}
+      
+      {/* Role Badge - below photo */}
+      <span className={`text-white text-[7.5px] font-black px-1.5 py-0.5 rounded-md shadow-sm leading-none mb-1.5 shrink-0 ${badgeColor}`}>
+        {displayRole}
       </span>
-
-      <h4 className="text-slate-900 text-[9px] font-extrabold text-center leading-tight mb-1 px-1 h-5 flex items-center justify-center truncate w-full">
-        {member.name.replace('Shri ', '').replace('Smt. ', '')}
+      
+      {/* Name */}
+      <h4 className="text-slate-900 text-[9.5px] font-extrabold text-center leading-tight mb-2 px-1 h-5 flex items-center justify-center truncate w-full">
+        {member.name}
       </h4>
-
-      <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-1">
-        <a href={`tel:${member.phone || '9999999999'}`}
-          className="w-5.5 h-5.5 rounded-full border border-purple-200 flex items-center justify-center text-[#a855f7] hover:bg-purple-50 transition-colors"
+      
+      {/* Interactive Buttons: Call & Chat */}
+      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+        <a 
+          href={`tel:${member.phone || ''}`}
+          className="w-6 h-6 rounded-full bg-purple-50 flex items-center justify-center text-purple-600 hover:bg-purple-600 hover:text-white transition-colors"
         >
-          <Phone size={9} />
+          <Phone size={10} />
         </a>
-        <button onClick={() => navigate(`/member/chat/member/${member._id || member.id}`)}
-          className="w-5.5 h-5.5 rounded-full border border-emerald-250 flex items-center justify-center text-emerald-600 hover:bg-emerald-50 transition-colors"
+        <button 
+          onClick={() => navigate(`/member/chat/member/${member._id || member.id}`)}
+          className="w-6 h-6 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 hover:bg-emerald-600 hover:text-white transition-colors"
         >
-          <MessageCircle size={9} />
+          <MessageCircle size={10} />
         </button>
       </div>
     </div>
@@ -202,24 +212,25 @@ const MemberSliderCard = ({ member, navigate, activeCityDetail }) => {
 
 // ─── CABINET MEMBER CARD ──────────────────────────────────────────────────────
 const CabinetMemberCard = ({ member, navigate, activeCityDetail }) => {
-  const badgeColor = getBadgeColor(member.designation || member.role);
-  const hindiRole = getHindiRole(member.designation || member.role);
+  const rawRole = member.designation || member.role;
+  const badgeColor = getBadgeColor(rawRole);
+  const hindiRole = getHindiRole(rawRole);
   const avatarUrl = member.avatar || `https://i.pravatar.cc/150?u=${member.initials || member.name}`;
 
   return (
     <div 
       onClick={() => navigate(`/member/directory/${member._id || member.id}`, { state: { fromCity: activeCityDetail } })}
-      className="bg-white rounded-3xl p-3 border border-purple-100/55 shadow-[0_4px_16px_rgba(0,0,0,0.02)] flex items-center justify-between gap-3 cursor-pointer hover:border-purple-200 transition-all"
+      className="bg-white rounded-3xl p-3.5 border border-purple-100/55 shadow-[0_4px_16px_rgba(0,0,0,0.02)] flex items-center justify-between gap-3 cursor-pointer hover:border-purple-200 hover:shadow-md transition-all"
     >
       <div className="flex items-center gap-3 min-w-0">
-        <div className="w-10 h-10 rounded-xl overflow-hidden bg-gray-100 shrink-0 border border-purple-100/50 shadow-sm">
+        <div className="w-11 h-11 rounded-xl overflow-hidden bg-gray-100 shrink-0 border border-purple-100/50 shadow-sm">
           <img src={avatarUrl} className="w-full h-full object-cover" alt={member.name} />
         </div>
         <div className="min-w-0">
-          <span className={`text-[6.5px] font-black text-white px-1.5 py-0.5 rounded-md leading-none ${badgeColor}`}>
+          <span className={`text-[7px] font-black text-white px-1.5 py-0.5 rounded-md leading-none ${badgeColor}`}>
             {hindiRole}
           </span>
-          <h4 className="text-[11.5px] font-black text-slate-800 truncate mt-0.5 leading-tight">{member.name}</h4>
+          <h4 className="text-[12px] font-black text-slate-800 truncate mt-0.5 leading-tight">{member.name}</h4>
           {(() => {
             const subMeta = [member.city, member.department].filter(Boolean).join(' • ');
             return subMeta ? (
@@ -229,16 +240,16 @@ const CabinetMemberCard = ({ member, navigate, activeCityDetail }) => {
         </div>
       </div>
       
-      <div onClick={(e) => e.stopPropagation()} className="shrink-0 flex items-center gap-1">
+      <div onClick={(e) => e.stopPropagation()} className="shrink-0 flex items-center gap-1.5">
         <a href={`tel:${member.phone}`}
-          className="w-6 h-6 rounded-lg border border-purple-100 flex items-center justify-center text-[#6C3BFF] hover:bg-purple-50 active:scale-95 transition-all"
+          className="w-7 h-7 rounded-lg border border-purple-100 flex items-center justify-center text-[#6C3BFF] hover:bg-purple-50 active:scale-95 transition-all"
           style={{ background: 'rgba(108,59,255,0.04)' }}>
-          <Phone size={9.5} />
+          <Phone size={11} />
         </a>
         <a href={`https://wa.me/${(member.phone || '').replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer"
-          className="w-6 h-6 rounded-lg border border-emerald-100 flex items-center justify-center text-emerald-600 hover:bg-emerald-50 active:scale-95 transition-all"
+          className="w-7 h-7 rounded-lg border border-emerald-100 flex items-center justify-center text-emerald-600 hover:bg-emerald-50 active:scale-95 transition-all"
           style={{ background: 'rgba(16,185,129,0.04)' }}>
-          <MessageCircle size={9.5} className="text-emerald-500" />
+          <MessageCircle size={11} className="text-emerald-500" />
         </a>
       </div>
     </div>
@@ -264,7 +275,7 @@ const CityCard = ({ data, onClick }) => {
         <p className="text-[9.5px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">{nameEn} City ({count} Leaders)</p>
       </div>
 
-      <ChevronRight size={16} className="text-slate-400" />
+      <ChevronRight size={16} className="text-slate-400 shrink-0" />
     </motion.div>
   );
 };
@@ -289,7 +300,7 @@ const StatCard = ({ stat }) => {
 
 // ─── MISSION SECTION ──────────────────────────────────────────────────────────
 const MissionSection = () => (
-  <div className="rounded-[32px] overflow-hidden relative"
+  <div className="rounded-[28px] overflow-hidden relative"
     style={{ 
       background: 'linear-gradient(135deg, #0e072b 0%, #170d3e 60%, #221258 100%)', 
       border: '1.5px solid rgba(124,58,237,0.25)',
@@ -368,7 +379,7 @@ const LeadershipPage = () => {
 
   const scrollSlider = (ref) => {
     if (ref.current) {
-      ref.current.scrollBy({ left: 100, behavior: 'smooth' });
+      ref.current.scrollBy({ left: 130, behavior: 'smooth' });
     }
   };
 
@@ -440,53 +451,52 @@ const LeadershipPage = () => {
       <div className="min-h-screen pb-28" style={{ backgroundColor: '#F8F7FF' }}>
         <LeaderHeroBanner leader={communityHead} city={activeCityDetail} onBack={handleBackToMain} navigate={navigate} hideHeader={false} activeCityDetail={activeCityDetail} />
 
-        <div className="flex flex-col lg:flex-row gap-5 px-2 pt-5 max-w-5xl mx-auto">
-          <div className="flex-1 min-w-0 space-y-6">
-            
-            {/* City Office Bearers Slider */}
-            {cityMembers.length > 0 && (
-              <div>
-                <SectionHeader 
-                  titleHi={`${activeCityDetail} कार्यकारिणी`} 
-                  subtitleEn={`${activeCityDetail} Office Bearers`} 
-                />
-                <div className="relative">
-                  <div 
-                    ref={detailCitySliderRef}
-                    className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 items-stretch scroll-smooth"
-                  >
-                    {cityMembers.map(m => (
-                      <MemberSliderCard key={m._id} member={m} navigate={navigate} activeCityDetail={activeCityDetail} />
-                    ))}
-                  </div>
+        <div className="px-4 pt-5 max-w-5xl mx-auto space-y-6">
+          
+          {/* City Office Bearers Slider */}
+          {cityMembers.length > 0 && (
+            <div>
+              <SectionHeader 
+                titleHi={`${activeCityDetail} कार्यकारिणी`} 
+                subtitleEn={`${activeCityDetail} Office Bearers`} 
+              />
+              <div className="relative">
+                <div 
+                  ref={detailCitySliderRef}
+                  className="flex gap-2 overflow-x-auto scrollbar-hide pb-4 scroll-smooth"
+                >
+                  {cityMembers.map(m => (
+                    <MemberSliderCard key={m._id} member={m} navigate={navigate} activeCityDetail={activeCityDetail} />
+                  ))}
+                </div>
+                {cityMembers.length > 3 && (
                   <button 
                     onClick={() => scrollSlider(detailCitySliderRef)}
-                    className="absolute -right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white border border-gray-200 shadow-md flex items-center justify-center text-gray-500 hover:text-[#6C3BFF] hover:border-purple-200 active:scale-90 transition-all z-20"
+                    className="absolute -right-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white border border-gray-200 shadow-md flex items-center justify-center text-gray-500 hover:text-[#6C3BFF] hover:border-purple-200 active:scale-90 transition-all z-20"
                   >
                     <ChevronRight size={14} strokeWidth={2.5} />
                   </button>
-                </div>
+                )}
               </div>
-            )}
-
-            {/* City Scoped Sub Leaders Grid */}
-            {cityMembers.length > 0 && (
-              <div>
-                <SectionHeader titleHi="मंत्रिमंडल एवं टीम" subtitleEn="Cabinet & Committee Members" />
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {cityMembers.map(m => (
-                    <CabinetMemberCard key={m._id} member={m} navigate={navigate} activeCityDetail={activeCityDetail} />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Footer */}
-            <div className="text-center py-4">
-              <div className="h-px bg-gradient-to-r from-transparent via-purple-200/40 to-transparent mb-4" />
-              <p className="text-[10px] text-gray-400">{currentUser?.community || 'Samaj Directory'} · {activeCityDetail}</p>
             </div>
+          )}
 
+          {/* City Scoped Sub Leaders Grid */}
+          {cityMembers.length > 0 && (
+            <div>
+              <SectionHeader titleHi="मंत्रिमंडल एवं टीम" subtitleEn="Cabinet & Committee Members" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {cityMembers.map(m => (
+                  <CabinetMemberCard key={m._id} member={m} navigate={navigate} activeCityDetail={activeCityDetail} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Footer */}
+          <div className="text-center py-4">
+            <div className="h-px bg-gradient-to-r from-transparent via-purple-200/40 to-transparent mb-4" />
+            <p className="text-[10px] text-gray-400">{currentUser?.community || 'Samaj Directory'} · {activeCityDetail}</p>
           </div>
         </div>
       </div>
@@ -499,107 +509,107 @@ const LeadershipPage = () => {
       {/* 1. Main Leader Hero Banner (Top Community Head) */}
       <LeaderHeroBanner leader={communityHead} city={null} onBack={() => navigate(-1)} navigate={navigate} hideHeader={false} activeCityDetail={activeCityDetail} />
 
-      {/* 2-COLUMN LAYOUT */}
-      <div className="flex flex-col lg:flex-row gap-5 px-2 pt-5 max-w-5xl mx-auto">
+      {/* MAIN CONTENT */}
+      <div className="px-4 pt-5 max-w-5xl mx-auto space-y-7">
 
-        {/* MAIN CONTENT */}
-        <div className="flex-1 min-w-0 space-y-6">
-
-          {/* 2. Subordinate Leaders Slider */}
-          {subLeaders.length > 0 && (
-            <div>
-              <SectionHeader titleHi="कार्यकारिणी सदस्य" subtitleEn="Executive Officers" />
-              <div className="relative">
-                <div 
-                  ref={cityLeadersSliderRef}
-                  className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 items-stretch scroll-smooth"
-                >
-                  {subLeaders.map(m => (
-                    <MemberSliderCard key={m._id} member={m} navigate={navigate} activeCityDetail={activeCityDetail} />
-                  ))}
-                </div>
+        {/* 2. Executive Officers Slider */}
+        {subLeaders.length > 0 && (
+          <div>
+            <SectionHeader titleHi="कार्यकारिणी सदस्य" subtitleEn="Executive Officers" />
+            <div className="relative">
+              <div 
+                ref={cityLeadersSliderRef}
+                className="flex gap-2 overflow-x-auto scrollbar-hide pb-4 scroll-smooth"
+              >
+                {subLeaders.map(m => (
+                  <MemberSliderCard key={m._id} member={m} navigate={navigate} activeCityDetail={activeCityDetail} />
+                ))}
+              </div>
+              {subLeaders.length > 3 && (
                 <button 
                   onClick={() => scrollSlider(cityLeadersSliderRef)}
-                  className="absolute -right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white border border-gray-200 shadow-md flex items-center justify-center text-gray-500 hover:text-[#6C3BFF] hover:border-purple-200 active:scale-90 transition-all z-20"
+                  className="absolute -right-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white border border-gray-200 shadow-md flex items-center justify-center text-gray-500 hover:text-[#6C3BFF] hover:border-purple-200 active:scale-90 transition-all z-20"
                 >
                   <ChevronRight size={14} strokeWidth={2.5} />
                 </button>
-              </div>
+              )}
             </div>
-          )}
+          </div>
+        )}
 
-          {/* 3. Your City Leader Section */}
-          <div className="space-y-4">
-            <LeaderHeroBanner leader={communityHead} city={userCity} navigate={navigate} hideHeader={false} activeCityDetail={activeCityDetail} />
-            
-            {userCityMembers.length > 0 && (
-              <div className="relative">
-                <div 
-                  ref={userCitySliderRef}
-                  className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 items-stretch scroll-smooth"
-                >
-                  {userCityMembers.map(m => (
-                    <MemberSliderCard key={m._id} member={m} navigate={navigate} activeCityDetail={activeCityDetail} />
-                  ))}
-                </div>
+        {/* 3. Your City Leader Section */}
+        <div className="space-y-4">
+          <LeaderHeroBanner leader={communityHead} city={userCity} navigate={navigate} hideHeader={false} activeCityDetail={activeCityDetail} />
+          
+          {userCityMembers.length > 0 && (
+            <div className="relative">
+              <div 
+                ref={userCitySliderRef}
+                className="flex gap-2 overflow-x-auto scrollbar-hide pb-4 scroll-smooth"
+              >
+                {userCityMembers.map(m => (
+                  <MemberSliderCard key={m._id} member={m} navigate={navigate} activeCityDetail={activeCityDetail} />
+                ))}
+              </div>
+              {userCityMembers.length > 3 && (
                 <button 
                   onClick={() => scrollSlider(userCitySliderRef)}
-                  className="absolute -right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white border border-gray-200 shadow-md flex items-center justify-center text-gray-500 hover:text-[#6C3BFF] hover:border-purple-200 active:scale-90 transition-all z-20"
+                  className="absolute -right-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white border border-gray-200 shadow-md flex items-center justify-center text-gray-500 hover:text-[#6C3BFF] hover:border-purple-200 active:scale-90 transition-all z-20"
                 >
                   <ChevronRight size={14} strokeWidth={2.5} />
                 </button>
-              </div>
-            )}
-          </div>
-
-          {/* 4. Our Organization Section */}
-          <div>
-            <SectionHeader 
-              titleHi="हमारा संगठन" 
-              subtitleEn="समाज की एक मजबूत संरचना" 
-              action={{ 
-                label: showAllCities ? "कम देखें" : "सभी देखें", 
-                onClick: () => setShowAllCities(!showAllCities) 
-              }} 
-            />
-            <div className="flex flex-col gap-3">
-              {visibleCities.map((data) => (
-                <CityCard 
-                  key={data.id} 
-                  data={data} 
-                  onClick={() => {
-                    setActiveCityDetail(data.nameEn);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }} 
-                />
-              ))}
+              )}
             </div>
-          </div>
-
-          {/* Community Strength (Stats) */}
-          <div>
-            <SectionHeader titleHi="समाज की ताकत" subtitleEn="Community Strength" />
-            <div className="grid grid-cols-2 gap-3">
-              <StatCard stat={{ id: 'members', labelHi: 'कुल सदस्य', labelEn: 'Total Members', value: liveStats.totalMembers || 1, suffix: '', icon: Users, color: 'from-purple-500 to-violet-600' }} />
-              <StatCard stat={{ id: 'states', labelHi: 'राज्य', labelEn: 'States', value: liveStats.totalStates || 1, suffix: '', icon: Globe, color: 'from-orange-500 to-amber-600' }} />
-              <StatCard stat={{ id: 'districts', labelHi: 'जिले', labelEn: 'Districts', value: liveStats.totalDistricts || 1, suffix: '', icon: Landmark, color: 'from-blue-500 to-cyan-600' }} />
-              <StatCard stat={{ id: 'units', labelHi: 'ग्राम इकाइयाँ', labelEn: 'Village Units', value: liveStats.totalVillageUnits || 1, suffix: '', icon: Home, color: 'from-emerald-500 to-teal-600' }} />
-            </div>
-          </div>
-
-          {/* Mission */}
-          <MissionSection />
-
-            {/* Footer */}
-            <div className="text-center py-4">
-              <div className="h-px bg-gradient-to-r from-transparent via-purple-200/40 to-transparent mb-4" />
-              <p className="text-[10px] text-gray-400">{currentUser?.community || 'Samaj Directory'} · {userCity}</p>
-            </div>
+          )}
         </div>
 
+        {/* 4. Our Organization Section */}
+        <div>
+          <SectionHeader 
+            titleHi="हमारा संगठन" 
+            subtitleEn="समाज की एक मजबूत संरचना" 
+            action={{ 
+              label: showAllCities ? "कम देखें" : "सभी देखें", 
+              onClick: () => setShowAllCities(!showAllCities) 
+            }} 
+          />
+          <div className="flex flex-col gap-3">
+            {visibleCities.map((data) => (
+              <CityCard 
+                key={data.id} 
+                data={data} 
+                onClick={() => {
+                  setActiveCityDetail(data.nameEn);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }} 
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Community Strength (Stats) */}
+        <div>
+          <SectionHeader titleHi="समाज की ताकत" subtitleEn="Community Strength" />
+          <div className="grid grid-cols-2 gap-3">
+            <StatCard stat={{ id: 'members', labelHi: 'कुल सदस्य', labelEn: 'Total Members', value: liveStats.totalMembers || 1, suffix: '', icon: Users, color: 'from-purple-500 to-violet-600' }} />
+            <StatCard stat={{ id: 'states', labelHi: 'राज्य', labelEn: 'States', value: liveStats.totalStates || 1, suffix: '', icon: Globe, color: 'from-orange-500 to-amber-600' }} />
+            <StatCard stat={{ id: 'districts', labelHi: 'जिले', labelEn: 'Districts', value: liveStats.totalDistricts || 1, suffix: '', icon: Landmark, color: 'from-blue-500 to-cyan-600' }} />
+            <StatCard stat={{ id: 'units', labelHi: 'ग्राम इकाइयाँ', labelEn: 'Village Units', value: liveStats.totalVillageUnits || 1, suffix: '', icon: Home, color: 'from-emerald-500 to-teal-600' }} />
+          </div>
+        </div>
+
+        {/* Mission */}
+        <MissionSection />
+
+        {/* Footer */}
+        <div className="text-center py-4">
+          <div className="h-px bg-gradient-to-r from-transparent via-purple-200/40 to-transparent mb-4" />
+          <p className="text-[10px] text-gray-400">{currentUser?.community || 'Samaj Directory'} · {userCity}</p>
+        </div>
       </div>
     </div>
   );
 };
 
 export default LeadershipPage;
+

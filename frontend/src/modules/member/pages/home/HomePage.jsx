@@ -159,14 +159,30 @@ const HomePage = () => {
       })
       .catch(() => {});
       
-    successStoryService.getPublishedStories()
+    axiosPrivate.get('/member/app-content')
       .then(res => {
-        if (isMounted && res.status === 200 && res.data?.status === 'success' && Array.isArray(res.data?.data?.stories)) {
-          setLiveSuccessStories(res.data.data.stories);
+        if (isMounted && res.data?.success && res.data?.data) {
+          const appData = res.data.data;
+          if (appData.heroBanner) {
+            setHomepageContentSettings(prev => ({
+              ...(prev || {}),
+              hero: appData.heroBanner,
+              exclusiveFeatures: appData.exclusiveFeatures
+            }));
+          }
+          if (Array.isArray(appData.successStories) && appData.successStories.length > 0) {
+            setLiveSuccessStories(appData.successStories);
+          }
+          if (appData.coreMembers?.communityHead) {
+            setLiveCommunityHead(appData.coreMembers.communityHead);
+          }
+          if (Array.isArray(appData.coreMembers?.committee) && appData.coreMembers.committee.length > 0) {
+            setLiveSubLeaders(appData.coreMembers.committee);
+          }
         }
       })
       .catch(() => {});
-      
+
     return () => { isMounted = false; };
   }, []);
 
@@ -322,8 +338,26 @@ const HomePage = () => {
     return `${base}assets/images/rajwada.png`; // fallback
   };
 
+  const handleDonorClick = (donor) => {
+    let targetUserId = donor.userId;
+    if (!targetUserId) {
+      const found = (mockMembers || []).find(m => m.name?.toLowerCase() === donor.name?.toLowerCase() || m.id === donor.id || m._id === donor.id) ||
+                    (mockAdmins || []).find(a => a.name?.toLowerCase() === donor.name?.toLowerCase() || a.id === donor.id || a._id === donor.id) ||
+                    (liveSubLeaders || []).find(sl => sl.name?.toLowerCase() === donor.name?.toLowerCase() || sl._id === donor.id) ||
+                    (liveCommunityHead && liveCommunityHead.name?.toLowerCase() === donor.name?.toLowerCase() ? liveCommunityHead : null);
+      if (found) {
+        targetUserId = found._id || found.id;
+      }
+    }
+    if (targetUserId) {
+      navigate(`/member/directory/${targetUserId}`);
+    } else {
+      navigate('/member/directory');
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-surface pb-28">
+    <div className="min-h-screen bg-surface pb-28 relative">
 
       {/* ─── SAMAJ HERO BANNER ─── */}
       <div className="relative w-full overflow-hidden" style={{ minHeight: '260px' }}>
@@ -613,8 +647,10 @@ const HomePage = () => {
                 return (
                   <motion.div
                     key={donor.id || `donor-${idx}`}
-                    whileHover={{ y: -2, scale: 1.01, boxShadow: '0 6px 20px rgba(124,58,237,0.04)' }}
-                    className="flex items-center justify-between p-2.5 rounded-2xl bg-white border border-slate-100/60 shadow-sm transition-all duration-300"
+                    whileHover={{ y: -2, scale: 1.01, boxShadow: '0 6px 20px rgba(124,58,237,0.06)' }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => handleDonorClick(donor)}
+                    className="group/donor flex items-center justify-between p-2.5 rounded-2xl bg-white border border-slate-100/80 hover:border-purple-200/90 shadow-sm transition-all duration-300 cursor-pointer"
                   >
                     <div className="flex items-center gap-3">
                       {/* 3D Rank Badge */}
@@ -624,9 +660,9 @@ const HomePage = () => {
 
                       {/* Avatar with Glow Rings */}
                       <div className="relative shrink-0">
-                        <div className="w-[42px] h-[42px] rounded-full overflow-hidden border border-purple-100/80 p-[1.5px] bg-white">
+                        <div className="w-[42px] h-[42px] rounded-full overflow-hidden border border-purple-100/80 group-hover/donor:border-[#FF2162]/50 p-[1.5px] bg-white transition-colors">
                           {donor.avatar ? (
-                            <img src={donor.avatar} alt={donor.name} className="w-full h-full object-cover rounded-full" />
+                            <img src={donor.avatar} alt={donor.name} className="w-full h-full object-cover rounded-full group-hover/donor:scale-105 transition-transform duration-300" />
                           ) : (
                             <div className="w-full h-full rounded-full bg-purple-50 text-brand-primary flex items-center justify-center text-[11px] font-black uppercase">
                               {donor.initials}
@@ -637,9 +673,14 @@ const HomePage = () => {
 
                       {/* Details: Name, Purpose, Date */}
                       <div className="flex flex-col text-left">
-                        <span className="text-[13px] font-extrabold text-slate-800 tracking-tight leading-tight mb-0.5">
-                          {donor.name}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[13px] font-extrabold text-slate-800 group-hover/donor:text-[#FF2162] tracking-tight leading-tight transition-colors">
+                            {donor.name}
+                          </span>
+                          <span className="text-[9px] font-bold text-purple-600/75 opacity-0 group-hover/donor:opacity-100 transition-opacity flex items-center">
+                            Profile <ChevronRight size={10} strokeWidth={3} />
+                          </span>
+                        </div>
                         <div className="flex flex-col gap-0.5">
                           {/* Purpose badge */}
                           <div className="flex items-center gap-1 mt-0.5">
@@ -1041,18 +1082,18 @@ const HomePage = () => {
               
               <div className="absolute inset-0 p-5 flex flex-col justify-end">
                 <div className="bg-pink-500/85 backdrop-blur-md text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest inline-flex self-start mb-3 shadow-sm border border-pink-400/40">
-                  Met through Samaj Matrimony
+                  {story.tag || 'Met through Samaj Matrimony'}
                 </div>
                 <h4 className="text-white text-[21px] font-serif font-bold leading-tight drop-shadow-md">
-                  {story.groomId && story.brideId ? `${story.groomId.name} & ${story.brideId.name}` : story.groomName}
+                  {story.title || (story.groomId && story.brideId ? `${story.groomId.name} & ${story.brideId.name}` : story.groomName)}
                 </h4>
                 <p className="text-white/75 text-[12px] font-medium mt-1 drop-shadow-sm flex items-center gap-1.5">
                   <Heart size={12} className="text-pink-400" fill="currentColor" /> 
-                  Married in {story.weddingDate ? new Date(story.weddingDate).toLocaleDateString() : story.marriageDate}
+                  Married in {story.weddingDate ? (isNaN(new Date(story.weddingDate).getTime()) ? story.weddingDate : new Date(story.weddingDate).toLocaleDateString()) : (story.marriageDate || '2024')}
                 </p>
                 <div className="mt-3 pt-3 border-t border-white/15">
                   <p className="text-white/85 text-[13px] italic font-medium leading-snug drop-shadow-sm line-clamp-3">
-                    "{story.shortDescription || story.quote}"
+                    "{story.quote || story.shortDescription}"
                   </p>
                 </div>
               </div>

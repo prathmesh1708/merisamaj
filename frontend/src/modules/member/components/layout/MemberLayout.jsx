@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { Avatar } from '../common/Avatar';
 
-const hiddenPaths = ['/member/events', '/member/groups', '/member/notifications', '/member/splash', '/member/login', '/member/setup-profile', '/member/select-community', '/member/verify-otp', '/member/chat/room', '/member/chat/call', '/member/matrimonial'];
+const hiddenPaths = ['/member/events', '/member/groups', '/member/notifications', '/member/splash', '/member/login', '/member/setup-profile', '/member/select-community', '/member/verify-otp', '/member/chat/room', '/member/chat/call'];
 const sideNavHiddenPaths = ['/member/events', '/member/groups', '/member/notifications', '/member/splash', '/member/login', '/member/setup-profile', '/member/select-community', '/member/verify-otp'];
 
 export const MemberLayout = () => {
@@ -52,7 +52,7 @@ export const MemberLayout = () => {
 
   const shouldHideBottomNav = hiddenPaths.some(p => location.pathname.startsWith(p)) || location.pathname.split('/').filter(Boolean).length > 2;
   const shouldHideSideNav = sideNavHiddenPaths.some(p => location.pathname.startsWith(p)) || location.pathname.split('/').filter(Boolean).length > 2;
-  const isFullHeightRoute = location.pathname.startsWith('/member/social') || location.pathname === '/member/chat';
+  const isFullHeightRoute = location.pathname.startsWith('/member/social') || location.pathname === '/member/chat' || location.pathname === '/member/matrimonial';
 
   const handleMenuLinkClick = (path) => {
     setMobileMenuOpen(false);

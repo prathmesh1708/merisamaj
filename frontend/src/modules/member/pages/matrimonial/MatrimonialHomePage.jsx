@@ -390,9 +390,65 @@ const MatrimonialHomePage = () => {
     return () => window.removeEventListener('matrimonialInterestAccepted', handleAccepted);
   }, []);
 
+  const renderMatrimonialSubTabs = () => (
+    <div className="bg-white/95 backdrop-blur-md px-3 py-2 border-b border-slate-100/90 shrink-0 z-40">
+      <div className="grid grid-cols-4 gap-1 p-1 bg-slate-100/90 rounded-2xl max-w-lg mx-auto">
+        <button
+          onClick={() => { setActiveBottomTab('matches'); setCurrentSubView(null); }}
+          className={`flex items-center justify-center gap-1 py-1.5 px-1 rounded-xl text-[11px] md:text-xs font-black transition-all ${
+            activeBottomTab === 'matches'
+              ? 'bg-white text-rose-600 shadow-xs'
+              : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Sparkles size={12} className={activeBottomTab === 'matches' ? 'text-rose-500' : 'text-slate-400'} />
+          <span className="truncate">Matches</span>
+        </button>
+
+        <button
+          onClick={() => { setActiveBottomTab('activity'); setCurrentSubView(null); }}
+          className={`flex items-center justify-center gap-1 py-1.5 px-1 rounded-xl text-[11px] md:text-xs font-black transition-all relative ${
+            activeBottomTab === 'activity'
+              ? 'bg-white text-rose-600 shadow-xs'
+              : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Clock size={12} className={activeBottomTab === 'activity' ? 'text-rose-500' : 'text-slate-400'} />
+          <span className="truncate">Activity</span>
+          {receivedCount > 0 && (
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+          )}
+        </button>
+
+        <button
+          onClick={() => { setActiveBottomTab('messenger'); setCurrentSubView(null); }}
+          className={`flex items-center justify-center gap-1 py-1.5 px-1 rounded-xl text-[11px] md:text-xs font-black transition-all relative ${
+            activeBottomTab === 'messenger'
+              ? 'bg-white text-rose-600 shadow-xs'
+              : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <MessageCircle size={12} className={activeBottomTab === 'messenger' ? 'text-rose-500' : 'text-slate-400'} />
+          <span className="truncate">Chat</span>
+          <span className="px-1 py-0.2 bg-rose-500 text-white text-[8px] font-bold rounded-full">
+            2
+          </span>
+        </button>
+
+        <button
+          onClick={() => navigate('/member/profile/upgrade')}
+          className="flex items-center justify-center gap-1 py-1.5 px-1 bg-gradient-to-r from-rose-500 to-pink-600 text-white rounded-xl text-[11px] md:text-xs font-black shadow-xs hover:opacity-95 active:scale-95 transition-all"
+        >
+          <Crown size={11} />
+          <span className="truncate">Upgrade</span>
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="h-[100dvh] bg-slate-50 flex flex-col overflow-hidden relative select-none w-full">
-      
+
       {/* ─── MAIN MATCHES FEED VIEW ─── */}
       {activeBottomTab === 'matches' && (
         <>
@@ -476,6 +532,9 @@ const MatrimonialHomePage = () => {
               </>
             )}
           </div>
+
+          {/* ─── MATRIMONIAL SUB-NAVIGATION TABS (Balanced across all devices) ─── */}
+          {renderMatrimonialSubTabs()}
 
           {/* Scrollable feed */}
           <div className="flex-1 overflow-y-auto pb-24 bg-slate-50 flex flex-col">
@@ -800,7 +859,9 @@ const MatrimonialHomePage = () => {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
+          {renderMatrimonialSubTabs()}
+
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5 pb-28">
             {/* Stat Cards (Cloned from Image 2) */}
             <div className="flex gap-2.5">
               {/* Profile Visits Card */}
@@ -1444,7 +1505,9 @@ const MatrimonialHomePage = () => {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6">
+          {renderMatrimonialSubTabs()}
+
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6 pb-28">
             
             {/* Online Matches Section (Image 1) */}
             <div>
@@ -2399,77 +2462,7 @@ const MatrimonialHomePage = () => {
         </div>
       )}
 
-      {/* ─── BOTTOM NAVIGATION BAR (Matches reference exactly) ─── */}
-      <div
-        className="bg-white border-t border-slate-100 shadow-[0_-4px_16px_rgba(0,0,0,0.035)] z-40 pb-safe font-sans shrink-0"
-        style={{ height: 'max(env(safe-area-inset-bottom, 0px) + 56px, 60px)' }}
-      >
-        <div className="flex items-center justify-around h-14">
-          {/* Home Tab */}
-          <button
-            onClick={() => navigate('/member/home')}
-            className="flex flex-col items-center justify-center flex-1 h-full relative transition-all text-slate-400 hover:text-rose-500"
-          >
-            <div className="flex flex-col items-center">
-              <Home size={20} className="stroke-[2.2]" />
-              <span className="text-[10px] mt-0.5 font-bold">Home</span>
-            </div>
-          </button>
-
-          {/* Matches Tab */}
-          <button
-            onClick={() => { setActiveBottomTab('matches'); setCurrentSubView(null); }}
-            className={`flex flex-col items-center justify-center flex-1 h-full relative transition-all ${
-              activeBottomTab === 'matches' ? 'text-rose-500 font-bold' : 'text-slate-400'
-            }`}
-          >
-            <div className="flex flex-col items-center">
-              <Heart size={20} fill={activeBottomTab === 'matches' ? 'currentColor' : 'none'} className="stroke-[2.2]" />
-              <span className="text-[10px] mt-0.5 font-bold">Matches</span>
-            </div>
-            {activeBottomTab === 'matches' && <div className="absolute top-0 w-8 h-[3px] bg-rose-500 rounded-b-full" />}
-          </button>
-
-          {/* Activity Tab (Clock icon - Cloned from Images 2 & 3) */}
-          <button
-            onClick={() => { setActiveBottomTab('activity'); setCurrentSubView(null); }}
-            className={`flex flex-col items-center justify-center flex-1 h-full relative transition-all ${
-              activeBottomTab === 'activity' ? 'text-rose-500 font-bold' : 'text-slate-400'
-            }`}
-          >
-            <Clock size={20} />
-            <span className="text-[10px] mt-1 font-bold">Activity</span>
-            {activeBottomTab === 'activity' && <div className="absolute top-0 w-8 h-[3px] bg-rose-500 rounded-b-full" />}
-          </button>
-
-          {/* Messenger Tab */}
-          <button
-            onClick={() => { setActiveBottomTab('messenger'); setCurrentSubView(null); }}
-            className={`flex flex-col items-center justify-center flex-1 h-full relative transition-all ${
-              activeBottomTab === 'messenger' ? 'text-rose-500 font-bold' : 'text-slate-400 hover:text-slate-600'
-            }`}
-          >
-            <MessageCircle size={20} />
-            <span className="absolute top-1.5 right-6 w-4 h-4 bg-rose-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center border border-white">
-              2
-            </span>
-            <span className="text-[10px] mt-1 font-bold">Messenger</span>
-            {activeBottomTab === 'messenger' && <div className="absolute top-0 w-8 h-[3px] bg-rose-500 rounded-b-full" />}
-          </button>
-
-          {/* Upgrade Tab */}
-          <div className="flex-1 h-full flex items-center justify-center">
-            <div 
-              onClick={() => navigate('/member/profile/upgrade')}
-              className="bg-rose-50 hover:bg-rose-100 border border-rose-250 rounded-xl px-2.5 py-1.5 flex flex-col items-center justify-center cursor-pointer select-none active:scale-95 transition-transform"
-            >
-              <span className="text-[9px] font-extrabold text-rose-600 bg-rose-200 px-1 rounded uppercase tracking-wider leading-none">Premium</span>
-              <span className="text-[9.5px] mt-0.5 font-bold text-amber-800 leading-none">Upgrade</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
+  
       {/* ─── TOAST NOTIFICATION ─── */}
       {toastMessage && (
         <div className="fixed top-5 left-1/2 -translate-x-1/2 bg-slate-900/95 backdrop-blur-sm text-white text-[12.5px] font-black px-5 py-3 rounded-full shadow-lg z-[60] animate-bounce-in border border-white/10">

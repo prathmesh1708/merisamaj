@@ -185,11 +185,32 @@ const DonationCampaignDetailPage = () => {
             <>
               <div className="space-y-3">
                 {displayedDonors.map((donor) => (
-                  <div key={donor.id} className="flex justify-between items-center text-[11px] border-b border-gray-50 pb-3 last:border-0 last:pb-0">
+                  <div 
+                    key={donor.id} 
+                    onClick={() => {
+                      if (donor.userId) {
+                        navigate(`/member/directory/${donor.userId}`);
+                      } else {
+                        navigate('/member/directory');
+                      }
+                    }}
+                    className="flex justify-between items-center text-[11px] border-b border-gray-50 pb-3 last:border-0 last:pb-0 cursor-pointer hover:bg-purple-50/40 p-1.5 -mx-1.5 rounded-xl transition-all group/donor"
+                  >
                     <div className="flex items-center gap-3">
-                      <Avatar initials={donor.initials} size="md" />
+                      {donor.avatar ? (
+                        <div className="w-8 h-8 rounded-full overflow-hidden border border-purple-100 p-0.5 group-hover/donor:border-[#FF2162]/50 transition-colors">
+                          <img src={donor.avatar} alt={donor.name} className="w-full h-full object-cover rounded-full group-hover/donor:scale-105 transition-transform" />
+                        </div>
+                      ) : (
+                        <Avatar initials={donor.initials} size="md" />
+                      )}
                       <div>
-                        <span className="font-bold text-text-primary block text-xs">{donor.name}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-text-primary group-hover/donor:text-purple-700 block text-xs transition-colors">{donor.name}</span>
+                          <span className="text-[9px] font-bold text-purple-600/70 opacity-0 group-hover/donor:opacity-100 transition-opacity flex items-center">
+                            Profile <ChevronRight size={10} strokeWidth={3} />
+                          </span>
+                        </div>
                         <span className="text-text-secondary text-[10px] mt-0.5 block">{formatDate(donor.date)}</span>
                       </div>
                     </div>
