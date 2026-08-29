@@ -631,6 +631,20 @@ const CreatePostPage = () => {
                         />
                       </div>
                     )}
+                    {attachments[0].type === 'instagram' && (
+                      <div className="w-full p-4 bg-gradient-to-r from-purple-950/50 via-pink-950/40 to-slate-900 flex items-center justify-between text-white border-y border-pink-500/20">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-500 via-pink-500 to-purple-600 flex items-center justify-center text-white shadow">
+                            <Instagram size={18} />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-slate-100">Instagram Reel / Post Attached</p>
+                            <p className="text-[10px] text-slate-400 truncate max-w-[200px]">{attachments[0].url}</p>
+                          </div>
+                        </div>
+                        <span className="text-[11px] font-bold text-pink-400">Ready to publish</span>
+                      </div>
+                    )}
                   </div>
                 )}
 

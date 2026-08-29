@@ -1,6 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Heart, Share2, MoreHorizontal, Send, ArrowLeft, Check, Camera, Smile, ThumbsUp, Calendar, Phone, Eye, MessageCircle, ChevronDown, Clock, X, Bookmark, ChevronLeft, ChevronRight } from 'lucide-react';
+
+const InstagramIcon = (props) => (
+  <svg
+    viewBox="0 0 24 24"
+    width={props.size || "24"}
+    height={props.size || "24"}
+    stroke="currentColor"
+    strokeWidth="2"
+    fill="none"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+    <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+  </svg>
+);
 import { Avatar } from '../../components/common/Avatar';
 import { useData } from '../../context/DataProvider';
 import socialService from '../../../../core/api/socialService';
@@ -143,6 +161,107 @@ const AutoPauseYouTube = ({ embedUrl }) => {
   );
 };
 
+const extractInstagramEmbedUrl = (url) => {
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = url.trim();
+  const match = trimmed.match(/instagram\.com\/(?:p|reel|reels|tv)\/([a-zA-Z0-9_-]+)/i);
+  if (match && match[1]) {
+    const code = match[1];
+    return `https://www.instagram.com/reel/${code}/embed/`;
+  }
+  return '';
+};
+
+const InstagramEmbedPlayer = ({ url }) => {
+  const embedUrl = extractInstagramEmbedUrl(url);
+  const containerRef = React.useRef(null);
+  const [isInView, setIsInView] = React.useState(true);
+
+  useEffect(() => {
+    const containerEl = containerRef.current;
+    if (!containerEl || !embedUrl) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting || entry.intersectionRatio < 0.15) {
+            setIsInView(false);
+          } else if (entry.intersectionRatio >= 0.25) {
+            setIsInView(true);
+          }
+        });
+      },
+      {
+        threshold: [0, 0.15, 0.25, 0.5, 1.0],
+        rootMargin: '0px'
+      }
+    );
+
+    observer.observe(containerEl);
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        setIsInView(false);
+      } else {
+        setIsInView(true);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      observer.disconnect();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [embedUrl]);
+
+  if (!embedUrl) {
+    return (
+      <a 
+        href={url.startsWith('http') ? url : `https://${url}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="w-full p-4 bg-gradient-to-r from-purple-950/40 via-pink-950/30 to-slate-900 border border-pink-500/20 rounded-2xl flex items-center justify-between hover:border-pink-500/50 transition-all text-white"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 via-pink-500 to-purple-600 flex items-center justify-center text-white shadow">
+            <InstagramIcon size={20} />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-slate-200">Watch on Instagram</p>
+            <p className="text-[10px] text-slate-400 truncate max-w-[220px]">{url}</p>
+          </div>
+        </div>
+        <span className="text-xs font-black text-pink-400 bg-pink-500/10 px-3 py-1.5 rounded-xl border border-pink-500/20">Open ↗</span>
+      </a>
+    );
+  }
+
+  return (
+    <div 
+      ref={containerRef}
+      className="w-full rounded-2xl overflow-hidden bg-black shadow-md relative border border-slate-800/80 my-1 min-h-[480px] flex items-center justify-center"
+    >
+      {isInView ? (
+        <iframe
+          src={embedUrl}
+          className="w-full h-[480px] max-h-[75vh] border-0 rounded-2xl bg-black"
+          scrolling="no"
+          allowTransparency="true"
+          allow="encrypted-media; picture-in-picture"
+          title="Instagram Reel/Post"
+        />
+      ) : (
+        <div className="w-full h-[480px] bg-slate-950 flex flex-col items-center justify-center text-slate-400 gap-2">
+          <div className="w-10 h-10 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-pink-500 animate-pulse">
+            <InstagramIcon size={20} />
+          </div>
+          <span className="text-[11px] font-bold text-slate-500">Instagram Video Paused</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const RenderMedia = ({ url, isSingle = true }) => {
   const placeholders = {
     women_workshop_1: 'https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=800',
@@ -167,7 +286,7 @@ const RenderMedia = ({ url, isSingle = true }) => {
     lowercase.includes('/video/');
 
   const isYoutube = lowercase.includes('youtube.com') || lowercase.includes('youtu.be') || Boolean(extractYouTubeVideoId(cleanUrl));
-  const isInstagram = lowercase.includes('instagram.com');
+  const isInstagram = lowercase.includes('instagram.com') || Boolean(extractInstagramEmbedUrl(cleanUrl));
 
   if (isYoutube) {
     const videoId = extractYouTubeVideoId(cleanUrl);
@@ -191,10 +310,7 @@ const RenderMedia = ({ url, isSingle = true }) => {
 
   if (isInstagram) {
     return (
-      <div className="w-full h-36 bg-[#121212] flex flex-col items-center justify-center p-3 text-center border border-slate-800 rounded-2xl">
-        <span className="text-[12px] font-bold text-pink-500">Instagram Embed</span>
-        <span className="text-[9px] text-slate-500 truncate max-w-full mt-1">{cleanUrl}</span>
-      </div>
+      <InstagramEmbedPlayer url={cleanUrl} />
     );
   }
 
