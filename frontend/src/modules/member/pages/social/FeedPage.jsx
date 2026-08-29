@@ -135,7 +135,141 @@ const getCategoryStyles = (category, lang) => {
   };
 };
 
-const RenderMedia = ({ url, onClick, isSingle = true }) => {
+const extractYouTubeVideoId = (url) => {
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = url.trim();
+  
+  // Universal regex covering watch?v=, youtu.be/, shorts/, live/, embed/, m.youtube.com
+  const regExp = /(?:youtube(?:-nocookie)?\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?|shorts|live)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+  const match = trimmed.match(regExp);
+  if (match && match[1]) {
+    return match[1];
+  }
+
+  try {
+    const fullUrl = trimmed.startsWith('http') ? trimmed : `https://${trimmed}`;
+    const parsed = new URL(fullUrl);
+    if (parsed.searchParams.has('v')) {
+      return parsed.searchParams.get('v');
+    }
+    const pathParts = parsed.pathname.split('/').filter(Boolean);
+    if (parsed.hostname.includes('youtu.be') && pathParts.length > 0) {
+      return pathParts[0];
+    }
+    if (['shorts', 'live', 'embed', 'v'].includes(pathParts[0]) && pathParts.length > 1) {
+      return pathParts[1];
+    }
+  } catch (e) {}
+
+  return '';
+};
+
+const AutoPauseVideo = ({ src, isSingle = true, onClick }) => {
+  const videoRef = React.useRef(null);
+  const containerRef = React.useRef(null);
+
+  useEffect(() => {
+    const videoEl = videoRef.current;
+    const containerEl = containerRef.current;
+    if (!videoEl || !containerEl) return;
+
+    // Automatically pause video when scrolled out of viewport
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting || entry.intersectionRatio < 0.15) {
+            if (!videoEl.paused) {
+              videoEl.pause();
+            }
+          }
+        });
+      },
+      {
+        threshold: [0, 0.15, 0.5, 0.8, 1.0],
+        rootMargin: '0px'
+      }
+    );
+
+    observer.observe(containerEl);
+
+    const handleVisibilityChange = () => {
+      if (document.hidden && !videoEl.paused) {
+        videoEl.pause();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      observer.disconnect();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  return (
+    <div 
+      ref={containerRef} 
+      className={isSingle ? "w-full rounded-2xl overflow-hidden bg-black flex items-center justify-center relative my-0.5" : "w-full h-full bg-black flex items-center justify-center relative"}
+      onClick={onClick}
+    >
+      <video 
+        ref={videoRef}
+        src={src} 
+        controls 
+        playsInline
+        webkit-playsinline="true"
+        preload="metadata"
+        className={isSingle ? "w-full max-h-[600px] object-contain rounded-2xl block mx-auto" : "w-full h-full object-cover"} 
+      />
+    </div>
+  );
+};
+
+const AutoPauseYouTube = ({ embedUrl }) => {
+  const containerRef = React.useRef(null);
+  const iframeRef = React.useRef(null);
+
+  useEffect(() => {
+    const containerEl = containerRef.current;
+    if (!containerEl) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting || entry.intersectionRatio < 0.15) {
+            try {
+              if (iframeRef.current?.contentWindow) {
+                iframeRef.current.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
+              }
+            } catch (e) {}
+          }
+        });
+      },
+      { threshold: [0, 0.15, 0.5, 1.0] }
+    );
+
+    observer.observe(containerEl);
+    return () => observer.disconnect();
+  }, []);
+
+  const finalEmbedUrl = embedUrl.includes('?') 
+    ? `${embedUrl}&enablejsapi=1` 
+    : `${embedUrl}?enablejsapi=1`;
+
+  return (
+    <div ref={containerRef} className="w-full aspect-video rounded-2xl overflow-hidden bg-black shadow-md relative" onClick={(e) => e.stopPropagation()}>
+      <iframe 
+        ref={iframeRef}
+        src={finalEmbedUrl} 
+        className="w-full h-full border-0" 
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        allowFullScreen 
+        title="YouTube Video" 
+      />
+    </div>
+  );
+};
+
+export const RenderMedia = ({ url, isSingle = false, onClick }) => {
   const placeholders = {
     women_workshop_1: 'https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=800',
     women_workshop_2: 'https://images.unsplash.com/photo-1515187029135-18ee286d815b?w=600',
@@ -144,33 +278,41 @@ const RenderMedia = ({ url, onClick, isSingle = true }) => {
     youth_chess: 'https://images.unsplash.com/photo-1529699211952-734e80c4d42b?w=600'
   };
 
-  let cleanUrl = placeholders[url] || url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600';
-  if (cleanUrl.startsWith('blob:')) {
-    cleanUrl = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600';
-  }
+  let cleanUrl = placeholders[url] || url || '';
+  if (!cleanUrl) return null;
+
   const lowercase = cleanUrl.toLowerCase();
 
-  const isVideo = lowercase.endsWith('.mp4') || lowercase.endsWith('.webm') || lowercase.endsWith('.ogg') || lowercase.endsWith('.mov') || lowercase.includes('video');
-  const isYoutube = lowercase.includes('youtube.com') || lowercase.includes('youtu.be');
+  const isVideo = 
+    lowercase.endsWith('.mp4') || 
+    lowercase.endsWith('.webm') || 
+    lowercase.endsWith('.ogg') || 
+    lowercase.endsWith('.mov') || 
+    lowercase.includes('video') || 
+    lowercase.startsWith('data:video') ||
+    lowercase.includes('/video/');
+
+  const isYoutube = lowercase.includes('youtube.com') || lowercase.includes('youtu.be') || Boolean(extractYouTubeVideoId(cleanUrl));
   const isInstagram = lowercase.includes('instagram.com');
 
   if (isYoutube) {
-    let videoId = '';
-    if (cleanUrl.includes('youtube.com/watch')) {
-      const params = new URLSearchParams(cleanUrl.split('?')[1]);
-      videoId = params.get('v');
-    } else if (cleanUrl.includes('youtu.be/')) {
-      videoId = cleanUrl.split('youtu.be/')[1]?.split('?')[0];
-    } else if (cleanUrl.includes('youtube.com/embed/')) {
-      videoId = cleanUrl.split('youtube.com/embed/')[1]?.split('?')[0];
-    }
-    const embedUrl = videoId ? `https://www.youtube.com/embed/${videoId}` : '';
+    const videoId = extractYouTubeVideoId(cleanUrl);
+    const embedUrl = videoId ? `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1` : '';
     return embedUrl ? (
-      <div className="w-full aspect-video rounded-2xl overflow-hidden bg-black shadow-sm">
-        <iframe src={embedUrl} className="w-full h-full border-0" allowFullScreen title="YouTube Video" />
-      </div>
+      <AutoPauseYouTube embedUrl={embedUrl} />
     ) : (
-      <div className="w-full h-36 bg-slate-900 flex items-center justify-center text-[10px] text-slate-400 rounded-2xl">Invalid YouTube Link</div>
+      <a 
+        href={cleanUrl.startsWith('http') ? cleanUrl : `https://${cleanUrl}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="w-full p-4 bg-slate-900 flex flex-col items-center justify-center text-center border border-slate-800 rounded-2xl text-slate-300 hover:bg-slate-800 transition-colors"
+      >
+        <span className="text-xs font-black text-rose-500 flex items-center gap-1.5 mb-1">
+          ▶ Watch on YouTube
+        </span>
+        <span className="text-[11px] text-slate-400 truncate max-w-full underline">{cleanUrl}</span>
+      </a>
     );
   }
 
@@ -185,16 +327,7 @@ const RenderMedia = ({ url, onClick, isSingle = true }) => {
 
   if (isVideo) {
     return (
-      <div className={isSingle ? "w-full rounded-2xl overflow-hidden" : "w-full h-full bg-black flex items-center justify-center"}>
-        <video 
-          src={cleanUrl} 
-          controls 
-          muted 
-          loop 
-          playsInline
-          className={isSingle ? "w-full h-auto max-h-[850px] object-cover rounded-2xl block" : "w-full h-full object-cover"} 
-        />
-      </div>
+      <AutoPauseVideo src={cleanUrl} isSingle={isSingle} onClick={onClick} />
     );
   }
 
@@ -624,19 +757,31 @@ const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDelete
         </div>
       )}
 
-      {/* Post Media - Single Image / Gallery Collage */}
+      {/* Post Media - Single Image / Gallery Collage / Auto-detected YouTube */}
       <div onClick={handleDoubleTap} className="relative select-none">
         {post.images && post.images.length > 0 ? (
           <div className="px-0">
             <MultiImageGrid images={post.images} onClick={() => navigate(`/member/social/${post.id}`)} />
           </div>
-        ) : (
-          post.image && (
-            <div className="mb-3 bg-slate-950/5 flex items-center justify-center cursor-pointer overflow-hidden relative rounded-2xl" onClick={() => navigate(`/member/social/${post.id}`)}>
-              <RenderMedia url={post.image} onClick={() => navigate(`/member/social/${post.id}`)} isSingle={true} />
-            </div>
-          )
-        )}
+        ) : post.image ? (
+          <div className="mb-3 bg-slate-950/5 flex items-center justify-center cursor-pointer overflow-hidden relative rounded-2xl" onClick={() => navigate(`/member/social/${post.id}`)}>
+            <RenderMedia url={post.image} onClick={() => navigate(`/member/social/${post.id}`)} isSingle={true} />
+          </div>
+        ) : (() => {
+          const match = post.content?.match(/(https?:\/\/[^\s]+)/g);
+          if (match) {
+            for (const u of match) {
+              if (extractYouTubeVideoId(u)) {
+                return (
+                  <div className="mb-3 bg-slate-950/5 flex items-center justify-center overflow-hidden relative rounded-2xl">
+                    <RenderMedia url={u} onClick={() => navigate(`/member/social/${post.id}`)} isSingle={true} />
+                  </div>
+                );
+              }
+            }
+          }
+          return null;
+        })()}
 
         {/* Double Tap Heart Animation */}
         <AnimatePresence>

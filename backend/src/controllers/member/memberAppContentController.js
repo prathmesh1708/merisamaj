@@ -167,6 +167,20 @@ exports.getMemberAppContent = async (req, res) => {
               enabled: true
             }
           ]
+        },
+        censusBanner: {
+          backgroundImage: 'https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?auto=format&fit=crop&w=1200&q=80',
+          overlayOpacity: 75,
+          overlayGradient: 'purple',
+          enabled: true
+        },
+        footerArtwork: {
+          artworkType: 'svg',
+          backgroundImage: '',
+          hashtagText: '#MeriSamaj',
+          caughtUpTitle: "You're all caught up!",
+          caughtUpSubtitle: 'Check back later for new updates',
+          enabled: true
         }
       };
     }
@@ -193,6 +207,20 @@ exports.getMemberAppContent = async (req, res) => {
         coreMembers: {
           communityHead: doc.coreMembers?.communityHead || null,
           committee: activeCommittee
+        },
+        censusBanner: doc.censusBanner || {
+          backgroundImage: 'https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?auto=format&fit=crop&w=1200&q=80',
+          overlayOpacity: 75,
+          overlayGradient: 'purple',
+          enabled: true
+        },
+        footerArtwork: doc.footerArtwork || {
+          artworkType: 'svg',
+          backgroundImage: '',
+          hashtagText: '#MeriSamaj',
+          caughtUpTitle: "You're all caught up!",
+          caughtUpSubtitle: 'Check back later for new updates',
+          enabled: true
         }
       }
     });

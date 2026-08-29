@@ -69,6 +69,7 @@ const UpgradeMembershipPage = () => {
 
   const planFeatures = {
     features: [
+      { name: 'Other Community Access', key: 'otherCommunityAccess', tooltip: 'Browse, search, and connect with verified matrimonial profiles from other community chapters across the platform.' },
       { name: 'Contact Sharing', key: 'contactSharing', tooltip: 'Ability to share your own contact details with accepted profiles.' },
       { name: 'Engage+', key: 'engage', tooltip: 'Access to advanced conversational helpers, automated Icebreakers, and chat recommendations.' },
       { name: 'Contact Details', key: 'contactDetails', type: 'value', tooltip: 'Number of verified direct phone numbers/emails you can unlock.' },
@@ -78,6 +79,7 @@ const UpgradeMembershipPage = () => {
     ],
     values: {
       'Pro': {
+        otherCommunityAccess: true,
         contactSharing: true,
         engage: true,
         contactDetails: 25,
@@ -86,6 +88,7 @@ const UpgradeMembershipPage = () => {
         goldBadge: true
       },
       'Pro Max': {
+        otherCommunityAccess: true,
         contactSharing: true,
         engage: true,
         contactDetails: 50,
@@ -94,6 +97,7 @@ const UpgradeMembershipPage = () => {
         goldBadge: true
       },
       'Pro Supreme': {
+        otherCommunityAccess: true,
         contactSharing: true,
         engage: true,
         contactDetails: 80,
@@ -131,9 +135,9 @@ const UpgradeMembershipPage = () => {
 
   const handleConfirmPayment = () => {
     setCheckoutStep('processing');
-    setTimeout(() => {
-      // Complete payment and update user profile in local context
-      updateProfile({
+    setTimeout(async () => {
+      // Complete payment and update user profile in local context and backend
+      await updateProfile({
         isPremium: true,
         membershipPlan: selectedPlan,
         membershipExpiry: selectedDuration,
@@ -142,10 +146,17 @@ const UpgradeMembershipPage = () => {
           month: 'short',
           year: 'numeric'
         }),
+        matrimonySubscription: {
+          status: 'active',
+          plan: selectedPlan,
+          duration: selectedDuration,
+          validUntil: selectedDuration === 'Till Marriage' ? 'Till Marriage' : `${selectedDuration} from purchase`,
+          startDate: new Date().toISOString()
+        },
         isVerified: true // automatically verifies as trust factor
       });
       setCheckoutStep('success');
-    }, 2000);
+    }, 1500);
   };
 
   const formatCardNumber = (value) => {
@@ -233,6 +244,7 @@ const UpgradeMembershipPage = () => {
             <div className="space-y-4 pt-2">
               {[
                 { title: 'Personal Relationship Manager', desc: 'Expert guides who search, verify, and filter partners based on your custom criteria.' },
+                { title: 'Cross-Community Matchmaking', desc: 'Find suitable matches beyond your primary community chapter with verified family backgrounds.' },
                 { title: 'Handpicked Match Profiles', desc: 'Receive periodic curated lists of matching profiles directly over WhatsApp & Call.' },
                 { title: 'Coordinated Communication', desc: 'We initiate talks, carry out family checks, and arrange initial meetings.' },
                 { title: 'Absolute Confidentiality', desc: 'Your details are shared selectively and only with your explicit consent.' }

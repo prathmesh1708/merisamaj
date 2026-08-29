@@ -207,16 +207,27 @@ const CreatePostPage = () => {
   // Extract YouTube ID for embed preview
   const getYoutubeEmbedUrl = (url) => {
     if (!url) return '';
-    let videoId = '';
-    if (url.includes('youtube.com/watch')) {
-      const params = new URLSearchParams(url.split('?')[1]);
-      videoId = params.get('v');
-    } else if (url.includes('youtu.be/')) {
-      videoId = url.split('youtu.be/')[1]?.split('?')[0];
-    } else if (url.includes('youtube.com/embed/')) {
-      videoId = url.split('youtube.com/embed/')[1]?.split('?')[0];
+    const trimmed = url.trim();
+    const regExp = /(?:youtube(?:-nocookie)?\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?|shorts|live)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+    const match = trimmed.match(regExp);
+    if (match && match[1]) {
+      return `https://www.youtube-nocookie.com/embed/${match[1]}?rel=0&modestbranding=1`;
     }
-    return videoId ? `https://www.youtube.com/embed/${videoId}` : '';
+    try {
+      const fullUrl = trimmed.startsWith('http') ? trimmed : `https://${trimmed}`;
+      const parsed = new URL(fullUrl);
+      if (parsed.searchParams.has('v')) {
+        return `https://www.youtube-nocookie.com/embed/${parsed.searchParams.get('v')}?rel=0&modestbranding=1`;
+      }
+      const pathParts = parsed.pathname.split('/').filter(Boolean);
+      if (parsed.hostname.includes('youtu.be') && pathParts.length > 0) {
+        return `https://www.youtube-nocookie.com/embed/${pathParts[0]}?rel=0&modestbranding=1`;
+      }
+      if (['shorts', 'live', 'embed', 'v'].includes(pathParts[0]) && pathParts.length > 1) {
+        return `https://www.youtube-nocookie.com/embed/${pathParts[1]}?rel=0&modestbranding=1`;
+      }
+    } catch (e) {}
+    return '';
   };
 
   const categories = ['Normal', 'Announcement', 'Event', 'Blood Donation', 'Emergency'];

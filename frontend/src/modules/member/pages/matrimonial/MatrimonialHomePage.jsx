@@ -49,10 +49,32 @@ const MatrimonialHomePage = () => {
   }, [activityInterestTab, receivedInterests, sentInterests, acceptedInterests]);
   const [ignoredIds, setIgnoredIds] = useState([]);
   const [expandedId, setExpandedId] = useState(null);
-  const [activeFilterPill, setActiveFilterPill] = useState('all'); // 'all' | 'verified' | 'joined' | 'nearby'
+  const [activeFilterPill, setActiveFilterPill] = useState('all'); // 'all' | 'other_community' | 'verified' | 'joined' | 'nearby'
   const [searchText, setSearchText] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+
+  // Community Scope & Filter States
+  const [selectedCommunityScope, setSelectedCommunityScope] = useState('all'); // 'all' | 'my' | 'other' | 'specific'
+  const [selectedSpecificCommunity, setSelectedSpecificCommunity] = useState('');
+  const [availableCommunities, setAvailableCommunities] = useState([
+    'Agrawal', 'Jain', 'Brahmin', 'Maheshwari', 'Maratha', 'Khandelwal', 'Rajput', 'Gupta', 'Patel', 'Sikh', 'Punjabi', 'Yadav', 'Sindhi'
+  ]);
+
+  useEffect(() => {
+    const fetchCommunities = async () => {
+      try {
+        const res = await fetch('/api/v1/member/matrimonial/profiles/communities');
+        const data = await res.json();
+        if (data.status === 'success' && Array.isArray(data.data) && data.data.length > 0) {
+          setAvailableCommunities(data.data);
+        }
+      } catch (err) {
+        console.warn('Failed to load communities, using defaults:', err);
+      }
+    };
+    fetchCommunities();
+  }, []);
 
   const openChatWithProfile = async (profileId) => {
     try {
@@ -322,6 +344,19 @@ const MatrimonialHomePage = () => {
       if (activeFilterPill === 'joined'   && !profile.isNew)          return false;
       const userCity = currentUser?.city || '';
       if (activeFilterPill === 'nearby' && userCity && profile.city !== userCity) return false;
+
+      // ─── Community Scope & Other Community Filtering ───────────────────────
+      const userComm = (currentUser?.community || myProfile?.personal?.community || '').toLowerCase();
+      const profComm = (profile.community || profile.personal?.community || '').toLowerCase();
+
+      if (activeFilterPill === 'other_community' || selectedCommunityScope === 'other') {
+        if (userComm && profComm && profComm.includes(userComm)) return false;
+      } else if (selectedCommunityScope === 'my') {
+        if (userComm && profComm && !profComm.includes(userComm)) return false;
+      } else if (selectedCommunityScope === 'specific' && selectedSpecificCommunity) {
+        if (!profComm.includes(selectedSpecificCommunity.toLowerCase())) return false;
+      }
+
       if (profile.age !== null && profile.age !== undefined) {
         if (profile.age < ageRange.min || profile.age > ageRange.max) return false;
       }
@@ -334,7 +369,7 @@ const MatrimonialHomePage = () => {
       if (withPhotoOnlyFilter && !profile.avatar && (!profile.photos || profile.photos.length === 0)) return false;
       return true;
     });
-  }, [feedProfiles, ignoredIds, activeFilterPill, searchText, ageRange, selectedMaritalStatus, selectedDiet, verifiedOnlyFilter, withPhotoOnlyFilter, currentUser]);
+  }, [feedProfiles, ignoredIds, activeFilterPill, searchText, ageRange, selectedMaritalStatus, selectedDiet, verifiedOnlyFilter, withPhotoOnlyFilter, currentUser, selectedCommunityScope, selectedSpecificCommunity, myProfile]);
 
   // ─── dynamicVisitors — from real visitors API ─────────────────────────────
   const dynamicVisitors = useMemo(() => {
@@ -546,23 +581,36 @@ const MatrimonialHomePage = () => {
                 <SlidersHorizontal size={13} className="text-slate-500" /> Filters
               </button>
               
-              {['All matches', 'Verified', 'Just Joined', 'Nearby'].map((pillLabel, index) => {
-                const pillsKeys = ['all', 'verified', 'joined', 'nearby'];
-                const targetKey = pillsKeys[index];
-                return (
-                  <button
-                    key={targetKey}
-                    onClick={() => setActiveFilterPill(targetKey)}
-                    className={`px-4 py-2 rounded-full text-[12px] font-bold transition-all shrink-0 active:scale-95 border ${
-                      activeFilterPill === targetKey
-                        ? 'bg-rose-500 border-rose-500 text-white shadow-sm'
-                        : 'bg-white border-slate-200 text-slate-655'
-                    }`}
-                  >
-                    {pillLabel}
-                  </button>
-                );
-              })}
+              {[
+                { label: 'All matches', key: 'all' },
+                { label: 'Other Community', key: 'other_community' },
+                { label: 'Verified', key: 'verified' },
+                { label: 'Just Joined', key: 'joined' },
+                { label: 'Nearby', key: 'nearby' }
+              ].map(({ label, key }) => (
+                <button
+                  key={key}
+                  onClick={() => {
+                    setActiveFilterPill(key);
+                    if (key === 'other_community') {
+                      setSelectedCommunityScope('other');
+                      setSelectedSpecificCommunity('');
+                      showToast('Showing matches from other communities 🌐');
+                    } else if (key === 'all') {
+                      setSelectedCommunityScope('all');
+                      setSelectedSpecificCommunity('');
+                    }
+                  }}
+                  className={`px-4 py-2 rounded-full text-[12px] font-bold transition-all shrink-0 active:scale-95 border flex items-center gap-1.5 ${
+                    activeFilterPill === key
+                      ? 'bg-rose-500 border-rose-500 text-white shadow-sm'
+                      : 'bg-white border-slate-200 text-slate-655 hover:bg-slate-50'
+                  }`}
+                >
+                  {key === 'other_community' && <Users size={13} className={activeFilterPill === key ? 'text-white' : 'text-rose-500'} />}
+                  {label}
+                </button>
+              ))}
             </div>
 
             {/* ─── MARRIED / CLOSED PROFILE BANNER ─── */}
@@ -728,9 +776,16 @@ const MatrimonialHomePage = () => {
                         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent pt-36 pb-26 px-5 pointer-events-none z-5" />
 
                         <div className="relative z-10 px-5 pb-3 pointer-events-none flex flex-col justify-end">
-                          <span className={`px-3 py-1 text-[10px] font-black uppercase tracking-wider rounded-full w-fit mb-2.5 shadow-sm ${getTierStyle(profile.membershipTier)}`}>
-                            {profile.membershipTier}
-                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap mb-2.5">
+                            <span className={`px-3 py-1 text-[10px] font-black uppercase tracking-wider rounded-full shadow-sm ${getTierStyle(profile.membershipTier)}`}>
+                              {profile.membershipTier}
+                            </span>
+                            {profile.community && (
+                              <span className="px-2.5 py-1 text-[10.5px] font-extrabold rounded-full bg-white/20 backdrop-blur-md text-white border border-white/30 shadow-sm flex items-center gap-1">
+                                🏷️ {profile.community}
+                              </span>
+                            )}
+                          </div>
 
                           <span className="text-[11px] text-white/80 font-bold uppercase tracking-wider">
                             {profile.activeStatus}
@@ -2348,6 +2403,74 @@ const MatrimonialHomePage = () => {
                 </div>
               </div>
 
+              {/* ─── COMMUNITY PREFERENCE / OTHER COMMUNITY ─── */}
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <label className="text-[11px] text-slate-400 font-extrabold uppercase tracking-wide">Community Filter</label>
+                  <span className="text-[11px] font-black text-rose-500">
+                    {selectedCommunityScope === 'my' 
+                      ? (currentUser?.community || 'My Community')
+                      : selectedCommunityScope === 'other' 
+                        ? 'Other Communities' 
+                        : selectedSpecificCommunity 
+                          ? selectedSpecificCommunity 
+                          : 'All Communities'}
+                  </span>
+                </div>
+
+                {/* Scope Selection: All | My Community | Other Communities */}
+                <div className="grid grid-cols-3 gap-1.5 mb-3">
+                  {[
+                    { id: 'all', label: 'All Samaj' },
+                    { id: 'my', label: currentUser?.community ? `${currentUser.community.split(' ')[0]}` : 'My Samaj' },
+                    { id: 'other', label: 'Other Samaj' }
+                  ].map(scope => (
+                    <button
+                      key={scope.id}
+                      onClick={() => {
+                        setSelectedCommunityScope(scope.id);
+                        if (scope.id !== 'specific') setSelectedSpecificCommunity('');
+                        if (scope.id === 'other') setActiveFilterPill('other_community');
+                        else if (scope.id === 'all') setActiveFilterPill('all');
+                      }}
+                      className={`py-2 px-2 text-[11px] font-extrabold rounded-xl border transition-all text-center truncate ${
+                        selectedCommunityScope === scope.id && !selectedSpecificCommunity
+                          ? 'bg-rose-50 border-rose-350 text-rose-600 shadow-xs' 
+                          : 'bg-white border-slate-200 text-slate-650 hover:bg-slate-50'
+                      }`}
+                    >
+                      {scope.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Specific Community Chips */}
+                <p className="text-[10px] text-slate-400 font-bold uppercase mb-1.5">Or Choose Specific Community:</p>
+                <div className="flex gap-1.5 overflow-x-auto scrollbar-hide py-1">
+                  {availableCommunities.map(comm => (
+                    <button
+                      key={comm}
+                      onClick={() => {
+                        if (selectedSpecificCommunity === comm) {
+                          setSelectedSpecificCommunity('');
+                          setSelectedCommunityScope('all');
+                        } else {
+                          setSelectedSpecificCommunity(comm);
+                          setSelectedCommunityScope('specific');
+                        }
+                      }}
+                      className={`px-3 py-1.5 rounded-full text-[11px] font-bold shrink-0 transition-all border ${
+                        selectedSpecificCommunity === comm
+                          ? 'bg-rose-500 border-rose-500 text-white shadow-xs'
+                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      {comm}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Marital Status Selection */}
               <div>
                 <label className="text-[11px] text-slate-400 font-extrabold uppercase tracking-wide block mb-2">Marital Status</label>
@@ -2440,6 +2563,9 @@ const MatrimonialHomePage = () => {
                   setAgeRange({ min: 18, max: 50 });
                   setSelectedMaritalStatus('All');
                   setSelectedDiet('All');
+                  setSelectedCommunityScope('all');
+                  setSelectedSpecificCommunity('');
+                  setActiveFilterPill('all');
                   setVerifiedOnlyFilter(false);
                   setWithPhotoOnlyFilter(false);
                   showToast('Filters reset to default.');

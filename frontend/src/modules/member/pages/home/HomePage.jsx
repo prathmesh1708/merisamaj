@@ -123,6 +123,8 @@ const HomePage = () => {
   const [liveCommunityHead, setLiveCommunityHead] = useState(null);
   const [liveSubLeaders, setLiveSubLeaders] = useState([]);
   const [leadershipLoading, setLeadershipLoading] = useState(true);
+  const [liveCensusBanner, setLiveCensusBanner] = useState(null);
+  const [liveFooterArtwork, setLiveFooterArtwork] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -178,6 +180,12 @@ const HomePage = () => {
           }
           if (Array.isArray(appData.coreMembers?.committee) && appData.coreMembers.committee.length > 0) {
             setLiveSubLeaders(appData.coreMembers.committee);
+          }
+          if (appData.censusBanner) {
+            setLiveCensusBanner(appData.censusBanner);
+          }
+          if (appData.footerArtwork) {
+            setLiveFooterArtwork(appData.footerArtwork);
           }
         }
       })
@@ -357,11 +365,10 @@ const HomePage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-surface pb-28 relative">
-
+    <div className="min-h-screen bg-surface pb-28">
       {/* ─── SAMAJ HERO BANNER ─── */}
-      <div className="relative w-full overflow-hidden" style={{ minHeight: '260px' }}>
-        {/* Background Image — Cultural landmark / Live Community Banner */}
+      <div className="relative w-full overflow-hidden" style={{ minHeight: '240px' }}>
+        {/* Background Image — 100% natural, crisp, untouched as uploaded */}
         <img 
           src={
             currentUser?.communityId?.bannerUrl || 
@@ -370,32 +377,26 @@ const HomePage = () => {
             getSamajImage(userCommunity)
           } 
           alt={userCommunity}
-          className="absolute inset-0 w-full h-full object-cover scale-105"
-          style={{ filter: 'saturate(1.1)' }}
-        />
-        {/* Layered Gradient Overlays */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#1F0940]/85 via-[#3B1578]/50 to-[#120726]/95 z-[1]" />
-        <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-[#120726] to-transparent z-[1]" />
-
-        {/* Ambient Floating Glow Orbs */}
-        <div className="absolute top-6 right-10 w-28 h-28 rounded-full z-[2] pointer-events-none" 
-          style={{ background: 'radial-gradient(circle, rgba(167,139,250,0.25) 0%, transparent 70%)', filter: 'blur(18px)' }} 
+          className="absolute inset-0 w-full h-full object-cover"
         />
 
         {/* Floating Top Navbar */}
         <div className="relative z-10 px-4 pt-4 pb-2 flex items-center justify-between">
-          <div className="flex items-center gap-3 cursor-pointer group" onClick={() => navigate('/member/profile')}>
+          <div 
+            className="flex items-center gap-3 cursor-pointer group bg-black/40 hover:bg-black/50 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white/25 shadow-lg transition-all" 
+            onClick={() => navigate('/member/profile')}
+          >
             {/* Neutral Round Avatar Circle */}
-            <div className="relative">
+            <div className="relative shrink-0">
               {currentUser?.avatar ? (
                 <img 
                   src={currentUser.avatar} 
                   alt={currentUser.name} 
-                  className="w-11 h-11 rounded-full object-cover border-2 border-white/40 shadow-sm group-hover:scale-105 transition-transform duration-200"
+                  className="w-11 h-11 rounded-full object-cover border-2 border-white/60 shadow-md group-hover:scale-105 transition-transform duration-200"
                 />
               ) : (
                 <div 
-                  className="w-11 h-11 rounded-full bg-white/20 text-white font-black text-[15px] flex items-center justify-center backdrop-blur-md border border-white/30 shadow-sm group-hover:scale-105 transition-transform duration-200"
+                  className="w-11 h-11 rounded-full bg-white/25 text-white font-black text-[15px] flex items-center justify-center backdrop-blur-md border border-white/40 shadow-md group-hover:scale-105 transition-transform duration-200"
                 >
                   {(currentUser?.name || userCommunity).substring(0, 1).toUpperCase()}
                 </div>
@@ -404,13 +405,13 @@ const HomePage = () => {
 
             <div className="text-left">
               <div className="flex items-center gap-1">
-                <span className="text-[10px] font-extrabold tracking-wider uppercase text-purple-200/90">{greeting}</span>
-                <OmIcon size={11} className="text-amber-300 opacity-90" />
+                <span className="text-[10px] font-extrabold tracking-wider uppercase text-white/90 drop-shadow-sm">{greeting}</span>
+                <OmIcon size={11} className="text-amber-300 drop-shadow" />
               </div>
-              <h1 className="text-[18px] sm:text-[20px] font-black text-white tracking-tight leading-tight">{currentUser?.name || 'Member'}</h1>
+              <h1 className="text-[17px] sm:text-[19px] font-black text-white tracking-tight leading-tight drop-shadow-md">{currentUser?.name || 'Member'}</h1>
               {currentUser?.community && (
-                <p className="text-[10.5px] font-bold text-purple-200/80 mt-0.5 leading-tight select-none flex items-center gap-1">
-                  <MapPin size={10} className="text-amber-400" />
+                <p className="text-[10.5px] font-bold text-amber-200 mt-0.5 leading-tight select-none flex items-center gap-1 drop-shadow-sm">
+                  <MapPin size={10} className="text-amber-300" />
                   {currentUser.community}{currentUser.city ? ` · ${currentUser.city}` : ''}
                 </p>
               )}
@@ -420,17 +421,17 @@ const HomePage = () => {
           <div className="flex items-center gap-2">
             <button 
               onClick={() => setLanguage(language === 'en' ? 'hi' : 'en')}
-              className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-[11px] font-black uppercase press-scale transition-all bg-white/15 backdrop-blur-md border border-white/25 hover:bg-white/25"
+              className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-[11px] font-black uppercase press-scale transition-all bg-black/40 backdrop-blur-md border border-white/25 hover:bg-black/55 shadow-lg"
             >
               {language === 'en' ? 'HI' : 'EN'}
             </button>
             <button 
-              className="relative w-9 h-9 rounded-xl flex items-center justify-center press-scale transition-all bg-white/15 backdrop-blur-md border border-white/25 hover:bg-white/25 text-white"
+              className="relative w-9 h-9 rounded-xl flex items-center justify-center press-scale transition-all bg-black/40 backdrop-blur-md border border-white/25 hover:bg-black/55 text-white shadow-lg"
               onClick={() => navigate('/member/notifications?module=home')}
             >
               <Bell size={18} />
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-600 text-white font-black text-[9px] rounded-full border-2 border-[#120726] flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-600 text-white font-black text-[9px] rounded-full border-2 border-black/40 flex items-center justify-center">
                   {unreadCount}
                 </span>
               )}
@@ -439,22 +440,26 @@ const HomePage = () => {
         </div>
 
         {/* Samaj Identity Content — bottom of hero */}
-        <div className="relative z-10 px-5 pt-6 pb-3 flex flex-col justify-end text-left">
-          {homepageContentSettings?.hero?.title && (
-            <h2 className="text-white text-[15px] font-extrabold tracking-tight drop-shadow">{homepageContentSettings.hero.title}</h2>
-          )}
-          {homepageContentSettings?.hero?.subtitle && (
-            <p className="text-white/80 text-[11px] font-medium mt-0.5 leading-snug max-w-xs">{homepageContentSettings.hero.subtitle}</p>
-          )}
-          {homepageContentSettings?.hero?.buttonText && (
-            <button 
-              onClick={() => navigate(homepageContentSettings.hero.buttonLink || '/member/directory')}
-              className="bg-white hover:bg-purple-50 text-indigo-950 text-[10.5px] font-extrabold px-3.5 py-1 rounded-xl mt-2.5 self-start shadow-sm press-scale cursor-pointer"
-            >
-              {homepageContentSettings.hero.buttonText} →
-            </button>
-          )}
-        </div>
+        {(homepageContentSettings?.hero?.title || homepageContentSettings?.hero?.subtitle) && (
+          <div className="relative z-10 px-4 pt-3 pb-3 flex flex-col justify-end text-left">
+            <div className="bg-black/40 backdrop-blur-md p-3 rounded-2xl border border-white/25 max-w-fit shadow-lg space-y-1">
+              {homepageContentSettings?.hero?.title && (
+                <h2 className="text-white text-[15px] font-extrabold tracking-tight drop-shadow-md">{homepageContentSettings.hero.title}</h2>
+              )}
+              {homepageContentSettings?.hero?.subtitle && (
+                <p className="text-white/90 text-[11px] font-medium leading-snug drop-shadow-sm max-w-xs">{homepageContentSettings.hero.subtitle}</p>
+              )}
+              {homepageContentSettings?.hero?.buttonText && (
+                <button 
+                  onClick={() => navigate(homepageContentSettings.hero.buttonLink || '/member/directory')}
+                  className="mt-1 px-3.5 py-1.5 bg-[#FF2162] hover:bg-[#E0144C] text-white text-[11px] font-bold rounded-xl flex items-center gap-1 transition-all press-scale shadow-md"
+                >
+                  {homepageContentSettings.hero.buttonText} <ChevronRight size={12} strokeWidth={2.5} />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
 
@@ -564,165 +569,142 @@ const HomePage = () => {
           </button>
         </div>
 
-        {/* 3D Modern Container */}
-        <div 
-          className="rounded-[32px] p-4.5 space-y-4 relative overflow-hidden transition-all duration-300"
-          style={{
-            background: 'linear-gradient(135deg, #ffffff 0%, #fcfbfe 100%)',
-            border: '1.5px solid rgba(124,58,237,0.06)',
-            boxShadow: '0 10px 30px -5px rgba(124,58,237,0.08), inset 0 2px 4px rgba(255,255,255,0.9), 0 2px 4px rgba(0,0,0,0.02)'
-          }}
-        >
-          {/* Subtle 3D Depth Card Overlay */}
-          <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-gradient-to-r from-transparent via-purple-300/35 to-transparent" />
-          
-          {displayTopDonors.length === 0 ? (
-            <div className="py-6 px-3 text-center">
-              <div className="w-10 h-10 rounded-full bg-rose-50 border border-rose-100 flex items-center justify-center mx-auto mb-2">
-                <Heart size={18} className="text-[#FF2162]" fill="currentColor" />
-              </div>
-              <p className="text-xs font-bold text-slate-800">No Donors Yet</p>
-              <p className="text-[10px] font-medium text-slate-400 mt-0.5 max-w-[220px] mx-auto">
-                No donations recorded yet in your community. Be the first to contribute!
-              </p>
-              <button
-                onClick={() => navigate('/member/donation')}
-                className="mt-3 px-4 py-2 bg-[#FF2162] hover:bg-[#E0144C] text-white text-[11px] font-bold rounded-xl press-scale shadow-sm"
-              >
-                Explore Campaigns
-              </button>
+        {displayTopDonors.length === 0 ? (
+          <div className="py-6 px-3 text-center bg-white rounded-2xl border border-slate-100 shadow-xs">
+            <div className="w-10 h-10 rounded-full bg-rose-50 border border-rose-100 flex items-center justify-center mx-auto mb-2">
+              <Heart size={18} className="text-[#FF2162]" fill="currentColor" />
             </div>
-          ) : (
-            <div className="flex flex-col gap-3.5">
-              {[...displayTopDonors].sort((a, b) => b.amount - a.amount).slice(0, 5).map((donor, idx) => {
-                // Select color themes and icons for purposes
-                const purposeStr = (donor.purpose || '').toLowerCase();
-                const paymentModeStr = (donor.paymentMode || 'Online (UPI)').toLowerCase();
-                let purposeIcon = <Home size={11} className="text-amber-500" />;
-                let purposeBg = 'bg-amber-50';
-                if (purposeStr.includes('schola') || purposeStr.includes('chhatra')) {
-                  purposeIcon = <GraduationCap size={11} className="text-purple-500" />;
-                  purposeBg = 'bg-purple-50';
-                } else if (purposeStr.includes('gaushala') || purposeStr.includes('cow')) {
-                  purposeIcon = <span className="text-[10px] leading-none">🐄</span>;
-                  purposeBg = 'bg-orange-50';
-                } else if (purposeStr.includes('vivah') || purposeStr.includes('marri')) {
-                  purposeIcon = <Heart size={10} className="text-rose-500" fill="currentColor" />;
-                  purposeBg = 'bg-rose-50';
-                } else if (purposeStr.includes('shiksha') || purposeStr.includes('edu')) {
-                  purposeIcon = <BookOpen size={11} className="text-blue-500" />;
-                  purposeBg = 'bg-blue-50';
-                }
+            <p className="text-xs font-bold text-slate-800">No Donors Yet</p>
+            <p className="text-[10px] font-medium text-slate-400 mt-0.5 max-w-[220px] mx-auto">
+              No donations recorded yet in your community. Be the first to contribute!
+            </p>
+            <button
+              onClick={() => navigate('/member/donation')}
+              className="mt-3 px-4 py-2 bg-[#FF2162] hover:bg-[#E0144C] text-white text-[11px] font-bold rounded-xl press-scale shadow-sm"
+            >
+              Explore Campaigns
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2.5">
+            {[...displayTopDonors].sort((a, b) => b.amount - a.amount).slice(0, 5).map((donor, idx) => {
+              // Select color themes and icons for purposes
+              const purposeStr = (donor.purpose || '').toLowerCase();
+              const paymentModeStr = (donor.paymentMode || 'Online (UPI)').toLowerCase();
+              let purposeIcon = <Home size={11} className="text-amber-500" />;
+              let purposeBg = 'bg-amber-50';
+              if (purposeStr.includes('schola') || purposeStr.includes('chhatra')) {
+                purposeIcon = <GraduationCap size={11} className="text-purple-500" />;
+                purposeBg = 'bg-purple-50';
+              } else if (purposeStr.includes('gaushala') || purposeStr.includes('cow')) {
+                purposeIcon = <span className="text-[10px] leading-none">🐄</span>;
+                purposeBg = 'bg-orange-50';
+              } else if (purposeStr.includes('vivah') || purposeStr.includes('marri')) {
+                purposeIcon = <Heart size={10} className="text-rose-500" fill="currentColor" />;
+                purposeBg = 'bg-rose-50';
+              } else if (purposeStr.includes('shiksha') || purposeStr.includes('edu')) {
+                purposeIcon = <BookOpen size={11} className="text-blue-500" />;
+                purposeBg = 'bg-blue-50';
+              }
 
-                // Badges for payments
-                let paymentBadge = (
-                  <div className="flex items-center gap-1 text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-100/50">
-                    <span>Online (UPI)</span>
+              // Badges for payments
+              let paymentBadge = (
+                <div className="flex items-center gap-1 text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-100/50">
+                  <span>Online (UPI)</span>
+                </div>
+              );
+              if (paymentModeStr.includes('bank')) {
+                paymentBadge = (
+                  <div className="flex items-center gap-1 text-[9px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-100/50">
+                    <span>Bank Transfer</span>
                   </div>
                 );
-                if (paymentModeStr.includes('bank')) {
-                  paymentBadge = (
-                    <div className="flex items-center gap-1 text-[9px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-100/50">
-                      <span>Bank Transfer</span>
-                    </div>
-                  );
-                } else if (paymentModeStr.includes('cash')) {
-                  paymentBadge = (
-                    <div className="flex items-center gap-1 text-[9px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-100/50">
-                      <span>Cash</span>
-                    </div>
-                  );
-                }
-
-                // Rank Badge color & 3D styling
-                const rankGradients = [
-                  'from-[#FF2162] to-[#FF4D85] shadow-[0_3px_8px_rgba(255,33,98,0.25)]',
-                  'from-[#A78BFA] to-[#C4B5FD] shadow-[0_3px_8px_rgba(167,139,250,0.2)]',
-                  'from-[#F59E0B] to-[#FBBF24] shadow-[0_3px_8px_rgba(245,158,11,0.2)]',
-                  'from-[#94A3B8] to-[#CBD5E1] shadow-[0_3px_6px_rgba(148,163,184,0.15)]',
-                  'from-[#94A3B8] to-[#CBD5E1] shadow-[0_3px_6px_rgba(148,163,184,0.15)]'
-                ];
-                const rankGrad = rankGradients[idx] || rankGradients[4];
-
-                return (
-                  <motion.div
-                    key={donor.id || `donor-${idx}`}
-                    whileHover={{ y: -2, scale: 1.01, boxShadow: '0 6px 20px rgba(124,58,237,0.06)' }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => handleDonorClick(donor)}
-                    className="group/donor flex items-center justify-between p-2.5 rounded-2xl bg-white border border-slate-100/80 hover:border-purple-200/90 shadow-sm transition-all duration-300 cursor-pointer"
-                  >
-                    <div className="flex items-center gap-3">
-                      {/* 3D Rank Badge */}
-                      <div className={`w-[22px] h-[22px] rounded-lg bg-gradient-to-br ${rankGrad} text-white flex items-center justify-center text-[10px] font-black tracking-tight border border-white/20 select-none shrink-0`}>
-                        {idx + 1}
-                      </div>
-
-                      {/* Avatar with Glow Rings */}
-                      <div className="relative shrink-0">
-                        <div className="w-[42px] h-[42px] rounded-full overflow-hidden border border-purple-100/80 group-hover/donor:border-[#FF2162]/50 p-[1.5px] bg-white transition-colors">
-                          {donor.avatar ? (
-                            <img src={donor.avatar} alt={donor.name} className="w-full h-full object-cover rounded-full group-hover/donor:scale-105 transition-transform duration-300" />
-                          ) : (
-                            <div className="w-full h-full rounded-full bg-purple-50 text-brand-primary flex items-center justify-center text-[11px] font-black uppercase">
-                              {donor.initials}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Details: Name, Purpose, Date */}
-                      <div className="flex flex-col text-left">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[13px] font-extrabold text-slate-800 group-hover/donor:text-[#FF2162] tracking-tight leading-tight transition-colors">
-                            {donor.name}
-                          </span>
-                          <span className="text-[9px] font-bold text-purple-600/75 opacity-0 group-hover/donor:opacity-100 transition-opacity flex items-center">
-                            Profile <ChevronRight size={10} strokeWidth={3} />
-                          </span>
-                        </div>
-                        <div className="flex flex-col gap-0.5">
-                          {/* Purpose badge */}
-                          <div className="flex items-center gap-1 mt-0.5">
-                            <span className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${purposeBg} border border-purple-100/10`}>
-                              {purposeIcon}
-                            </span>
-                            <span className="text-[9px] font-bold text-slate-500 truncate max-w-[130px] leading-tight">
-                              {donor.purpose}
-                            </span>
-                          </div>
-                          {/* Date info */}
-                          <div className="flex items-center gap-1 text-[8.5px] font-semibold text-slate-400 leading-tight">
-                            <Calendar size={8} className="text-slate-400" />
-                            <span>{donor.date}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Amount and Payment Mode */}
-                    <div className="flex flex-col items-end gap-1.5 shrink-0">
-                      <span className="text-[14px] font-black text-emerald-600 leading-none tracking-tight">
-                        ₹{new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(donor.amount)}
-                      </span>
-                      {paymentBadge}
-                    </div>
-                  </motion.div>
+              } else if (paymentModeStr.includes('cash')) {
+                paymentBadge = (
+                  <div className="flex items-center gap-1 text-[9px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-100/50">
+                  <span>Cash</span>
+                </div>
                 );
-              })}
-            </div>
-          )}
+              }
 
-          {/* Large View All Button */}
-          {displayTopDonors.length > 0 && (
-            <button 
-              onClick={() => navigate('/member/donation/donors')}
-              className="w-full py-3 bg-[#FF2162] hover:bg-[#E0144C] text-white text-[13px] font-black rounded-2xl flex items-center justify-center gap-1.5 transition-all duration-300 press-scale shadow-[0_6px_20px_rgba(255,33,98,0.25)] border border-[#FF2162]/10"
-            >
-              View All Donors <ArrowRight size={14} strokeWidth={3} />
-            </button>
-          )}
-        </div>
+              // Rank Badge color & 3D styling
+              const rankGradients = [
+                'from-[#FF2162] to-[#FF4D85] shadow-[0_3px_8px_rgba(255,33,98,0.25)]',
+                'from-[#A78BFA] to-[#C4B5FD] shadow-[0_3px_8px_rgba(167,139,250,0.2)]',
+                'from-[#F59E0B] to-[#FBBF24] shadow-[0_3px_8px_rgba(245,158,11,0.2)]',
+                'from-[#94A3B8] to-[#CBD5E1] shadow-[0_3px_6px_rgba(148,163,184,0.15)]',
+                'from-[#94A3B8] to-[#CBD5E1] shadow-[0_3px_6px_rgba(148,163,184,0.15)]'
+              ];
+              const rankGrad = rankGradients[idx] || rankGradients[4];
+
+              return (
+                <motion.div
+                  key={donor.id || `donor-${idx}`}
+                  whileHover={{ y: -2, scale: 1.01, boxShadow: '0 6px 20px rgba(124,58,237,0.06)' }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => handleDonorClick(donor)}
+                  className="group/donor flex items-center justify-between p-3 rounded-2xl bg-white border border-slate-100/80 hover:border-purple-200/90 shadow-xs hover:shadow-md transition-all duration-300 cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    {/* 3D Rank Badge */}
+                    <div className={`w-[22px] h-[22px] rounded-lg bg-gradient-to-br ${rankGrad} text-white flex items-center justify-center text-[10px] font-black tracking-tight border border-white/20 select-none shrink-0`}>
+                      {idx + 1}
+                    </div>
+
+                    {/* Avatar with Glow Rings */}
+                    <div className="relative shrink-0">
+                      <div className="w-[42px] h-[42px] rounded-full overflow-hidden border border-purple-100/80 group-hover/donor:border-[#FF2162]/50 p-[1.5px] bg-white transition-colors">
+                        {donor.avatar ? (
+                          <img src={donor.avatar} alt={donor.name} className="w-full h-full object-cover rounded-full group-hover/donor:scale-105 transition-transform duration-300" />
+                        ) : (
+                          <div className="w-full h-full rounded-full bg-purple-50 text-brand-primary flex items-center justify-center text-[11px] font-black uppercase">
+                            {donor.initials}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Details: Name, Purpose, Date */}
+                    <div className="flex flex-col text-left">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[13px] font-extrabold text-slate-800 group-hover/donor:text-[#FF2162] tracking-tight leading-tight transition-colors">
+                          {donor.name}
+                        </span>
+                        <span className="text-[9px] font-bold text-purple-600/75 opacity-0 group-hover/donor:opacity-100 transition-opacity flex items-center">
+                          Profile <ChevronRight size={10} strokeWidth={3} />
+                        </span>
+                      </div>
+                      <div className="flex flex-col gap-0.5">
+                        {/* Purpose badge */}
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <span className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${purposeBg} border border-purple-100/10`}>
+                            {purposeIcon}
+                          </span>
+                          <span className="text-[9px] font-bold text-slate-500 truncate max-w-[130px] leading-tight">
+                            {donor.purpose}
+                          </span>
+                        </div>
+                        {/* Date info */}
+                        <div className="flex items-center gap-1 text-[8.5px] font-semibold text-slate-400 leading-tight">
+                          <Calendar size={8} className="text-slate-400" />
+                          <span>{donor.date}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Amount and Payment Mode */}
+                  <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    <span className="text-[14px] font-black text-emerald-600 leading-none tracking-tight">
+                      ₹{new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(donor.amount)}
+                    </span>
+                    {paymentBadge}
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* ─── TODAY'S UPDATES SECTION ─── */}
@@ -812,15 +794,35 @@ const HomePage = () => {
       </div>
 
       {/* ─── CENSUS DASHBOARD BANNER ─── */}
-      <div className="px-3 mt-5 relative z-10">
-        <div
-          onClick={() => navigate('/member/census')}
-          className="w-full bg-gradient-to-br from-[#4C1D95] via-[#6D28D9] to-[#7C3AED] rounded-[28px] shadow-xl shadow-purple-500/15 border border-purple-400/15 text-white relative overflow-hidden cursor-pointer press-scale"
-        >
-          <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none" />
-          <div className="absolute bottom-0 left-0 w-32 h-32 bg-purple-300/10 rounded-full blur-2xl translate-y-1/2 -translate-x-1/4 pointer-events-none" />
+      {liveCensusBanner?.enabled !== false && (
+        <div className="px-3 mt-5 relative z-10">
+          <div
+            onClick={() => navigate('/member/census')}
+            className="w-full rounded-[28px] shadow-xl shadow-purple-500/15 border border-purple-400/20 text-white relative overflow-hidden cursor-pointer press-scale"
+            style={{
+              background: liveCensusBanner?.backgroundImage
+                ? `url("${liveCensusBanner.backgroundImage}") center/cover no-repeat`
+                : 'linear-gradient(135deg, #4C1D95 0%, #6D28D9 50%, #7C3AED 100%)'
+            }}
+          >
+            {/* Darkness & Tint Gradient Overlay */}
+            <div 
+              className="absolute inset-0 z-0 pointer-events-none" 
+              style={{
+                background: liveCensusBanner?.overlayGradient === 'dark'
+                  ? `linear-gradient(135deg, rgba(15,23,42,${(liveCensusBanner?.overlayOpacity ?? 75)/100}) 0%, rgba(30,27,75,${(liveCensusBanner?.overlayOpacity ?? 75)/100}) 100%)`
+                  : liveCensusBanner?.overlayGradient === 'royal'
+                  ? `linear-gradient(135deg, rgba(30,17,69,${(liveCensusBanner?.overlayOpacity ?? 75)/100}) 0%, rgba(49,46,129,${(liveCensusBanner?.overlayOpacity ?? 75)/100}) 100%)`
+                  : liveCensusBanner?.overlayGradient === 'magenta'
+                  ? `linear-gradient(135deg, rgba(131,24,67,${(liveCensusBanner?.overlayOpacity ?? 75)/100}) 0%, rgba(76,5,25,${(liveCensusBanner?.overlayOpacity ?? 75)/100}) 100%)`
+                  : `linear-gradient(135deg, rgba(76,29,149,${(liveCensusBanner?.overlayOpacity ?? 75)/100}) 0%, rgba(109,40,217,${(liveCensusBanner?.overlayOpacity ?? 75)/100}) 50%, rgba(124,58,237,${(liveCensusBanner?.overlayOpacity ?? 75)/100}) 100%)`
+              }}
+            />
 
-          <div className="relative z-10 p-4 pb-2 flex items-center justify-between gap-3">
+            <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-32 h-32 bg-purple-300/10 rounded-full blur-2xl translate-y-1/2 -translate-x-1/4 pointer-events-none" />
+
+            <div className="relative z-10 p-4 pb-2 flex items-center justify-between gap-3">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-2">
                 <span className="bg-white/15 text-white text-[9px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider border border-white/10 backdrop-blur-md">
@@ -963,6 +965,7 @@ const HomePage = () => {
           </div>
         </div>
       </div>
+      )}
       {/* ─── END CENSUS DASHBOARD BANNER ─── */}
 
       {/* ─── BENTO GRID (QUICK ACTIONS) ─── */}
@@ -1456,21 +1459,37 @@ const HomePage = () => {
       <div className="mx-3 mt-2 mb-6 h-[1px] bg-gradient-to-r from-transparent via-purple-200/40 to-transparent" />
 
       {/* ─── END OF FEED ILLUSTRATION ─── */}
-      <div className="mt-8 relative w-full h-[450px] flex flex-col items-center justify-end overflow-hidden pb-[160px] -mb-[120px] bg-gradient-to-b from-transparent to-purple-50/50">
-        {/* The SVG Collage fills the background entirely */}
-        <div className="absolute inset-0 w-full h-full pointer-events-none select-none text-brand-primary">
-          <CityLandscape className="w-full h-full" />
+      {liveFooterArtwork?.enabled !== false && (
+        <div className="mt-8 relative w-full h-[450px] flex flex-col items-center justify-end overflow-hidden pb-[160px] -mb-[120px] bg-gradient-to-b from-transparent to-purple-50/50">
+          {/* Background Artwork: Custom Image (100% natural) or SVG CityLandscape */}
+          {liveFooterArtwork?.artworkType === 'image' && liveFooterArtwork?.backgroundImage ? (
+            <img 
+              src={liveFooterArtwork.backgroundImage} 
+              alt="Footer Background" 
+              className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
+            />
+          ) : (
+            <div className="absolute inset-0 w-full h-full pointer-events-none select-none text-brand-primary">
+              <CityLandscape className="w-full h-full" />
+            </div>
+          )}
+          
+          {/* End text */}
+          <div className="relative z-10 flex flex-col items-center">
+             <h3 className="text-brand-primary/40 text-[42px] font-black italic tracking-tighter mb-2 drop-shadow-md leading-none select-none">
+               {liveFooterArtwork?.hashtagText || '#MeriSamaj'}
+             </h3>
+             <div className="bg-white/85 backdrop-blur-xl px-6 py-2.5 rounded-2xl border border-purple-200/40 shadow-sm flex flex-col items-center text-center">
+               <span className="text-text-secondary text-[14px] font-black tracking-wide">
+                 {liveFooterArtwork?.caughtUpTitle || "You're all caught up!"}
+               </span>
+               <span className="text-text-muted text-[11px] font-medium mt-0.5">
+                 {liveFooterArtwork?.caughtUpSubtitle || 'Check back later for new updates'}
+               </span>
+             </div>
+          </div>
         </div>
-        
-        {/* End text */}
-        <div className="relative z-10 flex flex-col items-center">
-           <h3 className="text-brand-primary/30 text-[42px] font-black italic tracking-tighter mb-2 drop-shadow-sm leading-none">#MeriSamaj</h3>
-           <div className="bg-white/80 backdrop-blur-xl px-6 py-2.5 rounded-2xl border border-purple-200/30 shadow-sm flex flex-col items-center">
-             <span className="text-text-secondary text-[14px] font-bold tracking-wide">You're all caught up!</span>
-             <span className="text-text-muted text-[11px] font-medium mt-0.5">Check back later for new updates</span>
-           </div>
-        </div>
-      </div>
+      )}
 
       {/* ─── MEDIA FAB ─── */}
       <button

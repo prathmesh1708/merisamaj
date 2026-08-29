@@ -94,7 +94,12 @@ const getUserResponsePayload = (user) => {
     isFaceVerified: user.isFaceVerified || false,
     accountStatus: user.accountStatus,
     verificationStatus: user.verificationStatus,
-    isVerified: user.isVerified || (user.verificationStatus === 'verified')
+    isVerified: user.isVerified || (user.verificationStatus === 'verified'),
+    isPremium: user.isPremium || false,
+    membershipPlan: user.membershipPlan || '',
+    membershipExpiry: user.membershipExpiry || '',
+    membershipStartDate: user.membershipStartDate || '',
+    matrimonySubscription: user.matrimonySubscription || null
   };
 };
 
@@ -560,6 +565,13 @@ const updateProfile = async (req, res) => {
       // Verification Flags
       user.isAadharVerified = req.body.isAadharVerified !== undefined ? req.body.isAadharVerified : user.isAadharVerified;
       user.isFaceVerified = req.body.isFaceVerified !== undefined ? req.body.isFaceVerified : user.isFaceVerified;
+
+      // Membership & Subscription fields
+      if (req.body.isPremium !== undefined) user.isPremium = req.body.isPremium;
+      if (req.body.membershipPlan !== undefined) user.membershipPlan = req.body.membershipPlan;
+      if (req.body.membershipExpiry !== undefined) user.membershipExpiry = req.body.membershipExpiry;
+      if (req.body.membershipStartDate !== undefined) user.membershipStartDate = req.body.membershipStartDate;
+      if (req.body.matrimonySubscription !== undefined) user.matrimonySubscription = req.body.matrimonySubscription;
 
       const updatedUser = await user.save();
       await updatedUser.populate('communityId', 'name slug isActive settings logoUrl description city');

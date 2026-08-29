@@ -4,21 +4,21 @@ import { matrimonialService } from '../../services/matrimonialService';
 
 const Field = ({ label, type = 'text', value, onChange, min, max }) => (
   <div>
-    <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">{label}</label>
+    <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1">{label}</label>
     <input type={type} value={value} onChange={e => onChange(type === 'number' ? Number(e.target.value) : e.target.value)}
       min={min} max={max}
-      className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-rose-500/50" />
+      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-rose-500 shadow-2xs" />
   </div>
 );
 
 const Toggle = ({ label, sub, value, onChange }) => (
-  <div className="flex items-center justify-between p-3 bg-white/3 rounded-xl">
+  <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-100 rounded-xl">
     <div>
-      <p className="text-sm font-bold text-white">{label}</p>
-      {sub && <p className="text-[10px] text-gray-500 mt-0.5">{sub}</p>}
+      <p className="text-sm font-bold text-slate-900">{label}</p>
+      {sub && <p className="text-[10px] text-slate-500 mt-0.5">{sub}</p>}
     </div>
     <div onClick={() => onChange(!value)}
-      className={`w-11 h-6 rounded-full relative transition-all cursor-pointer ${value ? 'bg-rose-500' : 'bg-white/10'}`}>
+      className={`w-11 h-6 rounded-full relative transition-all cursor-pointer ${value ? 'bg-rose-500' : 'bg-slate-200'}`}>
       <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-transform shadow ${value ? 'translate-x-5' : 'translate-x-0.5'}`} />
     </div>
   </div>
@@ -64,8 +64,8 @@ export const MatrimonialSettings = ({ data }) => {
       )}
 
       {/* General */}
-      <div className="card-neo p-6 space-y-4">
-        <h3 className="text-sm font-black text-white uppercase tracking-wider">General Settings</h3>
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-4">
+        <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">General Settings</h3>
         <div className="grid grid-cols-2 gap-4">
           <Field label="Profile Completion Required (%)" type="number" value={form.profileCompletionRequired}
             onChange={v => set('profileCompletionRequired', v)} min={0} max={100} />
@@ -81,13 +81,13 @@ export const MatrimonialSettings = ({ data }) => {
       </div>
 
       {/* Match Weights */}
-      <div className="card-neo p-6 space-y-4">
-        <h3 className="text-sm font-black text-white uppercase tracking-wider">Match Score Weights</h3>
-        <p className="text-xs text-gray-500">Weights must sum to 100. Adjust how much each factor affects compatibility score.</p>
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-4">
+        <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Match Score Weights</h3>
+        <p className="text-xs text-slate-500">Weights must sum to 100. Adjust how much each factor affects compatibility score.</p>
         <div className="grid grid-cols-2 gap-4">
           {Object.entries(form.matchWeights || {}).map(([key, val]) => (
             <div key={key}>
-              <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">
+              <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1">
                 {key.replace(/([A-Z])/g, ' $1').trim()} ({val}%)
               </label>
               <input type="range" min={0} max={50} value={val}
@@ -96,15 +96,15 @@ export const MatrimonialSettings = ({ data }) => {
             </div>
           ))}
         </div>
-        <p className="text-[10px] text-amber-400 font-bold">
+        <p className="text-[11px] text-amber-700 font-bold">
           Total: {Object.values(form.matchWeights || {}).reduce((a, b) => a + Number(b), 0)}%
           {Object.values(form.matchWeights || {}).reduce((a, b) => a + Number(b), 0) !== 100 ? ' ⚠ Should be 100%' : ' ✓'}
         </p>
       </div>
 
       {/* Moderation */}
-      <div className="card-neo p-6 space-y-4">
-        <h3 className="text-sm font-black text-white uppercase tracking-wider">Moderation</h3>
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-4">
+        <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Moderation</h3>
         <Toggle label="Auto-Hide Flagged Profiles" sub="Automatically hide profiles after threshold reports"
           value={form.moderation?.autoHideFlaggedProfiles} onChange={v => setMod('autoHideFlaggedProfiles', v)} />
         <Field label="Report Flag Threshold" type="number" value={form.moderation?.flagThreshold}
@@ -112,13 +112,13 @@ export const MatrimonialSettings = ({ data }) => {
       </div>
 
       {/* Privacy Defaults */}
-      <div className="card-neo p-6 space-y-4">
-        <h3 className="text-sm font-black text-white uppercase tracking-wider">Privacy Defaults</h3>
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-4">
+        <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Privacy Defaults</h3>
         <div>
-          <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Default Visibility</label>
+          <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1">Default Visibility</label>
           <select value={form.privacyDefaults?.defaultVisibility}
             onChange={e => setPrivacy('defaultVisibility', e.target.value)}
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-gray-300 focus:outline-none">
+            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-rose-500 shadow-2xs">
             <option value="public">Public</option>
             <option value="community">Community Only</option>
             <option value="private">Private (Interest Required)</option>
@@ -131,7 +131,7 @@ export const MatrimonialSettings = ({ data }) => {
       </div>
 
       <button onClick={handleSave} disabled={saving}
-        className="flex items-center gap-2 px-6 py-3 bg-rose-500 text-white rounded-xl font-black text-sm hover:bg-rose-600 disabled:opacity-50 transition-colors">
+        className="flex items-center gap-2 px-6 py-3 bg-rose-500 text-white rounded-xl font-black text-sm hover:bg-rose-600 disabled:opacity-50 transition-colors shadow-sm">
         {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
         Save Settings
       </button>

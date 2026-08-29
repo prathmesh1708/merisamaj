@@ -5,11 +5,13 @@ import {
   ExternalLink, Eye, RefreshCw, ChevronRight, Phone, MapPin, 
   Star, Layers, ShieldCheck, Briefcase, BookOpen, Users, 
   Vote, Building, Wallet, Calendar, GraduationCap, X, Check,
-  Upload, Sliders, Smartphone
+  Upload, Sliders, Smartphone, BarChart3, PieChart, ArrowRight,
+  Sparkle, Compass
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { appContentService } from '../../services/appContentService';
 import { getAllCommunities } from '../../services/communityService';
+import { CityLandscape } from '../../../member/components/common/CityLandscape';
 
 const AVAILABLE_ICONS = [
   'Briefcase', 'BookOpen', 'Users', 'Vote', 'Building', 'Wallet', 
@@ -23,8 +25,76 @@ const ICON_COMPONENTS = {
   Crown, MapPin, Layers, Sliders
 };
 
+const CENSUS_PRESET_BACKGROUNDS = [
+  {
+    name: 'Royal Purple Velvet',
+    url: 'https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?auto=format&fit=crop&w=1200&q=80',
+    tag: 'Recommended'
+  },
+  {
+    name: 'Heritage Palace Architecture',
+    url: 'https://images.unsplash.com/photo-1590050752117-238cb0fb12b1?auto=format&fit=crop&w=1200&q=80',
+    tag: 'Heritage'
+  },
+  {
+    name: 'Community Gathering & Celebration',
+    url: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&w=1200&q=80',
+    tag: 'Community'
+  },
+  {
+    name: 'Golden Festive Lights',
+    url: 'https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&w=1200&q=80',
+    tag: 'Festive'
+  },
+  {
+    name: 'Deep Cosmic Mandala Pattern',
+    url: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=1200&q=80',
+    tag: 'Mandala'
+  },
+  {
+    name: 'Royal Emerald Waves',
+    url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80',
+    tag: 'Emerald'
+  }
+];
+
+const FOOTER_PRESET_BACKGROUNDS = [
+  {
+    name: 'Royal Heritage Palace',
+    url: 'https://images.unsplash.com/photo-1590050752117-238cb0fb12b1?auto=format&fit=crop&w=1200&q=80',
+    tag: 'Palace'
+  },
+  {
+    name: 'Ancient Temple Domes',
+    url: 'https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=1200&q=80',
+    tag: 'Temple'
+  },
+  {
+    name: 'Festive Golden Glow',
+    url: 'https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&w=1200&q=80',
+    tag: 'Festive'
+  },
+  {
+    name: 'Twilight Spiritual Ghats',
+    url: 'https://images.unsplash.com/photo-1561361513-2d000a50f0dc?auto=format&fit=crop&w=1200&q=80',
+    tag: 'Ghats'
+  },
+  {
+    name: 'Community Gathering Silhouette',
+    url: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&w=1200&q=80',
+    tag: 'Community'
+  }
+];
+
+const OVERLAY_TINT_OPTIONS = [
+  { id: 'purple', label: 'Samaj Purple', bgClass: 'bg-purple-600', previewGradient: 'from-purple-900/90 to-purple-600/90' },
+  { id: 'dark', label: 'Dark Obsidian', bgClass: 'bg-slate-900', previewGradient: 'from-slate-950/95 to-slate-900/90' },
+  { id: 'royal', label: 'Royal Indigo', bgClass: 'bg-indigo-950', previewGradient: 'from-indigo-950/95 to-indigo-800/90' },
+  { id: 'magenta', label: 'Deep Rose', bgClass: 'bg-rose-900', previewGradient: 'from-pink-950/95 to-rose-900/90' },
+];
+
 export const UserAppEditsPage = () => {
-  const [activeTab, setActiveTab] = useState('banner'); // banner | features | stories | leadership
+  const [activeTab, setActiveTab] = useState('banner'); // banner | features | stories | leadership | census | footer
   const [communities, setCommunities] = useState([]);
   const [selectedCommunityId, setSelectedCommunityId] = useState('');
   const [loading, setLoading] = useState(true);
@@ -41,6 +111,24 @@ export const UserAppEditsPage = () => {
     subtitle: '',
     buttonText: '',
     buttonLink: '/member/directory',
+    enabled: true
+  });
+
+  // Census Banner Form State
+  const [censusForm, setCensusForm] = useState({
+    backgroundImage: 'https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?auto=format&fit=crop&w=1200&q=80',
+    overlayOpacity: 75,
+    overlayGradient: 'purple',
+    enabled: true
+  });
+
+  // Footer Artwork Form State
+  const [footerForm, setFooterForm] = useState({
+    artworkType: 'svg', // 'svg' | 'image'
+    backgroundImage: '',
+    hashtagText: '#MeriSamaj',
+    caughtUpTitle: "You're all caught up!",
+    caughtUpSubtitle: 'Check back later for new updates',
     enabled: true
   });
 
@@ -91,6 +179,24 @@ export const UserAppEditsPage = () => {
             enabled: res.data.heroBanner.enabled !== false
           });
         }
+        if (res.data.censusBanner) {
+          setCensusForm({
+            backgroundImage: res.data.censusBanner.backgroundImage || 'https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?auto=format&fit=crop&w=1200&q=80',
+            overlayOpacity: res.data.censusBanner.overlayOpacity !== undefined ? res.data.censusBanner.overlayOpacity : 75,
+            overlayGradient: res.data.censusBanner.overlayGradient || 'purple',
+            enabled: res.data.censusBanner.enabled !== false
+          });
+        }
+        if (res.data.footerArtwork) {
+          setFooterForm({
+            artworkType: res.data.footerArtwork.artworkType || 'svg',
+            backgroundImage: res.data.footerArtwork.backgroundImage || '',
+            hashtagText: res.data.footerArtwork.hashtagText || '#MeriSamaj',
+            caughtUpTitle: res.data.footerArtwork.caughtUpTitle || "You're all caught up!",
+            caughtUpSubtitle: res.data.footerArtwork.caughtUpSubtitle || 'Check back later for new updates',
+            enabled: res.data.footerArtwork.enabled !== false
+          });
+        }
       }
     } catch (err) {
       console.error('Error fetching app content:', err);
@@ -120,6 +226,81 @@ export const UserAppEditsPage = () => {
       showToast(err.response?.data?.message || 'Failed to update hero banner', 'error');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Save Community Census Banner
+  const handleSaveCensus = async () => {
+    setSaving(true);
+    try {
+      const res = await appContentService.updateCensusBanner(censusForm, selectedCommunityId);
+      if (res.success) {
+        showToast('Community Census Banner updated successfully!');
+        fetchAppContent(selectedCommunityId);
+      }
+    } catch (err) {
+      console.error('Error saving census banner:', err);
+      showToast(err.response?.data?.message || 'Failed to update census banner', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Direct Image File Upload Handler for Census
+  const handleImageUploadCensus = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        showToast('Image size should be under 5MB', 'error');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (uploadEvent) => {
+        setCensusForm(prev => ({
+          ...prev,
+          backgroundImage: uploadEvent.target.result
+        }));
+        showToast('Image uploaded! Click Save to apply changes.');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Save Footer Artwork
+  const handleSaveFooter = async () => {
+    setSaving(true);
+    try {
+      const res = await appContentService.updateFooterArtwork(footerForm, selectedCommunityId);
+      if (res.success) {
+        showToast('End of Feed & Footer Artwork updated successfully!');
+        fetchAppContent(selectedCommunityId);
+      }
+    } catch (err) {
+      console.error('Error saving footer artwork:', err);
+      showToast(err.response?.data?.message || 'Failed to update footer artwork', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Direct Image File Upload Handler for Footer
+  const handleImageUploadFooter = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        showToast('Image size should be under 5MB', 'error');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (uploadEvent) => {
+        setFooterForm(prev => ({
+          ...prev,
+          artworkType: 'image',
+          backgroundImage: uploadEvent.target.result
+        }));
+        showToast('Footer image uploaded! Click Save to apply changes.');
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -337,6 +518,30 @@ export const UserAppEditsPage = () => {
           <Crown size={15} />
           Core Members & Leadership
         </button>
+
+        <button
+          onClick={() => setActiveTab('census')}
+          className={`flex items-center gap-2 px-5 py-3 rounded-xl text-xs font-black transition-all ${
+            activeTab === 'census'
+              ? 'bg-white text-purple-700 shadow-md shadow-purple-900/5'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+          }`}
+        >
+          <BarChart3 size={15} />
+          Community Census Banner
+        </button>
+
+        <button
+          onClick={() => setActiveTab('footer')}
+          className={`flex items-center gap-2 px-5 py-3 rounded-xl text-xs font-black transition-all ${
+            activeTab === 'footer'
+              ? 'bg-white text-purple-700 shadow-md shadow-purple-900/5'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+          }`}
+        >
+          <Building size={15} />
+          End of Feed Artwork
+        </button>
       </div>
 
       {loading ? (
@@ -459,35 +664,36 @@ export const UserAppEditsPage = () => {
                       e.target.src = 'https://images.unsplash.com/photo-1590050752117-238cb0fb12b1?auto=format&fit=crop&w=1200&q=80';
                     }}
                   />
-                  <div className="absolute inset-0 bg-gradient-to-b from-[#1F0940]/85 via-[#3B1578]/50 to-[#120726]/95" />
 
-                  <div className="relative z-10 p-5 flex flex-col justify-between h-full min-h-[220px] text-white">
+                  <div className="relative z-10 p-4 flex flex-col justify-between h-full min-h-[220px] text-white">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-9 h-9 rounded-full bg-white/20 border border-white/30 flex items-center justify-center font-bold text-xs">
+                      <div className="flex items-center gap-2.5 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/20 shadow-md">
+                        <div className="w-8 h-8 rounded-full bg-white/20 border border-white/30 flex items-center justify-center font-bold text-xs text-white">
                           RS
                         </div>
                         <div>
-                          <p className="text-[9px] font-bold text-purple-200 uppercase tracking-widest">GOOD AFTERNOON 🕉️</p>
-                          <h4 className="text-sm font-black">Rahul Sharma</h4>
-                          <p className="text-[10px] text-amber-300 font-semibold">Agrawal Samaj Indore</p>
+                          <p className="text-[8px] font-bold text-white/90 uppercase tracking-widest">GOOD AFTERNOON 🕉️</p>
+                          <h4 className="text-xs font-black text-white">Rahul Sharma</h4>
+                          <p className="text-[9px] text-amber-300 font-semibold">Agrawal Samaj Indore</p>
                         </div>
                       </div>
                     </div>
 
-                    <div className="mt-6">
-                      {heroForm.title && (
-                        <h3 className="text-sm font-black text-white">{heroForm.title}</h3>
-                      )}
-                      {heroForm.subtitle && (
-                        <p className="text-[10px] text-white/80 font-medium">{heroForm.subtitle}</p>
-                      )}
-                      {heroForm.buttonText && (
-                        <span className="inline-block mt-2 px-3 py-1 bg-white text-purple-950 text-[10px] font-black rounded-lg shadow">
-                          {heroForm.buttonText} →
-                        </span>
-                      )}
-                    </div>
+                    {(heroForm.title || heroForm.subtitle) && (
+                      <div className="mt-4 bg-black/40 backdrop-blur-md p-2.5 rounded-xl border border-white/20 max-w-fit shadow-md">
+                        {heroForm.title && (
+                          <h3 className="text-xs font-black text-white">{heroForm.title}</h3>
+                        )}
+                        {heroForm.subtitle && (
+                          <p className="text-[9.5px] text-white/90 font-medium">{heroForm.subtitle}</p>
+                        )}
+                        {heroForm.buttonText && (
+                          <span className="inline-block mt-1.5 px-2.5 py-0.5 bg-[#FF2162] text-white text-[9.5px] font-black rounded-lg shadow">
+                            {heroForm.buttonText} →
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -794,6 +1000,538 @@ export const UserAppEditsPage = () => {
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ─── TAB 5: COMMUNITY CENSUS BANNER ─── */}
+          {activeTab === 'census' && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Form Controls */}
+              <div className="lg:col-span-7 bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm space-y-6">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                  <div>
+                    <h3 className="text-base font-black text-slate-900">Community Census Banner</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">Upload a custom background photo or select a royal theme for the census card</p>
+                  </div>
+                  <button
+                    onClick={handleSaveCensus}
+                    disabled={saving}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl text-xs font-black shadow-md hover:opacity-95 disabled:opacity-50 press-scale"
+                  >
+                    <Save size={14} />
+                    {saving ? 'Saving...' : 'Save Census Banner'}
+                  </button>
+                </div>
+
+                {/* 1. Background Image Input & File Upload */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[11px] font-black uppercase text-slate-500">
+                      Background Image (URL or Upload)
+                    </label>
+                    <label className="cursor-pointer flex items-center gap-1.5 text-xs font-bold text-purple-600 hover:text-purple-700 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-xl transition-colors">
+                      <Upload size={13} />
+                      <span>Upload from Device</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUploadCensus}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={censusForm.backgroundImage}
+                      onChange={(e) => setCensusForm({ ...censusForm, backgroundImage: e.target.value })}
+                      placeholder="https://images.unsplash.com/photo-..."
+                      className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 outline-none focus:border-purple-500"
+                    />
+                    {censusForm.backgroundImage && (
+                      <button
+                        onClick={() => setCensusForm({ ...censusForm, backgroundImage: '' })}
+                        className="px-3 py-2 text-xs font-bold text-slate-400 hover:text-slate-600 border border-slate-200 rounded-xl"
+                        title="Clear Image"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* 2. Curated Preset Backgrounds */}
+                <div>
+                  <label className="block text-[11px] font-black uppercase text-slate-500 mb-2">
+                    Or Choose a Curated Theme
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {CENSUS_PRESET_BACKGROUNDS.map((preset, idx) => {
+                      const isSelected = censusForm.backgroundImage === preset.url;
+                      return (
+                        <div
+                          key={idx}
+                          onClick={() => setCensusForm({ ...censusForm, backgroundImage: preset.url })}
+                          className={`group relative h-20 rounded-2xl overflow-hidden cursor-pointer border-2 transition-all ${
+                            isSelected
+                              ? 'border-purple-600 shadow-md ring-2 ring-purple-400/30 scale-[1.02]'
+                              : 'border-slate-200 hover:border-purple-300'
+                          }`}
+                        >
+                          <img
+                            src={preset.url}
+                            alt={preset.name}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+                          <span className="absolute bottom-1.5 left-2 right-2 text-[10px] font-bold text-white leading-tight truncate">
+                            {preset.name}
+                          </span>
+                          {isSelected && (
+                            <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-purple-600 text-white flex items-center justify-center shadow">
+                              <Check size={10} strokeWidth={3} />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 3. Overlay Darkness & Tint Controls */}
+                <div className="p-4.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-black text-slate-900">Text Legibility & Darkness Overlay</h4>
+                      <p className="text-[11px] text-slate-500">Darkens the background photo so white text & statistics remain 100% readable</p>
+                    </div>
+                    <span className="text-xs font-black text-purple-700 bg-purple-100 px-2.5 py-1 rounded-lg">
+                      {censusForm.overlayOpacity}%
+                    </span>
+                  </div>
+
+                  <input
+                    type="range"
+                    min="30"
+                    max="95"
+                    step="5"
+                    value={censusForm.overlayOpacity}
+                    onChange={(e) => setCensusForm({ ...censusForm, overlayOpacity: Number(e.target.value) })}
+                    className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                  />
+
+                  <div>
+                    <label className="block text-[10.5px] font-black uppercase text-slate-500 mb-2">
+                      Overlay Color Tint
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {OVERLAY_TINT_OPTIONS.map((tint) => {
+                        const isSelected = censusForm.overlayGradient === tint.id;
+                        return (
+                          <button
+                            key={tint.id}
+                            type="button"
+                            onClick={() => setCensusForm({ ...censusForm, overlayGradient: tint.id })}
+                            className={`p-2.5 rounded-xl border flex items-center gap-2 text-xs font-bold transition-all ${
+                              isSelected
+                                ? 'border-purple-600 bg-purple-50 text-purple-900 shadow-xs ring-1 ring-purple-500/20'
+                                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                            }`}
+                          >
+                            <span className={`w-3.5 h-3.5 rounded-full ${tint.bgClass} shrink-0 shadow-xs`} />
+                            <span className="truncate text-[11px]">{tint.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. Enable / Disable Toggle */}
+                <div className="flex items-center justify-between p-4 rounded-2xl bg-purple-50/60 border border-purple-100">
+                  <div>
+                    <h4 className="text-xs font-black text-slate-900">Show Census Dashboard on Home Screen</h4>
+                    <p className="text-[11px] text-slate-500">Enable or temporarily hide the Community Census banner</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={censusForm.enabled}
+                      onChange={(e) => setCensusForm({ ...censusForm, enabled: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Right Column: Live Mobile Preview */}
+              <div className="lg:col-span-5 space-y-3">
+                <div className="flex items-center gap-2 text-xs font-black text-slate-700 px-1">
+                  <Smartphone size={15} className="text-purple-600" />
+                  <span>Live Mobile Preview</span>
+                  <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100 ml-auto">
+                    Real-time
+                  </span>
+                </div>
+
+                {/* Phone Mockup Frame */}
+                <div className="bg-slate-950 p-4 rounded-[40px] shadow-2xl border-4 border-slate-800 max-w-[360px] mx-auto text-left">
+                  {/* Speaker Bar & Camera notch */}
+                  <div className="w-24 h-4 bg-slate-800 rounded-full mx-auto mb-3 flex items-center justify-center">
+                    <div className="w-2.5 h-2.5 rounded-full bg-slate-900 border border-slate-700" />
+                  </div>
+
+                  {/* Mobile Screen Surface */}
+                  <div className="bg-[#0f172a] rounded-[28px] p-3 overflow-hidden text-white space-y-3 min-h-[460px] flex flex-col justify-center">
+                    <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider px-1">
+                      Member Home Preview
+                    </p>
+
+                    {/* Community Census Banner Card */}
+                    <div
+                      className="w-full rounded-[24px] shadow-xl border border-white/15 text-white relative overflow-hidden transition-all duration-300"
+                      style={{
+                        background: censusForm.backgroundImage
+                          ? `url("${censusForm.backgroundImage}") center/cover no-repeat`
+                          : 'linear-gradient(135deg, #4C1D95 0%, #6D28D9 50%, #7C3AED 100%)'
+                      }}
+                    >
+                      {/* Darkness Tint Overlay */}
+                      <div
+                        className="absolute inset-0 z-0 pointer-events-none"
+                        style={{
+                          background: censusForm.overlayGradient === 'dark'
+                            ? `linear-gradient(135deg, rgba(15,23,42,${censusForm.overlayOpacity / 100}) 0%, rgba(30,27,75,${censusForm.overlayOpacity / 100}) 100%)`
+                            : censusForm.overlayGradient === 'royal'
+                            ? `linear-gradient(135deg, rgba(30,17,69,${censusForm.overlayOpacity / 100}) 0%, rgba(49,46,129,${censusForm.overlayOpacity / 100}) 100%)`
+                            : censusForm.overlayGradient === 'magenta'
+                            ? `linear-gradient(135deg, rgba(131,24,67,${censusForm.overlayOpacity / 100}) 0%, rgba(76,5,25,${censusForm.overlayOpacity / 100}) 100%)`
+                            : `linear-gradient(135deg, rgba(76,29,149,${censusForm.overlayOpacity / 100}) 0%, rgba(109,40,217,${censusForm.overlayOpacity / 100}) 50%, rgba(124,58,237,${censusForm.overlayOpacity / 100}) 100%)`
+                        }}
+                      />
+
+                      {/* Content Layer */}
+                      <div className="relative z-10 p-3.5 pb-2">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <span className="bg-white/20 text-white text-[8px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border border-white/10 backdrop-blur-md">
+                            Community Census
+                          </span>
+                        </div>
+                        <h4 className="text-[15px] font-black leading-tight tracking-tight text-white drop-shadow-sm">
+                          Community Census Dashboard
+                        </h4>
+                        <p className="text-white/80 text-[10px] mt-1 font-medium leading-tight">
+                          Detailed breakdown of total members, men, women &amp; children
+                        </p>
+
+                        <button className="mt-2.5 mb-1 px-3 py-1 bg-white/15 border border-white/20 rounded-lg text-white text-[9.5px] font-bold flex items-center gap-1 backdrop-blur-md">
+                          View Details <ArrowRight size={10} />
+                        </button>
+                      </div>
+
+                      {/* Live Census Breakdown Grid */}
+                      <div className="relative z-10 mx-2 mb-2 bg-white/10 backdrop-blur-md rounded-xl border border-white/15 grid grid-cols-4 divide-x divide-white/10 text-center py-2">
+                        <div>
+                          <p className="text-xs font-black text-white">15</p>
+                          <p className="text-[8px] font-bold text-purple-200">Members</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-black text-cyan-300">73%</p>
+                          <p className="text-[8px] font-bold text-slate-300">Men</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-black text-pink-300">27%</p>
+                          <p className="text-[8px] font-bold text-slate-300">Women</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-black text-emerald-300">0%</p>
+                          <p className="text-[8px] font-bold text-slate-300">Kids</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-[10px] text-slate-400 text-center">
+                      ✨ The member app will automatically sync this background image immediately.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ─── TAB 6: END OF FEED & FOOTER ARTWORK ─── */}
+          {activeTab === 'footer' && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Form Controls */}
+              <div className="lg:col-span-7 bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm space-y-6">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                  <div>
+                    <h3 className="text-base font-black text-slate-900">End of Feed &amp; Footer Artwork</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">Customize the bottom illustration, hashtag watermark, and caught-up status card</p>
+                  </div>
+                  <button
+                    onClick={handleSaveFooter}
+                    disabled={saving}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl text-xs font-black shadow-md hover:opacity-95 disabled:opacity-50 press-scale"
+                  >
+                    <Save size={14} />
+                    {saving ? 'Saving...' : 'Save Footer Artwork'}
+                  </button>
+                </div>
+
+                {/* 1. Artwork Style Selector */}
+                <div>
+                  <label className="block text-[11px] font-black uppercase text-slate-500 mb-2">
+                    Artwork Display Mode
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setFooterForm({ ...footerForm, artworkType: 'svg' })}
+                      className={`p-3.5 rounded-2xl border text-left flex items-start gap-3 transition-all ${
+                        footerForm.artworkType === 'svg'
+                          ? 'border-purple-600 bg-purple-50/60 ring-2 ring-purple-400/20 shadow-xs'
+                          : 'border-slate-200 bg-white hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className={`p-2 rounded-xl shrink-0 ${footerForm.artworkType === 'svg' ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                        <Sparkles size={16} />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-black text-slate-900">Heritage Vector (SVG)</h4>
+                        <p className="text-[10.5px] text-slate-500 mt-0.5">Delicate cultural temple &amp; palace line art illustration</p>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setFooterForm({ ...footerForm, artworkType: 'image' })}
+                      className={`p-3.5 rounded-2xl border text-left flex items-start gap-3 transition-all ${
+                        footerForm.artworkType === 'image'
+                          ? 'border-purple-600 bg-purple-50/60 ring-2 ring-purple-400/20 shadow-xs'
+                          : 'border-slate-200 bg-white hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className={`p-2 rounded-xl shrink-0 ${footerForm.artworkType === 'image' ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                        <ImageIcon size={16} />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-black text-slate-900">Custom Photo / Image</h4>
+                        <p className="text-[10.5px] text-slate-500 mt-0.5">Upload any temple, palace, or festival landmark photo</p>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 2. If Custom Photo is chosen */}
+                {footerForm.artworkType === 'image' && (
+                  <div className="space-y-4 p-4.5 rounded-2xl bg-slate-50 border border-slate-200/80">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-[11px] font-black uppercase text-slate-500">
+                        Custom Footer Image
+                      </label>
+                      <label className="cursor-pointer flex items-center gap-1.5 text-xs font-bold text-purple-600 hover:text-purple-700 bg-purple-100/70 hover:bg-purple-100 px-3 py-1.5 rounded-xl transition-colors">
+                        <Upload size={13} />
+                        <span>Upload from Device</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageUploadFooter}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={footerForm.backgroundImage}
+                        onChange={(e) => setFooterForm({ ...footerForm, backgroundImage: e.target.value })}
+                        placeholder="https://images.unsplash.com/photo-..."
+                        className="flex-1 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-800 outline-none focus:border-purple-500"
+                      />
+                      {footerForm.backgroundImage && (
+                        <button
+                          onClick={() => setFooterForm({ ...footerForm, backgroundImage: '' })}
+                          className="px-3 py-2 text-xs font-bold text-slate-400 hover:text-slate-600 border border-slate-200 rounded-xl bg-white"
+                          title="Clear Image"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-[10.5px] font-black uppercase text-slate-500 mb-2">
+                        Or Pick a Curated Landmark
+                      </label>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                        {FOOTER_PRESET_BACKGROUNDS.map((preset, idx) => {
+                          const isSelected = footerForm.backgroundImage === preset.url;
+                          return (
+                            <div
+                              key={idx}
+                              onClick={() => setFooterForm({ ...footerForm, backgroundImage: preset.url })}
+                              className={`group relative h-20 rounded-2xl overflow-hidden cursor-pointer border-2 transition-all ${
+                                isSelected
+                                  ? 'border-purple-600 shadow-md ring-2 ring-purple-400/30 scale-[1.02]'
+                                  : 'border-slate-200 hover:border-purple-300'
+                              }`}
+                            >
+                              <img
+                                src={preset.url}
+                                alt={preset.name}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                              <span className="absolute bottom-1.5 left-2 right-2 text-[10px] font-bold text-white leading-tight truncate">
+                                {preset.name}
+                              </span>
+                              {isSelected && (
+                                <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-purple-600 text-white flex items-center justify-center shadow">
+                                  <Check size={10} strokeWidth={3} />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. Text Customization */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <label className="block text-[11px] font-black uppercase text-slate-500 mb-1.5">
+                      Hashtag Watermark Text
+                    </label>
+                    <input
+                      type="text"
+                      value={footerForm.hashtagText}
+                      onChange={(e) => setFooterForm({ ...footerForm, hashtagText: e.target.value })}
+                      placeholder="#MeriSamaj"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 outline-none focus:border-purple-500 font-mono"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">Displayed as the watermark branding at the end of the home feed</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-black uppercase text-slate-500 mb-1.5">
+                      Status Card Title
+                    </label>
+                    <input
+                      type="text"
+                      value={footerForm.caughtUpTitle}
+                      onChange={(e) => setFooterForm({ ...footerForm, caughtUpTitle: e.target.value })}
+                      placeholder="You're all caught up!"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 outline-none focus:border-purple-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-black uppercase text-slate-500 mb-1.5">
+                      Status Card Subtitle
+                    </label>
+                    <input
+                      type="text"
+                      value={footerForm.caughtUpSubtitle}
+                      onChange={(e) => setFooterForm({ ...footerForm, caughtUpSubtitle: e.target.value })}
+                      placeholder="Check back later for new updates"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 outline-none focus:border-purple-500"
+                    />
+                  </div>
+                </div>
+
+                {/* 4. Enable / Disable Toggle */}
+                <div className="flex items-center justify-between p-4 rounded-2xl bg-purple-50/60 border border-purple-100">
+                  <div>
+                    <h4 className="text-xs font-black text-slate-900">Show End of Feed Section on Home Screen</h4>
+                    <p className="text-[11px] text-slate-500">Enable or temporarily hide the bottom illustration and caught-up status</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={footerForm.enabled}
+                      onChange={(e) => setFooterForm({ ...footerForm, enabled: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Right Column: Live Mobile Preview */}
+              <div className="lg:col-span-5 space-y-3">
+                <div className="flex items-center gap-2 text-xs font-black text-slate-700 px-1">
+                  <Smartphone size={15} className="text-purple-600" />
+                  <span>Live Mobile Preview</span>
+                  <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100 ml-auto">
+                    Real-time
+                  </span>
+                </div>
+
+                {/* Phone Mockup Frame */}
+                <div className="bg-slate-950 p-4 rounded-[40px] shadow-2xl border-4 border-slate-800 max-w-[360px] mx-auto text-left">
+                  {/* Speaker Bar & Camera notch */}
+                  <div className="w-24 h-4 bg-slate-800 rounded-full mx-auto mb-3 flex items-center justify-center">
+                    <div className="w-2.5 h-2.5 rounded-full bg-slate-900 border border-slate-700" />
+                  </div>
+
+                  {/* Mobile Screen Surface */}
+                  <div className="bg-white rounded-[28px] overflow-hidden text-slate-900 relative min-h-[460px] flex flex-col justify-end">
+                    {/* Simulated Previous feed post */}
+                    <div className="p-3 bg-purple-50/50 border-b border-purple-100/50 mb-auto">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-purple-200 flex items-center justify-center text-[9px] font-bold text-purple-800">
+                          MS
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-800">Recent Post...</p>
+                          <p className="text-[8px] text-slate-400">Agrawal Samaj · 2h ago</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* End of Feed Artwork Container */}
+                    <div className="relative w-full h-[320px] flex flex-col items-center justify-end overflow-hidden pb-8 bg-gradient-to-b from-transparent to-purple-50/60">
+                      {/* Background Artwork */}
+                      {footerForm.artworkType === 'image' && footerForm.backgroundImage ? (
+                        <img
+                          src={footerForm.backgroundImage}
+                          alt="Footer Artwork"
+                          className="absolute inset-0 w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 w-full h-full pointer-events-none select-none text-purple-600">
+                          <CityLandscape className="w-full h-full" />
+                        </div>
+                      )}
+
+                      {/* Hashtag Watermark & Caught-Up Card */}
+                      <div className="relative z-10 flex flex-col items-center px-4">
+                        <h3 className="text-purple-600/35 text-[34px] font-black italic tracking-tighter mb-2 drop-shadow-sm leading-none select-none">
+                          {footerForm.hashtagText || '#MeriSamaj'}
+                        </h3>
+                        <div className="bg-white/90 backdrop-blur-xl px-5 py-2 rounded-2xl border border-purple-200/40 shadow-sm flex flex-col items-center text-center">
+                          <span className="text-slate-800 text-xs font-black tracking-wide">
+                            {footerForm.caughtUpTitle || "You're all caught up!"}
+                          </span>
+                          <span className="text-slate-500 text-[10px] font-medium mt-0.5">
+                            {footerForm.caughtUpSubtitle || 'Check back later for new updates'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-2 bg-slate-900 text-white text-[9.5px] text-center font-medium">
+                      ✨ Bottom of Member Home Screen
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

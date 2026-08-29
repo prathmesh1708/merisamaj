@@ -12,6 +12,12 @@ router.get('/', adminAppContentController.getAppContent);
 // Hero banner update
 router.put('/hero', adminAppContentController.updateHeroBanner);
 
+// Community Census banner update
+router.put('/census', adminAppContentController.updateCensusBanner);
+
+// End of Feed / Footer Artwork update
+router.put('/footer-artwork', adminAppContentController.updateFooterArtwork);
+
 // Exclusive Features CRUD
 router.post('/features', adminAppContentController.createFeature);
 router.put('/features/:id', adminAppContentController.updateFeature);

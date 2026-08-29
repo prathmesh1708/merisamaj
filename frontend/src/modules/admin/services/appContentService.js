@@ -17,6 +17,13 @@ export const appContentService = {
     return res.data;
   },
 
+  // Update Community Census Banner
+  updateCensusBanner: async (data, communityId) => {
+    const payload = { ...data, communityId };
+    const res = await axiosPrivate.put(`${BASE_URL}/census`, payload);
+    return res.data;
+  },
+
   // Exclusive Features CRUD
   createFeature: async (data, communityId) => {
     const payload = { ...data, communityId };
@@ -77,6 +84,13 @@ export const appContentService = {
   deleteCommitteeMember: async (id, communityId) => {
     const params = communityId ? { communityId } : {};
     const res = await axiosPrivate.delete(`${BASE_URL}/core-members/committee/${id}`, { params });
+    return res.data;
+  },
+
+  // End of Feed / Footer Artwork
+  updateFooterArtwork: async (data, communityId) => {
+    const payload = { ...data, communityId };
+    const res = await axiosPrivate.put(`${BASE_URL}/footer-artwork`, payload);
     return res.data;
   }
 };

@@ -4,15 +4,15 @@ import { Users, CheckCircle2, ShieldAlert, Heart, TrendingUp, Flag, Image, Crown
 
 const StatCard = ({ title, value, sub, icon: Icon, color, delay }) => (
   <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }}
-    className="card-neo p-5 relative overflow-hidden group hover:border-rose-500/30 transition-all duration-300">
+    className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 relative overflow-hidden group hover:border-rose-300 hover:shadow-md transition-all duration-300">
     <div className={`absolute -right-6 -top-6 w-24 h-24 rounded-full ${color} opacity-5 group-hover:opacity-10 transition-opacity blur-2xl`} />
     <div className="flex items-start justify-between">
       <div>
-        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{title}</p>
-        <h3 className="text-2xl font-black text-white mt-1.5">{value ?? '—'}</h3>
-        {sub && <p className="text-[10px] text-gray-500 mt-1 font-semibold">{sub}</p>}
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{title}</p>
+        <h3 className="text-2xl font-black text-slate-900 mt-1.5">{value ?? '—'}</h3>
+        {sub && <p className="text-[10px] text-slate-500 mt-1 font-semibold">{sub}</p>}
       </div>
-      <div className={`w-10 h-10 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center ${color}`}>
+      <div className={`w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center ${color}`}>
         <Icon size={18} />
       </div>
     </div>
@@ -22,16 +22,16 @@ const StatCard = ({ title, value, sub, icon: Icon, color, delay }) => (
 export const OverviewDashboard = ({ data }) => {
   const { stats, analytics } = data;
   if (!stats) return (
-    <div className="text-center py-16 text-gray-500 font-semibold">No data available yet.</div>
+    <div className="text-center py-16 text-slate-500 font-semibold">No data available yet.</div>
   );
 
   const cards = [
-    { title: 'Total Profiles',    value: stats.totalProfiles?.toLocaleString(),   icon: Users,        color: 'text-blue-400' },
-    { title: 'Active Profiles',   value: stats.activeProfiles?.toLocaleString(),  icon: TrendingUp,   color: 'text-emerald-400' },
-    { title: 'Pending Photos',    value: stats.pendingPhotos?.toLocaleString(),   icon: Image,        color: 'text-amber-400' },
-    { title: 'Open Reports',      value: stats.pendingReports?.toLocaleString(),  icon: Flag,         color: 'text-red-400' },
-    { title: 'Total Subscriptions',value: stats.totalSubscriptions?.toLocaleString(), icon: Crown,   color: 'text-purple-400' },
-    { title: 'Total Marriages',   value: stats.marriedProfiles?.toLocaleString(),  icon: Heart,        color: 'text-pink-400' },
+    { title: 'Total Profiles',    value: stats.totalProfiles?.toLocaleString(),   icon: Users,        color: 'text-blue-600' },
+    { title: 'Active Profiles',   value: stats.activeProfiles?.toLocaleString(),  icon: TrendingUp,   color: 'text-emerald-600' },
+    { title: 'Pending Photos',    value: stats.pendingPhotos?.toLocaleString(),   icon: Image,        color: 'text-amber-600' },
+    { title: 'Open Reports',      value: stats.pendingReports?.toLocaleString(),  icon: Flag,         color: 'text-rose-600' },
+    { title: 'Total Subscriptions',value: stats.totalSubscriptions?.toLocaleString(), icon: Crown,   color: 'text-purple-600' },
+    { title: 'Total Marriages',   value: stats.marriedProfiles?.toLocaleString(),  icon: Heart,        color: 'text-pink-600' },
   ];
 
   return (
@@ -45,8 +45,8 @@ export const OverviewDashboard = ({ data }) => {
       {analytics && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Last 30 days */}
-          <div className="card-neo p-6">
-            <h3 className="text-base font-bold text-white mb-4">Last 30 Days</h3>
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6">
+            <h3 className="text-base font-black text-slate-900 mb-4">Last 30 Days</h3>
             <div className="space-y-4">
               {[
                 { label: 'New Profiles',     value: analytics.newProfiles,     color: 'bg-blue-500' },
@@ -56,10 +56,10 @@ export const OverviewDashboard = ({ data }) => {
               ].map(({ label, value, color }) => (
                 <div key={label}>
                   <div className="flex justify-between text-xs mb-1">
-                    <span className="text-gray-400 font-semibold">{label}</span>
-                    <span className="text-white font-bold">{value || 0}</span>
+                    <span className="text-slate-600 font-semibold">{label}</span>
+                    <span className="text-slate-900 font-black">{value || 0}</span>
                   </div>
-                  <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                  <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
                     <div className={`h-full ${color} rounded-full`}
                       style={{ width: `${Math.min(100, ((value || 0) / Math.max(analytics.newProfiles || 1, 1)) * 100)}%` }} />
                   </div>
@@ -69,20 +69,20 @@ export const OverviewDashboard = ({ data }) => {
           </div>
 
           {/* Revenue & Conversion */}
-          <div className="card-neo p-6">
-            <h3 className="text-base font-bold text-white mb-4">Revenue & Conversion</h3>
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6">
+            <h3 className="text-base font-black text-slate-900 mb-4">Revenue & Conversion</h3>
             <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
-                <span className="text-gray-400 text-sm font-semibold">Revenue (30d)</span>
-                <span className="text-white font-black text-lg">₹{(analytics.revenue || 0).toLocaleString()}</span>
+              <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-100 rounded-xl">
+                <span className="text-slate-600 text-sm font-semibold">Revenue (30d)</span>
+                <span className="text-slate-900 font-black text-lg">₹{(analytics.revenue || 0).toLocaleString()}</span>
               </div>
-              <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
-                <span className="text-gray-400 text-sm font-semibold">Acceptance Rate</span>
-                <span className="text-emerald-400 font-black text-lg">{analytics.interestAcceptanceRate || 0}%</span>
+              <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-100 rounded-xl">
+                <span className="text-slate-600 text-sm font-semibold">Acceptance Rate</span>
+                <span className="text-emerald-600 font-black text-lg">{analytics.interestAcceptanceRate || 0}%</span>
               </div>
-              <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
-                <span className="text-gray-400 text-sm font-semibold">Period</span>
-                <span className="text-gray-300 font-bold text-sm">{analytics.period}</span>
+              <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-100 rounded-xl">
+                <span className="text-slate-600 text-sm font-semibold">Period</span>
+                <span className="text-slate-800 font-bold text-sm">{analytics.period}</span>
               </div>
             </div>
           </div>

@@ -69,12 +69,12 @@ export const PlatformMatrimonialManagement = () => {
     <div className="space-y-6 pb-20 max-w-7xl mx-auto">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-black text-white tracking-tight">Platform Matrimonial Management</h1>
-        <p className="text-sm text-gray-400 mt-1">Global oversight and moderation of all community matrimonial profiles.</p>
+        <h1 className="text-2xl font-black text-slate-900 tracking-tight">Platform Matrimonial Management</h1>
+        <p className="text-sm text-slate-500 mt-1">Global oversight and moderation of all community matrimonial profiles.</p>
       </div>
 
       {/* Tabs */}
-      <div className="flex overflow-x-auto no-scrollbar border-b border-white/10">
+      <div className="flex overflow-x-auto no-scrollbar border-b border-slate-200">
         <div className="flex space-x-1 p-1">
           {TABS.map((tab) => {
             const Icon = tab.icon;
@@ -82,13 +82,13 @@ export const PlatformMatrimonialManagement = () => {
             return (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-2 px-4 py-3 text-sm font-bold rounded-t-xl transition-all relative ${
-                  isActive ? 'text-white' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
+                  isActive ? 'text-rose-600 font-bold' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/60'
                 }`}>
-                <Icon size={16} className={isActive ? 'text-rose-500' : ''} />
+                <Icon size={16} className={isActive ? 'text-rose-600' : 'text-slate-400'} />
                 <span className="whitespace-nowrap">{tab.label}</span>
                 {isActive && (
                   <motion.div layoutId="matrimonialTabIndicator"
-                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-rose-500"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-rose-600"
                     initial={false} transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                   />
                 )}

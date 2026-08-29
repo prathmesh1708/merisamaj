@@ -94,6 +94,50 @@ const appContentSchema = new mongoose.Schema({
       type: [committeeMemberSchema],
       default: []
     }
+  },
+  censusBanner: {
+    backgroundImage: {
+      type: String,
+      default: 'https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?auto=format&fit=crop&w=1200&q=80'
+    },
+    overlayOpacity: {
+      type: Number,
+      default: 75
+    },
+    overlayGradient: {
+      type: String,
+      default: 'purple' // 'purple' | 'dark' | 'indigo' | 'royal'
+    },
+    enabled: {
+      type: Boolean,
+      default: true
+    }
+  },
+  footerArtwork: {
+    artworkType: {
+      type: String,
+      default: 'svg' // 'svg' | 'image'
+    },
+    backgroundImage: {
+      type: String,
+      default: ''
+    },
+    hashtagText: {
+      type: String,
+      default: '#MeriSamaj'
+    },
+    caughtUpTitle: {
+      type: String,
+      default: "You're all caught up!"
+    },
+    caughtUpSubtitle: {
+      type: String,
+      default: 'Check back later for new updates'
+    },
+    enabled: {
+      type: Boolean,
+      default: true
+    }
   }
 }, { timestamps: true });
 

@@ -607,8 +607,51 @@ const MyProfilePage = () => {
                 )}
               </div>
 
+              {/* ─── MEMBERSHIP PILL TRIGGER ─── */}
+              <div className="my-2 flex flex-col items-center">
+                {(() => {
+                  const isUserSubscribed = profileUser.isPremium || (isMe && currentUser?.isPremium) || profileUser.matrimonySubscription?.status === 'active' || (isMe && currentUser?.matrimonySubscription?.status === 'active');
+                  const currentPlanTitle = currentUser?.membershipPlan || profileUser?.membershipPlan || currentUser?.matrimonySubscription?.plan || profileUser?.matrimonySubscription?.plan || 'PRO MAX';
+
+                  if (isMe) {
+                    return (
+                      <button
+                        onClick={() => navigate('/member/profile/upgrade')}
+                        className={`px-3 py-1.5 rounded-full text-[10.5px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all active:scale-95 shadow-xs border ${
+                          isUserSubscribed
+                            ? 'bg-gradient-to-r from-amber-500 to-amber-600 border-amber-400 text-white shadow-amber-500/20 hover:from-amber-600 hover:to-amber-700'
+                            : 'bg-gradient-to-r from-rose-500 to-rose-600 border-rose-500 text-white shadow-rose-500/20 hover:from-rose-600 hover:to-rose-700'
+                        }`}
+                      >
+                        {isUserSubscribed ? (
+                          <>
+                            <Crown size={12} className="text-yellow-200 fill-yellow-200 shrink-0" />
+                            <span>{currentPlanTitle}</span>
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles size={12} className="fill-white shrink-0" />
+                            <span>Upgrade Pro</span>
+                          </>
+                        )}
+                      </button>
+                    );
+                  }
+
+                  return (
+                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1 border shadow-xs ${
+                      isUserSubscribed
+                        ? 'bg-amber-50 border-amber-300 text-amber-900'
+                        : 'bg-slate-50 border-slate-200 text-slate-600'
+                    }`}>
+                      {isUserSubscribed ? `👑 ${currentPlanTitle}` : '✨ Member'}
+                    </span>
+                  );
+                })()}
+              </div>
+
               {/* Follow count statistics bar */}
-              <div className="flex-1 flex items-center justify-center gap-2 text-[12px] sm:text-[13px] font-extrabold text-slate-500 mt-3 sm:mt-5 text-center whitespace-nowrap">
+              <div className="flex items-center justify-center gap-2 text-[12px] sm:text-[13px] font-extrabold text-slate-500 text-center whitespace-nowrap">
                 <button 
                   onClick={() => {
                     if (isMe || canAccess) setMembersListModalType('followers');
@@ -662,10 +705,13 @@ const MyProfilePage = () => {
                     );
                   }
 
-                  if (profileUser.isPremium) {
+                  const isPremiumMember = profileUser.isPremium || (isMe && currentUser?.isPremium) || profileUser.matrimonySubscription?.status === 'active' || (isMe && currentUser?.matrimonySubscription?.status === 'active');
+                  const currentPlan = profileUser.membershipPlan || (isMe && currentUser?.membershipPlan) || profileUser.matrimonySubscription?.plan || (isMe && currentUser?.matrimonySubscription?.plan) || 'PRO';
+
+                  if (isPremiumMember) {
                     return (
                       <span className="bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 text-white text-[9px] sm:text-[10px] font-black uppercase px-2.5 py-1 rounded shadow-sm tracking-wider flex items-center gap-0.5 border border-amber-400/20">
-                        👑 {profileUser.membershipPlan || 'PRO'}
+                        👑 {currentPlan}
                       </span>
                     );
                   }

@@ -396,8 +396,19 @@ exports.searchProfiles = async (req, res) => {
     const prefixRegex = (val) => new RegExp('^' + escapeRegex(val.trim()), 'i');
     const exactRegex  = (val) => new RegExp('^' + escapeRegex(val.trim()) + '$', 'i');
 
-    // Free-text / Autocomplete inputs: Prefix-anchored for partial match + index efficiency
-    if (community)     query['personal.community']               = prefixRegex(community);
+    // ─── Community & Community Scope Filter ──────────────────────────────────
+    const userCommunity = (myProfile?.personal?.community || req.user?.community || '').trim();
+    if (req.query.communityScope === 'other') {
+      if (userCommunity) {
+        query['personal.community'] = { $not: new RegExp('^' + escapeRegex(userCommunity) + '$', 'i') };
+      }
+    } else if (req.query.communityScope === 'my') {
+      if (userCommunity) {
+        query['personal.community'] = new RegExp('^' + escapeRegex(userCommunity) + '$', 'i');
+      }
+    } else if (community && community.trim()) {
+      query['personal.community'] = prefixRegex(community);
+    }
     if (religion)      query['personal.religion']                = prefixRegex(religion);
     if (gotra)         query['personal.gotra']                   = prefixRegex(gotra);
     if (profession)    query['education.profession']             = prefixRegex(profession);
@@ -515,6 +526,31 @@ exports.deleteProfile = async (req, res) => {
     profile.updatedBy = req.user._id;
     await profile.save();
     res.json({ status: 'success', message: 'Profile deleted successfully.' });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+// ─── Get Available Communities in Matrimonial ────────────────────────────────
+exports.getAvailableCommunities = async (req, res) => {
+  try {
+    const Community = require('../../models/Community');
+    const [distinctProfileCommunities, registeredCommunities] = await Promise.all([
+      MatrimonialProfile.distinct('personal.community', { isDeleted: false, status: 'active' }),
+      Community.find({ isActive: true }).select('name').lean()
+    ]);
+
+    const communitySet = new Set();
+    distinctProfileCommunities.filter(Boolean).forEach(c => communitySet.add(c.trim()));
+    registeredCommunities.forEach(c => {
+      if (c.name) communitySet.add(c.name.trim());
+    });
+
+    const standardCommunities = ['Agrawal', 'Jain', 'Brahmin', 'Maheshwari', 'Maratha', 'Khandelwal', 'Rajput', 'Gupta', 'Patel', 'Sikh', 'Punjabi', 'Yadav', 'Sindhi'];
+    standardCommunities.forEach(c => communitySet.add(c));
+
+    const list = Array.from(communitySet).sort((a, b) => a.localeCompare(b));
+    res.json({ status: 'success', data: list });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }

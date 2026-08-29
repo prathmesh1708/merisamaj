@@ -132,7 +132,13 @@ const userSchema = new mongoose.Schema({
   referralCode: { type: String, index: true },
   referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   pointsBalance: { type: Number, default: 0 },
-  totalPointsEarned: { type: Number, default: 0 },
+  // Membership & Subscription Fields
+  isPremium: { type: Boolean, default: false },
+  membershipPlan: { type: String, default: '' },
+  membershipExpiry: { type: String, default: '' },
+  membershipStartDate: { type: String, default: '' },
+  matrimonySubscription: { type: mongoose.Schema.Types.Mixed, default: null },
+
   role: { 
     type: String, 
     enum: ['user', 'admin', 'head', 'sub_head'], 

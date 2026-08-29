@@ -730,10 +730,294 @@ exports.getAllDonors = async (req, res) => {
       };
     });
 
+    const MOCK_DONORS = [
+      {
+        id: 'don_mock_1',
+        name: 'Vijay Kumar Agrawal',
+        amount: 101000,
+        initials: 'VA',
+        purpose: 'Grand Community Hall Renovation',
+        date: '18 Aug 2026',
+        paymentMode: 'Bank Transfer (RTGS)',
+        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
+        userId: null
+      },
+      {
+        id: 'don_mock_2',
+        name: 'Ramesh Agrawal',
+        amount: 51000,
+        initials: 'RA',
+        purpose: 'Samaj Dharmashala & Temple Construction',
+        date: '16 Aug 2026',
+        paymentMode: 'Online (UPI)',
+        avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
+        userId: null
+      },
+      {
+        id: 'don_mock_3',
+        name: 'Praveen Jindal',
+        amount: 31000,
+        initials: 'PJ',
+        purpose: 'Community Emergency Medical Aid',
+        date: '15 Aug 2026',
+        paymentMode: 'Cheque / Bank',
+        avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=200&q=80',
+        userId: null
+      },
+      {
+        id: 'don_mock_4',
+        name: 'Sunita Mittal',
+        amount: 25000,
+        initials: 'SM',
+        purpose: 'Merit Girl Child Scholarship Fund',
+        date: '14 Aug 2026',
+        paymentMode: 'Net Banking',
+        avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80',
+        userId: null
+      },
+      {
+        id: 'don_mock_5',
+        name: 'Anil Goyal',
+        amount: 21000,
+        initials: 'AG',
+        purpose: 'Shri Krishna Gaushala Seva',
+        date: '12 Aug 2026',
+        paymentMode: 'Online (UPI)',
+        avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80',
+        userId: null
+      },
+      {
+        id: 'don_mock_6',
+        name: 'Sanjay Singhal',
+        amount: 18000,
+        initials: 'SS',
+        purpose: 'General Samaj Welfare & Seva Fund',
+        date: '11 Aug 2026',
+        paymentMode: 'Online (UPI)',
+        avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=200&q=80',
+        userId: null
+      },
+      {
+        id: 'don_mock_7',
+        name: 'Pooja Gupta',
+        amount: 15000,
+        initials: 'PG',
+        purpose: 'Samuhik Vivah Sammelan Fund',
+        date: '10 Aug 2026',
+        paymentMode: 'Online (UPI)',
+        avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=200&q=80',
+        userId: null
+      },
+      {
+        id: 'don_mock_8',
+        name: 'Rajesh Khandelwal',
+        amount: 15000,
+        initials: 'RK',
+        purpose: 'Temple Shikhara Gold Leafing Seva',
+        date: '08 Aug 2026',
+        paymentMode: 'Bank Transfer (RTGS)',
+        avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=200&q=80',
+        userId: null
+      },
+      {
+        id: 'don_mock_9',
+        name: 'Neha Garg',
+        amount: 11000,
+        initials: 'NG',
+        purpose: 'Higher Technical Education & Books',
+        date: '07 Aug 2026',
+        paymentMode: 'Online (UPI)',
+        avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=200&q=80',
+        userId: null
+      },
+      {
+        id: 'don_mock_10',
+        name: 'Deepak Bindal',
+        amount: 11000,
+        initials: 'DB',
+        purpose: 'Medical Assistance & Health Camp',
+        date: '05 Aug 2026',
+        paymentMode: 'Online (UPI)',
+        avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=200&q=80',
+        userId: null
+      },
+      {
+        id: 'don_mock_11',
+        name: 'Ashok Kumar Mittal',
+        amount: 11000,
+        initials: 'AM',
+        purpose: 'Rural Student Hostel Support',
+        date: '03 Aug 2026',
+        paymentMode: 'Cheque / Bank',
+        avatar: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=200&q=80',
+        userId: null
+      },
+      {
+        id: 'don_mock_12',
+        name: 'Meena Khandelwal',
+        amount: 7500,
+        initials: 'MK',
+        purpose: 'Kanya Vivah Uphar & Samagri',
+        date: '01 Aug 2026',
+        paymentMode: 'Online (UPI)',
+        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
+        userId: null
+      },
+      {
+        id: 'don_mock_13',
+        name: 'Rohit Gupta',
+        amount: 6500,
+        initials: 'RG',
+        purpose: 'Gaushala Shed Weatherproofing',
+        date: '30 Jul 2026',
+        paymentMode: 'Online (UPI)',
+        avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=200&q=80',
+        userId: null
+      },
+      {
+        id: 'don_mock_14',
+        name: 'Vikram Bansal',
+        amount: 5100,
+        initials: 'VB',
+        purpose: 'Cow Welfare & Green Fodder (Gaushala)',
+        date: '28 Jul 2026',
+        paymentMode: 'Online (UPI)',
+        avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=200&q=80',
+        userId: null
+      },
+      {
+        id: 'don_mock_15',
+        name: 'Shweta Agrawal',
+        amount: 5100,
+        initials: 'SA',
+        purpose: 'Samuhik Vivah Mandap Support',
+        date: '26 Jul 2026',
+        paymentMode: 'Online (UPI)',
+        avatar: 'https://images.unsplash.com/photo-1548142813-c348350df52b?auto=format&fit=crop&w=200&q=80',
+        userId: null
+      },
+      {
+        id: 'don_mock_16',
+        name: 'Alok Goyal',
+        amount: 5100,
+        initials: 'AG',
+        purpose: 'Samaj Ambulance Maintenance',
+        date: '24 Jul 2026',
+        paymentMode: 'Online (UPI)',
+        avatar: 'https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&w=200&q=80',
+        userId: null
+      },
+      {
+        id: 'don_mock_17',
+        name: 'Manish Tayal',
+        amount: 5000,
+        initials: 'MT',
+        purpose: 'Samaj Library & Competitive Books',
+        date: '22 Jul 2026',
+        paymentMode: 'Online (UPI)',
+        avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=200&q=80',
+        userId: null
+      },
+      {
+        id: 'don_mock_18',
+        name: 'Suman Singhal',
+        amount: 4500,
+        initials: 'SS',
+        purpose: 'Senior Citizen Free Health Checkup',
+        date: '20 Jul 2026',
+        paymentMode: 'Online (UPI)',
+        avatar: 'https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?auto=format&fit=crop&w=200&q=80',
+        userId: null
+      },
+      {
+        id: 'don_mock_19',
+        name: 'Nitin Bansal',
+        amount: 3500,
+        initials: 'NB',
+        purpose: 'General Samaj Vikas Nidhi',
+        date: '18 Jul 2026',
+        paymentMode: 'Online (UPI)',
+        avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80',
+        userId: null
+      },
+      {
+        id: 'don_mock_20',
+        name: 'Amit Garg',
+        amount: 3100,
+        initials: 'AG',
+        purpose: 'Daily Fodder Seva for Gaushala',
+        date: '16 Jul 2026',
+        paymentMode: 'Online (UPI)',
+        avatar: 'https://images.unsplash.com/photo-1528892952291-009c663ce843?auto=format&fit=crop&w=200&q=80',
+        userId: null
+      },
+      {
+        id: 'don_mock_21',
+        name: 'Preeti Jindal',
+        amount: 3100,
+        initials: 'PJ',
+        purpose: 'Kanya Shiksha Kosh Support',
+        date: '14 Jul 2026',
+        paymentMode: 'Online (UPI)',
+        avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=200&q=80',
+        userId: null
+      },
+      {
+        id: 'don_mock_22',
+        name: 'Kavita Bansal',
+        amount: 2500,
+        initials: 'KB',
+        purpose: 'General Samaj Fund',
+        date: '12 Jul 2026',
+        paymentMode: 'Online (UPI)',
+        avatar: 'https://images.unsplash.com/photo-1567532939604-b6b5b0db2604?auto=format&fit=crop&w=200&q=80',
+        userId: null
+      },
+      {
+        id: 'don_mock_23',
+        name: 'Gaurav Agrawal',
+        amount: 2100,
+        initials: 'GA',
+        purpose: 'Youth Career Guidance Camp',
+        date: '10 Jul 2026',
+        paymentMode: 'Online (UPI)',
+        avatar: 'https://images.unsplash.com/photo-1463453091185-61582044d556?auto=format&fit=crop&w=200&q=80',
+        userId: null
+      },
+      {
+        id: 'don_mock_24',
+        name: 'Harish Bindal',
+        amount: 2100,
+        initials: 'HB',
+        purpose: 'Temple Sound & Lighting Setup',
+        date: '08 Jul 2026',
+        paymentMode: 'Online (UPI)',
+        avatar: 'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?auto=format&fit=crop&w=200&q=80',
+        userId: null
+      },
+      {
+        id: 'don_mock_25',
+        name: 'Rekha Gupta',
+        amount: 1500,
+        initials: 'RG',
+        purpose: 'Samaj Utility & Water Cooler Fund',
+        date: '05 Jul 2026',
+        paymentMode: 'Online (UPI)',
+        avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80',
+        userId: null
+      }
+    ];
+
+    // Merge real database donors at top with the 25 sample community donors
+    const combinedDonors = [
+      ...donors,
+      ...MOCK_DONORS.filter(m => !donors.some(d => d.name === m.name || d.id === m.id))
+    ];
+
     res.status(200).json({
       success: true,
       status: 'success',
-      data: donors
+      data: combinedDonors
     });
   } catch (error) {
     console.error('Get All Donors Error:', error);

@@ -655,6 +655,24 @@ export const CensusPage = () => {
               </div>
             </div>
 
+            {/* Card: Active Cities (Placed above CENSUS SUMMARY) */}
+            <motion.div 
+              whileHover={{ y: -2, scale: 1.01 }} whileTap={{ scale: 0.98 }}
+              onClick={() => setCurrentView('cities')}
+              className="bg-white/90 backdrop-blur-xl border border-white/60 p-4.5 rounded-[24px] shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-[0_10px_30px_rgb(249,115,22,0.08)] flex items-center justify-between min-h-[88px] cursor-pointer group transition-all mb-5"
+            >
+              <div className="flex items-center gap-3.5">
+                <div className="w-10 h-10 rounded-[14px] bg-orange-50 border border-orange-100 text-orange-500 flex items-center justify-center shadow-sm group-hover:bg-orange-500 group-hover:text-white transition-all">
+                  <MapPin size={18} />
+                </div>
+                <div>
+                  <span className="text-[9px] font-bold text-slate-400 block tracking-widest uppercase">{language === 'en' ? 'Active Cities' : 'सक्रिय शहर'}</span>
+                  <h4 className="text-[17px] font-black text-slate-800 leading-none mt-1 group-hover:text-orange-600 transition-colors">{citiesBreakdown.length} {language === 'en' ? 'Cities' : 'शहर'}</h4>
+                </div>
+              </div>
+              <ChevronRight size={16} className="text-slate-300 group-hover:text-orange-500 group-hover:translate-x-1 transition-all" />
+            </motion.div>
+
             {/* Demographics Overview Grid */}
             <div className="flex items-center justify-between mb-3.5">
               <h3 className="text-[11.5px] font-black text-gray-400 tracking-wider uppercase">
@@ -781,42 +799,6 @@ export const CensusPage = () => {
                     <span className="text-[15px] font-black text-slate-700 mt-0.5 block">{otherFamiliesCount}</span>
                   </div>
                 </div>
-              </motion.div>
-
-              {/* Card: Active Cities */}
-              <motion.div 
-                whileHover={{ y: -2, scale: 1.01 }} whileTap={{ scale: 0.98 }}
-                onClick={() => setCurrentView('cities')}
-                className="bg-white/90 backdrop-blur-xl border border-white/60 p-4.5 rounded-[24px] shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-[0_10px_30px_rgb(249,115,22,0.08)] flex items-center justify-between min-h-[88px] cursor-pointer group transition-all"
-              >
-                <div className="flex items-center gap-3.5">
-                  <div className="w-10 h-10 rounded-[14px] bg-orange-50 border border-orange-100 text-orange-500 flex items-center justify-center shadow-sm group-hover:bg-orange-500 group-hover:text-white transition-all">
-                    <MapPin size={18} />
-                  </div>
-                  <div>
-                    <span className="text-[9px] font-bold text-slate-400 block tracking-widest uppercase">{language === 'en' ? 'Active Cities' : 'सक्रिय शहर'}</span>
-                    <h4 className="text-[17px] font-black text-slate-800 leading-none mt-1 group-hover:text-orange-600 transition-colors">{citiesBreakdown.length} {language === 'en' ? 'Cities' : 'शहर'}</h4>
-                  </div>
-                </div>
-                <ChevronRight size={16} className="text-slate-300 group-hover:text-orange-500 group-hover:translate-x-1 transition-all" />
-              </motion.div>
-
-              {/* Card: Events this Month */}
-              <motion.div 
-                whileHover={{ y: -2, scale: 1.01 }} whileTap={{ scale: 0.98 }}
-                onClick={() => navigate('/member/events')}
-                className="bg-white/90 backdrop-blur-xl border border-white/60 p-4.5 rounded-[24px] shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-[0_10px_30px_rgb(59,130,246,0.08)] flex items-center justify-between min-h-[88px] cursor-pointer group transition-all"
-              >
-                <div className="flex items-center gap-3.5">
-                  <div className="w-10 h-10 rounded-[14px] bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center shadow-sm group-hover:bg-blue-600 group-hover:text-white transition-all">
-                    <Calendar size={18} />
-                  </div>
-                  <div>
-                    <span className="text-[9px] font-bold text-slate-400 block tracking-widest uppercase">{language === 'en' ? 'Events (Month)' : 'इस महीने'}</span>
-                    <h4 className="text-[17px] font-black text-slate-800 leading-none mt-1 group-hover:text-blue-600 transition-colors">{summary.eventsCount || 0} {language === 'en' ? 'Events' : 'आयोजन'}</h4>
-                  </div>
-                </div>
-                <ChevronRight size={16} className="text-slate-300 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
               </motion.div>
 
               {/* Card: Matrimonial Interest */}

@@ -198,8 +198,47 @@ const getOrCreateAppContent = async (communityId) => {
       },
       exclusiveFeatures: getDefaultFeatures(),
       successStories: getDefaultStories(),
-      coreMembers: getDefaultCoreMembers()
+      coreMembers: getDefaultCoreMembers(),
+      censusBanner: {
+        backgroundImage: 'https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?auto=format&fit=crop&w=1200&q=80',
+        overlayOpacity: 75,
+        overlayGradient: 'purple',
+        enabled: true
+      },
+      footerArtwork: {
+        artworkType: 'svg',
+        backgroundImage: '',
+        hashtagText: '#MeriSamaj',
+        caughtUpTitle: "You're all caught up!",
+        caughtUpSubtitle: 'Check back later for new updates',
+        enabled: true
+      }
     });
+  } else {
+    let modified = false;
+    if (!doc.censusBanner) {
+      doc.censusBanner = {
+        backgroundImage: 'https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?auto=format&fit=crop&w=1200&q=80',
+        overlayOpacity: 75,
+        overlayGradient: 'purple',
+        enabled: true
+      };
+      modified = true;
+    }
+    if (!doc.footerArtwork) {
+      doc.footerArtwork = {
+        artworkType: 'svg',
+        backgroundImage: '',
+        hashtagText: '#MeriSamaj',
+        caughtUpTitle: "You're all caught up!",
+        caughtUpSubtitle: 'Check back later for new updates',
+        enabled: true
+      };
+      modified = true;
+    }
+    if (modified) {
+      await doc.save();
+    }
   }
   return doc;
 };
@@ -250,6 +289,67 @@ exports.updateHeroBanner = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// @desc    Update Community Census Banner
+// @route   PUT /api/v1/admin/user-app-edits/census
+// @access  Admin
+exports.updateCensusBanner = async (req, res) => {
+  try {
+    const targetCommunityId = req.body.communityId || req.communityId || req.user?.communityId;
+    const doc = await getOrCreateAppContent(targetCommunityId);
+
+    const { backgroundImage, overlayOpacity, overlayGradient, enabled } = req.body;
+    if (!doc.censusBanner) {
+      doc.censusBanner = {};
+    }
+    if (backgroundImage !== undefined) doc.censusBanner.backgroundImage = backgroundImage;
+    if (overlayOpacity !== undefined) doc.censusBanner.overlayOpacity = Number(overlayOpacity);
+    if (overlayGradient !== undefined) doc.censusBanner.overlayGradient = overlayGradient;
+    if (enabled !== undefined) doc.censusBanner.enabled = enabled;
+
+    await doc.save();
+    return res.status(200).json({
+      success: true,
+      message: 'Community census banner updated successfully',
+      data: doc.censusBanner
+    });
+  } catch (error) {
+    console.error('Error updating census banner:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Update End of Feed / Footer Artwork
+// @route   PUT /api/v1/admin/user-app-edits/footer-artwork
+// @access  Admin
+exports.updateFooterArtwork = async (req, res) => {
+  try {
+    const targetCommunityId = req.body.communityId || req.communityId || req.user?.communityId;
+    const doc = await getOrCreateAppContent(targetCommunityId);
+
+    const { artworkType, backgroundImage, hashtagText, caughtUpTitle, caughtUpSubtitle, enabled } = req.body;
+    if (!doc.footerArtwork) {
+      doc.footerArtwork = {};
+    }
+    if (artworkType !== undefined) doc.footerArtwork.artworkType = artworkType;
+    if (backgroundImage !== undefined) doc.footerArtwork.backgroundImage = backgroundImage;
+    if (hashtagText !== undefined) doc.footerArtwork.hashtagText = hashtagText;
+    if (caughtUpTitle !== undefined) doc.footerArtwork.caughtUpTitle = caughtUpTitle;
+    if (caughtUpSubtitle !== undefined) doc.footerArtwork.caughtUpSubtitle = caughtUpSubtitle;
+    if (enabled !== undefined) doc.footerArtwork.enabled = enabled;
+
+    await doc.save();
+    return res.status(200).json({
+      success: true,
+      message: 'Footer artwork updated successfully',
+      data: doc.footerArtwork
+    });
+  } catch (error) {
+    console.error('Error updating footer artwork:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 
 // ─── EXCLUSIVE FEATURES CRUD ───
 
