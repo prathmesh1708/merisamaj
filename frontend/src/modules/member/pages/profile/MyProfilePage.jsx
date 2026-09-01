@@ -8,6 +8,65 @@ import { ActivityDashboard } from './components/ActivityDashboard';
 import { AnimatePresence, motion } from 'framer-motion';
 import socialService from '../../../../core/api/socialService';
 import { getMemberById } from '../../services/directoryApi';
+import { resolvePostMediaUrl, isMediaVideo } from '../../utils/mediaUtils';
+
+// ── Profile Post Thumbnail Component (Handles media aliases, resolution & graceful fallbacks) ──
+const ProfilePostThumbnail = ({ post, onClick }) => {
+  const [hasImageError, setHasImageError] = useState(false);
+
+  const rawMedia = (post.images && post.images.length > 0)
+    ? post.images[0] 
+    : (post.image || (post.media && post.media.length > 0 ? post.media[0] : null));
+
+  const resolvedUrl = resolvePostMediaUrl(rawMedia);
+  const isVideo = isMediaVideo(resolvedUrl) || (post.media && post.media[0]?.type === 'video');
+  const mediaCount = (post.images?.length || 0) + (post.media?.length || 0);
+
+  const categoryLabel = post.category || 'General';
+  const postContent = post.content || post.title || '';
+
+  return (
+    <div 
+      onClick={onClick}
+      className="aspect-square bg-white rounded-2xl overflow-hidden relative cursor-pointer hover:opacity-95 border border-slate-150/70 shadow-xs hover:shadow-md transition-all press-scale group"
+    >
+      {resolvedUrl && !hasImageError ? (
+        <>
+          <img 
+            src={resolvedUrl} 
+            alt={postContent || "Post thumbnail"} 
+            onError={() => setHasImageError(true)} 
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+          />
+          {/* Badge for multiple media */}
+          {mediaCount > 1 && (
+            <div className="absolute top-2 right-2 bg-slate-900/70 backdrop-blur-xs text-white text-[9px] font-black px-1.5 py-0.5 rounded-md flex items-center gap-1 shadow-sm">
+              <Camera size={10} />
+              <span>{mediaCount}</span>
+            </div>
+          )}
+          {/* Video Play Badge */}
+          {isVideo && (
+            <div className="absolute inset-0 bg-black/25 flex items-center justify-center pointer-events-none">
+              <div className="w-8 h-8 rounded-full bg-white/90 text-brand-primary flex items-center justify-center shadow-md font-bold text-xs pl-0.5">
+                ▶
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="w-full h-full flex flex-col items-center justify-center p-3 text-center bg-gradient-to-br from-[#faf8ff] via-[#f5f1fe] to-[#efe9fc] select-none">
+          <span className="text-[8px] font-black text-brand-primary uppercase tracking-widest mb-1.5 bg-purple-100/90 text-purple-800 px-2 py-0.5 rounded-md border border-purple-200/50 shadow-xs">
+            {categoryLabel}
+          </span>
+          <p className="text-[10px] sm:text-[11px] font-bold text-slate-700 line-clamp-3 leading-tight px-1">
+            {postContent || 'Community Post'}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const MyProfilePage = () => {
   const navigate = useNavigate();
@@ -978,7 +1037,7 @@ const MyProfilePage = () => {
                   {highlights.map(h => (
                     <div key={h._id || h.id} onClick={() => setActiveHighlightView(h)} className="flex flex-col items-center gap-2 shrink-0 cursor-pointer group">
                       <div className="w-14 h-14 rounded-full border-2 border-brand-primary/20 p-[1.5px] bg-white group-hover:scale-105 transition-transform">
-                        <img src={h.coverImage || h.cover} className="w-full h-full rounded-full object-cover" alt={h.title} />
+                        <img src={resolvePostMediaUrl(h.coverImage || h.cover) || "https://images.unsplash.com/photo-1515187029135-18ee286d815b?w=200"} className="w-full h-full rounded-full object-cover" alt={h.title} />
                       </div>
                       <span className="text-[11px] font-semibold text-slate-700 max-w-[64px] truncate text-center">{h.title}</span>
                     </div>
@@ -1030,16 +1089,11 @@ const MyProfilePage = () => {
                   <div className="grid grid-cols-3 gap-1 md:gap-1.5">
                     {userPosts.length > 0 ? (
                       userPosts.map((post) => (
-                        <div key={post.id} className="aspect-square bg-white rounded-2xl overflow-hidden relative cursor-pointer hover:opacity-90 border border-slate-100 shadow-sm transition-all press-scale" onClick={() => navigate(`/member/social/${post.id}`)}>
-                          {post.image || (post.images && post.images.length > 0) ? (
-                            <img src={post.image || post.images[0]} alt="Post thumbnail" className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex flex-col items-center justify-center p-3 text-center bg-[#fdfcff]/50">
-                              <span className="text-[8px] font-black text-brand-primary uppercase tracking-widest mb-1.5 bg-purple-50 px-1.5 py-0.5 rounded">{post.category}</span>
-                              <p className="text-[10px] sm:text-[11px] font-bold text-slate-700 line-clamp-3 leading-tight">{post.content}</p>
-                            </div>
-                          )}
-                        </div>
+                        <ProfilePostThumbnail 
+                          key={post.id} 
+                          post={post} 
+                          onClick={() => navigate(`/member/social/${post.id}`)} 
+                        />
                       ))
                     ) : (
                       <div className="col-span-3 py-16 flex flex-col items-center justify-center text-slate-400 bg-white rounded-[28px] border border-purple-100/10 shadow-sm">
@@ -1063,16 +1117,11 @@ const MyProfilePage = () => {
                 <div className="grid grid-cols-3 gap-1 md:gap-1.5">
                   {likedPostsList.length > 0 ? (
                     likedPostsList.map((post) => (
-                      <div key={post.id} className="aspect-square bg-white rounded-2xl overflow-hidden relative cursor-pointer hover:opacity-90 border border-slate-100 shadow-sm transition-all press-scale" onClick={() => navigate(`/member/social/${post.id}`)}>
-                        {post.image || (post.images && post.images.length > 0) ? (
-                          <img src={post.image || post.images[0]} alt="Post thumbnail" className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex flex-col items-center justify-center p-3 text-center bg-[#fdfcff]/50">
-                            <span className="text-[8px] font-black text-brand-primary uppercase tracking-widest mb-1.5 bg-purple-50 px-1.5 py-0.5 rounded">{post.category}</span>
-                            <p className="text-[10px] sm:text-[11px] font-bold text-slate-700 line-clamp-3 leading-tight">{post.content}</p>
-                          </div>
-                        )}
-                      </div>
+                      <ProfilePostThumbnail 
+                        key={post.id} 
+                        post={post} 
+                        onClick={() => navigate(`/member/social/${post.id}`)} 
+                      />
                     ))
                   ) : (
                     <div className="col-span-3 py-16 flex flex-col items-center justify-center text-slate-400 bg-white rounded-[28px] border border-purple-100/10 shadow-sm">
@@ -1093,16 +1142,11 @@ const MyProfilePage = () => {
                 <div className="grid grid-cols-3 gap-1 md:gap-1.5">
                   {savedPostsList.length > 0 ? (
                     savedPostsList.map((post) => (
-                      <div key={post.id} className="aspect-square bg-white rounded-2xl overflow-hidden relative cursor-pointer hover:opacity-90 border border-slate-100 shadow-sm transition-all press-scale" onClick={() => navigate(`/member/social/${post.id}`)}>
-                        {post.image || (post.images && post.images.length > 0) ? (
-                          <img src={post.image || post.images[0]} alt="Post thumbnail" className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex flex-col items-center justify-center p-3 text-center bg-[#fdfcff]/50">
-                            <span className="text-[8px] font-black text-brand-primary uppercase tracking-widest mb-1.5 bg-purple-50 px-1.5 py-0.5 rounded">{post.category}</span>
-                            <p className="text-[10px] sm:text-[11px] font-bold text-slate-700 line-clamp-3 leading-tight">{post.content}</p>
-                          </div>
-                        )}
-                      </div>
+                      <ProfilePostThumbnail 
+                        key={post.id} 
+                        post={post} 
+                        onClick={() => navigate(`/member/social/${post.id}`)} 
+                      />
                     ))
                   ) : (
                     <div className="col-span-3 py-16 flex flex-col items-center justify-center text-slate-400 bg-white rounded-[28px] border border-purple-100/10 shadow-sm">

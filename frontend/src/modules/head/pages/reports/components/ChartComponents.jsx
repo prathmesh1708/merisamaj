@@ -3,13 +3,15 @@ import { motion } from 'framer-motion';
 
 // --- Generic Helpers ---
 const generatePath = (data, width, height, isArea = false) => {
-  if (!data || data.length === 0) return '';
-  const max = Math.max(...data, 1);
+  if (!data || !Array.isArray(data) || data.length === 0) return 'M 0,0';
+  const validData = data.map(v => (typeof v === 'number' && Number.isFinite(v) ? v : 0));
+  const max = Math.max(...validData, 1);
   const min = 0;
-  const range = max - min;
+  const range = max - min || 1;
+  const len = validData.length;
   
-  const points = data.map((val, i) => {
-    const x = (i / (data.length - 1)) * width;
+  const points = validData.map((val, i) => {
+    const x = len > 1 ? (i / (len - 1)) * width : width / 2;
     const y = height - ((val - min) / range) * height;
     return `${x},${y}`;
   });

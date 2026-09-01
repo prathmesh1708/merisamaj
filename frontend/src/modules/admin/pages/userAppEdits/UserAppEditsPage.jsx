@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   LayoutTemplate, Image as ImageIcon, Sparkles, Heart, Crown, 
   Plus, Edit3, Trash2, CheckCircle2, AlertCircle, Save, 
@@ -6,7 +6,7 @@ import {
   Star, Layers, ShieldCheck, Briefcase, BookOpen, Users, 
   Vote, Building, Wallet, Calendar, GraduationCap, X, Check,
   Upload, Sliders, Smartphone, BarChart3, PieChart, ArrowRight,
-  Sparkle, Compass
+  Sparkle, Compass, Building2, Search, ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { appContentService } from '../../services/appContentService';
@@ -138,11 +138,44 @@ export const UserAppEditsPage = () => {
   const [headModal, setHeadModal] = useState({ isOpen: false, data: null });
   const [committeeModal, setCommitteeModal] = useState({ isOpen: false, isEditing: false, data: null });
   const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, type: '', id: '', title: '' });
+  const [isCommunityDropdownOpen, setIsCommunityDropdownOpen] = useState(false);
+  const [communitySearchQuery, setCommunitySearchQuery] = useState('');
+  const communityDropdownRef = useRef(null);
+
+  // Click outside to close community dropdown
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (communityDropdownRef.current && !communityDropdownRef.current.contains(e.target)) {
+        setIsCommunityDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3500);
   };
+
+  // Filtered communities based on search query
+  const filteredCommunities = useMemo(() => {
+    if (!communitySearchQuery.trim()) return communities;
+    const q = communitySearchQuery.toLowerCase();
+    return communities.filter(c => 
+      (c.name && c.name.toLowerCase().includes(q)) ||
+      (c.city && c.city.toLowerCase().includes(q)) ||
+      (c.state && c.state.toLowerCase().includes(q))
+    );
+  }, [communities, communitySearchQuery]);
+
+  const selectedCommunity = useMemo(() => {
+    return communities.find(c => (c._id === selectedCommunityId || c.id === selectedCommunityId)) || communities[0] || null;
+  }, [communities, selectedCommunityId]);
+
+  const communityName = selectedCommunity?.name || 'Agrawal Samaj';
+  const communityCity = selectedCommunity?.city || '';
+  const communityFullTitle = communityCity ? `${communityName} (${communityCity})` : communityName;
 
   // Fetch Communities
   useEffect(() => {
@@ -438,7 +471,7 @@ export const UserAppEditsPage = () => {
       </AnimatePresence>
 
       {/* Header Bar */}
-      <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-purple-950 rounded-3xl p-6 text-white shadow-xl shadow-purple-950/20 border border-purple-800/40 relative overflow-hidden">
+      <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-purple-950 rounded-3xl p-6 text-white shadow-xl shadow-purple-950/20 border border-purple-800/40 relative z-20">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 text-purple-300 text-xs font-black uppercase tracking-widest mb-1.5">
@@ -451,20 +484,123 @@ export const UserAppEditsPage = () => {
             </p>
           </div>
 
-          {/* Community Switcher */}
-          <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/15">
-            <span className="text-xs font-bold text-purple-200 whitespace-nowrap">Community:</span>
-            <select
-              value={selectedCommunityId}
-              onChange={(e) => setSelectedCommunityId(e.target.value)}
-              className="bg-purple-950/80 text-white text-xs font-bold px-3 py-1.5 rounded-xl border border-purple-400/30 outline-none focus:ring-2 focus:ring-purple-400 cursor-pointer"
-            >
-              {communities.map((c) => (
-                <option key={c._id} value={c._id} className="bg-purple-950 text-white">
-                  {c.name} ({c.city || 'Indore'})
-                </option>
-              ))}
-            </select>
+          {/* Searchable Community Switcher */}
+          <div className="relative z-50" ref={communityDropdownRef}>
+            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md p-1.5 pl-3 rounded-2xl border border-white/20 shadow-lg">
+              <div className="flex items-center gap-1.5 text-purple-200 text-xs font-bold shrink-0">
+                <Building2 size={15} className="text-amber-400" />
+                <span className="hidden sm:inline">Community:</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCommunityDropdownOpen(prev => !prev);
+                  setCommunitySearchQuery('');
+                }}
+                className="flex items-center justify-between gap-2.5 bg-gradient-to-r from-[#211145] to-[#2b1758] hover:from-[#2a1656] hover:to-[#351d6c] text-white text-xs font-bold px-3.5 py-2 rounded-xl border border-purple-400/40 shadow-inner min-w-[200px] sm:min-w-[240px] text-left transition-all press-scale"
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0 shadow-sm shadow-emerald-400/50" />
+                  <span className="truncate">{communityName}</span>
+                  {communityCity && (
+                    <span className="text-[10px] font-bold bg-purple-500/30 text-purple-200 px-1.5 py-0.5 rounded border border-purple-400/20 shrink-0">
+                      {communityCity}
+                    </span>
+                  )}
+                </div>
+                <ChevronDown 
+                  size={14} 
+                  className={`text-purple-300 shrink-0 transition-transform duration-200 ${isCommunityDropdownOpen ? 'rotate-180 text-amber-300' : ''}`} 
+                />
+              </button>
+            </div>
+
+            {/* Searchable Dropdown Popup */}
+            <AnimatePresence>
+              {isCommunityDropdownOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                  transition={{ duration: 0.15, ease: 'easeOut' }}
+                  className="absolute right-0 top-full mt-2 w-[290px] sm:w-[340px] bg-[#140b2b] border border-purple-500/50 rounded-2xl shadow-2xl shadow-black/80 p-3 z-50 overflow-hidden text-white"
+                >
+                  {/* Search Box */}
+                  <div className="relative mb-2.5">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-300 pointer-events-none" />
+                    <input
+                      type="text"
+                      autoFocus
+                      placeholder="Search community or city..."
+                      value={communitySearchQuery}
+                      onChange={(e) => setCommunitySearchQuery(e.target.value)}
+                      className="w-full !bg-[#221344] !text-white placeholder:text-purple-300/60 text-xs font-semibold pl-9 pr-7 py-2.5 rounded-xl border border-purple-400/40 outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/40 transition-all"
+                    />
+                    {communitySearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setCommunitySearchQuery('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-purple-400 hover:text-white text-xs"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Header / Count */}
+                  <div className="flex items-center justify-between px-2 py-1 mb-1 text-[10px] font-bold text-purple-300/70 uppercase tracking-wider">
+                    <span>Communities</span>
+                    <span className="bg-purple-800/50 text-purple-200 px-1.5 py-0.5 rounded font-black">{filteredCommunities.length}</span>
+                  </div>
+
+                  {/* Filtered List */}
+                  <div className="max-h-56 overflow-y-auto space-y-1 pr-0.5 scrollbar-thin scrollbar-thumb-purple-700/50">
+                    {filteredCommunities.length > 0 ? (
+                      filteredCommunities.map((c) => {
+                        const isSelected = (c._id === selectedCommunityId || c.id === selectedCommunityId);
+                        return (
+                          <button
+                            key={c._id || c.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedCommunityId(c._id || c.id);
+                              setIsCommunityDropdownOpen(false);
+                            }}
+                            className={`w-full flex items-center justify-between p-2 rounded-xl text-xs font-bold text-left transition-all ${
+                              isSelected
+                                ? 'bg-gradient-to-r from-purple-600/90 to-indigo-600/90 text-white border border-purple-400/50 shadow-sm'
+                                : 'hover:bg-white/10 text-slate-200 hover:text-white'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 truncate">
+                              <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black shrink-0 ${
+                                isSelected ? 'bg-amber-400 text-purple-950' : 'bg-purple-950 text-purple-300 border border-purple-700/40'
+                              }`}>
+                                {c.name ? c.name.charAt(0).toUpperCase() : 'C'}
+                              </div>
+                              <div className="truncate">
+                                <p className="truncate leading-tight">{c.name}</p>
+                                <p className="text-[10px] text-purple-300/80 font-normal">
+                                  {c.city || 'National'}{c.state ? `, ${c.state}` : ''}
+                                </p>
+                              </div>
+                            </div>
+                            {isSelected && (
+                              <Check size={14} className="text-amber-300 shrink-0 ml-1.5" />
+                            )}
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <div className="py-6 text-center text-purple-300/70 text-xs">
+                        <p>No communities found</p>
+                        <p className="text-[10px] text-purple-400/50 mt-0.5">Try searching with another keyword</p>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
       </div>
@@ -592,7 +728,7 @@ export const UserAppEditsPage = () => {
                       type="text"
                       value={heroForm.title}
                       onChange={(e) => setHeroForm({ ...heroForm, title: e.target.value })}
-                      placeholder="e.g. Welcome to Agrawal Samaj"
+                      placeholder={`e.g. Welcome to ${communityName}`}
                       className="w-full px-4 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 focus:bg-white focus:border-purple-500 outline-none"
                     />
                   </div>
@@ -674,7 +810,7 @@ export const UserAppEditsPage = () => {
                         <div>
                           <p className="text-[8px] font-bold text-white/90 uppercase tracking-widest">GOOD AFTERNOON 🕉️</p>
                           <h4 className="text-xs font-black text-white">Rahul Sharma</h4>
-                          <p className="text-[9px] text-amber-300 font-semibold">Agrawal Samaj Indore</p>
+                          <p className="text-[9px] text-amber-300 font-semibold">{communityFullTitle}</p>
                         </div>
                       </div>
                     </div>
@@ -1222,7 +1358,7 @@ export const UserAppEditsPage = () => {
                           </span>
                         </div>
                         <h4 className="text-[15px] font-black leading-tight tracking-tight text-white drop-shadow-sm">
-                          Community Census Dashboard
+                          {communityName} Census Dashboard
                         </h4>
                         <p className="text-white/80 text-[10px] mt-1 font-medium leading-tight">
                           Detailed breakdown of total members, men, women &amp; children
@@ -1488,11 +1624,11 @@ export const UserAppEditsPage = () => {
                     <div className="p-3 bg-purple-50/50 border-b border-purple-100/50 mb-auto">
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-full bg-purple-200 flex items-center justify-center text-[9px] font-bold text-purple-800">
-                          MS
+                          {communityName.charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <p className="text-[10px] font-bold text-slate-800">Recent Post...</p>
-                          <p className="text-[8px] text-slate-400">Agrawal Samaj · 2h ago</p>
+                          <p className="text-[10px] font-bold text-slate-800">Recent Community Post...</p>
+                          <p className="text-[8px] text-slate-400">{communityName} · 2h ago</p>
                         </div>
                       </div>
                     </div>
@@ -1515,7 +1651,7 @@ export const UserAppEditsPage = () => {
                       {/* Hashtag Watermark & Caught-Up Card */}
                       <div className="relative z-10 flex flex-col items-center px-4">
                         <h3 className="text-purple-600/35 text-[34px] font-black italic tracking-tighter mb-2 drop-shadow-sm leading-none select-none">
-                          {footerForm.hashtagText || '#MeriSamaj'}
+                          {footerForm.hashtagText || `#${communityName.replace(/\s+/g, '')}`}
                         </h3>
                         <div className="bg-white/90 backdrop-blur-xl px-5 py-2 rounded-2xl border border-purple-200/40 shadow-sm flex flex-col items-center text-center">
                           <span className="text-slate-800 text-xs font-black tracking-wide">

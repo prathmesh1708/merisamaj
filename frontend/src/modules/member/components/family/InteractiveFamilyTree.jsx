@@ -25,14 +25,23 @@ const getRelationCategory = (relationStr) => {
 
 // SVG Curved Path Generator
 const drawCurve = (x1, y1, x2, y2) => {
+  const numX1 = Number(x1);
+  const numY1 = Number(y1);
+  const numX2 = Number(x2);
+  const numY2 = Number(y2);
+
+  if (!Number.isFinite(numX1) || !Number.isFinite(numY1) || !Number.isFinite(numX2) || !Number.isFinite(numY2)) {
+    return 'M 0 0';
+  }
+
   // Add some vertical padding so it comes out of the bottom/top of nodes
   const offset = 40;
-  if (Math.abs(y1 - y2) > 20) {
+  if (Math.abs(numY1 - numY2) > 20) {
     // Vertical curve (parents/children)
-    return `M ${x1} ${y1} C ${x1} ${y1 + offset}, ${x2} ${y2 - offset}, ${x2} ${y2}`;
+    return `M ${numX1} ${numY1} C ${numX1} ${numY1 + offset}, ${numX2} ${numY2 - offset}, ${numX2} ${numY2}`;
   } else {
     // Horizontal curve (spouses/siblings)
-    return `M ${x1} ${y1} C ${x1 + offset} ${y1}, ${x2 - offset} ${y2}, ${x2} ${y2}`;
+    return `M ${numX1} ${numY1} C ${numX1 + offset} ${numY1}, ${numX2 - offset} ${numY2}, ${numX2} ${numY2}`;
   }
 };
 

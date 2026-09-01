@@ -7,7 +7,7 @@ const mongoose = require('mongoose');
 // @access  Private (Member)
 exports.getMemberAppContent = async (req, res) => {
   try {
-    let targetCommunityId = req.communityId || req.user?.communityId;
+    let targetCommunityId = req.query.communityId || req.communityId || req.user?.communityId?._id || req.user?.communityId;
     if (!targetCommunityId) {
       const firstComm = await Community.findOne({ status: 'Active' });
       targetCommunityId = firstComm ? firstComm._id : new mongoose.Types.ObjectId('000000000000000000000001');

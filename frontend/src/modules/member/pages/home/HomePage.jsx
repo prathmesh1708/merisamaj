@@ -161,7 +161,8 @@ const HomePage = () => {
       })
       .catch(() => {});
       
-    axiosPrivate.get('/member/app-content')
+    const targetCommId = currentUser?.communityId?._id || currentUser?.communityId || (typeof currentUser?.community === 'string' && currentUser.community) || '';
+    axiosPrivate.get('/member/app-content', { params: targetCommId ? { communityId: targetCommId } : {} })
       .then(res => {
         if (isMounted && res.data?.success && res.data?.data) {
           const appData = res.data.data;
@@ -192,7 +193,7 @@ const HomePage = () => {
       .catch(() => {});
 
     return () => { isMounted = false; };
-  }, []);
+  }, [currentUser?.communityId]);
 
   const displayTopDonors = liveTopDonors;
 
