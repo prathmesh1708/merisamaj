@@ -19,10 +19,18 @@ let socketInstance = null;
 export const getSocket = (userId) => {
   if (!socketInstance || !socketInstance.connected) {
     const apiEnvUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || '';
-    const backendUrl = apiEnvUrl ? apiEnvUrl.replace('/api/v1', '') : 'http://localhost:5001';
+    const backendUrl = import.meta.env.VITE_SOCKET_URL
+      || (apiEnvUrl ? apiEnvUrl.replace(/\/api\/v1\/?$/, '') : '')
+      || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5001');
+
+    const token = typeof localStorage !== 'undefined'
+      ? (localStorage.getItem('merisamaj_token') || localStorage.getItem('admin_auth_token') || localStorage.getItem('head_auth_token'))
+      : null;
 
     socketInstance = io(backendUrl, {
-      auth: { userId },
+      auth: { userId, token },
+      withCredentials: true,
+      transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionAttempts: 5

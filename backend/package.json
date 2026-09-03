@@ -12,6 +12,7 @@
     "seed:tri-panel": "node src/scripts/seedTriPanelMockData.js",
     "seed:all": "node src/scripts/seedAllModulesMockData.js",
     "seed:profile": "node src/scripts/seedProfileMockData.js",
+    "test:head-scope": "node scripts/testHeadSocialScope.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {

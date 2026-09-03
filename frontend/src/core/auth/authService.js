@@ -42,22 +42,28 @@ export const authService = {
   },
 
   refresh: async () => {
+    const token = localStorage.getItem('merisamaj_token');
     const response = await axiosPublic.post('/auth/refresh', {}, {
-      withCredentials: true
+      withCredentials: true,
+      headers: token ? { 'x-refresh-token': token } : {}
     });
     return response.data;
   },
 
   refreshAdmin: async () => {
+    const token = localStorage.getItem('admin_auth_token');
     const response = await axiosPublic.post('/auth/refresh/admin', {}, {
-      withCredentials: true
+      withCredentials: true,
+      headers: token ? { 'x-refresh-token': token } : {}
     });
     return response.data;
   },
 
   refreshHead: async () => {
+    const token = localStorage.getItem('head_auth_token');
     const response = await axiosPublic.post('/auth/refresh/head', {}, {
-      withCredentials: true
+      withCredentials: true,
+      headers: token ? { 'x-refresh-token': token } : {}
     });
     return response.data;
   },
