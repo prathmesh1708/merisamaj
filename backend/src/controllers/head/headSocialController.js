@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Post = require('../../models/Post');
 const PostLike = require('../../models/PostLike');
 const Comment = require('../../models/Comment');
@@ -99,6 +100,22 @@ const buildBaseFilter = async (query) => {
   return filter;
 };
 
+/**
+ * Returns true when a post belongs to one of the Head's assigned communities.
+ *
+ * City is deliberately NOT accepted as an alternative match: two communities can
+ * share a city, so a city-only match would let a Head moderate another
+ * community's posts. Community membership is the sole authority.
+ */
+const isWithinJurisdiction = (post, communityIds) => {
+  const postCommunityId = post.communityId && post.communityId._id
+    ? post.communityId._id.toString()
+    : (post.communityId ? post.communityId.toString() : null);
+
+  if (!postCommunityId || !Array.isArray(communityIds)) return false;
+  return communityIds.some(id => id && id.toString() === postCommunityId);
+};
+
 // @desc    Get City Feed posts for Community Head's assigned community/city
 // @route   GET /api/v1/head/social/city-feed
 // @access  Private (Head, Admin)
@@ -110,12 +127,20 @@ exports.getCityFeed = async (req, res) => {
     // Enforce feedType = "city"
     filter.feedType = { $ne: 'community' };
 
-    // Apply Centralized 2-Level Scope: Mandatory Community + Nested Optional City Filter
-    const cityOverride = req.query.cityId || req.query.city;
-    const scopedFilter = applyScopeFilter(req, filter, { overrideCity: cityOverride });
+    /**
+     * Apply the mandatory community scope, then narrow by city separately.
+     *
+     * The city narrowing is NOT delegated to applyScopeFilter's `overrideCity`:
+     * that option writes to the string field `city`, which does not exist on the
+     * Post schema (Post stores its city as the `cityId` ObjectId ref). Passing it
+     * through would filter on a missing field and silently match nothing.
+     */
+    const rawCity = req.query.cityId || req.query.city;
+    const cityOverride = (rawCity && rawCity !== 'all' && rawCity !== 'All') ? rawCity : null;
+    const scopedFilter = applyScopeFilter(req, filter);
 
-    if (req.user.role !== 'admin' && cityIds && cityIds.length > 0 && !cityOverride) {
-      scopedFilter.cityId = { $in: cityIds };
+    if (cityOverride && mongoose.Types.ObjectId.isValid(cityOverride)) {
+      scopedFilter.cityId = new mongoose.Types.ObjectId(cityOverride);
     }
 
     const pageNum = parseInt(req.query.page, 10) || 1;
@@ -132,7 +157,7 @@ exports.getCityFeed = async (req, res) => {
     }
 
     const [posts, total] = await Promise.all([
-      Post.find(filter)
+      Post.find(scopedFilter)
         .populate('userId', 'name avatar role email phone city')
         .populate('authorId', 'name avatar role email phone city')
         .populate('communityId', 'name slug city')
@@ -140,7 +165,7 @@ exports.getCityFeed = async (req, res) => {
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitNum),
-      Post.countDocuments(filter)
+      Post.countDocuments(scopedFilter)
     ]);
 
     res.json({
@@ -182,34 +207,25 @@ exports.getCommunityFeed = async (req, res) => {
         filter.communityId = targetCommunity;
       }
     } else if (commIdsArray.length > 0) {
-      // Find all member user IDs belonging to Head's assigned community(ies)
-      const memberUsers = await User.find({
-        $or: [
-          { communityId: { $in: commIdsArray } },
-          { assignedCommunityIds: { $in: commIdsArray } }
-        ]
-      }).select('_id');
-      const memberUserIds = memberUsers.map(u => u._id);
-
-      const communityScope = [
-        { communityId: { $in: commIdsArray } },
-        { feedType: 'community' }
-      ];
-
-      if (memberUserIds.length > 0) {
-        communityScope.push({ userId: { $in: memberUserIds } });
-        communityScope.push({ authorId: { $in: memberUserIds } });
-      }
-
-      if (filter.$or) {
-        filter.$and = [
-          { $or: filter.$or },
-          { $or: communityScope }
-        ];
-        delete filter.$or;
-      } else {
-        filter.$or = communityScope;
-      }
+      /**
+       * Hard community scope, applied as an AND.
+       *
+       * This previously built an $or whose clauses included a bare
+       * { feedType: 'community' } with no community constraint, so it matched
+       * every community's posts globally. The accompanying member-id lookup
+       * existed to catch posts saved without a communityId; createPost now always
+       * stamps one (and backfillPostFields.js repairs legacy rows), so community
+       * membership can be a straight AND.
+       */
+      filter.communityId = { $in: commIdsArray };
+      filter.feedType = { $in: ['community', 'both'] };
+    } else {
+      /**
+       * Non-admin with no resolvable community: deny by default rather than
+       * falling through to an unscoped query. Mirrors the sentinel-ObjectId
+       * fallback in applyScopeFilter (queryScopeHelper.js).
+       */
+      filter.communityId = new mongoose.Types.ObjectId('000000000000000000000000');
     }
 
     const pageNum = parseInt(req.query.page, 10) || 1;
@@ -252,7 +268,7 @@ exports.getCommunityFeed = async (req, res) => {
 // @access  Private (Head, Admin)
 exports.getPostDetails = async (req, res) => {
   try {
-    const { communityId, cityIds } = await getHeadJurisdiction(req);
+    const { communityIds } = await getHeadJurisdiction(req);
     const post = await Post.findById(req.params.id)
       .populate('userId', 'name avatar role email phone city')
       .populate('authorId', 'name avatar role email phone city')
@@ -264,16 +280,8 @@ exports.getPostDetails = async (req, res) => {
     }
 
     // Jurisdiction Security Check for Head role (Admin bypasses)
-    if (req.user.role !== 'admin') {
-      const postCommunityId = post.communityId?._id ? post.communityId._id.toString() : (post.communityId ? post.communityId.toString() : null);
-      const postCityId = post.cityId?._id ? post.cityId._id.toString() : (post.cityId ? post.cityId.toString() : null);
-
-      const matchesCommunity = communityId && postCommunityId === communityId.toString();
-      const matchesCity = postCityId && cityIds.some(id => id.toString() === postCityId);
-
-      if (!matchesCommunity && !matchesCity) {
-        return res.status(403).json({ success: false, message: 'Access denied. Post is outside your assigned jurisdiction.' });
-      }
+    if (req.user.role !== 'admin' && !isWithinJurisdiction(post, communityIds)) {
+      return res.status(403).json({ success: false, message: 'Access denied. Post is outside your assigned jurisdiction.' });
     }
 
     // Fetch full likes list with user profiles
@@ -307,7 +315,7 @@ exports.getPostDetails = async (req, res) => {
 // @access  Private (Head, Admin)
 exports.softDeletePost = async (req, res) => {
   try {
-    const { communityId, cityIds } = await getHeadJurisdiction(req);
+    const { communityIds } = await getHeadJurisdiction(req);
     const post = await Post.findById(req.params.id);
 
     if (!post) {
@@ -315,16 +323,8 @@ exports.softDeletePost = async (req, res) => {
     }
 
     // Jurisdiction Security Check for Head role
-    if (req.user.role !== 'admin') {
-      const postCommunityId = post.communityId ? post.communityId.toString() : null;
-      const postCityId = post.cityId ? post.cityId.toString() : null;
-
-      const matchesCommunity = communityId && postCommunityId === communityId.toString();
-      const matchesCity = postCityId && cityIds.some(id => id.toString() === postCityId);
-
-      if (!matchesCommunity && !matchesCity) {
-        return res.status(403).json({ success: false, message: 'Access denied. You cannot delete posts outside your assigned jurisdiction.' });
-      }
+    if (req.user.role !== 'admin' && !isWithinJurisdiction(post, communityIds)) {
+      return res.status(403).json({ success: false, message: 'Access denied. You cannot delete posts outside your assigned jurisdiction.' });
     }
 
     post.isDeleted = true;
@@ -343,7 +343,7 @@ exports.softDeletePost = async (req, res) => {
 // @access  Private (Head, Admin)
 exports.restorePost = async (req, res) => {
   try {
-    const { communityId, cityIds } = await getHeadJurisdiction(req);
+    const { communityIds } = await getHeadJurisdiction(req);
     const post = await Post.findById(req.params.id);
 
     if (!post) {
@@ -351,16 +351,8 @@ exports.restorePost = async (req, res) => {
     }
 
     // Jurisdiction Security Check for Head role
-    if (req.user.role !== 'admin') {
-      const postCommunityId = post.communityId ? post.communityId.toString() : null;
-      const postCityId = post.cityId ? post.cityId.toString() : null;
-
-      const matchesCommunity = communityId && postCommunityId === communityId.toString();
-      const matchesCity = postCityId && cityIds.some(id => id.toString() === postCityId);
-
-      if (!matchesCommunity && !matchesCity) {
-        return res.status(403).json({ success: false, message: 'Access denied. You cannot restore posts outside your assigned jurisdiction.' });
-      }
+    if (req.user.role !== 'admin' && !isWithinJurisdiction(post, communityIds)) {
+      return res.status(403).json({ success: false, message: 'Access denied. You cannot restore posts outside your assigned jurisdiction.' });
     }
 
     post.isDeleted = false;

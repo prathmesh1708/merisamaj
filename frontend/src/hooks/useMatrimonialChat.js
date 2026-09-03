@@ -27,7 +27,8 @@ export const useMatrimonialChat = (userId) => {
     const token = localStorage.getItem('merisamaj_token');
     socketRef.current = io(SOCKET_URL, {
       auth: { userId, token },
-      transports: ['websocket'],
+      withCredentials: true,
+      transports: ['websocket', 'polling'],
       reconnectionAttempts: 5
     });
 

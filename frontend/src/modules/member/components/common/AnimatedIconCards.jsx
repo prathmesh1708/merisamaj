@@ -55,13 +55,11 @@ export const InvitationsIcon = ({ className = "w-11 h-11" }) => {
           strokeLinecap="round"
           strokeLinejoin="round"
           animate={{
-            d: [
-              "M7 14L24 26.5L41 14",
-              "M7 13.5L24 25L41 13.5",
-              "M7 14L24 26.5L41 14"
-            ]
+            scaleY: [1, 0.94, 1],
+            y: [0, -1, 0]
           }}
           transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+          style={{ transformOrigin: "24px 14px" }}
         />
 
         {/* Pink Heart Seal Accent */}

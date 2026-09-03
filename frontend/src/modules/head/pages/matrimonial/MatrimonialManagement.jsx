@@ -251,7 +251,8 @@ export default function MatrimonialManagement() {
     
     const socket = io(SOCKET_URL, {
       auth: { token, role: 'head' },
-      transports: ['websocket']
+      withCredentials: true,
+      transports: ['websocket', 'polling']
     });
 
     socket.on('head:matrimonial_update', () => {

@@ -55,7 +55,8 @@ export const useGlobalMatrimonial = () => {
     
     const socket = io(SOCKET_URL, {
       auth: { token, role: 'admin' },
-      transports: ['websocket']
+      withCredentials: true,
+      transports: ['websocket', 'polling']
     });
 
     socket.on('admin:matrimonial_update', () => {

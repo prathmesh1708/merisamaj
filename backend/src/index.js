@@ -45,23 +45,34 @@ connectDB();
 initEventReminderRunner();
 
 // Global Middlewares
-const allowedOrigins = process.env.CLIENT_URL
-  ? process.env.CLIENT_URL.split(',').map(url => url.trim())
-  : [];
+const rawAllowedOrigins = (process.env.CLIENT_URL || '')
+  .split(',')
+  .map(url => url.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
+
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true;
+  const normalizedOrigin = origin.replace(/\/+$/, '');
+
+  if (rawAllowedOrigins.includes(normalizedOrigin)) return true;
+  if (process.env.NODE_ENV === 'development') return true;
+  if (/^http:\/\/localhost(:\d+)?$/.test(normalizedOrigin)) return true;
+  if (/^http:\/\/127\.0\.0\.1(:\d+)?$/.test(normalizedOrigin)) return true;
+  if (/^https:\/\/([a-zA-Z0-9_-]+\.)*vercel\.app$/.test(normalizedOrigin)) return true;
+
+  return false;
+};
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
-    if (
-      allowedOrigins.includes(origin) ||
-      process.env.NODE_ENV === 'development' ||
-      /^http:\/\/localhost:\d+$/.test(origin)
-    ) {
+    if (isAllowedOrigin(origin)) {
       return callback(null, true);
     }
-    return callback(new Error('CORS Policy Violation'), false);
+    return callback(new Error(`CORS Policy Violation: Origin ${origin} not allowed.`), false);
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-refresh-token', 'Accept']
 }));
 
 if (helmet) {
@@ -104,11 +115,16 @@ app.use(errorHandler);
 const httpServer = http.createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.CLIENT_URL
-      ? process.env.CLIENT_URL.split(',')
-      : true,
-    credentials: true
-  }
+    origin: (origin, callback) => {
+      if (isAllowedOrigin(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error(`Socket.io CORS Policy Violation: Origin ${origin} not allowed.`), false);
+    },
+    credentials: true,
+    methods: ['GET', 'POST']
+  },
+  transports: ['websocket', 'polling']
 });
 
 // Register socket handlers

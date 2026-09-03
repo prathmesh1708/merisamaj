@@ -322,7 +322,7 @@ const logoutHead = (req, res) => {
 // @route   POST /api/auth/refresh
 // @access  Public
 const refreshAuth = async (req, res) => {
-  const refreshToken = req.cookies.member_jwt || req.cookies.jwt;
+  const refreshToken = req.cookies?.member_jwt || req.cookies?.jwt || req.body?.refreshToken || req.headers['x-refresh-token'];
 
   if (!refreshToken) {
     return res.status(401).json({ message: 'No refresh token provided' });
@@ -361,7 +361,7 @@ const refreshAuth = async (req, res) => {
 };
 
 const refreshAdmin = async (req, res) => {
-  const refreshToken = req.cookies.admin_jwt;
+  const refreshToken = req.cookies?.admin_jwt || req.body?.refreshToken || req.headers['x-refresh-token'];
 
   if (!refreshToken) {
     return res.status(401).json({ message: 'No admin refresh token provided' });
@@ -391,7 +391,7 @@ const refreshAdmin = async (req, res) => {
 };
 
 const refreshHead = async (req, res) => {
-  const refreshToken = req.cookies.head_jwt;
+  const refreshToken = req.cookies?.head_jwt || req.body?.refreshToken || req.headers['x-refresh-token'];
 
   if (!refreshToken) {
     return res.status(401).json({ message: 'No head refresh token provided' });
