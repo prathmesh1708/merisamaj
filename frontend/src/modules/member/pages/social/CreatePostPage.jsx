@@ -1,9 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   ArrowLeft, Camera, X, Send, Mic, Radio, Users, 
   Heart, Sparkles, Folder, Layers, ImagePlus, UploadCloud, Play, 
-  Trash2, Monitor, Smartphone, Link, AlertCircle 
+  Trash2, Monitor, Smartphone, Link, AlertCircle, Move,
+  AlignLeft, AlignCenter, AlignRight, Type, Palette, Sliders,
+  ArrowUp, ArrowDown, Check, GripHorizontal
 } from 'lucide-react';
 import { Avatar } from '../../components/common/Avatar';
 import { useData } from '../../context/DataProvider';
@@ -43,8 +45,6 @@ const Youtube = (props) => (
   </svg>
 );
 
-
-
 const CreatePostPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -68,6 +68,18 @@ const CreatePostPage = () => {
   
   // Story specific states
   const [storyText, setStoryText] = useState('');
+  const [storyTextPosition, setStoryTextPosition] = useState({ x: 50, y: 50 }); // percentage (15% - 85%)
+  const [storyTextStyle, setStoryTextStyle] = useState({
+    color: '#ffffff',
+    fontSize: 'base', // 'sm' | 'base' | 'lg' | 'xl'
+    align: 'center', // 'left' | 'center' | 'right'
+    bgStyle: 'pill-dark', // 'pill-dark' | 'pill-light' | 'neon' | 'transparent'
+  });
+
+  // Dragging state for story canvas overlay text
+  const [isDraggingText, setIsDraggingText] = useState(false);
+  const storyCanvasDesktopRef = useRef(null);
+  const storyCanvasMobileRef = useRef(null);
 
   // Upload emulation
   const [isUploading, setIsUploading] = useState(false);
@@ -172,6 +184,19 @@ const CreatePostPage = () => {
     setAttachments(prev => prev.filter((_, idx) => idx !== index));
   };
 
+  // Drag text overlay inside canvas
+  const handleCanvasMouseMove = (e, canvasRef) => {
+    if (!isDraggingText || !canvasRef.current) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+    const x = Math.min(85, Math.max(15, Math.round(((clientX - rect.left) / rect.width) * 100)));
+    const y = Math.min(85, Math.max(15, Math.round(((clientY - rect.top) / rect.height) * 100)));
+
+    setStoryTextPosition({ x, y });
+  };
+
   const handlePublish = async () => {
     const mediaUrls = attachments.map(att => att.url);
 
@@ -199,7 +224,10 @@ const CreatePostPage = () => {
     } else if (activeTab === 'story') {
       // storyBg is either the media attachment URL, or default background gradient
       const storyBg = attachments.length > 0 ? attachments[0].url : 'linear-gradient(135deg, #f472b6 0%, #7c3aed 100%)';
-      addStory(storyBg, storyText.trim());
+      addStory(storyBg, storyText.trim(), {
+        textPosition: storyTextPosition,
+        textStyle: storyTextStyle
+      });
       navigate(-1);
     }
   };
@@ -231,6 +259,112 @@ const CreatePostPage = () => {
   };
 
   const categories = ['Normal', 'Announcement', 'Event', 'Blood Donation', 'Emergency'];
+
+  const colorPalette = [
+    { name: 'White', hex: '#ffffff' },
+    { name: 'Yellow', hex: '#fde047' },
+    { name: 'Coral', hex: '#fb7185' },
+    { name: 'Sky', hex: '#38bdf8' },
+    { name: 'Emerald', hex: '#4ade80' },
+    { name: 'Purple', hex: '#c084fc' },
+    { name: 'Dark', hex: '#0f172a' }
+  ];
+
+  // Helper renderer for interactive story preview card
+  const renderStoryPreviewCanvas = (canvasRef) => (
+    <div 
+      ref={canvasRef}
+      onMouseMove={(e) => handleCanvasMouseMove(e, canvasRef)}
+      onTouchMove={(e) => handleCanvasMouseMove(e, canvasRef)}
+      onMouseUp={() => setIsDraggingText(false)}
+      onTouchEnd={() => setIsDraggingText(false)}
+      onMouseLeave={() => setIsDraggingText(false)}
+      className="w-full h-96 sm:h-[420px] rounded-3xl p-5 flex flex-col justify-between shadow-xl relative overflow-hidden border-2 border-purple-400/40 text-white select-none touch-none"
+      style={{
+        background: attachments.length > 0 && attachments[0].type === 'image' 
+          ? `url(${attachments[0].url}) center/cover` 
+          : 'linear-gradient(135deg, #f472b6 0%, #7c3aed 100%)'
+      }}
+    >
+      {/* Dimmer overlay if image present */}
+      {attachments.length > 0 && <div className="absolute inset-0 bg-black/40 pointer-events-none" />}
+
+      {/* Story Top Bar */}
+      <div className="relative z-10 flex items-center justify-between pointer-events-none">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-full border-2 border-white overflow-hidden bg-white/20 shrink-0">
+            {currentUser?.avatar ? <img src={currentUser.avatar} alt="Avatar" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center font-bold text-xs">U</div>}
+          </div>
+          <div>
+            <p className="font-bold text-xs text-white leading-tight drop-shadow">{currentUser?.name || 'You'}</p>
+            <p className="text-[9.5px] text-white/80 font-medium drop-shadow">24h Story</p>
+          </div>
+        </div>
+
+        <span className="text-[9.5px] font-bold bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full text-white/90 border border-white/20 flex items-center gap-1">
+          <Move size={10} className="text-purple-300" /> Drag Text
+        </span>
+      </div>
+
+      {/* Interactive Draggable Text Overlay */}
+      {storyText ? (
+        <div 
+          onMouseDown={() => setIsDraggingText(true)}
+          onTouchStart={() => setIsDraggingText(true)}
+          className={`absolute z-20 max-w-[85%] cursor-grab active:cursor-grabbing transition-shadow transition-transform duration-75 select-none ${
+            isDraggingText ? 'ring-2 ring-purple-400 ring-offset-2 ring-offset-black/50 scale-105' : 'hover:scale-[1.02]'
+          }`}
+          style={{
+            top: `${storyTextPosition.y}%`,
+            left: `${storyTextPosition.x}%`,
+            transform: 'translate(-50%, -50%)',
+            textAlign: storyTextStyle.align
+          }}
+        >
+          <div className="relative group">
+            <span 
+              className={`inline-block font-black drop-shadow-[0_2px_10px_rgba(0,0,0,0.85)] leading-relaxed ${
+                storyTextStyle.bgStyle === 'pill-light'
+                  ? 'bg-white/85 text-slate-900 px-5 py-3 rounded-2xl backdrop-blur-md shadow-lg border border-white/40'
+                  : storyTextStyle.bgStyle === 'neon'
+                  ? 'bg-gradient-to-r from-pink-500/90 via-purple-600/90 to-indigo-600/90 text-white px-5 py-3 rounded-2xl backdrop-blur-md shadow-xl border border-white/20'
+                  : storyTextStyle.bgStyle === 'transparent'
+                  ? 'text-white px-3 py-1 drop-shadow-[0_4px_16px_rgba(0,0,0,0.95)]'
+                  : 'bg-black/55 text-white px-5 py-3 rounded-2xl backdrop-blur-md border border-white/10 shadow-lg'
+              } ${
+                storyTextStyle.fontSize === 'sm' ? 'text-[14px]' :
+                storyTextStyle.fontSize === 'lg' ? 'text-[20px]' :
+                storyTextStyle.fontSize === 'xl' ? 'text-[24px]' :
+                'text-[17px]'
+              }`}
+              style={{
+                color: storyTextStyle.color || (storyTextStyle.bgStyle === 'pill-light' ? '#0f172a' : '#ffffff'),
+                textAlign: storyTextStyle.align
+              }}
+            >
+              {storyText}
+            </span>
+
+            {/* Subtle drag handle pill above text */}
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2 opacity-80 group-hover:opacity-100 transition-opacity bg-black/60 backdrop-blur-sm text-[8.5px] font-bold text-white px-2 py-0.5 rounded-full flex items-center gap-1 border border-white/20 pointer-events-none">
+              <GripHorizontal size={10} />
+              <span>Drag</span>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center p-6 text-center pointer-events-none">
+          <p className="text-white/60 text-xs italic font-medium">Type text in the box to add overlay...</p>
+        </div>
+      )}
+
+      {/* Story Footer Info */}
+      <div className="relative z-10 flex justify-between items-center text-[10px] text-white/80 font-semibold pointer-events-none">
+        <span>📍 {currentUser?.city || 'Indore'}</span>
+        <span>Expires in 24h</span>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-slate-50/70 flex flex-col text-slate-800 select-none pb-8 md:pb-0 font-sans">
@@ -439,7 +573,7 @@ const CreatePostPage = () => {
 
             {/* Story Content Area */}
             {activeTab === 'story' && (
-              <div className="bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-5 space-y-4 shadow-xs">
+              <div className="bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-5 space-y-5 shadow-xs">
                 
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-600 to-indigo-600 text-white font-extrabold text-[13px] flex items-center justify-center border-2 border-white shadow-xs overflow-hidden shrink-0">
@@ -464,6 +598,227 @@ const CreatePostPage = () => {
                     onChange={(e) => setStoryText(e.target.value)}
                     className="w-full bg-slate-50/80 border border-slate-200/80 rounded-2xl p-3.5 sm:p-4 text-[13.5px] font-medium text-slate-800 placeholder-slate-400 outline-none h-24 resize-none leading-relaxed transition-all focus:border-purple-500/50 focus:bg-white focus:ring-2 focus:ring-purple-500/10"
                   />
+                </div>
+
+                {/* TEXT POSITION CONTROLS */}
+                <div className="bg-slate-50/80 border border-slate-200/70 rounded-2xl p-3.5 sm:p-4 space-y-3.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Move size={14} className="text-purple-600" />
+                      <span className="text-xs font-bold text-slate-800">Text Position & Placement</span>
+                    </div>
+                    <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-100">
+                      X: {storyTextPosition.x}% • Y: {storyTextPosition.y}%
+                    </span>
+                  </div>
+
+                  {/* Position Presets */}
+                  <div>
+                    <label className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Quick Presets</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setStoryTextPosition({ x: 50, y: 25 })}
+                        className={`py-2 px-2.5 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer ${
+                          storyTextPosition.y <= 35
+                            ? 'bg-purple-600 border-purple-600 text-white shadow-xs'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <ArrowUp size={13} />
+                        <span>Top</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setStoryTextPosition({ x: 50, y: 50 })}
+                        className={`py-2 px-2.5 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer ${
+                          storyTextPosition.y > 35 && storyTextPosition.y < 65
+                            ? 'bg-purple-600 border-purple-600 text-white shadow-xs'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className="w-2 h-2 rounded-full bg-current" />
+                        <span>Center</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setStoryTextPosition({ x: 50, y: 75 })}
+                        className={`py-2 px-2.5 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer ${
+                          storyTextPosition.y >= 65
+                            ? 'bg-purple-600 border-purple-600 text-white shadow-xs'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <ArrowDown size={13} />
+                        <span>Bottom</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Fine Tuning Sliders */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[10px] font-bold text-slate-500">
+                        <span>Vertical (Y)</span>
+                        <span>{storyTextPosition.y}%</span>
+                      </div>
+                      <input 
+                        type="range" 
+                        min="15" 
+                        max="85" 
+                        value={storyTextPosition.y} 
+                        onChange={(e) => setStoryTextPosition(prev => ({ ...prev, y: parseInt(e.target.value, 10) }))}
+                        className="w-full accent-purple-600 cursor-pointer h-1.5 bg-slate-200 rounded-lg appearance-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[10px] font-bold text-slate-500">
+                        <span>Horizontal (X)</span>
+                        <span>{storyTextPosition.x}%</span>
+                      </div>
+                      <input 
+                        type="range" 
+                        min="15" 
+                        max="85" 
+                        value={storyTextPosition.x} 
+                        onChange={(e) => setStoryTextPosition(prev => ({ ...prev, x: parseInt(e.target.value, 10) }))}
+                        className="w-full accent-purple-600 cursor-pointer h-1.5 bg-slate-200 rounded-lg appearance-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Drag Info Hint */}
+                  <div className="bg-purple-50/70 border border-purple-200/60 rounded-xl p-2.5 flex items-center gap-2 text-[11px] text-purple-800 font-medium">
+                    <Move size={14} className="text-purple-600 shrink-0" />
+                    <span>You can also <strong>drag and drop</strong> the text directly on the preview!</span>
+                  </div>
+                </div>
+
+                {/* TEXT STYLING CONTROLS */}
+                <div className="bg-slate-50/80 border border-slate-200/70 rounded-2xl p-3.5 sm:p-4 space-y-3.5">
+                  <div className="flex items-center gap-1.5">
+                    <Palette size={14} className="text-purple-600" />
+                    <span className="text-xs font-bold text-slate-800">Text Style & Appearance</span>
+                  </div>
+
+                  {/* Background Style */}
+                  <div>
+                    <label className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Background Style</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                      {[
+                        { id: 'pill-dark', label: 'Dark Glass', desc: 'Sleek dark' },
+                        { id: 'pill-light', label: 'Light Glass', desc: 'Clean white' },
+                        { id: 'neon', label: 'Neon Glow', desc: 'Vibrant' },
+                        { id: 'transparent', label: 'Plain Text', desc: 'No box' }
+                      ].map(style => (
+                        <button
+                          key={style.id}
+                          type="button"
+                          onClick={() => setStoryTextStyle(prev => ({ ...prev, bgStyle: style.id }))}
+                          className={`py-2 px-2 rounded-xl border text-center transition-all active:scale-95 cursor-pointer ${
+                            storyTextStyle.bgStyle === style.id
+                              ? 'bg-purple-600 border-purple-600 text-white shadow-xs'
+                              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          <p className="text-[11px] font-bold leading-tight">{style.label}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Alignment and Font Size */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    {/* Alignment */}
+                    <div>
+                      <label className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Alignment</label>
+                      <div className="flex gap-1.5 bg-white p-1 rounded-xl border border-slate-200">
+                        {[
+                          { id: 'left', icon: AlignLeft },
+                          { id: 'center', icon: AlignCenter },
+                          { id: 'right', icon: AlignRight }
+                        ].map(align => {
+                          const IconComp = align.icon;
+                          const isSelected = storyTextStyle.align === align.id;
+                          return (
+                            <button
+                              key={align.id}
+                              type="button"
+                              onClick={() => setStoryTextStyle(prev => ({ ...prev, align: align.id }))}
+                              className={`flex-1 py-1.5 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                                isSelected ? 'bg-purple-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              <IconComp size={14} />
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Font Size */}
+                    <div>
+                      <label className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Size</label>
+                      <div className="flex gap-1.5 bg-white p-1 rounded-xl border border-slate-200">
+                        {['sm', 'base', 'lg', 'xl'].map(size => {
+                          const isSelected = storyTextStyle.fontSize === size;
+                          return (
+                            <button
+                              key={size}
+                              type="button"
+                              onClick={() => setStoryTextStyle(prev => ({ ...prev, fontSize: size }))}
+                              className={`flex-1 py-1.5 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer uppercase ${
+                                isSelected ? 'bg-purple-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              {size === 'base' ? 'M' : size}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Color Swatches */}
+                  <div>
+                    <label className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Text Color</label>
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                      {colorPalette.map(col => {
+                        const isSelected = storyTextStyle.color === col.hex;
+                        return (
+                          <button
+                            key={col.hex}
+                            type="button"
+                            onClick={() => setStoryTextStyle(prev => ({ ...prev, color: col.hex }))}
+                            className={`w-7 h-7 rounded-full transition-all flex items-center justify-center shrink-0 border cursor-pointer active:scale-90 ${
+                              isSelected ? 'ring-2 ring-purple-600 ring-offset-2 scale-110 shadow-sm' : 'hover:scale-105'
+                            }`}
+                            style={{ backgroundColor: col.hex, borderColor: col.hex === '#ffffff' ? '#cbd5e1' : col.hex }}
+                            title={col.name}
+                          >
+                            {isSelected && (
+                              <Check size={12} className={col.hex === '#ffffff' || col.hex === '#fde047' ? 'text-slate-900' : 'text-white'} strokeWidth={3} />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Mobile Inline Story Preview Canvas (Hidden on Desktop) */}
+                <div className="lg:hidden pt-2">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                      <Sparkles size={12} className="text-purple-600" />
+                      Live Story Preview
+                    </span>
+                    <span className="text-[10px] font-bold text-purple-600">Drag text to move</span>
+                  </div>
+                  {renderStoryPreviewCanvas(storyCanvasMobileRef)}
                 </div>
 
               </div>
@@ -664,39 +1019,8 @@ const CreatePostPage = () => {
                 </div>
               </div>
             ) : (
-              /* Story Preview Card */
-              <div 
-                className="w-full h-80 rounded-3xl p-5 flex flex-col justify-between shadow-lg relative overflow-hidden border-2 border-purple-400/40 text-white"
-                style={{
-                  background: attachments.length > 0 && attachments[0].type === 'image' 
-                    ? `url(${attachments[0].url}) center/cover` 
-                    : 'linear-gradient(135deg, #f472b6 0%, #7c3aed 100%)'
-                }}
-              >
-                {/* Dimmer overlay if image present */}
-                {attachments.length > 0 && <div className="absolute inset-0 bg-black/35 pointer-events-none" />}
-
-                <div className="relative z-10 flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-full border-2 border-white overflow-hidden bg-white/20 shrink-0">
-                    {currentUser?.avatar ? <img src={currentUser.avatar} alt="Avatar" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center font-bold text-xs">U</div>}
-                  </div>
-                  <div>
-                    <p className="font-bold text-xs text-white leading-tight drop-shadow">{currentUser?.name || 'You'}</p>
-                    <p className="text-[9.5px] text-white/80 font-medium drop-shadow">24h Story</p>
-                  </div>
-                </div>
-
-                <div className="relative z-10 text-center px-4">
-                  <p className="font-extrabold text-base text-white drop-shadow-md whitespace-pre-wrap">
-                    {storyText || "Story text overlay..."}
-                  </p>
-                </div>
-
-                <div className="relative z-10 flex justify-between items-center text-[10px] text-white/80 font-semibold">
-                  <span>📍 {currentUser?.city || 'Indore'}</span>
-                  <span>Expires in 24h</span>
-                </div>
-              </div>
+              /* Story Preview Canvas (Interactive & Draggable) */
+              renderStoryPreviewCanvas(storyCanvasDesktopRef)
             )}
           </div>
 

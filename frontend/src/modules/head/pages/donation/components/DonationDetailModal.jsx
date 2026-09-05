@@ -69,7 +69,7 @@ const DonationDetailModal = ({ isOpen, onClose, campaignId }) => {
               {/* Content */}
               <div className="flex-1 overflow-y-auto p-6 space-y-6">
                 <div>
-                  <h2 className="text-2xl font-black text-gray-900">{campaign.title}</h2>
+                  <h2 className="text-2xl font-black text-gray-900">{campaign.title || 'Untitled Campaign'}</h2>
                   <p className="text-gray-500 mt-1">{campaign.shortDescription || 'No short description provided.'}</p>
                 </div>
 
@@ -78,22 +78,22 @@ const DonationDetailModal = ({ isOpen, onClose, campaignId }) => {
                   <div className="flex items-end justify-between mb-2">
                     <div>
                       <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Raised</p>
-                      <h3 className="text-2xl font-black text-brand-primary">₹{campaign.collectedAmount?.toLocaleString() || 0}</h3>
+                      <h3 className="text-2xl font-black text-brand-primary">₹{(campaign.collectedAmount || campaign.raisedAmount || 0).toLocaleString()}</h3>
                     </div>
                     <div className="text-right">
                       <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Target</p>
-                      <p className="font-bold text-gray-700">₹{campaign.targetAmount?.toLocaleString() || 0}</p>
+                      <p className="font-bold text-gray-700">₹{(campaign.targetAmount || 0).toLocaleString()}</p>
                     </div>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-3 mb-4 overflow-hidden">
                     <div 
                       className="bg-brand-primary h-3 rounded-full transition-all duration-1000" 
-                      style={{ width: `${Math.min(100, Math.round(((campaign.collectedAmount || 0) / (campaign.targetAmount || 1)) * 100))}%` }}
+                      style={{ width: `${Math.min(100, Math.round((((campaign.collectedAmount || campaign.raisedAmount || 0)) / (campaign.targetAmount || 1)) * 100))}%` }}
                     />
                   </div>
                   <div className="flex justify-between items-center text-sm">
                     <div className="flex items-center gap-1.5 text-gray-600 font-medium">
-                      <Users size={16} className="text-gray-400" /> {campaign.contributorsCount || 0} Donors
+                      <Users size={16} className="text-gray-400" /> {campaign.contributorsCount || campaign.totalDonors || 0} Donors
                     </div>
                     {campaign.minDonation > 0 && (
                       <span className="text-gray-500">Min: ₹{campaign.minDonation}</span>
@@ -109,7 +109,7 @@ const DonationDetailModal = ({ isOpen, onClose, campaignId }) => {
                     </div>
                     <div>
                       <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Category</p>
-                      <p className="font-bold text-gray-900">{campaign.category}</p>
+                      <p className="font-bold text-gray-900">{campaign.category || 'General'}</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
@@ -118,7 +118,7 @@ const DonationDetailModal = ({ isOpen, onClose, campaignId }) => {
                     </div>
                     <div>
                       <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Visibility</p>
-                      <p className="font-bold text-gray-900">{campaign.visibility}</p>
+                      <p className="font-bold text-gray-900">{campaign.visibility || 'All Members'}</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
@@ -127,7 +127,7 @@ const DonationDetailModal = ({ isOpen, onClose, campaignId }) => {
                     </div>
                     <div>
                       <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Created</p>
-                      <p className="font-bold text-gray-900">{new Date(campaign.createdAt).toLocaleDateString()}</p>
+                      <p className="font-bold text-gray-900">{new Date(campaign.createdAt || Date.now()).toLocaleDateString()}</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
@@ -136,7 +136,7 @@ const DonationDetailModal = ({ isOpen, onClose, campaignId }) => {
                     </div>
                     <div>
                       <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Last Updated</p>
-                      <p className="font-bold text-gray-900">{new Date(campaign.updatedAt).toLocaleDateString()}</p>
+                      <p className="font-bold text-gray-900">{new Date(campaign.updatedAt || campaign.createdAt || Date.now()).toLocaleDateString()}</p>
                     </div>
                   </div>
                 </div>

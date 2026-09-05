@@ -340,8 +340,35 @@ export const StoryViewer = ({ story, stories = [], onStoryChange, onClose }) => 
 
             {/* Text Overlay */}
             {story.text && (
-              <div className="absolute inset-0 flex items-center justify-center p-6 text-center z-10 pointer-events-none">
-                <span className="text-white text-[19px] font-black drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] bg-black/40 px-6 py-4 rounded-3xl backdrop-blur-xs leading-relaxed max-w-[85%]">
+              <div 
+                className="absolute z-20 pointer-events-none max-w-[88%] transition-all duration-200"
+                style={{
+                  top: `${Math.min(88, Math.max(12, story.textPosition?.y ?? 50))}%`,
+                  left: `${Math.min(88, Math.max(12, story.textPosition?.x ?? 50))}%`,
+                  transform: 'translate(-50%, -50%)',
+                  textAlign: story.textStyle?.align || 'center'
+                }}
+              >
+                <span 
+                  className={`inline-block font-black drop-shadow-[0_2px_10px_rgba(0,0,0,0.85)] leading-relaxed ${
+                    story.textStyle?.bgStyle === 'pill-light'
+                      ? 'bg-white/85 text-slate-900 px-5 py-3 rounded-2xl backdrop-blur-md shadow-lg border border-white/40'
+                      : story.textStyle?.bgStyle === 'neon'
+                      ? 'bg-gradient-to-r from-pink-500/90 via-purple-600/90 to-indigo-600/90 text-white px-5 py-3 rounded-2xl backdrop-blur-md shadow-xl border border-white/20'
+                      : story.textStyle?.bgStyle === 'transparent'
+                      ? 'text-white px-3 py-1 drop-shadow-[0_4px_16px_rgba(0,0,0,0.95)]'
+                      : 'bg-black/55 text-white px-5 py-3 rounded-2xl backdrop-blur-md border border-white/10 shadow-lg'
+                  } ${
+                    story.textStyle?.fontSize === 'sm' ? 'text-[14px] sm:text-[15px]' :
+                    story.textStyle?.fontSize === 'lg' ? 'text-[21px] sm:text-[24px]' :
+                    story.textStyle?.fontSize === 'xl' ? 'text-[25px] sm:text-[29px]' :
+                    'text-[17px] sm:text-[19px]'
+                  }`}
+                  style={{
+                    color: story.textStyle?.color || (story.textStyle?.bgStyle === 'pill-light' ? '#0f172a' : '#ffffff'),
+                    textAlign: story.textStyle?.align || 'center'
+                  }}
+                >
                   {story.text}
                 </span>
               </div>

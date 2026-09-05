@@ -250,13 +250,19 @@ const loginUser = async (req, res) => {
         res.cookie('jwt', refreshToken, cookieOptions);
       }
 
-      // New Device Login Security Alert Trigger
-      const deviceToken = req.body.deviceToken || req.headers['user-agent'];
-      if (deviceToken && Array.isArray(user.deviceTokens) && !user.deviceTokens.includes(deviceToken)) {
-        user.deviceTokens.push(deviceToken);
-        user.save().catch(() => {});
+      // New Device Login Security Alert Trigger (Non-blocking safe execution)
+      try {
+        const deviceToken = req.body.deviceToken || req.headers['user-agent'];
+        if (deviceToken && Array.isArray(user.deviceTokens) && !user.deviceTokens.includes(deviceToken)) {
+          user.deviceTokens.push(deviceToken);
+          user.save().catch(() => {});
 
-        notifySecurityAlert(user._id, `New login detected on your account.`).catch(err => console.warn('[NewDeviceAlertError]', err.message));
+          if (typeof notifySecurityAlert === 'function') {
+            notifySecurityAlert(user._id, `New login detected on your account.`).catch(err => console.warn('[NewDeviceAlertError]', err.message));
+          }
+        }
+      } catch (alertErr) {
+        console.warn('[LoginSecurityAlertWarning]', alertErr.message);
       }
 
       res.json({
@@ -267,6 +273,7 @@ const loginUser = async (req, res) => {
       res.status(401).json({ message: 'Invalid credentials' });
     }
   } catch (error) {
+    console.error('[LoginError]', error);
     res.status(500).json({ message: error.message });
   }
 };

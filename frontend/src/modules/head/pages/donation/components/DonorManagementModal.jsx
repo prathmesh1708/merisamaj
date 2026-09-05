@@ -26,15 +26,15 @@ const DonorManagementModal = ({ isOpen, onClose, campaignId }) => {
     }
   };
 
-  const filteredDonors = donors.filter(d => 
-    d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    d.txnId?.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredDonors = (donors || []).filter(d => 
+    (d.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (d.txnId || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const getStatusBadge = (status) => {
     if (status === 'Completed' || status === 'Success') return <span className="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded text-xs font-bold">Success</span>;
     if (status === 'Failed') return <span className="text-rose-600 bg-rose-50 px-2 py-0.5 rounded text-xs font-bold">Failed</span>;
-    return <span className="text-amber-600 bg-amber-50 px-2 py-0.5 rounded text-xs font-bold">{status}</span>;
+    return <span className="text-amber-600 bg-amber-50 px-2 py-0.5 rounded text-xs font-bold">{status || 'Active'}</span>;
   };
 
   if (!isOpen) return null;
@@ -63,14 +63,14 @@ const DonorManagementModal = ({ isOpen, onClose, campaignId }) => {
               </h2>
               <p className="text-sm text-gray-500 mt-1">View and manage all contributions for this campaign.</p>
             </div>
-            <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+            <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition-colors cursor-pointer">
               <X size={20} className="text-gray-500" />
             </button>
           </div>
 
           {/* Toolbar */}
           <div className="p-4 border-b border-gray-100 flex items-center justify-between gap-4">
-            <div className="relative relative group flex-1 max-w-sm">
+            <div className="relative group flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-brand-primary transition-colors" size={18} />
               <input
                 type="text"
@@ -80,7 +80,7 @@ const DonorManagementModal = ({ isOpen, onClose, campaignId }) => {
                 className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 focus:border-brand-primary focus:ring-4 focus:ring-brand-primary/10 outline-none transition-all text-sm font-medium"
               />
             </div>
-            <button className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-bold transition-colors">
+            <button className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-bold transition-colors cursor-pointer">
               <Download size={16} /> Export CSV
             </button>
           </div>
@@ -115,18 +115,18 @@ const DonorManagementModal = ({ isOpen, onClose, campaignId }) => {
                   {filteredDonors.map((donor, idx) => (
                     <tr key={donor.id || idx} className="hover:bg-gray-50/50 transition-colors">
                       <td className="px-6 py-4">
-                        <p className="font-bold text-gray-900 text-sm">{donor.name}</p>
-                        <p className="text-xs text-gray-500">ID: {donor.memberId}</p>
+                        <p className="font-bold text-gray-900 text-sm">{donor.name || 'Anonymous'}</p>
+                        <p className="text-xs text-gray-500">ID: {donor.memberId || 'N/A'}</p>
                       </td>
                       <td className="px-6 py-4">
-                        <p className="font-bold text-brand-primary text-sm">₹{donor.amount?.toLocaleString()}</p>
-                        <p className="text-xs text-gray-500">{donor.paymentMethod}</p>
+                        <p className="font-bold text-brand-primary text-sm">₹{(donor.amount || 0).toLocaleString()}</p>
+                        <p className="text-xs text-gray-500">{donor.paymentMethod || 'Razorpay'}</p>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600 font-mono text-xs">
                         {donor.txnId || 'N/A'}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">
-                        {new Date(donor.date).toLocaleDateString()}
+                        {new Date(donor.date || Date.now()).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 text-right">
                         {getStatusBadge(donor.status)}

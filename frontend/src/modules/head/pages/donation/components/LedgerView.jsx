@@ -32,9 +32,9 @@ const LedgerView = () => {
 
   if (!ledger) return null;
 
-  const filteredTransactions = ledger.transactions.filter(t => 
-    t.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    t.campaignTitle.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredTransactions = (ledger.transactions || []).filter(t => 
+    (t.title || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (t.campaignTitle || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -44,21 +44,21 @@ const LedgerView = () => {
         <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 p-6 rounded-2xl text-white shadow-sm relative overflow-hidden">
           <div className="relative z-10">
             <p className="text-emerald-100 font-semibold mb-1 uppercase tracking-wider text-xs">Total Income (Received)</p>
-            <h3 className="text-3xl font-black">₹{ledger.totalIncome.toLocaleString()}</h3>
+            <h3 className="text-3xl font-black">₹{(ledger.totalIncome || 0).toLocaleString()}</h3>
           </div>
           <ArrowDownRight className="absolute -bottom-4 -right-4 text-emerald-400 opacity-30" size={100} />
         </div>
         <div className="bg-gradient-to-br from-rose-500 to-rose-600 p-6 rounded-2xl text-white shadow-sm relative overflow-hidden">
           <div className="relative z-10">
             <p className="text-rose-100 font-semibold mb-1 uppercase tracking-wider text-xs">Total Expenses (Utilized)</p>
-            <h3 className="text-3xl font-black">₹{ledger.totalExpenses.toLocaleString()}</h3>
+            <h3 className="text-3xl font-black">₹{(ledger.totalExpenses || 0).toLocaleString()}</h3>
           </div>
           <ArrowUpRight className="absolute -bottom-4 -right-4 text-rose-400 opacity-30" size={100} />
         </div>
         <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-6 rounded-2xl text-white shadow-sm relative overflow-hidden">
           <div className="relative z-10">
             <p className="text-blue-200 font-semibold mb-1 uppercase tracking-wider text-xs">Available Balance</p>
-            <h3 className="text-3xl font-black">₹{ledger.availableBalance.toLocaleString()}</h3>
+            <h3 className="text-3xl font-black">₹{(ledger.availableBalance || 0).toLocaleString()}</h3>
           </div>
           <IndianRupee className="absolute -bottom-4 -right-4 text-indigo-400 opacity-30" size={100} />
         </div>
@@ -96,14 +96,14 @@ const LedgerView = () => {
                 filteredTransactions.map((txn, idx) => (
                   <tr key={txn.id || idx} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">
-                      {new Date(txn.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      {new Date(txn.date || Date.now()).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                     </td>
                     <td className="px-6 py-4">
-                      <p className="font-bold text-gray-900 text-sm">{txn.title}</p>
+                      <p className="font-bold text-gray-900 text-sm">{txn.title || 'Transaction'}</p>
                       {txn.txnId && <p className="text-xs text-gray-500 font-mono mt-0.5">Ref: {txn.txnId}</p>}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">
-                      {txn.campaignTitle}
+                      {txn.campaignTitle || 'General'}
                     </td>
                     <td className="px-6 py-4">
                       {txn.type === 'INCOME' ? (
@@ -117,7 +117,7 @@ const LedgerView = () => {
                       )}
                     </td>
                     <td className={`px-6 py-4 text-right font-bold whitespace-nowrap ${txn.type === 'INCOME' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      {txn.type === 'INCOME' ? '+' : '-'} ₹{txn.amount.toLocaleString()}
+                      {txn.type === 'INCOME' ? '+' : '-'} ₹{(txn.amount || 0).toLocaleString()}
                     </td>
                   </tr>
                 ))

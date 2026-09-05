@@ -1235,7 +1235,7 @@ export const DataProvider = ({ children }) => {
   const fetchStoriesList = async () => {
     try {
       const res = await socialService.getStories();
-      const formatted = res.data.map(s => ({
+      const formatted = (res.data || []).map(s => ({
         id: s._id,
         memberId: s.userId?._id || s.userId?.id,
         name: s.userId?.name || 'Member',
@@ -1243,6 +1243,13 @@ export const DataProvider = ({ children }) => {
         avatar: s.userId?.avatar,
         image: s.media,
         text: s.text,
+        textPosition: s.textPosition || { x: 50, y: 50 },
+        textStyle: s.textStyle || {
+          color: '#ffffff',
+          fontSize: 'base',
+          align: 'center',
+          bgStyle: 'pill-dark'
+        },
         timestamp: 'Active',
         hasSeen: false
       }));
@@ -1819,12 +1826,22 @@ export const DataProvider = ({ children }) => {
     }
   };
 
-  const addStory = async (storyImage, storyText = '') => {
+  const addStory = async (storyImage, storyText = '', storyOptions = {}) => {
     try {
+      const textPosition = storyOptions.textPosition || { x: 50, y: 50 };
+      const textStyle = storyOptions.textStyle || {
+        color: '#ffffff',
+        fontSize: 'base',
+        align: 'center',
+        bgStyle: 'pill-dark'
+      };
+
       const res = await socialService.createStory({
         media: storyImage || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800',
         mediaType: 'image',
         text: storyText,
+        textPosition,
+        textStyle,
         background: storyImage.startsWith('http') ? undefined : storyImage
       });
 
@@ -1836,6 +1853,8 @@ export const DataProvider = ({ children }) => {
         avatar: res.data.userId?.avatar,
         image: res.data.media,
         text: res.data.text,
+        textPosition: res.data.textPosition || textPosition,
+        textStyle: res.data.textStyle || textStyle,
         timestamp: 'Active',
         hasSeen: false
       };

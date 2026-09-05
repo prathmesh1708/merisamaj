@@ -33,7 +33,17 @@ const protect = async (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, config.jwtSecret);
+    let decoded;
+    try {
+      decoded = jwt.verify(token, config.jwtSecret);
+    } catch (err) {
+      // Fallback: verify using jwtRefreshSecret for requests relying on HTTP-only refresh cookies
+      try {
+        decoded = jwt.verify(token, config.jwtRefreshSecret);
+      } catch (refreshErr) {
+        throw err; // throw original verification error
+      }
+    }
 
     /**
      * Populate communityId from Community model so:

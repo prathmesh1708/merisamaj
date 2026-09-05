@@ -37,10 +37,11 @@ const DonationManagement = () => {
         headDonationService.getAllCampaigns(),
         headDonationService.getDashboardStats()
       ]);
-      setCampaigns(fetchedCampaigns);
-      setStats(fetchedStats);
+      setCampaigns(Array.isArray(fetchedCampaigns) ? fetchedCampaigns : []);
+      setStats(fetchedStats || null);
     } catch (error) {
       console.error('Failed to fetch donation data', error);
+      setCampaigns([]);
     } finally {
       setIsLoading(false);
     }
@@ -123,16 +124,20 @@ const DonationManagement = () => {
     }
   };
 
-  const filteredCampaigns = campaigns.filter(c => {
-    const matchesSearch = c.title.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredCampaigns = (campaigns || []).filter(c => {
+    if (!c) return false;
+    const title = (c.title || '').toLowerCase();
+    const query = (searchQuery || '').toLowerCase();
+    const matchesSearch = title.includes(query);
     if (activeTab === 'All') return matchesSearch;
-    return c.status === activeTab && matchesSearch;
+    return (c.status === activeTab) && matchesSearch;
   });
 
   const getStatusBadge = (status) => {
     const styles = {
       'Active': 'bg-emerald-100 text-emerald-700 border-emerald-200',
       'Published': 'bg-emerald-100 text-emerald-700 border-emerald-200',
+      'Approved': 'bg-emerald-100 text-emerald-700 border-emerald-200',
       'Scheduled': 'bg-blue-100 text-blue-700 border-blue-200',
       'Draft': 'bg-gray-100 text-gray-700 border-gray-200',
       'Completed': 'bg-purple-100 text-purple-700 border-purple-200',
@@ -141,7 +146,7 @@ const DonationManagement = () => {
     const style = styles[status] || styles['Draft'];
     return (
       <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${style}`}>
-        {status}
+        {status || 'Draft'}
       </span>
     );
   };
@@ -159,7 +164,7 @@ const DonationManagement = () => {
         </div>
         <button 
           onClick={() => handleAction('create')}
-          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-primary hover:bg-brand-secondary text-white rounded-xl font-bold transition-colors shadow-sm"
+          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-primary hover:bg-brand-secondary text-white rounded-xl font-bold transition-colors shadow-sm cursor-pointer"
         >
           <Plus size={18} /> New Campaign
         </button>
@@ -174,7 +179,7 @@ const DonationManagement = () => {
             </div>
             <div>
               <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Raised</p>
-              <h3 className="text-2xl font-black text-gray-900">₹{stats.totalRaisedAmount.toLocaleString()}</h3>
+              <h3 className="text-2xl font-black text-gray-900">₹{(stats.totalRaisedAmount || 0).toLocaleString()}</h3>
             </div>
           </div>
           <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
@@ -183,7 +188,7 @@ const DonationManagement = () => {
             </div>
             <div>
               <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Donors</p>
-              <h3 className="text-2xl font-black text-gray-900">{stats.totalDonors}</h3>
+              <h3 className="text-2xl font-black text-gray-900">{stats.totalDonors || 0}</h3>
             </div>
           </div>
           <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
@@ -192,7 +197,7 @@ const DonationManagement = () => {
             </div>
             <div>
               <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Active Campaigns</p>
-              <h3 className="text-2xl font-black text-gray-900">{stats.activeCampaigns}</h3>
+              <h3 className="text-2xl font-black text-gray-900">{stats.activeCampaigns || 0}</h3>
             </div>
           </div>
           <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
@@ -201,7 +206,7 @@ const DonationManagement = () => {
             </div>
             <div>
               <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Target</p>
-              <h3 className="text-2xl font-black text-gray-900">₹{stats.totalTargetAmount.toLocaleString()}</h3>
+              <h3 className="text-2xl font-black text-gray-900">₹{(stats.totalTargetAmount || 0).toLocaleString()}</h3>
             </div>
           </div>
         </div>
@@ -212,11 +217,11 @@ const DonationManagement = () => {
         {/* Toolbar */}
         <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gray-50/50">
           <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0 hide-scrollbar">
-            {['All', 'Published', 'Draft', 'Completed', 'Scheduled', 'Ledger'].map(tab => (
+            {['All', 'Active', 'Published', 'Draft', 'Completed', 'Scheduled', 'Ledger'].map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all ${
+                className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all cursor-pointer ${
                   activeTab === tab 
                     ? 'bg-white text-brand-primary shadow-sm ring-1 ring-gray-200' 
                     : 'text-gray-500 hover:bg-gray-100'
@@ -241,7 +246,7 @@ const DonationManagement = () => {
             </div>
             <button 
               onClick={fetchDashboardData}
-              className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:text-brand-primary hover:border-brand-primary/30 transition-colors shadow-sm"
+              className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:text-brand-primary hover:border-brand-primary/30 transition-colors shadow-sm cursor-pointer"
             >
               <RefreshCw size={18} className={isLoading ? 'animate-spin text-brand-primary' : ''} />
             </button>
@@ -271,7 +276,7 @@ const DonationManagement = () => {
               {!searchQuery && (
                 <button 
                   onClick={() => handleAction('create')}
-                  className="px-5 py-2.5 bg-brand-primary/10 text-brand-primary hover:bg-brand-primary/20 rounded-xl font-bold transition-colors"
+                  className="px-5 py-2.5 bg-brand-primary/10 text-brand-primary hover:bg-brand-primary/20 rounded-xl font-bold transition-colors cursor-pointer"
                 >
                   Create Campaign
                 </button>
@@ -301,8 +306,8 @@ const DonationManagement = () => {
                       <td className="px-6 py-4 align-top">
                         <div className="flex items-start gap-3">
                           <div className="w-10 h-10 rounded-lg bg-gray-100 overflow-hidden shrink-0">
-                            {campaign.bannerImage ? (
-                              <img src={campaign.bannerImage} alt="" className="w-full h-full object-cover" />
+                            {campaign.bannerImage || campaign.coverImage ? (
+                              <img src={campaign.bannerImage || campaign.coverImage} alt="" className="w-full h-full object-cover" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-gray-400">
                                 <HeartHandshake size={20} />
@@ -310,33 +315,33 @@ const DonationManagement = () => {
                             )}
                           </div>
                           <div>
-                            <p className="font-bold text-gray-900 text-sm line-clamp-1">{campaign.title}</p>
-                            <p className="text-xs text-gray-500 mt-0.5">{campaign.category} • {campaign.visibility}</p>
+                            <p className="font-bold text-gray-900 text-sm line-clamp-1">{campaign.title || 'Untitled Campaign'}</p>
+                            <p className="text-xs text-gray-500 mt-0.5">{campaign.category || 'General'} • {campaign.visibility || 'All Members'}</p>
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4 align-top min-w-[200px]">
                         <div className="flex items-center justify-between text-xs mb-1">
-                          <span className="font-bold text-brand-primary">₹{campaign.raisedAmount?.toLocaleString() || 0}</span>
-                          <span className="text-gray-500">of ₹{campaign.targetAmount?.toLocaleString() || 0}</span>
+                          <span className="font-bold text-brand-primary">₹{(campaign.raisedAmount || 0).toLocaleString()}</span>
+                          <span className="text-gray-500">of ₹{(campaign.targetAmount || 0).toLocaleString()}</span>
                         </div>
                         <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
                           <div 
                             className="bg-brand-primary h-2 rounded-full transition-all duration-500" 
-                            style={{ width: `${campaign.progress || 0}%` }}
+                            style={{ width: `${Math.min(100, Math.max(0, campaign.progress || 0))}%` }}
                           />
                         </div>
-                        {campaign.expenseAmount > 0 && (
+                        {(campaign.expenseAmount || 0) > 0 && (
                           <div className="flex items-center justify-between text-xs mt-1 text-gray-500">
-                            <span>Utilized: <span className="font-bold text-rose-500">₹{campaign.expenseAmount.toLocaleString()}</span></span>
-                            <span>Bal: <span className="font-bold text-emerald-600">₹{campaign.availableBalance?.toLocaleString() || 0}</span></span>
+                            <span>Utilized: <span className="font-bold text-rose-500">₹{(campaign.expenseAmount || 0).toLocaleString()}</span></span>
+                            <span>Bal: <span className="font-bold text-emerald-600">₹{(campaign.availableBalance || 0).toLocaleString()}</span></span>
                           </div>
                         )}
                       </td>
                       <td className="px-6 py-4 align-top">
                         <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-50 rounded-lg border border-gray-100">
                           <Users size={14} className="text-gray-400" />
-                          <span className="text-sm font-bold text-gray-700">{campaign.totalDonors || 0}</span>
+                          <span className="text-sm font-bold text-gray-700">{campaign.totalDonors || campaign.contributorsCount || 0}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4 align-top">
@@ -344,19 +349,19 @@ const DonationManagement = () => {
                       </td>
                       <td className="px-6 py-4 align-top text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => handleAction('view', campaign)} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors" title="View Details">
+                          <button onClick={() => handleAction('view', campaign)} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer" title="View Details">
                             <Eye size={18} />
                           </button>
-                          <button onClick={() => handleAction('donors', campaign)} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors" title="Manage Donors">
+                          <button onClick={() => handleAction('donors', campaign)} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer" title="Manage Donors">
                             <Users size={18} />
                           </button>
-                          <button onClick={() => handleAction('edit', campaign)} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors" title="Edit Campaign">
+                          <button onClick={() => handleAction('edit', campaign)} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer" title="Edit Campaign">
                             <Edit size={18} />
                           </button>
-                          <button onClick={() => handleAction('expense', campaign)} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors" title="Add Expense">
+                          <button onClick={() => handleAction('expense', campaign)} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer" title="Add Expense">
                             <IndianRupee size={18} />
                           </button>
-                          <button onClick={() => handleAction('delete', campaign)} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors" title="Delete">
+                          <button onClick={() => handleAction('delete', campaign)} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer" title="Delete">
                             <Trash2 size={18} />
                           </button>
                         </div>
@@ -401,7 +406,7 @@ const DonationManagement = () => {
           isOpen={isDeleteOpen} 
           onClose={() => setIsDeleteOpen(false)} 
           onConfirm={handleDeleteConfirm}
-          itemName={selectedCampaign.title}
+          itemName={selectedCampaign.title || 'this campaign'}
         />
       )}
 

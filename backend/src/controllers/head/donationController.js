@@ -7,26 +7,39 @@ const { applyScopeFilter, inheritTenantPayload } = require('../../utils/querySco
 // 1. Dashboard Stats
 exports.getDashboardStats = async (req, res) => {
   try {
-    const communityFilter = applyScopeFilter(req, { isDeleted: { $ne: true } });
+    const campaignFilter = applyScopeFilter(req, {
+      isDeleted: { $ne: true },
+      $or: [{ campaign: { $exists: false } }, { campaign: null }],
+      txnId: { $exists: false }
+    });
 
-    const campaigns = await Donation.find(communityFilter);
+    const campaigns = await Donation.find(campaignFilter);
     const totalCampaigns = campaigns.length;
-    const activeCampaigns = campaigns.filter(c => c.status === 'Published' || c.status === 'Active').length;
+    const activeCampaigns = campaigns.filter(c => c.status === 'Published' || c.status === 'Active' || c.status === 'Approved').length;
     const scheduledCampaigns = campaigns.filter(c => c.status === 'Scheduled').length;
     const completedCampaigns = campaigns.filter(c => c.status === 'Completed' || c.status === 'Closed').length;
 
     const amountAggr = await Donation.aggregate([
-      { $match: communityFilter },
+      { $match: campaignFilter },
       { $group: { _id: null, totalTarget: { $sum: '$targetAmount' }, totalRaised: { $sum: '$raisedAmount' }, totalExpenses: { $sum: '$expenseAmount' } } }
     ]);
-    const totalTargetAmount = amountAggr.length > 0 ? amountAggr[0].totalTarget : 0;
-    const totalRaisedAmount = amountAggr.length > 0 ? amountAggr[0].totalRaised : 0;
-    const totalExpenseAmount = amountAggr.length > 0 ? amountAggr[0].totalExpenses : 0;
+    const totalTargetAmount = amountAggr.length > 0 ? (amountAggr[0].totalTarget || 0) : 0;
+    const totalRaisedAmount = amountAggr.length > 0 ? (amountAggr[0].totalRaised || 0) : 0;
+    const totalExpenseAmount = amountAggr.length > 0 ? (amountAggr[0].totalExpenses || 0) : 0;
 
     // Count non-empty donor contributions or unique users
     const campaignIds = campaigns.map(c => c._id);
-    const donationsCount = await Donation.countDocuments({ campaign: { $in: campaignIds } });
-    const uniqueDonorsList = await Donation.distinct('user', { campaign: { $in: campaignIds } });
+    const donationsCount = await Donation.countDocuments({
+      isDeleted: { $ne: true },
+      $or: [
+        { campaign: { $in: campaignIds } },
+        { txnId: { $exists: true, $ne: null } }
+      ]
+    });
+    const uniqueDonorsList = await Donation.distinct('user', {
+      isDeleted: { $ne: true },
+      campaign: { $in: campaignIds }
+    });
     const totalDonors = uniqueDonorsList.length || campaigns.reduce((sum, c) => sum + (c.donorCount || 0), 0);
 
     res.status(200).json({
@@ -53,27 +66,31 @@ exports.getDashboardStats = async (req, res) => {
 // 2. Get All Campaigns (Data Table) — community-scoped
 exports.getAllCampaigns = async (req, res) => {
   try {
-    const communityFilter = applyScopeFilter(req, { isDeleted: { $ne: true } });
-    const campaigns = await Donation.find(communityFilter).sort({ createdAt: -1 }).populate('createdBy', 'name');
+    const campaignFilter = applyScopeFilter(req, {
+      isDeleted: { $ne: true },
+      $or: [{ campaign: { $exists: false } }, { campaign: null }],
+      txnId: { $exists: false }
+    });
+    const campaigns = await Donation.find(campaignFilter).sort({ createdAt: -1 }).populate('createdBy', 'name');
 
     const formatted = campaigns.map(c => ({
       id: c._id,
       _id: c._id,
-      title: c.title,
-      category: c.category,
-      targetAmount: c.targetAmount,
+      title: c.title || 'Untitled Campaign',
+      category: c.category || 'General',
+      targetAmount: c.targetAmount || 0,
       raisedAmount: c.raisedAmount || 0,
       collectedAmount: c.raisedAmount || 0,
       expenseAmount: c.expenseAmount || 0,
       availableBalance: (c.raisedAmount || 0) - (c.expenseAmount || 0),
-      remainingAmount: Math.max(0, c.targetAmount - (c.raisedAmount || 0)),
-      progress: c.targetAmount > 0 ? Math.min(Math.round(((c.raisedAmount || 0) / c.targetAmount) * 100), 100) : 0,
+      remainingAmount: Math.max(0, (c.targetAmount || 0) - (c.raisedAmount || 0)),
+      progress: (c.targetAmount || 0) > 0 ? Math.min(Math.round(((c.raisedAmount || 0) / c.targetAmount) * 100), 100) : 0,
       totalDonors: c.donorCount || 0,
       contributorsCount: c.donorCount || 0,
-      startDate: c.startDate,
+      startDate: c.startDate || c.createdAt,
       endDate: c.endDate,
-      visibility: c.visibility,
-      status: c.status,
+      visibility: c.visibility || 'All Members',
+      status: c.status || 'Active',
       createdBy: c.createdBy ? c.createdBy.name : 'Admin',
       createdDate: c.createdAt,
       lastUpdated: c.updatedAt,
@@ -198,13 +215,16 @@ exports.getCampaignById = async (req, res) => {
 // 7. Get Campaign Donors
 exports.getCampaignDonors = async (req, res) => {
   try {
-    const donations = await Donation.find({ campaign: req.params.id })
+    const donations = await Donation.find({
+      campaign: req.params.id,
+      isDeleted: { $ne: true }
+    })
       .populate('user', 'name memberId')
       .sort({ createdAt: -1 });
 
     const formatted = donations.map(d => ({
       id: d._id,
-      name: d.user?.name || d.donorName || 'Anonymous',
+      name: d.donorName || d.user?.name || 'Anonymous',
       memberId: d.user?.memberId || 'N/A',
       family: 'N/A',
       mobile: 'N/A',
@@ -284,10 +304,14 @@ exports.getCampaignExpenses = async (req, res) => {
 // 11. Get Full Ledger — community-scoped
 exports.getLedger = async (req, res) => {
   try {
-    const communityFilter = applyScopeFilter(req, { isDeleted: { $ne: true } });
+    const campaignFilter = applyScopeFilter(req, {
+      isDeleted: { $ne: true },
+      $or: [{ campaign: { $exists: false } }, { campaign: null }],
+      txnId: { $exists: false }
+    });
     
     // Fetch all campaigns in the Head's community
-    const campaigns = await Donation.find(communityFilter, 'title raisedAmount expenseAmount coverImage');
+    const campaigns = await Donation.find(campaignFilter, 'title raisedAmount expenseAmount coverImage');
     
     // Fetch all expenses in the community
     const campaignIds = campaigns.map(c => c._id);
@@ -295,16 +319,14 @@ exports.getLedger = async (req, res) => {
       .populate('campaign', 'title category')
       .sort({ date: -1 });
       
-    // Fetch all individual donations (either linked to community's campaigns or communityId)
-    const donationQuery = { isDeleted: { $ne: true } };
-    if (campaignIds.length > 0) {
-      donationQuery.$or = [
+    // Fetch all individual donation transactions
+    const donationQuery = { 
+      isDeleted: { $ne: true },
+      $or: [
         { campaign: { $in: campaignIds } },
-        { communityId: req.communityId }
-      ];
-    } else if (req.communityId) {
-      donationQuery.communityId = req.communityId;
-    }
+        { txnId: { $exists: true, $ne: null } }
+      ]
+    };
 
     const donations = await Donation.find(donationQuery)
       .populate('campaign', 'title category')
@@ -343,7 +365,7 @@ exports.getLedger = async (req, res) => {
         availableBalance: totalIncome - totalExpenses,
         campaignsBalance: campaigns.map(c => ({
           id: c._id,
-          title: c.title,
+          title: c.title || 'Untitled Campaign',
           collected: c.raisedAmount || 0,
           expenses: c.expenseAmount || 0,
           balance: (c.raisedAmount || 0) - (c.expenseAmount || 0)

@@ -50,7 +50,7 @@ exports.getStories = async (req, res) => {
 // @access  Private
 exports.createStory = async (req, res) => {
   try {
-    const { media, mediaType, text, background, visibility } = req.body;
+    const { media, mediaType, text, textPosition, textStyle, background, visibility } = req.body;
 
     if (!media) {
       return res.status(400).json({ success: false, message: 'Media attachment is required' });
@@ -65,6 +65,13 @@ exports.createStory = async (req, res) => {
       media,
       mediaType: mediaType || 'image',
       text,
+      textPosition: textPosition || { x: 50, y: 50 },
+      textStyle: textStyle || {
+        color: '#ffffff',
+        fontSize: 'base',
+        align: 'center',
+        bgStyle: 'pill-dark'
+      },
       background,
       visibility: visibility || 'community',
       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // strict 24 hours expiry

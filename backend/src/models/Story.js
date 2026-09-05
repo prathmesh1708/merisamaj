@@ -32,6 +32,19 @@ const storySchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    textPosition: {
+      x: { type: Number, default: 50 }, // percentage 0 - 100
+      y: { type: Number, default: 50 }, // percentage 0 - 100
+    },
+    textStyle: {
+      type: mongoose.Schema.Types.Mixed,
+      default: () => ({
+        color: '#ffffff',
+        fontSize: 'base',
+        align: 'center',
+        bgStyle: 'pill-dark'
+      })
+    },
     background: {
       type: String, // hex, rgb, or css gradient code
     },
