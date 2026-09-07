@@ -11,7 +11,7 @@ exports.getActiveDonations = async (req, res) => {
   try {
     const { category, search, page = 1, limit = 10 } = req.query;
     let filter = {
-      status: 'Active',
+      status: { $in: ['Active', 'Published'] },
       isDeleted: false
     };
 
@@ -87,7 +87,7 @@ exports.donate = async (req, res) => {
     const { amount, donorName } = req.body;
     const donationId = req.params.id;
 
-    const filter = applyScopeFilter(req, { _id: donationId, status: 'Active', isDeleted: false });
+    const filter = applyScopeFilter(req, { _id: donationId, status: { $in: ['Active', 'Published'] }, isDeleted: false });
     const donation = await Donation.findOne(filter);
 
     if (!donation) {

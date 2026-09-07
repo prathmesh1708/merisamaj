@@ -11,6 +11,8 @@ import {
   ShieldCheck, ChevronRight
 } from 'lucide-react';
 import { Avatar } from '../common/Avatar';
+import { ApprovalRequiredModal } from '../common/ApprovalRequiredModal';
+import { isMemberApproved } from '../../utils/approvalUtils';
 
 const hiddenPaths = ['/member/events', '/member/groups', '/member/notifications', '/member/splash', '/member/login', '/member/setup-profile', '/member/select-community', '/member/verify-otp', '/member/chat/room', '/member/chat/call'];
 const sideNavHiddenPaths = ['/member/events', '/member/groups', '/member/notifications', '/member/splash', '/member/login', '/member/setup-profile', '/member/select-community', '/member/verify-otp'];
@@ -25,8 +27,10 @@ export const MemberLayout = () => {
   const activeUser = auth?.isAuthenticated ? auth?.user : currentUser;
   const effectiveRole = activeUser?.role;
   const isHeadUser = activeUser && ['head', 'sub_head', 'admin'].includes(effectiveRole);
+  const isApproved = isMemberApproved(activeUser);
 
   const [isBottomNavVisible, setBottomNavVisible] = useState(true);
+  const [approvalModalState, setApprovalModalState] = useState({ isOpen: false, featureName: '' });
   const lastScrollY = useRef(0);
   const scrollContainerRef = useRef(null);
 
@@ -36,9 +40,19 @@ export const MemberLayout = () => {
         setBottomNavVisible(e.detail);
       }
     };
+    const handleShowApprovalModal = (e) => {
+      setApprovalModalState({
+        isOpen: true,
+        featureName: e.detail?.featureName || ''
+      });
+    };
+
     window.addEventListener('toggle-bottom-nav', handleToggle);
+    window.addEventListener('merisamaj_show_approval_modal', handleShowApprovalModal);
+
     return () => {
       window.removeEventListener('toggle-bottom-nav', handleToggle);
+      window.removeEventListener('merisamaj_show_approval_modal', handleShowApprovalModal);
     };
   }, []);
 
@@ -54,9 +68,17 @@ export const MemberLayout = () => {
   const shouldHideSideNav = sideNavHiddenPaths.some(p => location.pathname.startsWith(p)) || location.pathname.split('/').filter(Boolean).length > 2;
   const isFullHeightRoute = location.pathname.startsWith('/member/social') || location.pathname === '/member/chat' || location.pathname === '/member/matrimonial';
 
-  const handleMenuLinkClick = (path) => {
+  const handleMenuLinkClick = (item) => {
     setMobileMenuOpen(false);
-    navigate(path);
+    const unrestrictedPaths = ['/member/home', '/member/leadership', '/member/profile', '/member/settings', '/member/referral'];
+    if (!isApproved && !unrestrictedPaths.includes(item.path)) {
+      setApprovalModalState({
+        isOpen: true,
+        featureName: item.name
+      });
+      return;
+    }
+    navigate(item.path);
   };
 
   const menuItems = [
@@ -160,7 +182,7 @@ export const MemberLayout = () => {
               {/* Privileged Head Panel Switcher Button — ONLY for Community Head, Local Head or Admin */}
               {isHeadUser && (
                 <button
-                  onClick={() => handleMenuLinkClick('/head/dashboard')}
+                  onClick={() => handleMenuLinkClick({ name: 'Head Panel', path: '/head/dashboard' })}
                   className="w-full mt-1 p-2.5 bg-gradient-to-r from-amber-500/20 via-purple-500/20 to-indigo-500/20 border border-amber-400/40 rounded-xl text-amber-200 flex items-center justify-between shadow-sm hover:border-amber-400 transition-all font-bold text-xs"
                 >
                   <div className="flex items-center gap-2">
@@ -183,7 +205,7 @@ export const MemberLayout = () => {
                 return (
                   <button
                     key={item.name}
-                    onClick={() => handleMenuLinkClick(item.path)}
+                    onClick={() => handleMenuLinkClick(item)}
                     className={`w-full flex items-center gap-3 px-4 py-[10px] rounded-[14px] text-[13px] tracking-wide transition-all duration-200 active:scale-[0.98] relative overflow-hidden ${
                       isActive 
                         ? 'font-semibold' 
@@ -248,6 +270,13 @@ export const MemberLayout = () => {
           </div>
         </>
       )}
+
+      {/* Global Approval Required Modal */}
+      <ApprovalRequiredModal
+        isOpen={approvalModalState.isOpen}
+        onClose={() => setApprovalModalState({ isOpen: false, featureName: '' })}
+        featureName={approvalModalState.featureName}
+      />
     </div>
   );
 };

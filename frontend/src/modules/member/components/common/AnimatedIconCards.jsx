@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 
 // ── 1. ANIMATED INVITATIONS ICON (Electric Violet & Indigo with Glowing Sparkles) ──
-export const InvitationsIcon = ({ className = "w-11 h-11" }) => {
+export const InvitationsIcon = ({ className = "w-14 h-14 sm:w-16 sm:h-16" }) => {
   return (
     <div className={`relative flex items-center justify-center ${className}`}>
       <svg
@@ -97,7 +97,7 @@ export const InvitationsIcon = ({ className = "w-11 h-11" }) => {
 };
 
 // ── 2. ANIMATED CONTRIBUTIONS ICON (Vibrant Ruby Coral Pink & Gold) ──
-export const ContributionsIcon = ({ className = "w-11 h-11" }) => {
+export const ContributionsIcon = ({ className = "w-14 h-14 sm:w-16 sm:h-16" }) => {
   return (
     <div className={`relative flex items-center justify-center ${className}`}>
       <svg
@@ -161,7 +161,7 @@ export const ContributionsIcon = ({ className = "w-11 h-11" }) => {
 };
 
 // ── 3. ANIMATED OBITUARY ICON (Radiant Warm Saffron & Deep Amber Flame) ──
-export const ObituaryIcon = ({ className = "w-11 h-11" }) => {
+export const ObituaryIcon = ({ className = "w-14 h-14 sm:w-16 sm:h-16" }) => {
   return (
     <div className={`relative flex items-center justify-center ${className}`}>
       <svg
@@ -345,7 +345,7 @@ export const AnimatedIconCards = ({
         <img 
           src={card.customIconUrl} 
           alt={card.title} 
-          className="w-10 h-10 object-contain drop-shadow-sm transition-transform duration-200 group-hover:scale-105" 
+          className="w-14 h-14 sm:w-16 sm:h-16 object-contain drop-shadow-md transition-transform duration-200 group-hover:scale-105" 
         />
       );
     }
@@ -353,13 +353,13 @@ export const AnimatedIconCards = ({
     const iconKey = card.presetIconKey || card.key;
     switch (iconKey) {
       case 'invitations':
-        return <InvitationsIcon className="w-10 h-10" />;
+        return <InvitationsIcon className="w-14 h-14 sm:w-16 sm:h-16" />;
       case 'contributions':
-        return <ContributionsIcon className="w-10 h-10" />;
+        return <ContributionsIcon className="w-14 h-14 sm:w-16 sm:h-16" />;
       case 'obituary':
-        return <ObituaryIcon className="w-10 h-10" />;
+        return <ObituaryIcon className="w-14 h-14 sm:w-16 sm:h-16" />;
       default:
-        return <InvitationsIcon className="w-10 h-10" />;
+        return <InvitationsIcon className="w-14 h-14 sm:w-16 sm:h-16" />;
     }
   };
 
@@ -374,7 +374,7 @@ export const AnimatedIconCards = ({
   };
 
   return (
-    <div className="px-3 mt-3 relative z-10 flex gap-2 sm:gap-3">
+    <div className="px-3 mt-4 sm:mt-5 mb-1 relative z-10 flex gap-2.5 sm:gap-3.5">
       {cards.filter(c => c.isActive !== false).map((card) => {
         const badgeNum = getBadgeCount(card);
         const navPath = card.targetRoute || card.path;
@@ -383,30 +383,32 @@ export const AnimatedIconCards = ({
           <motion.div
             key={card._id || card.key}
             onClick={() => onNavigate && onNavigate(navPath)}
-            whileHover={{ y: -4, scale: 1.03 }}
+            whileHover={{ y: -4, scale: 1.02 }}
             whileTap={{ scale: 0.96 }}
             transition={{ type: "spring", stiffness: 350, damping: 25 }}
-            className="flex-1 bg-transparent py-2 px-1 flex flex-col items-center justify-center text-center cursor-pointer relative transition-all duration-300 group"
+            className="flex-1 bg-white hover:bg-slate-50/90 rounded-2xl py-3.5 px-2 sm:py-5 sm:px-3 flex flex-col items-center justify-between text-center cursor-pointer relative transition-all duration-300 group border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_20px_rgba(124,58,237,0.08)] hover:border-purple-200/80 min-h-[140px] sm:min-h-[160px]"
           >
-            {/* Icon Container — Clean Transparent Floating Icon */}
-            <div className="relative flex items-center justify-center p-1">
+            {/* Icon Container — Clean Floating Icon */}
+            <div className="relative flex items-center justify-center p-1 sm:p-1.5 flex-1">
               {renderCardIcon(card)}
 
               {/* Red Notification Badge */}
               {badgeNum > 0 && (
-                <div className="absolute -top-1 -right-1.5 bg-red-500 text-white text-[8.5px] font-black w-[17px] h-[17px] rounded-full flex items-center justify-center border-2 border-white shadow-sm">
+                <div className="absolute -top-1 -right-2 bg-gradient-to-r from-red-500 to-rose-600 text-white text-[9.5px] sm:text-[10.5px] font-black min-w-[20px] h-[20px] sm:min-w-[22px] sm:h-[22px] px-1 rounded-full flex items-center justify-center border-2 border-white shadow-sm ring-1 ring-red-200">
                   {badgeNum}
                 </div>
               )}
             </div>
 
-            {/* Title & Subtitle — Compact Sleek Typography */}
-            <h4 className="text-[11.5px] font-extrabold text-slate-800 mt-1.5 tracking-tight leading-tight group-hover:text-purple-700 transition-colors">
-              {card.title}
-            </h4>
-            <p className="text-[8.5px] font-semibold text-slate-400 mt-0.5 leading-tight">
-              {card.subtitle}
-            </p>
+            {/* Title & Subtitle */}
+            <div className="w-full mt-2">
+              <h4 className="text-[13px] sm:text-[14.5px] font-extrabold text-slate-800 tracking-tight leading-tight group-hover:text-purple-700 transition-colors">
+                {card.title}
+              </h4>
+              <p className="text-[9.5px] sm:text-[11px] font-medium text-slate-400 mt-0.5 leading-snug line-clamp-1">
+                {card.subtitle}
+              </p>
+            </div>
           </motion.div>
         );
       })}

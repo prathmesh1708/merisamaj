@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const Donation = require('../models/Donation');
+const DonationCategory = require('../models/DonationCategory');
 const { applyScopeFilter } = require('../utils/queryScopeHelper');
 
 const resolveTargeting = (body) => {
@@ -283,5 +284,105 @@ exports.deleteDonation = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+const DEFAULT_CATEGORIES = [
+  { name: 'General Relief', key: 'general-relief', isDefault: true, icon: 'ShieldAlert' },
+  { name: 'Health & Medical', key: 'health-medical', isDefault: true, icon: 'HeartPulse' },
+  { name: 'Education & Scholarships', key: 'education-scholarships', isDefault: true, icon: 'GraduationCap' },
+  { name: 'Temple & Infrastructure', key: 'temple-infrastructure', isDefault: true, icon: 'Building2' },
+  { name: 'Social Welfare', key: 'social-welfare', isDefault: true, icon: 'Users' },
+  { name: 'Event Funding', key: 'event-funding', isDefault: true, icon: 'Calendar' }
+];
+
+const ensureDefaultCategories = async () => {
+  const count = await DonationCategory.countDocuments();
+  if (count === 0) {
+    for (const cat of DEFAULT_CATEGORIES) {
+      await DonationCategory.findOneAndUpdate(
+        { key: cat.key },
+        { ...cat },
+        { upsert: true, new: true }
+      );
+    }
+  }
+};
+
+// GET /admin/donations/categories — List all donation categories
+exports.getCategories = async (req, res) => {
+  try {
+    await ensureDefaultCategories();
+    const categories = await DonationCategory.find().sort({ isDefault: -1, createdAt: 1 });
+    res.status(200).json({
+      success: true,
+      data: categories
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// POST /admin/donations/categories — Create new category
+exports.createCategory = async (req, res) => {
+  try {
+    const { name, description, icon } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, message: 'Category name is required' });
+    }
+
+    const trimmedName = name.trim();
+    const key = trimmedName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+    const existing = await DonationCategory.findOne({
+      $or: [
+        { name: { $regex: new RegExp(`^${trimmedName}$`, 'i') } },
+        { key }
+      ]
+    });
+
+    if (existing) {
+      return res.status(400).json({ success: false, message: 'A category with this name already exists' });
+    }
+
+    const newCategory = new DonationCategory({
+      name: trimmedName,
+      key: key || `cat-${Date.now()}`,
+      description: description?.trim() || '',
+      icon: icon || 'Heart',
+      isDefault: false,
+      createdBy: req.user?._id
+    });
+
+    await newCategory.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Category created successfully',
+      data: newCategory
+    });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+// DELETE /admin/donations/categories/:id — Delete a category
+exports.deleteCategory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const cat = await DonationCategory.findById(id);
+    if (!cat) {
+      return res.status(404).json({ success: false, message: 'Category not found' });
+    }
+
+    await DonationCategory.findByIdAndDelete(id);
+
+    res.status(200).json({
+      success: true,
+      message: 'Category deleted successfully'
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 
 

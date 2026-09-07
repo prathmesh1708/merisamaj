@@ -119,13 +119,17 @@ export const DonationTable = ({
                     {item.donorCount || 0} Donors
                   </td>
                   <td className="py-3.5 px-4">
-                    {item.status === 'Active' ? (
+                    {['Active', 'Published', 'Approved'].includes(item.status) ? (
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100">
-                        <CheckCircle2 size={10} /> Active
+                        <CheckCircle2 size={10} /> {item.status === 'Published' ? 'Published' : 'Active'}
+                      </span>
+                    ) : item.status === 'Draft' ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-600 border border-amber-200">
+                        Draft
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                        <AlertCircle size={10} /> Closed
+                        <AlertCircle size={10} /> {item.status || 'Closed'}
                       </span>
                     )}
                   </td>
@@ -145,7 +149,7 @@ export const DonationTable = ({
                       >
                         <Edit2 size={14} />
                       </button>
-                      {item.status === 'Active' && (
+                      {['Active', 'Published', 'Approved'].includes(item.status) && (
                         <button
                           onClick={() => onClose(item._id, item.source)}
                           title="Close Donation Drive"

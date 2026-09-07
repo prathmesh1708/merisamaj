@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, IndianRupee, Image, Info, Users, Settings, Search, ChevronDown, ChevronUp, Check, Upload, Trash2 } from 'lucide-react';
+import { X, Save, IndianRupee, Image, Info, Users, Settings, Search, ChevronDown, ChevronUp, Check, Upload, Trash2, Plus } from 'lucide-react';
 import { useData } from '../../../../member/context/DataProvider';
+import headDonationService from '../../../../../core/api/headDonationService';
 
 const DonationFormModal = ({ isOpen, onClose, onSubmit, initialData }) => {
   const [activeTab, setActiveTab] = useState('basic');
@@ -9,7 +10,7 @@ const DonationFormModal = ({ isOpen, onClose, onSubmit, initialData }) => {
     title: '',
     shortDescription: '',
     description: '',
-    category: 'General',
+    category: 'General Relief',
     targetAmount: '',
     minDonation: 1,
     visibility: 'All Members',
@@ -19,13 +20,74 @@ const DonationFormModal = ({ isOpen, onClose, onSubmit, initialData }) => {
     bannerImage: ''
   });
 
+  // Dynamic Categories state
+  const [categories, setCategories] = useState([]);
+  const [loadingCategories, setLoadingCategories] = useState(false);
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [isManagingCategories, setIsManagingCategories] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [isSavingCategory, setIsSavingCategory] = useState(false);
+
+  const fetchCategories = async () => {
+    try {
+      setLoadingCategories(true);
+      const res = await headDonationService.getCategories();
+      if (res && (res.data || Array.isArray(res))) {
+        setCategories(res.data || res);
+      }
+    } catch (err) {
+      console.error('Failed to load donation categories:', err);
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
+
+  const handleCreateCategory = async (e) => {
+    e?.preventDefault();
+    if (!newCategoryName.trim()) return;
+    try {
+      setIsSavingCategory(true);
+      const res = await headDonationService.createCategory({ name: newCategoryName.trim() });
+      if (res) {
+        await fetchCategories();
+        const createdName = res.data?.name || res.name || newCategoryName.trim();
+        setFormData(prev => ({ ...prev, category: createdName }));
+        setNewCategoryName('');
+        setIsAddingCategory(false);
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || err.message || 'Failed to create category');
+    } finally {
+      setIsSavingCategory(false);
+    }
+  };
+
+  const handleDeleteCategory = async (catId, catName) => {
+    if (!window.confirm(`Are you sure you want to delete category "${catName}"?`)) return;
+    try {
+      await headDonationService.deleteCategory(catId);
+      await fetchCategories();
+      if (formData.category === catName) {
+        setFormData(prev => ({ ...prev, category: 'General Relief' }));
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || err.message || 'Failed to delete category');
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchCategories();
+    }
+  }, [isOpen]);
+
   useEffect(() => {
     if (initialData) {
       setFormData({
         title: initialData.title || '',
         shortDescription: initialData.shortDescription || '',
         description: initialData.description || '',
-        category: initialData.category || 'General',
+        category: initialData.category || 'General Relief',
         targetAmount: initialData.targetAmount || '',
         minDonation: initialData.minDonation || 1,
         visibility: initialData.visibility || 'All Locations',
@@ -201,19 +263,133 @@ const DonationFormModal = ({ isOpen, onClose, onSubmit, initialData }) => {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-1">Category</label>
-                      <select 
-                        name="category"
-                        value={formData.category} 
-                        onChange={handleChange}
-                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-brand-primary outline-none transition-all"
-                      >
-                        <option value="General">General</option>
-                        <option value="Education">Education</option>
-                        <option value="Medical">Medical Emergency</option>
-                        <option value="Infrastructure">Infrastructure</option>
-                        <option value="Event">Event Funding</option>
-                      </select>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-sm font-semibold text-gray-700">Category *</label>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => { setIsAddingCategory(prev => !prev); setIsManagingCategories(false); }}
+                            className="inline-flex items-center gap-1 text-xs font-bold text-brand-primary hover:text-brand-secondary bg-brand-50 hover:bg-brand-100 px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
+                            title="Create New Category"
+                          >
+                            <Plus size={13} /> New Category
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setIsManagingCategories(prev => !prev); setIsAddingCategory(false); }}
+                            className="inline-flex items-center gap-1 text-xs font-bold text-gray-500 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
+                            title="Manage / Delete Categories"
+                          >
+                            Manage
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Inline Add Category Form */}
+                      {isAddingCategory && (
+                        <div className="mb-3 p-3 bg-brand-50/60 border border-brand-primary/20 rounded-xl space-y-2 animate-in fade-in duration-150">
+                          <p className="text-xs font-bold text-brand-primary uppercase tracking-wider">Create New Category</p>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              placeholder="e.g. Gau Seva, Disaster Relief..."
+                              value={newCategoryName}
+                              onChange={(e) => setNewCategoryName(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleCreateCategory(); } }}
+                              className="flex-1 bg-white border border-brand-primary/30 rounded-lg px-3 py-1.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-brand-primary/20"
+                              autoFocus
+                            />
+                            <button
+                              type="button"
+                              disabled={isSavingCategory || !newCategoryName.trim()}
+                              onClick={handleCreateCategory}
+                              className="px-3.5 py-1.5 bg-brand-primary hover:bg-brand-secondary disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-all cursor-pointer shrink-0"
+                            >
+                              {isSavingCategory ? 'Saving...' : 'Add'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setIsAddingCategory(false); setNewCategoryName(''); }}
+                              className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-white rounded-lg transition-colors cursor-pointer"
+                            >
+                              <X size={15} />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Manage / Delete Categories Drawer/List */}
+                      {isManagingCategories && (
+                        <div className="mb-3 p-3 bg-gray-50 border border-gray-200 rounded-xl space-y-2 max-h-44 overflow-y-auto animate-in fade-in duration-150">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-bold text-gray-600 uppercase tracking-wider">Delete / Manage Categories</p>
+                            <button
+                              type="button"
+                              onClick={() => setIsManagingCategories(false)}
+                              className="text-gray-400 hover:text-gray-600 p-0.5 rounded transition-colors"
+                            >
+                              <X size={15} />
+                            </button>
+                          </div>
+                          <div className="divide-y divide-gray-100">
+                            {categories.map(cat => (
+                              <div key={cat._id || cat.key || cat.name} className="py-1.5 flex items-center justify-between text-sm">
+                                <span className="text-gray-700 font-medium truncate">{cat.name}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteCategory(cat._id, cat.name)}
+                                  className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-md transition-colors cursor-pointer ml-2"
+                                  title={`Delete ${cat.name}`}
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="relative flex items-center">
+                        <select 
+                          name="category"
+                          value={formData.category} 
+                          onChange={handleChange}
+                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-brand-primary outline-none transition-all pr-12"
+                        >
+                          {categories.length > 0 ? (
+                            categories.map(cat => (
+                              <option key={cat._id || cat.key || cat.name} value={cat.name}>
+                                {cat.name}
+                              </option>
+                            ))
+                          ) : (
+                            <>
+                              <option value="General Relief">General Relief</option>
+                              <option value="Health & Medical">Health & Medical</option>
+                              <option value="Education & Scholarships">Education & Scholarships</option>
+                              <option value="Temple & Infrastructure">Temple & Infrastructure</option>
+                              <option value="Social Welfare">Social Welfare</option>
+                              <option value="Event Funding">Event Funding</option>
+                            </>
+                          )}
+                        </select>
+
+                        {/* Quick Delete for Selected Category */}
+                        {(() => {
+                          const selectedCatObj = categories.find(c => c.name === formData.category);
+                          if (!selectedCatObj) return null;
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteCategory(selectedCatObj._id, selectedCatObj.name)}
+                              className="absolute right-8 p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
+                              title={`Delete "${selectedCatObj.name}" category`}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          );
+                        })()}
+                      </div>
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-1">Status</label>

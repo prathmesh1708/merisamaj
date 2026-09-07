@@ -83,116 +83,158 @@ const CreateCommunityModal = ({ onClose, onCreated }) => {
 
   return (
     <div className="community-modal-overlay" onClick={onClose}>
-      <div className="community-modal community-modal-wide" onClick={e => e.stopPropagation()} style={{ maxHeight: '90vh', overflowY: 'auto' }}>
+      <div className="community-modal community-modal-wide" onClick={e => e.stopPropagation()}>
         <div className="community-modal-header">
-          <h3>🏛️ Create New Community</h3>
-          <button className="community-modal-close" onClick={onClose}>✕</button>
+          <div>
+            <h3>🏛️ Create New Community</h3>
+            <p className="text-xs text-slate-500 mt-0.5">Set up a new community on the platform</p>
+          </div>
+          <button type="button" className="community-modal-close" onClick={onClose}>✕</button>
         </div>
-        <form onSubmit={handleSubmit}>
-          
-          <div className="community-form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-            <div className="community-form-group">
-              <label>Community Name *</label>
-              <input
-                type="text"
-                placeholder="e.g. Namdev Samaj"
-                value={form.name}
-                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                className="community-input"
-              />
-            </div>
-            <div className="community-form-group" style={{ gridColumn: '1 / -1' }}>
-              <label>Assigned Cities * (Select multiple if needed)</label>
-              <div className="flex flex-wrap gap-2 mt-1">
-                {availableCities.length > 0 ? (
-                  availableCities.map(city => (
-                    <button
-                      key={city.id}
-                      type="button"
-                      onClick={() => toggleCity(city.id)}
-                      className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition-all ${
-                        form.cityIds.includes(city.id)
-                          ? 'bg-purple-100 border-purple-500 text-purple-700 shadow-sm'
-                          : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
-                      }`}
-                    >
-                      {form.cityIds.includes(city.id) && '✓ '}
-                      {city.name}
-                    </button>
-                  ))
-                ) : (
-                  <div className="text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg border border-dashed border-gray-300">
-                    No active cities available. Please create cities in City Management first.
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+          <div className="community-modal-body">
+            <div className="community-form-grid-2">
+              {/* Left Column: Basic Details & Location */}
+              <div>
+                <div className="community-form-group">
+                  <label>Community Name *</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Namdev Samaj, Rajput Samaj"
+                    value={form.name}
+                    onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                    className="community-input"
+                  />
+                </div>
+
+                <div className="community-form-group">
+                  <label>Status</label>
+                  <select
+                    value={form.status}
+                    onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
+                    className="community-input"
+                    style={{ height: '42px' }}
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
+
+                <div className="community-form-group">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <label style={{ margin: 0 }}>Assigned Cities *</label>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#6366f1', background: '#eef2ff', padding: '2px 8px', borderRadius: '12px' }}>
+                      {form.cityIds.length} Selected
+                    </span>
                   </div>
-                )}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', maxHeight: '130px', overflowY: 'auto', padding: '8px', background: '#f8fafc', borderRadius: '10px', border: '1.5px solid #e2e8f0' }}>
+                    {availableCities.length > 0 ? (
+                      availableCities.map(city => (
+                        <button
+                          key={city.id}
+                          type="button"
+                          onClick={() => toggleCity(city.id)}
+                          className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all ${
+                            form.cityIds.includes(city.id)
+                              ? 'bg-purple-100 border-purple-500 text-purple-700 shadow-sm'
+                              : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                          }`}
+                        >
+                          {form.cityIds.includes(city.id) && '✓ '}
+                          {city.name}
+                        </button>
+                      ))
+                    ) : (
+                      <div className="text-xs text-gray-500 py-1">
+                        No active cities available. Please create cities in City Management first.
+                      </div>
+                    )}
+                  </div>
+                  <small className="community-hint">Select one or more cities where this community operates.</small>
+                </div>
+              </div>
+
+              {/* Right Column: Media & Description */}
+              <div>
+                <div className="community-form-group">
+                  <label>Community Logo</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{
+                      width: '48px', height: '48px', borderRadius: '12px', border: '1.5px dashed #cbd5e1',
+                      background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      overflow: 'hidden', flexShrink: 0
+                    }}>
+                      {form.logoUrl ? (
+                        <img src={form.logoUrl} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        <span style={{ fontSize: '1.2rem', fontWeight: 700, color: '#94a3b8' }}>
+                          {form.name?.charAt(0) || '🏛️'}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={e => {
+                          const file = e.target.files[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              setForm(f => ({ ...f, logoUrl: reader.result }));
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                        className="community-input"
+                        style={{ padding: '6px 10px', fontSize: '0.8rem' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="community-form-group">
+                  <label>Community Banner (URL)</label>
+                  <input
+                    type="text"
+                    placeholder="https://images.unsplash.com/..."
+                    value={form.bannerUrl}
+                    onChange={e => setForm(f => ({ ...f, bannerUrl: e.target.value }))}
+                    className="community-input"
+                  />
+                  {form.bannerUrl && (
+                    <div style={{ marginTop: '8px', borderRadius: '10px', overflow: 'hidden', border: '1.5px solid #e2e8f0', height: '60px', background: '#f8fafc' }}>
+                      <img src={form.bannerUrl} alt="Banner Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => e.target.style.display = 'none'} />
+                    </div>
+                  )}
+                </div>
+
+                <div className="community-form-group">
+                  <label>Description</label>
+                  <textarea
+                    placeholder="Write a brief overview about this community..."
+                    value={form.description}
+                    onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                    className="community-textarea"
+                    rows={3}
+                  />
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="community-form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-            <div className="community-form-group">
-              <label>Community Logo</label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={e => {
-                  const file = e.target.files[0];
-                  if (file) {
-                    const reader = new FileReader();
-                    reader.onloadend = () => {
-                      setForm(f => ({ ...f, logoUrl: reader.result }));
-                    };
-                    reader.readAsDataURL(file);
-                  }
-                }}
-                className="community-input"
-                style={{ padding: '8px' }}
-              />
-              {form.logoUrl && form.logoUrl.startsWith('data:image') && (
-                <div className="mt-1 text-xs text-brand-primary">Logo selected</div>
-              )}
+          <div className="community-modal-actions">
+            {error ? (
+              <p className="community-form-error">⚠️ {error}</p>
+            ) : (
+              <span className="community-hint" style={{ margin: 0 }}>* Required fields</span>
+            )}
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button type="button" className="community-btn-secondary" onClick={onClose}>Cancel</button>
+              <button type="submit" className="community-btn-primary" disabled={loading}>
+                {loading ? 'Creating...' : '✓ Create Community'}
+              </button>
             </div>
-            <div className="community-form-group">
-              <label>Community Banner (URL)</label>
-              <input
-                type="text"
-                placeholder="https://images.unsplash.com/..."
-                value={form.bannerUrl}
-                onChange={e => setForm(f => ({ ...f, bannerUrl: e.target.value }))}
-                className="community-input"
-              />
-            </div>
-            <div className="community-form-group">
-              <label>Status</label>
-              <select
-                value={form.status}
-                onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
-                className="community-input"
-                style={{ height: '42px' }}
-              >
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="community-form-group">
-            <label>Description</label>
-            <textarea
-              placeholder="Write description about this community..."
-              value={form.description}
-              onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-              className="community-textarea"
-              rows={2}
-            />
-          </div>
-
-          {error && <p className="community-form-error">⚠️ {error}</p>}
-          <div className="community-modal-actions" style={{ marginTop: '24px' }}>
-            <button type="button" className="community-btn-secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="community-btn-primary" disabled={loading}>
-              {loading ? 'Creating...' : '✓ Create Community'}
-            </button>
           </div>
         </form>
       </div>
@@ -263,139 +305,180 @@ const EditCommunityModal = ({ community, onClose, onUpdated }) => {
     <div className="community-modal-overlay" onClick={onClose}>
       <div className="community-modal community-modal-wide" onClick={e => e.stopPropagation()}>
         <div className="community-modal-header">
-          <h3>✏️ Edit Community Details</h3>
-          <button className="community-modal-close" onClick={onClose}>✕</button>
+          <div>
+            <h3>✏️ Edit Community Details</h3>
+            <p className="text-xs text-slate-500 mt-0.5">{community.name} • Master Management</p>
+          </div>
+          <button type="button" className="community-modal-close" onClick={onClose}>✕</button>
         </div>
-        <form onSubmit={handleSubmit}>
-          <div className="community-form-group">
-            <label>Community Name *</label>
-            <input
-              type="text"
-              value={form.name}
-              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-              className="community-input"
-            />
-          </div>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+          <div className="community-modal-body">
+            <div className="community-form-grid-2">
+              {/* Left Column: Essential Community Info & Head */}
+              <div>
+                <div className="community-form-group">
+                  <label>Community Name *</label>
+                  <input
+                    type="text"
+                    value={form.name}
+                    onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                    className="community-input"
+                  />
+                </div>
 
-          <div className="community-form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
-            <div className="community-form-group">
-              <label>Assigned Cities * (Select multiple if needed)</label>
-              <div className="flex flex-wrap gap-2 mt-1">
-                {availableCities.length > 0 ? (
-                  availableCities.map(city => (
-                    <button
-                      key={city.id}
-                      type="button"
-                      onClick={() => toggleCity(city.id)}
-                      className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition-all ${
-                        form.cityIds.includes(city.id)
-                          ? 'bg-purple-100 border-purple-500 text-purple-700 shadow-sm'
-                          : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
-                      }`}
-                    >
-                      {form.cityIds.includes(city.id) && '✓ '}
-                      {city.name}
-                    </button>
-                  ))
-                ) : (
-                  <div className="text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg border border-dashed border-gray-300">
-                    No active cities available. Please create cities in City Management first.
+                <div className="community-form-group">
+                  <label>Status</label>
+                  <select
+                    value={form.isActive ? 'Active' : 'Inactive'}
+                    onChange={e => setForm(f => ({ ...f, isActive: e.target.value === 'Active' }))}
+                    className="community-input"
+                    style={{ height: '42px' }}
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
+
+                <div className="community-form-group">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <label style={{ margin: 0 }}>Assigned Cities *</label>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#6366f1', background: '#eef2ff', padding: '2px 8px', borderRadius: '12px' }}>
+                      {form.cityIds.length} Selected
+                    </span>
                   </div>
-                )}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', maxHeight: '130px', overflowY: 'auto', padding: '8px', background: '#f8fafc', borderRadius: '10px', border: '1.5px solid #e2e8f0' }}>
+                    {availableCities.length > 0 ? (
+                      availableCities.map(city => (
+                        <button
+                          key={city.id}
+                          type="button"
+                          onClick={() => toggleCity(city.id)}
+                          className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all ${
+                            form.cityIds.includes(city.id)
+                              ? 'bg-purple-100 border-purple-500 text-purple-700 shadow-sm'
+                              : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                          }`}
+                        >
+                          {form.cityIds.includes(city.id) && '✓ '}
+                          {city.name}
+                        </button>
+                      ))
+                    ) : (
+                      <div className="text-xs text-gray-500 py-1">
+                        No active cities available. Please create cities in City Management first.
+                      </div>
+                    )}
+                  </div>
+                  <small className="community-hint">Select one or more cities where this community operates.</small>
+                </div>
+
+                <div className="community-form-group">
+                  <label>Assigned Community Head</label>
+                  <select
+                    value={form.headId}
+                    onChange={e => setForm(f => ({ ...f, headId: e.target.value }))}
+                    className="community-input"
+                    style={{ height: '42px' }}
+                  >
+                    <option value="">-- No Head Assigned --</option>
+                    {community.headId && (
+                      <option value={community.headId._id || community.headId}>
+                        Current: {community.headId.name || community.headId}
+                      </option>
+                    )}
+                  </select>
+                  <small className="community-hint">
+                    ℹ️ Select an eligible user to assign as the Community Head.
+                  </small>
+                </div>
+              </div>
+
+              {/* Right Column: Media, Banner & Description */}
+              <div>
+                <div className="community-form-group">
+                  <label>Community Logo</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{
+                      width: '48px', height: '48px', borderRadius: '12px', border: '1.5px dashed #cbd5e1',
+                      background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      overflow: 'hidden', flexShrink: 0
+                    }}>
+                      {form.logoUrl ? (
+                        <img src={form.logoUrl} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        <span style={{ fontSize: '1.2rem', fontWeight: 700, color: '#94a3b8' }}>
+                          {form.name?.charAt(0) || '🏛️'}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={e => {
+                          const file = e.target.files[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              setForm(f => ({ ...f, logoUrl: reader.result }));
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                        className="community-input"
+                        style={{ padding: '6px 10px', fontSize: '0.8rem' }}
+                      />
+                    </div>
+                  </div>
+                  {form.logoUrl && (
+                    <div style={{ marginTop: '4px', fontSize: '0.75rem', color: '#6366f1' }} className="truncate">
+                      {form.logoUrl.startsWith('data:image') ? '✓ New logo selected' : 'Current: ' + form.logoUrl}
+                    </div>
+                  )}
+                </div>
+
+                <div className="community-form-group">
+                  <label>Community Banner (URL)</label>
+                  <input
+                    type="text"
+                    placeholder="https://images.unsplash.com/..."
+                    value={form.bannerUrl}
+                    onChange={e => setForm(f => ({ ...f, bannerUrl: e.target.value }))}
+                    className="community-input"
+                  />
+                  {form.bannerUrl && (
+                    <div style={{ marginTop: '8px', borderRadius: '10px', overflow: 'hidden', border: '1.5px solid #e2e8f0', height: '60px', background: '#f8fafc' }}>
+                      <img src={form.bannerUrl} alt="Banner Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => e.target.style.display = 'none'} />
+                    </div>
+                  )}
+                </div>
+
+                <div className="community-form-group">
+                  <label>Description</label>
+                  <textarea
+                    placeholder="Write a brief overview about this community..."
+                    value={form.description}
+                    onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                    className="community-textarea"
+                    rows={3}
+                  />
+                </div>
               </div>
             </div>
-            <div className="community-form-group">
-              <label>Status</label>
-              <select
-                value={form.isActive ? 'Active' : 'Inactive'}
-                onChange={e => setForm(f => ({ ...f, isActive: e.target.value === 'Active' }))}
-                className="community-input"
-                style={{ height: '42px' }}
-              >
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-              </select>
-            </div>
           </div>
 
-          <div className="community-form-group">
-            <label>Community Logo</label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={e => {
-                const file = e.target.files[0];
-                if (file) {
-                  const reader = new FileReader();
-                  reader.onloadend = () => {
-                    setForm(f => ({ ...f, logoUrl: reader.result }));
-                  };
-                  reader.readAsDataURL(file);
-                }
-              }}
-              className="community-input"
-              style={{ padding: '8px' }}
-            />
-            {form.logoUrl && (
-              <div className="mt-1 text-xs text-brand-primary truncate">
-                {form.logoUrl.startsWith('data:image') ? 'New logo selected' : 'Current logo: ' + form.logoUrl}
-              </div>
-            )}
-          </div>
-
-          <div className="community-form-group">
-            <label>Community Banner (URL)</label>
-            <input
-              type="text"
-              placeholder="https://images.unsplash.com/..."
-              value={form.bannerUrl}
-              onChange={e => setForm(f => ({ ...f, bannerUrl: e.target.value }))}
-              className="community-input"
-            />
-            {form.bannerUrl && (
-              <div className="mt-2 rounded-xl overflow-hidden border border-slate-200 max-h-28">
-                <img src={form.bannerUrl} alt="Banner Preview" className="w-full h-24 object-cover" onError={(e) => e.target.style.display = 'none'} />
-              </div>
-            )}
-          </div>
-
-          <div className="community-form-group">
-            <label>Description</label>
-            <textarea
-              value={form.description}
-              onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-              className="community-textarea"
-              rows={3}
-            />
-          </div>
-
-          <div className="community-form-group">
-            <label>Assigned Community Head</label>
-            <select
-              value={form.headId}
-              onChange={e => setForm(f => ({ ...f, headId: e.target.value }))}
-              className="community-input"
-              style={{ height: '42px' }}
-            >
-              <option value="">-- No Head Assigned --</option>
-              {community.headId && (
-                <option value={community.headId._id || community.headId}>
-                  Current: {community.headId.name || community.headId}
-                </option>
-              )}
-              {/* Note: In a production setting, this would fetch a list of eligible users with the 'head' role from userService */}
-            </select>
-            <small className="community-hint">
-              ℹ️ Select an eligible user to assign as the Community Head.
-            </small>
-          </div>
-
-          {error && <p className="community-form-error">⚠️ {error}</p>}
           <div className="community-modal-actions">
-            <button type="button" className="community-btn-secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="community-btn-primary" disabled={loading}>
-              {loading ? 'Saving...' : 'Save Changes'}
-            </button>
+            {error ? (
+              <p className="community-form-error">⚠️ {error}</p>
+            ) : (
+              <span className="community-hint" style={{ margin: 0 }}>* Required fields</span>
+            )}
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button type="button" className="community-btn-secondary" onClick={onClose}>Cancel</button>
+              <button type="submit" className="community-btn-primary" disabled={loading}>
+                {loading ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
           </div>
         </form>
       </div>
@@ -433,32 +516,40 @@ const ModuleSettingsPanel = ({ community, onClose, onUpdated }) => {
     <div className="community-modal-overlay" onClick={onClose}>
       <div className="community-modal community-modal-wide" onClick={e => e.stopPropagation()}>
         <div className="community-modal-header">
-          <h3>⚙️ Module Settings — {community.name}</h3>
-          <button className="community-modal-close" onClick={onClose}>✕</button>
+          <div>
+            <h3>⚙️ Module Settings</h3>
+            <p className="text-xs text-slate-500 mt-0.5">{community.name} • Feature toggles</p>
+          </div>
+          <button type="button" className="community-modal-close" onClick={onClose}>✕</button>
         </div>
-        <p className="community-settings-subtitle">
-          Control which modules are enabled for this community.
-        </p>
-        <div className="community-module-grid">
-          {MODULE_FLAGS.map(({ key, label, icon }) => (
-            <div
-              key={key}
-              className={`community-module-toggle ${settings[key] ? 'active' : 'inactive'}`}
-              onClick={() => handleToggle(key)}
-            >
-              <span className="community-module-icon">{icon}</span>
-              <span className="community-module-label">{label}</span>
-              <div className={`community-toggle-switch ${settings[key] ? 'on' : 'off'}`}>
-                <div className="community-toggle-knob" />
+        <div className="community-modal-body">
+          <p className="community-settings-subtitle">
+            Control which modules and features are enabled for this community.
+          </p>
+          <div className="community-module-grid">
+            {MODULE_FLAGS.map(({ key, label, icon }) => (
+              <div
+                key={key}
+                className={`community-module-toggle ${settings[key] ? 'active' : 'inactive'}`}
+                onClick={() => handleToggle(key)}
+              >
+                <span className="community-module-icon">{icon}</span>
+                <span className="community-module-label">{label}</span>
+                <div className={`community-toggle-switch ${settings[key] ? 'on' : 'off'}`}>
+                  <div className="community-toggle-knob" />
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
         <div className="community-modal-actions">
-          <button className="community-btn-secondary" onClick={onClose}>Close</button>
-          <button className="community-btn-primary" onClick={handleSave} disabled={loading}>
-            {loading ? 'Saving...' : saved ? '✓ Saved!' : 'Save Settings'}
-          </button>
+          {saved && <span style={{ fontSize: '0.85rem', color: '#16a34a', fontWeight: 600 }}>✓ Changes saved successfully!</span>}
+          <div style={{ display: 'flex', gap: '10px', marginLeft: 'auto' }}>
+            <button className="community-btn-secondary" onClick={onClose}>Close</button>
+            <button className="community-btn-primary" onClick={handleSave} disabled={loading}>
+              {loading ? 'Saving...' : 'Save Settings'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -894,38 +985,55 @@ const COMMUNITIES_PAGE_STYLES = `
 
   /* Modal */
   .community-modal-overlay {
-    position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+    position: fixed; inset: 0; background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(8px);
     display: flex; align-items: center; justify-content: center; z-index: 9999; padding: 20px;
+    overflow-y: auto;
   }
   .community-modal {
-    background: #fff; border-radius: 20px; padding: 28px; width: 100%; max-width: 440px;
-    box-shadow: 0 24px 48px rgba(0,0,0,0.2); animation: modalSlideIn 0.25s ease;
+    background: #fff; border-radius: 20px; width: 100%; max-width: 500px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); animation: modalSlideIn 0.25s ease;
+    display: flex; flex-direction: column; max-height: 88vh; overflow: hidden;
   }
-  .community-modal-wide { max-width: 560px; }
-  @keyframes modalSlideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  .community-modal-wide { max-width: 820px; }
+  @keyframes modalSlideIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
   .community-modal-header {
     display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 20px;
+    padding: 18px 24px; border-bottom: 1px solid #f1f5f9; flex-shrink: 0; background: #ffffff;
   }
-  .community-modal-header h3 { font-size: 1.1rem; font-weight: 700; color: #1a1a2e; margin: 0; }
+  .community-modal-header h3 { font-size: 1.15rem; font-weight: 700; color: #1e1b4b; margin: 0; display: flex; align-items: center; gap: 8px; }
   .community-modal-close {
-    background: none; border: none; font-size: 1.1rem; cursor: pointer; color: #6b7280;
-    width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    background: none; border: none; font-size: 1.1rem; cursor: pointer; color: #94a3b8;
+    width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
   }
-  .community-modal-close:hover { background: #f3f4f6; }
-  .community-form-group { margin-bottom: 16px; }
-  .community-form-group label { display: block; font-size: 0.85rem; font-weight: 600; color: #374151; margin-bottom: 6px; }
+  .community-modal-close:hover { background: #f1f5f9; color: #334155; }
+  .community-modal-body {
+    padding: 20px 24px; overflow-y: auto; flex: 1; min-height: 0;
+  }
+  .community-form-grid-2 {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  }
+  @media (max-width: 768px) {
+    .community-form-grid-2 { grid-template-columns: 1fr; }
+    .community-modal-wide { max-width: 100%; }
+    .community-modal { max-height: 94vh; }
+  }
+  .community-form-group { margin-bottom: 14px; }
+  .community-form-group label { display: block; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px; }
   .community-input, .community-textarea {
-    width: 100%; padding: 10px 14px; border: 1.5px solid #e5e7eb; border-radius: 10px;
-    font-size: 0.9rem; outline: none; transition: border-color 0.2s; box-sizing: border-box;
-    font-family: inherit;
+    width: 100%; padding: 9px 12px; border: 1.5px solid #e2e8f0; border-radius: 10px;
+    font-size: 0.88rem; outline: none; transition: border-color 0.2s, box-shadow 0.2s; box-sizing: border-box;
+    font-family: inherit; color: #1e293b; background: #ffffff;
   }
-  .community-input:focus, .community-textarea:focus { border-color: #667eea; }
+  .community-input:focus, .community-textarea:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); }
   .community-input-mono { font-family: 'Courier New', monospace; font-size: 0.82rem; }
-  .community-hint { font-size: 0.75rem; color: #9ca3af; margin-top: 4px; display: block; }
-  .community-form-error { color: #ef4444; font-size: 0.82rem; margin: 8px 0; }
+  .community-hint { font-size: 0.73rem; color: #94a3b8; margin-top: 4px; display: block; }
+  .community-form-error { color: #ef4444; font-size: 0.82rem; margin: 0; }
   .community-modal-divider { text-align: center; color: #9ca3af; font-size: 0.82rem; margin: 12px 0; position: relative; }
-  .community-modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+  .community-modal-actions {
+    display: flex; gap: 10px; justify-content: space-between; align-items: center;
+    padding: 14px 24px; border-top: 1px solid #f1f5f9; background: #f8fafc; flex-shrink: 0;
+  }
   .community-current-head {
     display: flex; align-items: center; gap: 12px; background: #f0fdf4;
     border: 1px solid #bbf7d0; border-radius: 10px; padding: 12px; margin-bottom: 16px;

@@ -23,6 +23,8 @@ import donationService from '../../../../core/api/donationService';
 import { successStoryService } from '../../../../core/api/matrimonialService';
 import { axiosPrivate } from '../../../../core/api/axiosPrivate';
 import { AnimatedIconCards } from '../../components/common/AnimatedIconCards';
+import { useAuth } from '../../../../core/auth/useAuth';
+import { isMemberApproved, showApprovalRequiredNotice } from '../../utils/approvalUtils';
 
 
 
@@ -111,7 +113,10 @@ const quickActions = [
 
 const HomePage = () => {
   const navigate = useNavigate();
+  const { auth } = useAuth();
   const { currentUser, members: mockMembers, admins: contextAdmins, posts: mockPosts, events: mockEvents, language, setLanguage, notifications, getUnreadCountForModule } = useData();
+  const effectiveUser = auth?.isAuthenticated ? auth?.user : currentUser;
+  const isApproved = isMemberApproved(effectiveUser);
   const mockAdmins = contextAdmins && contextAdmins.length > 0 ? contextAdmins : mockAdminsRaw;
   const subHeadsRef = useDraggableScroll();
   const updatesScrollRef = useDraggableScroll();
@@ -468,9 +473,47 @@ const HomePage = () => {
       {/* Spacer */}
       <div className="h-4" />
 
-      {/* ─── PROFILE COMPLETION CARD ─── */}
-      {(() => {
-        const getRemainingProfileSections = (user) => {
+      {/* ─── APPROVAL PENDING NOTICE BANNER (Visible ONLY when not approved) ─── */}
+      {!isApproved && (
+        <div className="px-3 mb-5 animate-fade-in-up">
+          <div className="bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600 rounded-[24px] p-4 text-white shadow-[0_8px_30px_rgb(245,158,11,0.25)] relative overflow-hidden border border-amber-300/30">
+            <div className="absolute -right-4 -bottom-4 w-28 h-28 bg-white/10 rounded-full blur-xl pointer-events-none" />
+            <div className="flex items-start gap-3.5 relative z-10">
+              <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center shrink-0 border border-white/25 shadow-sm mt-0.5">
+                <Shield className="text-white animate-pulse" size={20} />
+              </div>
+              <div className="flex-1 min-w-0 text-left">
+                <div className="flex items-center gap-2">
+                  <span className="bg-black/25 text-white text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider border border-white/20 backdrop-blur-sm">
+                    Approval Pending / अनुमोदन प्रतीक्षित
+                  </span>
+                </div>
+                <h3 className="text-[14px] font-black tracking-tight leading-snug mt-1 text-white">
+                  Account Under Community Head Review
+                </h3>
+                <p className="text-[11px] text-amber-100/90 font-medium mt-1 leading-relaxed">
+                  You can explore the Samaj Banner, Core Leaders, and Success Stories below. Full access to Chat, Social Feed, Matrimony, and other features will be active once approved by the Community Head.
+                </p>
+                <div className="mt-3 flex items-center gap-2">
+                  <button
+                    onClick={() => navigate('/member/leadership')}
+                    className="px-3.5 py-1.5 bg-white hover:bg-amber-50 text-amber-900 text-[11px] font-extrabold rounded-xl flex items-center gap-1.5 transition-all press-scale shadow-sm"
+                  >
+                    <Users size={12} /> View Samaj Leaders <ArrowRight size={12} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── FULL MEMBER SECTIONS (Visible ONLY when approved by Community Head) ─── */}
+      {isApproved && (
+        <>
+          {/* ─── PROFILE COMPLETION CARD ─── */}
+          {(() => {
+            const getRemainingProfileSections = (user) => {
           if (!user) return [];
           const remaining = [];
           if (!user.qualification && !user.school) remaining.push({ name: 'Education Details', step: 'onboarding-4' });
@@ -1040,12 +1083,17 @@ const HomePage = () => {
 
       {/* ─── SECTION DIVIDER ─── */}
       <div className="mx-3 mt-8 mb-6 h-[1px] bg-gradient-to-r from-transparent via-purple-200/40 to-transparent" />
+        </>
+      )}
 
-      {/* ─── MATRIMONY SUCCESS STORIES ─── */}
+      {/* ─── MATRIMONY SUCCESS STORIES (Always Visible) ─── */}
       <div className="px-0 relative z-10">
         <div className="px-3 flex items-center justify-between mb-4">
           <h3 className="text-[17px] font-bold text-text-primary tracking-tight">Success Stories</h3>
-          <button onClick={() => navigate('/member/matrimonial')} className="text-[13px] text-pink-600 font-bold press-scale flex items-center gap-0.5">
+          <button 
+            onClick={() => isApproved ? navigate('/member/matrimonial') : showApprovalRequiredNotice('Matrimony')} 
+            className="text-[13px] text-pink-600 font-bold press-scale flex items-center gap-0.5"
+          >
             Find Your Perfect Match <ChevronRight size={16} />
           </button>
         </div>
@@ -1054,7 +1102,7 @@ const HomePage = () => {
         {displaySuccessStories.length > 0 && displaySuccessStories[0].featured && (
           <div className="px-3 mb-4">
             <div 
-              onClick={() => navigate(displaySuccessStories[0]._id ? `/member/matrimonial/success-stories/${displaySuccessStories[0]._id}` : '/member/matrimonial')}
+              onClick={() => isApproved ? navigate(displaySuccessStories[0]._id ? `/member/matrimonial/success-stories/${displaySuccessStories[0]._id}` : '/member/matrimonial') : showApprovalRequiredNotice('Matrimony')}
               className="w-full h-[220px] rounded-[24px] relative overflow-hidden shadow-lg shadow-purple-500/15 cursor-pointer active:scale-[0.98] transition-transform border border-purple-100/20"
             >
               <img src={displaySuccessStories[0].coverImage || displaySuccessStories[0].avatar} alt={displaySuccessStories[0].title || displaySuccessStories[0].groomName} className="absolute inset-0 w-full h-full object-cover" />
@@ -1078,7 +1126,7 @@ const HomePage = () => {
           {displaySuccessStories.filter(s => !s.featured).map((story, idx) => (
             <div 
               key={story.id || story._id || `story-${idx}`} 
-              onClick={() => navigate(story._id ? `/member/matrimonial/success-stories/${story._id}` : '/member/matrimonial')}
+              onClick={() => isApproved ? navigate(story._id ? `/member/matrimonial/success-stories/${story._id}` : '/member/matrimonial') : showApprovalRequiredNotice('Matrimony')}
               className="snap-center shrink-0 w-[275px] h-[340px] rounded-[28px] relative overflow-hidden shadow-lg shadow-purple-500/10 active:scale-[0.98] transition-transform cursor-pointer border border-white/10"
             >
               <img src={story.coverImage || story.avatar} alt={story.title || story.groomName} className="absolute inset-0 w-full h-full object-cover" />
@@ -1244,7 +1292,7 @@ const HomePage = () => {
                         <Phone size={11} /> Call
                       </a>
                       <button 
-                        onClick={() => navigate(`/member/chat/member/${president.id}`)}
+                        onClick={() => isApproved ? navigate(`/member/chat/member/${president.id}`) : showApprovalRequiredNotice('Chat Messenger')}
                         className="flex-1 py-1.5 rounded-xl border border-emerald-300/30 hover:bg-white/5 text-white text-[10px] font-bold flex items-center justify-center gap-1.5 active:scale-95 transition-transform backdrop-blur-sm"
                       >
                         <MessageCircle size={11} /> Chat
@@ -1296,7 +1344,7 @@ const HomePage = () => {
                             <Phone size={10} />
                           </a>
                           <button 
-                            onClick={() => navigate(`/member/chat/member/${member.id}`)}
+                            onClick={() => isApproved ? navigate(`/member/chat/member/${member.id}`) : showApprovalRequiredNotice('Chat Messenger')}
                             className="w-6 h-6 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 hover:bg-emerald-600 hover:text-white transition-colors"
                           >
                             <MessageCircle size={10} />
@@ -1311,194 +1359,199 @@ const HomePage = () => {
         })()}
       </div>
 
-      {/* ─── SECTION DIVIDER ─── */}
-      <div className="mx-3 mt-8 mb-6 h-[1px] bg-gradient-to-r from-transparent via-purple-200/40 to-transparent" />
+      {/* ─── APPROVED MEMBER ONLY BOTTOM SECTIONS ─── */}
+      {isApproved && (
+        <>
+          {/* ─── SECTION DIVIDER ─── */}
+          <div className="mx-3 mt-8 mb-6 h-[1px] bg-gradient-to-r from-transparent via-purple-200/40 to-transparent" />
 
-      {/* ─── UPCOMING EVENTS ─── */}
-      <div className="px-0">
-        <div className="px-3 flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-[17px] font-bold text-text-primary tracking-tight">Upcoming Events</h3>
-            <p className="text-[11px] text-text-secondary font-medium mt-0.5">Upcoming Events</p>
-          </div>
-          <button onClick={() => navigate('/member/events')} className="text-[13px] text-brand-primary font-bold press-scale flex items-center gap-0.5">
-            View More <ChevronRight size={16} />
-          </button>
-        </div>
-        <div className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide gap-3 pb-3 px-3">
-          {personalizedEvents.slice(0, 4).map((event, idx) => {
-            const gradients = {
-              Cultural: 'from-purple-500 to-violet-600',
-              Education: 'from-blue-500 to-cyan-600',
-              Matrimonial: 'from-pink-500 to-rose-600',
-              Health: 'from-emerald-500 to-teal-600',
-              Sports: 'from-orange-500 to-amber-600',
-            };
-            const catGradient = gradients[event.category] || gradients.Cultural;
-            return (
-              <div
-                key={event.id || event._id || `event-${idx}`}
-                className="snap-center shrink-0 w-[260px] card-neo overflow-hidden cursor-pointer active:scale-[0.97] transition-transform"
-                onClick={() => navigate(`/member/events/${event._id || event.id}`)}
-              >
-                {/* Image / Gradient Header */}
-                <div className="h-[100px] relative flex items-center justify-center overflow-hidden bg-gray-900 rounded-t-[24px]">
-                  {event.image ? (
-                    <img 
-                      src={event.image} 
-                      alt={event.title} 
-                      className="absolute inset-0 w-full h-full object-cover opacity-90 transition-transform duration-300 hover:scale-105"
-                    />
-                  ) : (
-                    <div className={`absolute inset-0 bg-gradient-to-br ${catGradient}`} />
-                  )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/10" />
-                  
-                  {!event.image && (
-                    <CalendarDays size={48} className="text-white/10 absolute right-2 top-2" />
-                  )}
-                  
-                  <div className="absolute bottom-[-12px] left-3 z-10">
-                    <div className="w-[42px] h-[48px] bg-white rounded-xl shadow-md flex flex-col items-center justify-center border border-purple-100/30">
-                      <span className="text-[17px] font-bold text-text-primary leading-none">{event.day}</span>
-                      <span className="text-[8px] font-bold text-brand-primary mt-0.5 uppercase">{event.monthShort}</span>
+          {/* ─── UPCOMING EVENTS ─── */}
+          <div className="px-0">
+            <div className="px-3 flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-[17px] font-bold text-text-primary tracking-tight">Upcoming Events</h3>
+                <p className="text-[11px] text-text-secondary font-medium mt-0.5">Upcoming Events</p>
+              </div>
+              <button onClick={() => navigate('/member/events')} className="text-[13px] text-brand-primary font-bold press-scale flex items-center gap-0.5">
+                View More <ChevronRight size={16} />
+              </button>
+            </div>
+            <div className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide gap-3 pb-3 px-3">
+              {personalizedEvents.slice(0, 4).map((event, idx) => {
+                const gradients = {
+                  Cultural: 'from-purple-500 to-violet-600',
+                  Education: 'from-blue-500 to-cyan-600',
+                  Matrimonial: 'from-pink-500 to-rose-600',
+                  Health: 'from-emerald-500 to-teal-600',
+                  Sports: 'from-orange-500 to-amber-600',
+                };
+                const catGradient = gradients[event.category] || gradients.Cultural;
+                return (
+                  <div
+                    key={event.id || event._id || `event-${idx}`}
+                    className="snap-center shrink-0 w-[260px] card-neo overflow-hidden cursor-pointer active:scale-[0.97] transition-transform"
+                    onClick={() => navigate(`/member/events/${event._id || event.id}`)}
+                  >
+                    {/* Image / Gradient Header */}
+                    <div className="h-[100px] relative flex items-center justify-center overflow-hidden bg-gray-900 rounded-t-[24px]">
+                      {event.image ? (
+                        <img 
+                          src={event.image} 
+                          alt={event.title} 
+                          className="absolute inset-0 w-full h-full object-cover opacity-90 transition-transform duration-300 hover:scale-105"
+                        />
+                      ) : (
+                        <div className={`absolute inset-0 bg-gradient-to-br ${catGradient}`} />
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/10" />
+                      
+                      {!event.image && (
+                        <CalendarDays size={48} className="text-white/10 absolute right-2 top-2" />
+                      )}
+                      
+                      <div className="absolute bottom-[-12px] left-3 z-10">
+                        <div className="w-[42px] h-[48px] bg-white rounded-xl shadow-md flex flex-col items-center justify-center border border-purple-100/30">
+                          <span className="text-[17px] font-bold text-text-primary leading-none">{event.day}</span>
+                          <span className="text-[8px] font-bold text-brand-primary mt-0.5 uppercase">{event.monthShort}</span>
+                        </div>
+                      </div>
+                      {event.isFeatured && (
+                        <span className="absolute top-2 left-2 bg-amber-400 text-amber-900 text-[8px] font-bold px-2 py-0.5 rounded-full shadow-sm">
+                          ★ Featured
+                        </span>
+                      )}
+                      <span className="absolute top-2 right-2 bg-black/30 backdrop-blur-md text-white text-[9px] font-bold px-2 py-0.5 rounded-full border border-white/10">
+                        {event.category}
+                      </span>
+                    </div>
+                    {/* Card Body */}
+                    <div className="p-3 pt-5">
+                      <h4 className="font-bold text-[13px] text-text-primary leading-snug line-clamp-2">{event.titleEn || event.title}</h4>
+                      <div className="flex flex-col gap-1 mt-2">
+                        <p className="text-[11px] text-text-secondary flex items-center gap-1 line-clamp-1">
+                          <Clock size={10} className="text-text-muted shrink-0" /> {event.timeEn || event.time}
+                        </p>
+                        <p className="text-[11px] text-text-secondary flex items-center gap-1 line-clamp-1">
+                          <MapPin size={10} className="text-text-muted shrink-0" /> {(event.venueEn || event.venue).split(',')[0]}
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-purple-100/20">
+                        <span className="text-[10px] text-text-secondary font-medium flex items-center gap-1">
+                          <Users size={10} className="text-text-muted" /> {event.interested || event.attendees}+ Likes
+                        </span>
+                        {event.isRegistered ? (
+                          <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100 flex items-center gap-0.5">
+                            ✓ RSVP'd
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold text-brand-primary bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100/50">
+                            Join →
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  {event.isFeatured && (
-                    <span className="absolute top-2 left-2 bg-amber-400 text-amber-900 text-[8px] font-bold px-2 py-0.5 rounded-full shadow-sm">
-                      ★ Featured
-                    </span>
-                  )}
-                  <span className="absolute top-2 right-2 bg-black/30 backdrop-blur-md text-white text-[9px] font-bold px-2 py-0.5 rounded-full border border-white/10">
-                    {event.category}
-                  </span>
-                </div>
-                {/* Card Body */}
-                <div className="p-3 pt-5">
-                  <h4 className="font-bold text-[13px] text-text-primary leading-snug line-clamp-2">{event.titleEn || event.title}</h4>
-                  <div className="flex flex-col gap-1 mt-2">
-                    <p className="text-[11px] text-text-secondary flex items-center gap-1 line-clamp-1">
-                      <Clock size={10} className="text-text-muted shrink-0" /> {event.timeEn || event.time}
-                    </p>
-                    <p className="text-[11px] text-text-secondary flex items-center gap-1 line-clamp-1">
-                      <MapPin size={10} className="text-text-muted shrink-0" /> {(event.venueEn || event.venue).split(',')[0]}
-                    </p>
-                  </div>
-                  <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-purple-100/20">
-                    <span className="text-[10px] text-text-secondary font-medium flex items-center gap-1">
-                      <Users size={10} className="text-text-muted" /> {event.interested || event.attendees}+ Likes
-                    </span>
-                    {event.isRegistered ? (
-                      <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100 flex items-center gap-0.5">
-                        ✓ RSVP'd
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-bold text-brand-primary bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100/50">
-                        Join →
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* ─── SECTION DIVIDER ─── */}
-      <div className="mx-3 mt-8 mb-6 h-[1px] bg-gradient-to-r from-transparent via-purple-200/40 to-transparent" />
-
-      {/* ─── COMMUNITY FEED PREVIEW ─── */}
-      <div className="px-3">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-[17px] font-bold text-text-primary tracking-tight">Community Feed</h3>
-          <button onClick={() => navigate('/member/social')} className="text-[13px] text-social-module font-bold press-scale flex items-center gap-0.5">
-            View All <ChevronRight size={16} />
-          </button>
-        </div>
-        <div className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide gap-3 pb-2 -mx-3 px-3">
-          {communityPosts.slice(0, 5).map((post, i) => {
-            const matchedMember = mockMembers.find(m => m.name === post.author.name) || mockAdmins.find(a => a.name === post.author.name);
-            const handleAuthorClick = (e) => {
-              if (matchedMember) {
-                e.stopPropagation();
-                navigate(`/member/directory/${matchedMember.id}`);
-              }
-            };
-
-            return (
-              <div key={post.id} className="card-neo p-4 press-scale animate-stagger-fade-in shrink-0 w-[275px] snap-center" style={{ animationDelay: `${i * 80}ms` }} onClick={() => navigate(`/member/social/${post.id}`)}>
-                <div className="flex items-center gap-3 mb-3">
-                  <div onClick={handleAuthorClick} className={matchedMember ? 'cursor-pointer' : ''}>
-                    <Avatar initials={post.author.initials} size="sm" />
-                  </div>
-                  <div className="flex-1">
-                    <h4 onClick={handleAuthorClick} className={`text-[14px] font-bold text-text-primary ${matchedMember ? 'cursor-pointer hover:underline hover:text-brand-primary' : ''}`}>{post.author.name}</h4>
-                    <p className="text-[12px] text-text-secondary">{post.community} · {post.timestamp}</p>
-                  </div>
-                </div>
-              <p className="text-[14px] text-text-primary leading-relaxed line-clamp-2">{post.content}</p>
-              <div className="flex items-center gap-5 mt-3 pt-3 border-t border-purple-100/20">
-                <span className="text-[13px] text-text-secondary font-medium">❤️ {post.likes}</span>
-                <span className="text-[13px] text-text-secondary font-medium">💬 {post.comments}</span>
-              </div>
+                );
+              })}
             </div>
-            );
-          })}
-        </div>
-      </div>
+          </div>
 
-      {/* ─── SECTION DIVIDER ─── */}
-      <div className="mx-3 mt-8 mb-6 h-[1px] bg-gradient-to-r from-transparent via-purple-200/40 to-transparent" />
+          {/* ─── SECTION DIVIDER ─── */}
+          <div className="mx-3 mt-8 mb-6 h-[1px] bg-gradient-to-r from-transparent via-purple-200/40 to-transparent" />
 
-      {/* ─── REFER & EARN BANNER ─── */}
-      <div className="px-3 mb-8">
-        <ReferAndEarnBanner />
-      </div>
+          {/* ─── COMMUNITY FEED PREVIEW ─── */}
+          <div className="px-3">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[17px] font-bold text-text-primary tracking-tight">Community Feed</h3>
+              <button onClick={() => navigate('/member/social')} className="text-[13px] text-social-module font-bold press-scale flex items-center gap-0.5">
+                View All <ChevronRight size={16} />
+              </button>
+            </div>
+            <div className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide gap-3 pb-2 -mx-3 px-3">
+              {communityPosts.slice(0, 5).map((post, i) => {
+                const matchedMember = mockMembers.find(m => m.name === post.author.name) || mockAdmins.find(a => a.name === post.author.name);
+                const handleAuthorClick = (e) => {
+                  if (matchedMember) {
+                    e.stopPropagation();
+                    navigate(`/member/directory/${matchedMember.id}`);
+                  }
+                };
 
-      {/* ─── SECTION DIVIDER ─── */}
-      <div className="mx-3 mt-2 mb-6 h-[1px] bg-gradient-to-r from-transparent via-purple-200/40 to-transparent" />
+                return (
+                  <div key={post.id} className="card-neo p-4 press-scale animate-stagger-fade-in shrink-0 w-[275px] snap-center" style={{ animationDelay: `${i * 80}ms` }} onClick={() => navigate(`/member/social/${post.id}`)}>
+                    <div className="flex items-center gap-3 mb-3">
+                      <div onClick={handleAuthorClick} className={matchedMember ? 'cursor-pointer' : ''}>
+                        <Avatar initials={post.author.initials} size="sm" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 onClick={handleAuthorClick} className={`text-[14px] font-bold text-text-primary ${matchedMember ? 'cursor-pointer hover:underline hover:text-brand-primary' : ''}`}>{post.author.name}</h4>
+                        <p className="text-[12px] text-text-secondary">{post.community} · {post.timestamp}</p>
+                      </div>
+                    </div>
+                  <p className="text-[14px] text-text-primary leading-relaxed line-clamp-2">{post.content}</p>
+                  <div className="flex items-center gap-5 mt-3 pt-3 border-t border-purple-100/20">
+                    <span className="text-[13px] text-text-secondary font-medium">❤️ {post.likes}</span>
+                    <span className="text-[13px] text-text-secondary font-medium">💬 {post.comments}</span>
+                  </div>
+                </div>
+                );
+              })}
+            </div>
+          </div>
 
-      {/* ─── END OF FEED ILLUSTRATION ─── */}
-      {liveFooterArtwork?.enabled !== false && (
-        <div className="mt-8 relative w-full h-[450px] flex flex-col items-center justify-end overflow-hidden pb-[160px] -mb-[120px] bg-gradient-to-b from-transparent to-purple-50/50">
-          {/* Background Artwork: Custom Image (100% natural) or SVG CityLandscape */}
-          {liveFooterArtwork?.artworkType === 'image' && liveFooterArtwork?.backgroundImage ? (
-            <img 
-              src={liveFooterArtwork.backgroundImage} 
-              alt="Footer Background" 
-              className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
-            />
-          ) : (
-            <div className="absolute inset-0 w-full h-full pointer-events-none select-none text-brand-primary">
-              <CityLandscape className="w-full h-full" />
+          {/* ─── SECTION DIVIDER ─── */}
+          <div className="mx-3 mt-8 mb-6 h-[1px] bg-gradient-to-r from-transparent via-purple-200/40 to-transparent" />
+
+          {/* ─── REFER & EARN BANNER ─── */}
+          <div className="px-3 mb-8">
+            <ReferAndEarnBanner />
+          </div>
+
+          {/* ─── SECTION DIVIDER ─── */}
+          <div className="mx-3 mt-2 mb-6 h-[1px] bg-gradient-to-r from-transparent via-purple-200/40 to-transparent" />
+
+          {/* ─── END OF FEED ILLUSTRATION ─── */}
+          {liveFooterArtwork?.enabled !== false && (
+            <div className="mt-8 relative w-full h-[450px] flex flex-col items-center justify-end overflow-hidden pb-[160px] -mb-[120px] bg-gradient-to-b from-transparent to-purple-50/50">
+              {/* Background Artwork: Custom Image (100% natural) or SVG CityLandscape */}
+              {liveFooterArtwork?.artworkType === 'image' && liveFooterArtwork?.backgroundImage ? (
+                <img 
+                  src={liveFooterArtwork.backgroundImage} 
+                  alt="Footer Background" 
+                  className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
+                />
+              ) : (
+                <div className="absolute inset-0 w-full h-full pointer-events-none select-none text-brand-primary">
+                  <CityLandscape className="w-full h-full" />
+                </div>
+              )}
+              
+              {/* End text */}
+              <div className="relative z-10 flex flex-col items-center">
+                 <h3 className="text-brand-primary/40 text-[42px] font-black italic tracking-tighter mb-2 drop-shadow-md leading-none select-none">
+                   {liveFooterArtwork?.hashtagText || '#MeriSamaj'}
+                 </h3>
+                 <div className="bg-white/85 backdrop-blur-xl px-6 py-2.5 rounded-2xl border border-purple-200/40 shadow-sm flex flex-col items-center text-center">
+                   <span className="text-text-secondary text-[14px] font-black tracking-wide">
+                     {liveFooterArtwork?.caughtUpTitle || "You're all caught up!"}
+                   </span>
+                   <span className="text-text-muted text-[11px] font-medium mt-0.5">
+                     {liveFooterArtwork?.caughtUpSubtitle || 'Check back later for new updates'}
+                   </span>
+                 </div>
+              </div>
             </div>
           )}
-          
-          {/* End text */}
-          <div className="relative z-10 flex flex-col items-center">
-             <h3 className="text-brand-primary/40 text-[42px] font-black italic tracking-tighter mb-2 drop-shadow-md leading-none select-none">
-               {liveFooterArtwork?.hashtagText || '#MeriSamaj'}
-             </h3>
-             <div className="bg-white/85 backdrop-blur-xl px-6 py-2.5 rounded-2xl border border-purple-200/40 shadow-sm flex flex-col items-center text-center">
-               <span className="text-text-secondary text-[14px] font-black tracking-wide">
-                 {liveFooterArtwork?.caughtUpTitle || "You're all caught up!"}
-               </span>
-               <span className="text-text-muted text-[11px] font-medium mt-0.5">
-                 {liveFooterArtwork?.caughtUpSubtitle || 'Check back later for new updates'}
-               </span>
-             </div>
-          </div>
-        </div>
-      )}
 
-      {/* ─── MEDIA FAB ─── */}
-      <button
-        onClick={() => navigate('/member/social/create')}
-        className="fixed bottom-[100px] right-5 w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-primary to-brand-glow text-white flex items-center justify-center shadow-[0_8px_30px_rgba(124,58,237,0.35)] press-scale z-40 hover:scale-105 transition-transform animate-glow-pulse"
-      >
-        <ImagePlus size={23} />
-      </button>
+          {/* ─── MEDIA FAB ─── */}
+          <button
+            onClick={() => navigate('/member/social/create')}
+            className="fixed bottom-[100px] right-5 w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-primary to-brand-glow text-white flex items-center justify-center shadow-[0_8px_30px_rgba(124,58,237,0.35)] press-scale z-40 hover:scale-105 transition-transform animate-glow-pulse"
+          >
+            <ImagePlus size={23} />
+          </button>
+        </>
+      )}
 
     </div>
   );

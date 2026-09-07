@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Menu, Home, Heart, Search, Filter, ShieldCheck, Sparkles, AlertCircle } from 'lucide-react';
 import memberDonationApi from '../../api/memberDonationApi';
@@ -14,6 +14,7 @@ export const MemberDonations = () => {
   const { user: authUser } = useAuth();
   const activeUser = currentUser || authUser;
   const [donations, setDonations] = useState([]);
+  const [dbCategories, setDbCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -24,6 +25,20 @@ export const MemberDonations = () => {
   const [isDonateModalOpen, setIsDonateModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successToast, setSuccessToast] = useState(null);
+
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const res = await memberDonationApi.getCategories();
+        if (res && res.data && Array.isArray(res.data)) {
+          setDbCategories(res.data);
+        }
+      } catch (err) {
+        console.error('Failed to load donation categories:', err);
+      }
+    };
+    loadCategories();
+  }, []);
 
   const fetchActiveDonations = useCallback(async () => {
     try {
@@ -137,39 +152,77 @@ export const MemberDonations = () => {
     }
   };
 
-  const categories = [
-    { id: 'all', label: 'All Causes' },
-    { id: 'General', label: 'General Relief' },
-    { id: 'Health', label: 'Health & Medical' },
-    { id: 'Education', label: 'Education' },
-    { id: 'Temple', label: 'Temple' },
-    { id: 'Social', label: 'Social Welfare' }
-  ];
+  const categories = useMemo(() => {
+    const list = [{ id: 'all', label: 'All Causes' }];
+    const seen = new Set(['all']);
 
-  const filteredDonations = donations.filter((item) => {
-    if (selectedCategory !== 'all') {
-      const itemCat = (item.category || '').toLowerCase();
-      const selCat = selectedCategory.toLowerCase();
-      
-      const matchesCategory = 
-        itemCat.includes(selCat) ||
-        selCat.includes(itemCat) ||
-        (selCat === 'health' && (itemCat.includes('health') || itemCat.includes('medical'))) ||
-        (selCat === 'social' && (itemCat.includes('social') || itemCat.includes('welfare'))) ||
-        (selCat === 'general' && (itemCat.includes('general') || itemCat.includes('relief')));
+    // 1. Categories from Database
+    dbCategories.forEach(c => {
+      const name = c.name?.trim();
+      if (name && !seen.has(name.toLowerCase())) {
+        seen.add(name.toLowerCase());
+        list.push({ id: name, label: name });
+      }
+    });
 
-      if (!matchesCategory) return false;
+    // 2. Active categories from loaded donation campaigns (self-healing for any newly created category)
+    donations.forEach(d => {
+      const cat = d.category?.trim();
+      if (cat && !seen.has(cat.toLowerCase())) {
+        seen.add(cat.toLowerCase());
+        list.push({ id: cat, label: cat });
+      }
+    });
+
+    // 3. Fallback defaults if list has only 'all'
+    if (list.length === 1) {
+      const defaults = [
+        'General Relief',
+        'Health & Medical',
+        'Education & Scholarships',
+        'Temple & Infrastructure',
+        'Social Welfare',
+        'Event Funding'
+      ];
+      defaults.forEach(d => {
+        list.push({ id: d, label: d });
+      });
     }
 
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      const titleMatch = (item.title || '').toLowerCase().includes(q);
-      const descMatch = (item.description || item.desc || item.shortDescription || '').toLowerCase().includes(q);
-      if (!titleMatch && !descMatch) return false;
-    }
+    return list;
+  }, [dbCategories, donations]);
 
-    return true;
-  });
+  const filteredDonations = useMemo(() => {
+    return donations.filter((item) => {
+      if (selectedCategory !== 'all') {
+        const itemCat = (item.category || '').trim().toLowerCase();
+        const selCat = selectedCategory.trim().toLowerCase();
+
+        const matchesCategory =
+          itemCat === selCat ||
+          itemCat.includes(selCat) ||
+          selCat.includes(itemCat) ||
+          (selCat.includes('health') && (itemCat.includes('health') || itemCat.includes('medical'))) ||
+          (selCat.includes('medical') && (itemCat.includes('health') || itemCat.includes('medical'))) ||
+          (selCat.includes('social') && (itemCat.includes('social') || itemCat.includes('welfare'))) ||
+          (selCat.includes('general') && (itemCat.includes('general') || itemCat.includes('relief'))) ||
+          (selCat.includes('temple') && (itemCat.includes('temple') || itemCat.includes('religious') || itemCat.includes('infrastructure'))) ||
+          (selCat.includes('infrastructure') && (itemCat.includes('infrastructure') || itemCat.includes('temple')));
+
+        if (!matchesCategory) return false;
+      }
+
+      if (search.trim()) {
+        const q = search.trim().toLowerCase();
+        const titleMatch = (item.title || '').toLowerCase().includes(q);
+        const descMatch = (item.description || item.desc || item.shortDescription || '').toLowerCase().includes(q);
+        const catMatch = (item.category || '').toLowerCase().includes(q);
+        if (!titleMatch && !descMatch && !catMatch) return false;
+      }
+
+      return true;
+    });
+  }, [donations, selectedCategory, search]);
 
   return (
     <div className="min-h-screen bg-slate-50/70 flex flex-col pb-24 font-sans select-none">

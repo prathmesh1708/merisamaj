@@ -1,4 +1,5 @@
 const Donation = require('../../models/Donation');
+const DonationCategory = require('../../models/DonationCategory');
 const paymentService = require('../../services/paymentService');
 const { notifyDonationReceived, notifyDonationReceipt } = require('../../services/notificationService');
 const { sendPushNotification } = require('../../services/pushNotificationService');
@@ -13,12 +14,24 @@ exports.getCampaigns = async (req, res) => {
     const { category, search } = req.query;
     let baseFilter = {
       isDeleted: { $ne: true },
-      status: { $nin: ['Completed', 'Closed', 'Suspended', 'Archived', 'Deleted'] }
+      status: { $nin: ['Draft', 'Completed', 'Closed', 'Suspended', 'Archived', 'Deleted'] }
     };
 
     if (category && category !== 'all' && category !== 'All') {
-      const cleanCat = escapeRegex(category.trim());
-      baseFilter.category = { $regex: cleanCat, $options: 'i' };
+      const cleanCat = category.trim().toLowerCase();
+      let catRegex = escapeRegex(cleanCat);
+      if (cleanCat.includes('health') || cleanCat.includes('medical')) {
+        catRegex = 'health|medical';
+      } else if (cleanCat.includes('general') || cleanCat.includes('relief')) {
+        catRegex = 'general|relief';
+      } else if (cleanCat.includes('social') || cleanCat.includes('welfare')) {
+        catRegex = 'social|welfare';
+      } else if (cleanCat.includes('temple') || cleanCat.includes('religious')) {
+        catRegex = 'temple|religious|puja|mandir';
+      } else if (cleanCat.includes('education') || cleanCat.includes('scholarship')) {
+        catRegex = 'education|scholarship|school|college';
+      }
+      baseFilter.category = { $regex: catRegex, $options: 'i' };
     }
 
     if (search && search.trim()) {
@@ -88,7 +101,7 @@ exports.getCampaignById = async (req, res) => {
 
     // Community Isolation & Scope Guard
     if (req.communityId) {
-      const isGlobal = campaign.isGlobalCampaign === true;
+      const isGlobal = campaign.isGlobalCampaign === true || ['All Members', 'All Communities', 'Global', 'All Locations'].includes(campaign.visibility);
       const isTargeted = Array.isArray(campaign.targetedCommunities) && campaign.targetedCommunities.some(cId => {
         const idStr = cId?._id ? cId._id.toString() : cId?.toString();
         return idStr === req.communityId.toString();
@@ -1024,4 +1037,19 @@ exports.getAllDonors = async (req, res) => {
     res.status(500).json({ success: false, status: 'error', message: error.message });
   }
 };
+
+// GET /member/donations/categories — Get categories
+exports.getCategories = async (req, res) => {
+  try {
+    const categories = await DonationCategory.find().sort({ isDefault: -1, createdAt: 1 });
+    res.status(200).json({
+      success: true,
+      status: 'success',
+      data: categories
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, status: 'error', message: error.message });
+  }
+};
+
 

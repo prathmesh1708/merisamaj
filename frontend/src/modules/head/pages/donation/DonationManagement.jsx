@@ -130,6 +130,9 @@ const DonationManagement = () => {
     const query = (searchQuery || '').toLowerCase();
     const matchesSearch = title.includes(query);
     if (activeTab === 'All') return matchesSearch;
+    if (activeTab === 'Active' || activeTab === 'Published') {
+      return (c.status === 'Active' || c.status === 'Published') && matchesSearch;
+    }
     return (c.status === activeTab) && matchesSearch;
   });
 

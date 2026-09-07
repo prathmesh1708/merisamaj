@@ -12,6 +12,7 @@ router.post('/donate', donationController.createDonation);
 router.post('/:id/donate', donationController.createDonation);
 router.get('/stats', donationController.getStats);
 router.get('/all-donors', donationController.getAllDonors);
+router.get('/categories', donationController.getCategories);
 
 // Razorpay Gateway Endpoints
 router.post('/create-order', donationController.createRazorpayOrder);

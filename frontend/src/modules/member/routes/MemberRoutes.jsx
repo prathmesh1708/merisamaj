@@ -4,8 +4,9 @@ import { AnimatePresence } from 'framer-motion';
 import { MemberLayout } from '../components/layout/MemberLayout';
 import { AnimatedPage } from '../components/layout/AnimatedPage';
 
-// Onboarding
+// Onboarding & Protection
 import MemberProtectedRoute from '../../../core/routes/MemberProtectedRoute';
+import ApprovedRouteGuard from '../../../core/routes/ApprovedRouteGuard';
 import PublicRoute from '../../../core/routes/PublicRoute';
 import SplashScreen from '../pages/onboarding/SplashScreen';
 import LoginScreen from '../pages/onboarding/LoginScreen';
@@ -128,120 +129,122 @@ export const MemberRoutes = () => {
             <Route path="onboarding" element={<OnboardingScreen />} />
             {/* Main App — with bottom nav */}
             <Route path="/" element={<MemberLayout />}>
-            <Route index element={<Navigate to="home" replace />} />
+              <Route index element={<Navigate to="home" replace />} />
 
-            {/* Main Tabs */}
-            <Route path="home" element={<AnimatedPage><HomePage /></AnimatedPage>} />
-            <Route path="social" element={<AnimatedPage><SocialHubPage initialTab="feed" /></AnimatedPage>} />
-            <Route path="social/insights" element={<AnimatedPage><SocialInsightsPage /></AnimatedPage>} />
+              {/* Unrestricted Member Pages (Accessible by Pending Members) */}
+              <Route path="home" element={<AnimatedPage><HomePage /></AnimatedPage>} />
+              <Route path="leadership" element={<AnimatedPage><LeadershipPage /></AnimatedPage>} />
+              <Route path="profile" element={<AnimatedPage><MyProfilePage /></AnimatedPage>} />
+              <Route path="profile/edit" element={<AnimatedPage><EditProfilePage /></AnimatedPage>} />
+              <Route path="profile/family" element={<AnimatedPage><FamilyPage /></AnimatedPage>} />
+              <Route path="profile/verify" element={<AnimatedPage><VerifyMembershipPage /></AnimatedPage>} />
+              <Route path="profile/upgrade" element={<AnimatedPage><UpgradeMembershipPage /></AnimatedPage>} />
+              <Route path="settings" element={<AnimatedPage><SettingsPage /></AnimatedPage>} />
+              <Route path="notifications" element={<AnimatedPage><NotificationsPage /></AnimatedPage>} />
 
-            <Route path="matrimonial" element={<MatrimonialProvider />}>
-              <Route index element={<AnimatedPage><MatrimonialHomePage /></AnimatedPage>} />
-              <Route path="setup" element={<AnimatedPage><MatrimonialSetupPage /></AnimatedPage>} />
-              <Route path="interests" element={<AnimatedPage><InterestsPage /></AnimatedPage>} />
-              <Route path="search" element={<AnimatedPage><MatrimonialSearchPage /></AnimatedPage>} />
-              <Route path="shortlist" element={<AnimatedPage><MatrimonialShortlistPage /></AnimatedPage>} />
-              <Route path="stories" element={<AnimatedPage><MatrimonialSuccessStories /></AnimatedPage>} />
-              <Route path="success-stories/:id" element={<AnimatedPage><SuccessStoryDetails /></AnimatedPage>} />
-              <Route path=":profileId" element={<AnimatedPage><MatrimonialProfilePage /></AnimatedPage>} />
-              <Route path="chat/:conversationId" element={<AnimatedPage><MatrimonialChatPage /></AnimatedPage>} />
-              <Route path="subscription" element={<AnimatedPage><MatrimonialSubscriptionPage /></AnimatedPage>} />
+              {/* Referral & Rewards (Accessible by all registered members) */}
+              <Route path="referral" element={<AnimatedPage><ReferralDashboardPage /></AnimatedPage>} />
+              <Route path="referral/earnings" element={<AnimatedPage><MyEarningsPage /></AnimatedPage>} />
+              <Route path="referral/redeem" element={<AnimatedPage><RedeemPointsPage /></AnimatedPage>} />
+
+              {/* ─── Approved-Only Protected Member Routes (Requires Head Approval) ─── */}
+              <Route element={<ApprovedRouteGuard />}>
+                {/* Social Hub */}
+                <Route path="social" element={<AnimatedPage><SocialHubPage initialTab="feed" /></AnimatedPage>} />
+                <Route path="social/insights" element={<AnimatedPage><SocialInsightsPage /></AnimatedPage>} />
+                <Route path="social/create" element={<AnimatedPage><CreatePostPage /></AnimatedPage>} />
+                <Route path="social/:postId" element={<AnimatedPage><PostDetailPage /></AnimatedPage>} />
+
+                {/* Matrimonial Module */}
+                <Route path="matrimonial" element={<MatrimonialProvider />}>
+                  <Route index element={<AnimatedPage><MatrimonialHomePage /></AnimatedPage>} />
+                  <Route path="setup" element={<AnimatedPage><MatrimonialSetupPage /></AnimatedPage>} />
+                  <Route path="interests" element={<AnimatedPage><InterestsPage /></AnimatedPage>} />
+                  <Route path="search" element={<AnimatedPage><MatrimonialSearchPage /></AnimatedPage>} />
+                  <Route path="shortlist" element={<AnimatedPage><MatrimonialShortlistPage /></AnimatedPage>} />
+                  <Route path="stories" element={<AnimatedPage><MatrimonialSuccessStories /></AnimatedPage>} />
+                  <Route path="success-stories/:id" element={<AnimatedPage><SuccessStoryDetails /></AnimatedPage>} />
+                  <Route path=":profileId" element={<AnimatedPage><MatrimonialProfilePage /></AnimatedPage>} />
+                  <Route path="chat/:conversationId" element={<AnimatedPage><MatrimonialChatPage /></AnimatedPage>} />
+                  <Route path="subscription" element={<AnimatedPage><MatrimonialSubscriptionPage /></AnimatedPage>} />
+                </Route>
+
+                {/* Community Chat Routes */}
+                <Route path="chat" element={<AnimatedPage><ChatListPage /></AnimatedPage>} />
+                <Route path="chat/conv/:conversationId" element={<AnimatedPage><ChatRoomPage chatType="member" /></AnimatedPage>} />
+                <Route path="chat/member/:targetUserId" element={<AnimatedPage><ChatRoomPage chatType="member" openByUserId /></AnimatedPage>} />
+                <Route path="chat/:chatId" element={<AnimatedPage><ChatRouteWrapper /></AnimatedPage>} />
+                <Route path="chat/info/:chatId" element={<AnimatedPage><ChatInfoPage /></AnimatedPage>} />
+
+                {/* Member Directory */}
+                <Route path="directory" element={<AnimatedPage><DirectoryPage /></AnimatedPage>} />
+                <Route path="directory/:memberId" element={<AnimatedPage><MyProfilePage /></AnimatedPage>} />
+
+                {/* Events */}
+                <Route path="events" element={<AnimatedPage><EventsPage /></AnimatedPage>} />
+                <Route path="events/:eventId" element={<AnimatedPage><EventDetailPage /></AnimatedPage>} />
+
+                {/* Groups */}
+                <Route path="groups" element={<AnimatedPage><GroupsPage /></AnimatedPage>} />
+                <Route path="groups/:groupId" element={<AnimatedPage><GroupDetailPage /></AnimatedPage>} />
+
+                {/* Professional Network */}
+                <Route path="professional" element={<AnimatedPage><ProfessionalDirectoryPage /></AnimatedPage>} />
+                <Route path="professional/:id" element={<AnimatedPage><ProfessionalDetailPage /></AnimatedPage>} />
+                <Route path="professional/apply" element={<AnimatedPage><ApplyProfessionalPage /></AnimatedPage>} />
+
+                {/* Voting & Polls */}
+                <Route path="voting" element={<VotingProvider />}>
+                  <Route index element={<AnimatedPage><VotingPage /></AnimatedPage>} />
+                  <Route path="list" element={<AnimatedPage><ElectionsListPage /></AnimatedPage>} />
+                  <Route path=":id" element={<AnimatedPage><PollDetailPage /></AnimatedPage>} />
+                </Route>
+
+                {/* Donations */}
+                <Route path="donation" element={<Outlet />}>
+                  <Route index element={<AnimatedPage><MemberDonations /></AnimatedPage>} />
+                  <Route path="donors" element={<AnimatedPage><AllDonorsPage /></AnimatedPage>} />
+                  <Route path=":id" element={<AnimatedPage><DonationDetails /></AnimatedPage>} />
+                </Route>
+
+                {/* Census */}
+                <Route path="census" element={<AnimatedPage><CensusPage /></AnimatedPage>} />
+
+                {/* Obituaries & Shradhanjali */}
+                <Route path="obituaries" element={<AnimatedPage><ObituaryPage /></AnimatedPage>} />
+                <Route path="obituaries/create" element={<AnimatedPage><CreateObituaryPage /></AnimatedPage>} />
+                <Route path="shradhanjali" element={<AnimatedPage><ShradhanjaliHomePage /></AnimatedPage>} />
+                <Route path="shradhanjali/create" element={<AnimatedPage><CreateShradhanjaliPage /></AnimatedPage>} />
+                <Route path="shradhanjali/edit/:id" element={<AnimatedPage><CreateShradhanjaliPage /></AnimatedPage>} />
+                <Route path="shradhanjali/:id" element={<AnimatedPage><ShradhanjaliDetailPage /></AnimatedPage>} />
+
+                {/* Invitations */}
+                <Route path="invitations" element={<AnimatedPage><InvitationHomePage /></AnimatedPage>} />
+                <Route path="invitations/create" element={<AnimatedPage><CreateInvitationPage /></AnimatedPage>} />
+                <Route path="invitations/:id" element={<AnimatedPage><InvitationDetailPage /></AnimatedPage>} />
+
+                {/* Dharmashala Booking */}
+                <Route path="dharmashala" element={<AnimatedPage><DharmashalaHomePage /></AnimatedPage>} />
+                <Route path="dharmashala/bookings" element={<AnimatedPage><MyBookingsPage /></AnimatedPage>} />
+                <Route path="dharmashala/:id" element={<AnimatedPage><DharmashalaBookingPage /></AnimatedPage>} />
+
+                {/* Samaj Fund */}
+                <Route path="fund" element={<AnimatedPage><FundListingPage /></AnimatedPage>} />
+                <Route path="fund/total-report" element={<AnimatedPage><FundTotalReportPage /></AnimatedPage>} />
+                <Route path="fund/:fundId" element={<AnimatedPage><FundDashboardPage /></AnimatedPage>} />
+                <Route path="fund/:fundId/income" element={<AnimatedPage><IncomeSourcesPage /></AnimatedPage>} />
+                <Route path="fund/:fundId/expense" element={<AnimatedPage><ExpenseDetailsPage /></AnimatedPage>} />
+                <Route path="fund/:fundId/dues" element={<AnimatedPage><MemberDuesListPage /></AnimatedPage>} />
+                <Route path="fund/:fundId/member/:id" element={<AnimatedPage><FundMemberProfilePage /></AnimatedPage>} />
+                <Route path="fund/:fundId/history" element={<AnimatedPage><FundHistoryPage /></AnimatedPage>} />
+                <Route path="fund/:fundId/report" element={<AnimatedPage><FundReportPage /></AnimatedPage>} />
+              </Route>
+
+              {/* Catch-all for missing phase B pages */}
+              <Route path="*" element={<div className="flex flex-col items-center justify-center min-h-[60vh]"><p className="text-gray-400 text-sm">Feature coming soon (Phase B)</p></div>} />
             </Route>
-            <Route path="directory" element={<AnimatedPage><DirectoryPage /></AnimatedPage>} />
-            <Route path="profile" element={<AnimatedPage><MyProfilePage /></AnimatedPage>} />
-
-            {/* Sub Pages (bottom nav hidden via BottomNav logic) */}
-            <Route path="settings" element={<AnimatedPage><SettingsPage /></AnimatedPage>} />
-            <Route path="events" element={<AnimatedPage><EventsPage /></AnimatedPage>} />
-            <Route path="events/:eventId" element={<AnimatedPage><EventDetailPage /></AnimatedPage>} />
-
-            {/* Groups — discover, create, join groups */}
-            <Route path="groups" element={<AnimatedPage><GroupsPage /></AnimatedPage>} />
-            <Route path="groups/:groupId" element={<AnimatedPage><GroupDetailPage /></AnimatedPage>} />
-
-            <Route path="social/create" element={<AnimatedPage><CreatePostPage /></AnimatedPage>} />
-            <Route path="social/:postId" element={<AnimatedPage><PostDetailPage /></AnimatedPage>} />
-
-            <Route path="directory/:memberId" element={<AnimatedPage><MyProfilePage /></AnimatedPage>} />
-            <Route path="chat/:memberId" element={<AnimatedPage><ChatRouteWrapper /></AnimatedPage>} />
-
-            <Route path="profile/edit" element={<AnimatedPage><EditProfilePage /></AnimatedPage>} />
-            <Route path="profile/family" element={<AnimatedPage><FamilyPage /></AnimatedPage>} />
-            <Route path="profile/verify" element={<AnimatedPage><VerifyMembershipPage /></AnimatedPage>} />
-            <Route path="profile/upgrade" element={<AnimatedPage><UpgradeMembershipPage /></AnimatedPage>} />
-
-            <Route path="professional" element={<AnimatedPage><ProfessionalDirectoryPage /></AnimatedPage>} />
-            <Route path="professional/:id" element={<AnimatedPage><ProfessionalDetailPage /></AnimatedPage>} />
-            <Route path="professional/apply" element={<AnimatedPage><ApplyProfessionalPage /></AnimatedPage>} />
-
-            <Route path="voting" element={<VotingProvider />}>
-              <Route index element={<AnimatedPage><VotingPage /></AnimatedPage>} />
-              <Route path="list" element={<AnimatedPage><ElectionsListPage /></AnimatedPage>} />
-              <Route path=":id" element={<AnimatedPage><PollDetailPage /></AnimatedPage>} />
-            </Route>
-
-            <Route path="donation" element={<Outlet />}>
-              <Route index element={<AnimatedPage><MemberDonations /></AnimatedPage>} />
-              <Route path="donors" element={<AnimatedPage><AllDonorsPage /></AnimatedPage>} />
-              <Route path=":id" element={<AnimatedPage><DonationDetails /></AnimatedPage>} />
-            </Route>
-
-            <Route path="notifications" element={<AnimatedPage><NotificationsPage /></AnimatedPage>} />
-
-          <Route path="leadership" element={<AnimatedPage><LeadershipPage /></AnimatedPage>} />
-          <Route path="census" element={<AnimatedPage><CensusPage /></AnimatedPage>} />
-
-          {/* ─── Community Chat Routes ───────────────────────────────────────────── */}
-          {/* Chat list (Chats tab + Joined Groups tab) */}
-          <Route path="chat" element={<AnimatedPage><ChatListPage /></AnimatedPage>} />
-          {/* 1-to-1 conversation by conversationId */}
-          <Route path="chat/conv/:conversationId" element={<AnimatedPage><ChatRoomPage chatType="member" /></AnimatedPage>} />
-          {/* Open/create conversation by targetUserId */}
-          <Route path="chat/member/:targetUserId" element={<AnimatedPage><ChatRoomPage chatType="member" openByUserId />{/* ← auto opens conversation */}</AnimatedPage>} />
-          {/* Legacy chatId-based route (from mockChats era) */}
-          <Route path="chat/:chatId" element={<AnimatedPage><ChatRouteWrapper /></AnimatedPage>} />
-          <Route path="chat/info/:chatId" element={<AnimatedPage><ChatInfoPage /></AnimatedPage>} />
-
-          <Route path="obituaries" element={<AnimatedPage><ObituaryPage /></AnimatedPage>} />
-          <Route path="obituaries/create" element={<AnimatedPage><CreateObituaryPage /></AnimatedPage>} />
-
-          {/* Shradhanjali — Full-featured memorial module */}
-          <Route path="shradhanjali" element={<AnimatedPage><ShradhanjaliHomePage /></AnimatedPage>} />
-          <Route path="shradhanjali/create" element={<AnimatedPage><CreateShradhanjaliPage /></AnimatedPage>} />
-          <Route path="shradhanjali/edit/:id" element={<AnimatedPage><CreateShradhanjaliPage /></AnimatedPage>} />
-          <Route path="shradhanjali/:id" element={<AnimatedPage><ShradhanjaliDetailPage /></AnimatedPage>} />
-
-          {/* Invitation Module */}
-          <Route path="invitations" element={<AnimatedPage><InvitationHomePage /></AnimatedPage>} />
-          <Route path="invitations/create" element={<AnimatedPage><CreateInvitationPage /></AnimatedPage>} />
-          <Route path="invitations/:id" element={<AnimatedPage><InvitationDetailPage /></AnimatedPage>} />
-
-          {/* Dharmashala Booking Module */}
-          <Route path="dharmashala" element={<AnimatedPage><DharmashalaHomePage /></AnimatedPage>} />
-          <Route path="dharmashala/bookings" element={<AnimatedPage><MyBookingsPage /></AnimatedPage>} />
-          <Route path="dharmashala/:id" element={<AnimatedPage><DharmashalaBookingPage /></AnimatedPage>} />
-
-          {/* Samaj Fund Module */}
-          <Route path="fund" element={<AnimatedPage><FundListingPage /></AnimatedPage>} />
-          <Route path="fund/total-report" element={<AnimatedPage><FundTotalReportPage /></AnimatedPage>} />
-          <Route path="fund/:fundId" element={<AnimatedPage><FundDashboardPage /></AnimatedPage>} />
-          <Route path="fund/:fundId/income" element={<AnimatedPage><IncomeSourcesPage /></AnimatedPage>} />
-          <Route path="fund/:fundId/expense" element={<AnimatedPage><ExpenseDetailsPage /></AnimatedPage>} />
-          <Route path="fund/:fundId/dues" element={<AnimatedPage><MemberDuesListPage /></AnimatedPage>} />
-          <Route path="fund/:fundId/member/:id" element={<AnimatedPage><FundMemberProfilePage /></AnimatedPage>} />
-          <Route path="fund/:fundId/history" element={<AnimatedPage><FundHistoryPage /></AnimatedPage>} />
-          <Route path="fund/:fundId/report" element={<AnimatedPage><FundReportPage /></AnimatedPage>} />
-
-          {/* Referral module */}
-          <Route path="referral" element={<AnimatedPage><ReferralDashboardPage /></AnimatedPage>} />
-          <Route path="referral/earnings" element={<AnimatedPage><MyEarningsPage /></AnimatedPage>} />
-          <Route path="referral/redeem" element={<AnimatedPage><RedeemPointsPage /></AnimatedPage>} />
-
-          {/* Catch-all for missing phase B pages */}
-          <Route path="*" element={<div className="flex flex-col items-center justify-center min-h-[60vh]"><p className="text-gray-400 text-sm">Feature coming soon (Phase B)</p></div>} />
-        </Route>
-      </Route>
-      </Routes>
+          </Route>
+        </Routes>
       </ReferralProvider>
     </AnimatePresence>
   );

@@ -2,12 +2,161 @@ import React, { useState, useEffect } from 'react';
 import {
   MapPin, Plus, Edit, Trash2, Loader, CheckCircle2,
   XCircle, Mail, Phone, RefreshCw, Eye, EyeOff, Copy, Check, Shield,
-  User, UserCheck, Search, X
+  User, UserCheck, Search, X, Building
 } from 'lucide-react';
 import headLocalCommunityService from '../../../../core/api/headLocalCommunityService';
 import { useData } from '../../../member/context/DataProvider';
 
-const emptyForm = { name: '', email: '', phone: '', password: '' };
+const INDIAN_STATES_AND_CITIES = {
+  'Madhya Pradesh': [
+    'Indore', 'Bhopal', 'Jabalpur', 'Gwalior', 'Ujjain', 'Sagar', 'Dewas',
+    'Satna', 'Ratlam', 'Rewa', 'Murwara (Katni)', 'Singrauli', 'Burhanpur',
+    'Khandwa', 'Bhind', 'Chhindwara', 'Guna', 'Shivpuri', 'Vidisha',
+    'Chhatarpur', 'Damoh', 'Mandsaur', 'Khargone', 'Neemuch', 'Pithampur',
+    'Narmadapuram (Hoshangabad)', 'Itarsi', 'Sehore', 'Betul', 'Seoni',
+    'Datia', 'Nagda', 'Dhar', 'Balaghat', 'Ashoknagar', 'Tikamgarh', 'Shahdol',
+    'Panna', 'Mandla', 'Sheopur', 'Barwani', 'Shajapur', 'Rajgarh', 'Harda'
+  ],
+  'Maharashtra': [
+    'Mumbai', 'Pune', 'Nagpur', 'Thane', 'Nashik', 'Kalyan-Dombivli', 'Vasai-Virar',
+    'Chhatrapati Sambhajinagar (Aurangabad)', 'Navi Mumbai', 'Solapur', 'Mira-Bhayandar',
+    'Bhiwandi', 'Amravati', 'Nanded', 'Kolhapur', 'Akola', 'Ulhasnagar', 'Sangli',
+    'Malegaon', 'Jalgaon', 'Latur', 'Dhule', 'Ahmednagar', 'Chandrapur', 'Parbhani',
+    'Ichalkaranji', 'Jalna', 'Ambarnath', 'Bhusawal', 'Panvel', 'Badlapur', 'Beed',
+    'Gondia', 'Satara', 'Barshi', 'Yavatmal', 'Achalpur', 'Osmanabad', 'Nandurbar', 'Wardha'
+  ],
+  'Rajasthan': [
+    'Jaipur', 'Jodhpur', 'Kota', 'Bikaner', 'Ajmer', 'Udaipur', 'Bhilwara', 'Alwar',
+    'Bharatpur', 'Sriganganagar', 'Sikar', 'Pali', 'Chittorgarh', 'Beawar', 'Tonk',
+    'Kishangarh', 'Jhunjhunu', 'Hanumangarh', 'Gangapur', 'Sawai Madhopur', 'Churu',
+    'Barmer', 'Hindaun', 'Nagaur', 'Sujangarh', 'Banswara', 'Dungarpur', 'Jaisalmer'
+  ],
+  'Gujarat': [
+    'Ahmedabad', 'Surat', 'Vadodara', 'Rajkot', 'Bhavnagar', 'Jamnagar', 'Junagadh',
+    'Gandhinagar', 'Anand', 'Navsari', 'Surendranagar', 'Morbi', 'Bharuch', 'Porbandar',
+    'Godhra', 'Nadiad', 'Vapi', 'Veraval', 'Valsad', 'Bhuj', 'Mehsana', 'Palanpur', 'Ankleshwar'
+  ],
+  'Uttar Pradesh': [
+    'Lucknow', 'Kanpur', 'Ghaziabad', 'Agra', 'Varanasi', 'Meerut', 'Prayagraj (Allahabad)',
+    'Bareilly', 'Aligarh', 'Moradabad', 'Saharanpur', 'Gorakhpur', 'Noida', 'Greater Noida',
+    'Firozabad', 'Jhansi', 'Muzaffarnagar', 'Mathura', 'Ayodhya', 'Rampur', 'Shahjahanpur',
+    'Farrukhabad', 'Budaun', 'Maunath Bhanjan', 'Hapur', 'Etawah', 'Mirzapur', 'Bulandshahr',
+    'Sambhal', 'Amroha', 'Hardoi', 'Fatehpur', 'Raebareli', 'Orai', 'Sitapur', 'Bahraich', 'Unnao', 'Jaunpur'
+  ],
+  'Delhi': [
+    'New Delhi', 'Central Delhi', 'North Delhi', 'South Delhi', 'East Delhi', 'West Delhi',
+    'North East Delhi', 'North West Delhi', 'South East Delhi', 'South West Delhi', 'Shahdara'
+  ],
+  'Bihar': [
+    'Patna', 'Gaya', 'Bhagalpur', 'Muzaffarpur', 'Purnia', 'Darbhanga', 'Bihar Sharif',
+    'Arrah', 'Begusarai', 'Katihar', 'Munger', 'Chhapra', 'Danapur', 'Bettiah', 'Saharsa',
+    'Sasaram', 'Hajipur', 'Dehri', 'Siwan', 'Motihari', 'Nawada', 'Bagaha', 'Buxar', 'Kishanganj', 'Sitamarhi'
+  ],
+  'Chhattisgarh': [
+    'Raipur', 'Bhilai', 'Bilaspur', 'Korba', 'Durg', 'Rajnandgaon', 'Jagdalpur', 'Raigarh',
+    'Ambikapur', 'Dhamtari', 'Mahasamund', 'Kanker', 'Kawardha', 'Janjgir'
+  ],
+  'Haryana': [
+    'Faridabad', 'Gurugram (Gurgaon)', 'Panipat', 'Ambala', 'Yamunanagar', 'Rohtak',
+    'Hisar', 'Karnal', 'Sonipat', 'Panchkula', 'Sirsa', 'Bhiwani', 'Bahadurgarh', 'Jind',
+    'Thanesar', 'Kaithal', 'Rewari', 'Palwal', 'Kurukshetra'
+  ],
+  'Punjab': [
+    'Ludhiana', 'Amritsar', 'Jalandhar', 'Patiala', 'Bathinda', 'Mohali (SAS Nagar)',
+    'Hoshiarpur', 'Batala', 'Pathankot', 'Moga', 'Abohar', 'Malerkotla', 'Khanna',
+    'Phagwara', 'Muktsar', 'Barnala', 'Firozpur', 'Kapurthala'
+  ],
+  'Karnataka': [
+    'Bengaluru', 'Mysuru', 'Hubballi-Dharwad', 'Mangaluru', 'Belagavi', 'Kalaburagi',
+    'Davanagere', 'Ballari', 'Vijayapura', 'Shivamogga', 'Tumakuru', 'Raichur', 'Bidar',
+    'Hosapete', 'Gadag-Betageri', 'Hassan', 'Udupi'
+  ],
+  'Tamil Nadu': [
+    'Chennai', 'Coimbatore', 'Madurai', 'Tiruchirappalli', 'Salem', 'Tiruppur', 'Erode',
+    'Tirunelveli', 'Vellore', 'Thoothukudi', 'Dindigul', 'Thanjavur', 'Ranipet', 'Sivakasi',
+    'Karur', 'Udhagamandalam (Ooty)', 'Hosur', 'Nagercoil', 'Kanchipuram'
+  ],
+  'Telangana': [
+    'Hyderabad', 'Warangal', 'Nizamabad', 'Khammam', 'Karimnagar', 'Ramagundam',
+    'Mahbubnagar', 'Nalgonda', 'Adilabad', 'Suryapet', 'Siddipet', 'Miryalaguda'
+  ],
+  'Andhra Pradesh': [
+    'Visakhapatnam', 'Vijayawada', 'Guntur', 'Nellore', 'Kurnool', 'Kakinada',
+    'Rajamahendravaram (Rajahmundry)', 'Kadapa', 'Tirupati', 'Anantapur', 'Vizianagaram',
+    'Eluru', 'Ongole', 'Nandyal', 'Machilipatnam', 'Adoni', 'Tenali'
+  ],
+  'West Bengal': [
+    'Kolkata', 'Asansol', 'Siliguri', 'Durgapur', 'Bardhaman', 'Malda', 'Baharampur',
+    'Habra', 'Kharagpur', 'Shantipur', 'Dankuni', 'Dhulian', 'Ranaghat', 'Haldia',
+    'Raiganj', 'Krishnanagar', 'Nabadwip', 'Medinipur', 'Jalpaiguri', 'Balurghat', 'Basirhat', 'Bankura', 'Darjeeling'
+  ],
+  'Uttarakhand': [
+    'Dehradun', 'Haridwar', 'Roorkee', 'Haldwani', 'Rudrapur', 'Kashipur', 'Rishikesh', 'Nainital', 'Mussoorie'
+  ],
+  'Jharkhand': [
+    'Ranchi', 'Jamshedpur', 'Dhanbad', 'Bokaro Steel City', 'Deoghar', 'Phusro', 'Hazaribagh',
+    'Giridih', 'Ramgarh', 'Medininagar', 'Chirkunda'
+  ],
+  'Odisha': [
+    'Bhubaneswar', 'Cuttack', 'Rourkela', 'Berhampur', 'Sambalpur', 'Puri', 'Balasore',
+    'Bhadrak', 'Baripada', 'Jharsuguda', 'Jeypore'
+  ],
+  'Kerala': [
+    'Thiruvananthapuram', 'Kochi', 'Kozhikode', 'Kollam', 'Thrissur', 'Kannur',
+    'Alappuzha', 'Kottayam', 'Palakkad', 'Manjeri', 'Thalassery', 'Ponnani'
+  ],
+  'Assam': [
+    'Guwahati', 'Silchar', 'Dibrugarh', 'Jorhat', 'Nagaon', 'Tinsukia', 'Tezpur', 'Bongaigaon'
+  ],
+  'Goa': [
+    'Panaji', 'Margao', 'Vasco da Gama', 'Mapusa', 'Ponda'
+  ],
+  'Himachal Pradesh': [
+    'Shimla', 'Dharamshala', 'Solan', 'Mandi', 'Kullu', 'Manali', 'Baddi', 'Bilaspur', 'Hamirpur', 'Una'
+  ],
+  'Jammu & Kashmir': [
+    'Srinagar', 'Jammu', 'Anantnag', 'Baramulla', 'Udhampur', 'Sopore', 'Kathua'
+  ],
+  'Chandigarh': [
+    'Chandigarh'
+  ],
+  'Puducherry': [
+    'Puducherry', 'Karaikal', 'Mahe', 'Yanam'
+  ],
+  'Tripura': [
+    'Agartala', 'Dharmanagar', 'Udaipur', 'Kailashahar'
+  ],
+  'Meghalaya': [
+    'Shillong', 'Tura', 'Jowai'
+  ],
+  'Manipur': [
+    'Imphal', 'Churachandpur', 'Thoubal'
+  ],
+  'Nagaland': [
+    'Kohima', 'Dimapur', 'Mokokchung'
+  ],
+  'Mizoram': [
+    'Aizawl', 'Lunglei', 'Champhai'
+  ],
+  'Arunachal Pradesh': [
+    'Itanagar', 'Naharlagun', 'Pasighat'
+  ],
+  'Sikkim': [
+    'Gangtok', 'Namchi', 'Geyzing'
+  ],
+  'Ladakh': [
+    'Leh', 'Kargil'
+  ]
+};
+
+const emptyForm = {
+  name: '',
+  email: '',
+  phone: '',
+  password: '',
+  state: 'Madhya Pradesh',
+  city: 'Indore'
+};
 
 export default function LocalCommunityManagement() {
   const { user } = useData();
@@ -65,7 +214,14 @@ export default function LocalCommunityManagement() {
     setEditId(null);
     setSelectedUserId(null);
     setUserSearchTerm('');
-    setForm(emptyForm);
+    setForm({
+      name: '',
+      email: '',
+      phone: '',
+      password: '',
+      state: user?.state || 'Madhya Pradesh',
+      city: user?.city || 'Indore'
+    });
     setError('');
     setShowModal(true);
     fetchCommunityUsers();
@@ -78,7 +234,9 @@ export default function LocalCommunityManagement() {
       name: localHead.name || '',
       email: localHead.email || '',
       phone: localHead.phone || '',
-      password: ''
+      password: '',
+      state: localHead.state || 'Madhya Pradesh',
+      city: localHead.city || 'Indore'
     });
     setError('');
     setShowModal(true);
@@ -93,11 +251,15 @@ export default function LocalCommunityManagement() {
     const foundUser = communityUsers.find(u => u._id === uId);
     if (foundUser) {
       setSelectedUserId(foundUser._id);
+      const userState = foundUser.state || form.state || 'Madhya Pradesh';
+      const userCity = foundUser.city || form.city || (INDIAN_STATES_AND_CITIES[userState]?.[0] || 'Indore');
       setForm({
         name: foundUser.name || '',
         email: foundUser.email || '',
         phone: foundUser.phone || '',
-        password: form.password || ''
+        password: form.password || '',
+        state: userState,
+        city: userCity
       });
     }
   };
@@ -172,6 +334,10 @@ export default function LocalCommunityManagement() {
     );
   });
 
+  const availableCities = form.state && INDIAN_STATES_AND_CITIES[form.state]
+    ? INDIAN_STATES_AND_CITIES[form.state]
+    : [];
+
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 font-sans">
       {/* Header Card */}
@@ -185,7 +351,7 @@ export default function LocalCommunityManagement() {
               <Shield size={14} className="text-amber-400" /> Local Community Management
             </div>
             <h1 className="text-2xl font-black text-white leading-tight">Local Heads</h1>
-            <p className="text-xs font-semibold text-purple-200/90 mt-0.5">Select existing community members or create new accounts for Local Heads.</p>
+            <p className="text-xs font-semibold text-purple-200/90 mt-0.5">Select existing community members or create new accounts for Local Heads with State & City assignment.</p>
           </div>
         </div>
 
@@ -215,6 +381,7 @@ export default function LocalCommunityManagement() {
               <tr className="bg-slate-50 border-b border-slate-100 text-[11px] font-bold uppercase text-slate-400">
                 <th className="p-4">Name</th>
                 <th className="p-4">Contact</th>
+                <th className="p-4">Assigned Location</th>
                 <th className="p-4">Password</th>
                 <th className="p-4">Status</th>
                 <th className="p-4 text-right">Actions</th>
@@ -222,9 +389,9 @@ export default function LocalCommunityManagement() {
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-700">
               {loading ? (
-                <tr><td colSpan="5" className="p-8 text-center"><Loader className="animate-spin text-indigo-600 inline" /></td></tr>
+                <tr><td colSpan="6" className="p-8 text-center"><Loader className="animate-spin text-indigo-600 inline" /></td></tr>
               ) : localHeads.length === 0 ? (
-                <tr><td colSpan="5" className="p-8 text-center text-slate-400 font-bold">No Local Heads created yet. Click "Add Local Head" to appoint one.</td></tr>
+                <tr><td colSpan="6" className="p-8 text-center text-slate-400 font-bold">No Local Heads created yet. Click "Add Local Head" to appoint one.</td></tr>
               ) : (
                 localHeads.map(lh => (
                   <tr key={lh._id} className="hover:bg-slate-50/50">
@@ -242,6 +409,13 @@ export default function LocalCommunityManagement() {
                     <td className="p-4">
                       <p className="flex items-center gap-1.5 text-slate-800"><Mail size={12} className="text-slate-400" /> {lh.email}</p>
                       <p className="flex items-center gap-1.5 text-[10px] text-slate-400 mt-0.5"><Phone size={11} /> {lh.phone}</p>
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center gap-1.5 font-bold text-slate-900">
+                        <MapPin size={13} className="text-amber-500 shrink-0" />
+                        <span>{lh.city || 'Indore'}</span>
+                      </div>
+                      <p className="text-[10px] font-medium text-slate-400 pl-4">{lh.state || 'Madhya Pradesh'}</p>
                     </td>
                     <td className="p-4">
                       <div className="flex items-center gap-1.5">
@@ -290,7 +464,7 @@ export default function LocalCommunityManagement() {
           <div className="bg-white w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-5 my-8 max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-black text-slate-800">{editId ? 'Edit Local Head' : 'Create Local Head'}</h3>
             <p className="text-xs text-slate-500">
-              {editId ? 'Update details or reset the login password.' : 'Select an existing community member or enter details to create a Local Head.'}
+              {editId ? 'Update details, assigned location, or reset the login password.' : 'Select an existing community member or enter details to create a Local Head with state & city assignment.'}
             </p>
 
             {error && (
@@ -315,6 +489,9 @@ export default function LocalCommunityManagement() {
                       <div>
                         <p className="text-xs font-bold text-indigo-950">{form.name}</p>
                         <p className="text-[10px] font-medium text-indigo-700">{form.phone} {form.email ? `• ${form.email}` : ''}</p>
+                        <p className="text-[10px] font-medium text-indigo-600 flex items-center gap-1 mt-0.5">
+                          <MapPin size={10} /> {form.city || 'Indore'}, {form.state || 'Madhya Pradesh'}
+                        </p>
                       </div>
                     </div>
                     <button
@@ -348,7 +525,7 @@ export default function LocalCommunityManagement() {
                       <option value="">-- Choose a user from community --</option>
                       {filteredCommunityUsers.map(u => (
                         <option key={u._id} value={u._id}>
-                          {u.name} ({u.phone}) {u.accountType === 'local_head' ? '• Already Local Head' : ''}
+                          {u.name} ({u.phone}) {u.city ? `• ${u.city}` : ''} {u.accountType === 'local_head' ? '• Already Local Head' : ''}
                         </option>
                       ))}
                     </select>
@@ -364,7 +541,7 @@ export default function LocalCommunityManagement() {
                   type="text" required
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500"
                 />
               </div>
 
@@ -375,7 +552,7 @@ export default function LocalCommunityManagement() {
                     type="email" required
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500"
                   />
                 </div>
 
@@ -385,8 +562,62 @@ export default function LocalCommunityManagement() {
                     type="text" required
                     value={form.phone}
                     onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500"
                   />
+                </div>
+              </div>
+
+              {/* Location Assignment: State & City */}
+              <div className="bg-slate-50/80 border border-slate-200/90 rounded-2xl p-3.5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <MapPin size={14} className="text-amber-500" /> Assigned Location (State & City) *
+                  </label>
+                  <span className="text-[10px] text-slate-400 font-semibold">City updates by state</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 block mb-1">State *</label>
+                    <select
+                      required
+                      value={form.state}
+                      onChange={(e) => {
+                        const newState = e.target.value;
+                        const citiesForState = INDIAN_STATES_AND_CITIES[newState] || [];
+                        setForm({
+                          ...form,
+                          state: newState,
+                          city: citiesForState[0] || ''
+                        });
+                      }}
+                      className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-indigo-500 shadow-sm"
+                    >
+                      <option value="">-- Choose State --</option>
+                      {Object.keys(INDIAN_STATES_AND_CITIES).map((st) => (
+                        <option key={st} value={st}>{st}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 block mb-1">City / Region *</label>
+                    <select
+                      required
+                      value={form.city}
+                      onChange={(e) => setForm({ ...form, city: e.target.value })}
+                      disabled={!form.state}
+                      className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-indigo-500 shadow-sm disabled:bg-slate-100 disabled:text-slate-400"
+                    >
+                      <option value="">-- Choose City --</option>
+                      {availableCities.map((cityName) => (
+                        <option key={cityName} value={cityName}>{cityName}</option>
+                      ))}
+                      {form.city && !availableCities.includes(form.city) && (
+                        <option value={form.city}>{form.city} (Current)</option>
+                      )}
+                    </select>
+                  </div>
                 </div>
               </div>
 
@@ -398,13 +629,13 @@ export default function LocalCommunityManagement() {
                   placeholder={editId ? 'Leave blank to keep unchanged' : 'At least 6 characters'}
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500"
                 />
               </div>
 
               <div className="flex gap-2 justify-end pt-3">
-                <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2.5 font-bold text-xs text-slate-500">Cancel</button>
-                <button type="submit" disabled={saving} className="px-5 py-2.5 bg-indigo-600 text-white font-bold text-xs rounded-xl shadow-sm hover:bg-indigo-700 disabled:opacity-60">
+                <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2.5 font-bold text-xs text-slate-500 hover:text-slate-700">Cancel</button>
+                <button type="submit" disabled={saving} className="px-5 py-2.5 bg-indigo-600 text-white font-bold text-xs rounded-xl shadow-sm hover:bg-indigo-700 disabled:opacity-60 transition-all">
                   {saving ? 'Saving...' : 'Save Local Head'}
                 </button>
               </div>

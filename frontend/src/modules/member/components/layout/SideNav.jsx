@@ -4,6 +4,7 @@ import { Home, Users, Heart, BookOpen, User, Settings, LogOut, MessageCircle, Gi
 import { useData } from '../../context/DataProvider';
 import { useAuth } from '../../../../core/auth/useAuth';
 import { useHeadAuth } from '../../../head/auth/useHeadAuth';
+import { isMemberApproved, showApprovalRequiredNotice } from '../../utils/approvalUtils';
 
 const tabPaths = ['/member/home', '/member/social', '/member/matrimonial', '/member/directory', '/member/profile'];
 const hiddenPaths = ['/member/events', '/member/groups', '/member/notifications', '/member/splash', '/member/login', '/member/setup-profile', '/member/select-community', '/member/verify-otp'];
@@ -17,6 +18,7 @@ export const SideNav = () => {
   const activeUser = auth?.isAuthenticated ? auth?.user : currentUser;
   const effectiveRole = activeUser?.role;
   const isHeadUser = activeUser && ['head', 'sub_head', 'admin'].includes(effectiveRole);
+  const isApproved = isMemberApproved(activeUser);
   
   const shouldHide = hiddenPaths.some(p => location.pathname.startsWith(p));
   const pathSegments = location.pathname.split('/').filter(Boolean);
@@ -33,6 +35,14 @@ export const SideNav = () => {
     { name: 'Refer & Earn', path: '/member/referral', icon: Gift },
     { name: 'Profile', path: '/member/profile', icon: User },
   ];
+
+  const handleNavClick = (e, item) => {
+    const unrestrictedPaths = ['/member/home', '/member/profile', '/member/referral'];
+    if (!isApproved && !unrestrictedPaths.includes(item.path)) {
+      e.preventDefault();
+      showApprovalRequiredNotice(item.name);
+    }
+  };
 
   return (
     <div className="hidden md:flex flex-col w-[260px] h-screen bg-gradient-to-b from-[#1e1145] via-[#25175a] to-[#2d1b69] fixed top-0 left-0 border-r border-white/5 z-20 overflow-y-auto scrollbar-hide">
@@ -77,6 +87,7 @@ export const SideNav = () => {
               key={item.name}
               to={item.path}
               replace
+              onClick={(e) => handleNavClick(e, item)}
               className={`flex items-center px-4 py-3 rounded-xl transition-all duration-250 group relative ${
                 isActive 
                   ? 'bg-white/10 text-white font-semibold' 

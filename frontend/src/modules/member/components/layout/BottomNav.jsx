@@ -1,13 +1,22 @@
 import React from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Home, Users, Heart, MessageCircle, User } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useAuth } from '../../../../core/auth/useAuth';
+import { useData } from '../../context/DataProvider';
+import { isMemberApproved, showApprovalRequiredNotice } from '../../utils/approvalUtils';
 
 // Sub-pages where bottom nav should be hidden
 const hiddenPaths = ['/member/events', '/member/groups', '/member/notifications', '/member/splash', '/member/login', '/member/setup-profile', '/member/select-community', '/member/verify-otp', '/member/chat/room', '/member/chat/call'];
 
 export const BottomNav = ({ isVisible = true }) => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { auth } = useAuth();
+  const { currentUser } = useData();
+
+  const activeUser = auth?.isAuthenticated ? auth?.user : currentUser;
+  const isApproved = isMemberApproved(activeUser);
   
   // Hide on onboarding and sub-pages
   const shouldHide = hiddenPaths.some(p => location.pathname.startsWith(p));
@@ -23,6 +32,14 @@ export const BottomNav = ({ isVisible = true }) => {
     { name: 'Chat', path: '/member/chat', icon: MessageCircle, activeColor: '#059669' },
     { name: 'Profile', path: '/member/profile', icon: User, activeColor: '#D97706' },
   ];
+
+  const handleNavClick = (e, item) => {
+    const unrestrictedPaths = ['/member/home', '/member/profile'];
+    if (!isApproved && !unrestrictedPaths.includes(item.path)) {
+      e.preventDefault();
+      showApprovalRequiredNotice(item.name);
+    }
+  };
 
   return (
     <div 
@@ -52,6 +69,7 @@ export const BottomNav = ({ isVisible = true }) => {
                 key={item.name}
                 to={item.path}
                 replace
+                onClick={(e) => handleNavClick(e, item)}
                 className="flex flex-col items-center justify-center flex-1 h-full relative cursor-pointer select-none"
               >
                 {/* Sleek Top Active Accent Line */}

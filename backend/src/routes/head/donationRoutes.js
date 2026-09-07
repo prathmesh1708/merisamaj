@@ -22,4 +22,9 @@ router.delete('/campaigns/:id', headOrAdmin, donationController.deleteCampaign);
 router.patch('/campaigns/:id/status', headOrAdmin, donationController.updateCampaignStatus);
 router.post('/campaigns/:id/expenses', headOrAdmin, donationController.addExpense);
 
+// Categories
+router.get('/categories', headOrSubHead, donationController.getCategories);
+router.post('/categories', headOrAdmin, donationController.createCategory);
+router.delete('/categories/:id', headOrAdmin, donationController.deleteCategory);
+
 module.exports = router;

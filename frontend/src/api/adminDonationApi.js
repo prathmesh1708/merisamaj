@@ -34,6 +34,21 @@ export const adminDonationApi = {
     const query = source ? `?source=${source}` : '';
     const res = await axiosPrivate.delete(`${API_BASE}/${id}${query}`);
     return res.data;
+  },
+
+  getCategories: async () => {
+    const res = await axiosPrivate.get(`${API_BASE}/categories`);
+    return res.data;
+  },
+
+  createCategory: async (categoryData) => {
+    const res = await axiosPrivate.post(`${API_BASE}/categories`, categoryData);
+    return res.data;
+  },
+
+  deleteCategory: async (id) => {
+    const res = await axiosPrivate.delete(`${API_BASE}/categories/${id}`);
+    return res.data;
   }
 };
 

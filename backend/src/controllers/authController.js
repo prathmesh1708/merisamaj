@@ -93,8 +93,8 @@ const getUserResponsePayload = (user) => {
     isAadharVerified: user.isAadharVerified || false,
     isFaceVerified: user.isFaceVerified || false,
     accountStatus: user.accountStatus,
-    verificationStatus: user.verificationStatus,
-    isVerified: user.isVerified || (user.verificationStatus === 'verified'),
+    verificationStatus: user.verificationStatus || 'pending',
+    isVerified: user.verificationStatus === 'verified',
     isPremium: user.isPremium || false,
     membershipPlan: user.membershipPlan || '',
     membershipExpiry: user.membershipExpiry || '',
@@ -124,8 +124,8 @@ const registerUser = async (req, res) => {
       phone,
       password,
       referralCode,
-      accountStatus: 'active',
-      verificationStatus: 'verified', // Verified by default in dev environment
+      accountStatus: 'pending verification',
+      verificationStatus: 'pending', // Pending approval by Community Head
       isPhoneVerified: true,
       isEmailVerified: true
     };
@@ -486,14 +486,39 @@ const updateProfile = async (req, res) => {
           user.community = targetComm.name;
         }
       } else if (req.body.community || (req.body.communityId && typeof req.body.communityId === 'string')) {
-        const targetName = (req.body.community || req.body.communityId).toString().replace(/samaj/gi, '').trim();
-        if (targetName) {
-          const commDoc = await Community.findOne({ name: { $regex: new RegExp(`^${targetName}`, 'i') } });
+        const rawCommName = (req.body.community || req.body.communityId).toString().trim();
+        if (rawCommName && rawCommName.toLowerCase() !== 'other') {
+          const targetName = rawCommName.replace(/samaj/gi, '').trim();
+          let commDoc = await Community.findOne({
+            $or: [
+              { name: { $regex: new RegExp(`^${rawCommName}$`, 'i') } },
+              ...(targetName ? [{ name: { $regex: new RegExp(`^${targetName}`, 'i') } }] : [])
+            ]
+          });
+
+          if (!commDoc) {
+            try {
+              let baseSlug = rawCommName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+              if (!baseSlug) baseSlug = `comm-${Date.now()}`;
+              const existingSlug = await Community.findOne({ slug: baseSlug });
+              if (existingSlug) {
+                baseSlug = `${baseSlug}-${Date.now().toString().slice(-4)}`;
+              }
+              commDoc = await Community.create({
+                name: rawCommName,
+                slug: baseSlug,
+                isActive: true
+              });
+            } catch (err) {
+              console.warn('Auto-create community warning:', err);
+            }
+          }
+
           if (commDoc) {
             user.communityId = commDoc._id;
             user.community = commDoc.name;
           } else {
-            user.community = req.body.community || req.body.communityId;
+            user.community = rawCommName;
           }
         }
       }

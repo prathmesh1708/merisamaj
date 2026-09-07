@@ -101,12 +101,12 @@ const userSchema = new mongoose.Schema({
   accountStatus: { 
     type: String, 
     enum: ['active', 'inactive', 'blocked', 'deleted', 'pending verification'], 
-    default: 'active' 
+    default: 'pending verification' 
   },
   verificationStatus: { 
     type: String, 
     enum: ['pending', 'verified', 'rejected'], 
-    default: 'verified' // Default verified for development ease
+    default: 'pending' // New users require approval by Community Head
   },
   registrationSource: { 
     type: String, 

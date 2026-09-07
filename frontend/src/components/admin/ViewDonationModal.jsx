@@ -48,13 +48,17 @@ export const ViewDonationModal = ({
               </span>
             )}
 
-            {donation.status === 'Active' ? (
+            {['Active', 'Published', 'Approved'].includes(donation.status) ? (
               <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500 text-white shadow-sm">
-                Active Drive
+                {donation.status === 'Published' ? 'Published' : 'Active Drive'}
+              </span>
+            ) : donation.status === 'Draft' ? (
+              <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-500 text-white shadow-sm">
+                Draft
               </span>
             ) : (
               <span className="px-3 py-1 rounded-full text-xs font-bold bg-slate-700 text-white shadow-sm">
-                Closed Drive
+                {donation.status || 'Closed Drive'}
               </span>
             )}
           </div>

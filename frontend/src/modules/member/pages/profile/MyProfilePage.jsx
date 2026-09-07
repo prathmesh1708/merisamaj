@@ -582,12 +582,22 @@ const MyProfilePage = () => {
         </div>
         <div className="flex items-center gap-2">
           {isMe && (
-            <button 
-              onClick={() => navigate('/member/settings')}
-              className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center justify-center text-slate-700 hover:bg-purple-50 transition-all press-scale"
-            >
-              <SettingsIcon size={18} />
-            </button>
+            <>
+              <button 
+                onClick={() => navigate('/member/referral')}
+                title="Refer & Earn Rewards"
+                className="px-2.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100/70 text-[#7C3AED] border border-purple-200/60 flex items-center gap-1 text-xs font-black shadow-xs press-scale transition-all"
+              >
+                <Gift size={15} />
+                <span className="hidden xs:inline">Refer & Earn</span>
+              </button>
+              <button 
+                onClick={() => navigate('/member/settings')}
+                className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center justify-center text-slate-700 hover:bg-purple-50 transition-all press-scale"
+              >
+                <SettingsIcon size={18} />
+              </button>
+            </>
           )}
         </div>
       </div>

@@ -47,7 +47,7 @@ exports.createLocalHead = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'No community context found.' });
     }
 
-    const { userId, name, email, phone, password } = payload;
+    const { userId, name, email, phone, password, state, city } = payload;
 
     if (!password || password.length < 6) {
       return res.status(400).json({ status: 'fail', message: 'Password must be at least 6 characters.' });
@@ -84,6 +84,8 @@ exports.createLocalHead = async (req, res) => {
       }
 
       if (name) existingUser.name = name;
+      if (state) existingUser.state = state;
+      if (city) existingUser.city = city;
       existingUser.password = password; // raw — hashed by User's pre('save') hook
       existingUser.plainPassword = password;
       existingUser.role = 'sub_head';
@@ -104,6 +106,8 @@ exports.createLocalHead = async (req, res) => {
           name: existingUser.name,
           email: existingUser.email,
           phone: existingUser.phone,
+          city: existingUser.city,
+          state: existingUser.state,
           accountStatus: existingUser.accountStatus
         }
       });
@@ -136,8 +140,8 @@ exports.createLocalHead = async (req, res) => {
       parentHeadId: req.user._id,
       communityId: payload.communityId,
       assignedCommunityIds: req.user?.assignedCommunityIds?.length ? req.user.assignedCommunityIds : [payload.communityId],
-      city: req.user?.city || 'Indore',
-      state: req.user?.state || 'Madhya Pradesh',
+      city: city || req.user?.city || 'Indore',
+      state: state || req.user?.state || 'Madhya Pradesh',
       designation: 'Local Head',
       department: 'Local Community',
       joiningDate: new Date(),
@@ -154,6 +158,8 @@ exports.createLocalHead = async (req, res) => {
         name: localHead.name,
         email: localHead.email,
         phone: localHead.phone,
+        city: localHead.city,
+        state: localHead.state,
         accountStatus: localHead.accountStatus
       }
     });
@@ -190,7 +196,7 @@ exports.getLocalHeads = async (req, res) => {
 exports.updateLocalHead = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, phone, password } = req.body;
+    const { name, email, phone, password, state, city } = req.body;
 
     const localHead = await User.findOne({ _id: id, parentHeadId: req.user._id, role: 'sub_head', accountType: 'local_head' });
     if (!localHead) {
@@ -215,6 +221,8 @@ exports.updateLocalHead = async (req, res) => {
       localHead.phone = phone;
     }
     if (name) localHead.name = name;
+    if (state !== undefined) localHead.state = state;
+    if (city !== undefined) localHead.city = city;
     if (password) {
       if (password.length < 6) {
         return res.status(400).json({ status: 'fail', message: 'Password must be at least 6 characters.' });
@@ -233,6 +241,8 @@ exports.updateLocalHead = async (req, res) => {
         name: localHead.name,
         email: localHead.email,
         phone: localHead.phone,
+        city: localHead.city,
+        state: localHead.state,
         accountStatus: localHead.accountStatus
       }
     });

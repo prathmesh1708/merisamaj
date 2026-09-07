@@ -233,6 +233,7 @@ const OnboardingScreen = () => {
 
   // Step 3 Selection
   const [selectedCommunity, setSelectedCommunity] = useState('');
+  const [customCommunity, setCustomCommunity] = useState('');
   const [selectedSubCommunity, setSelectedSubCommunity] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
   const [pincode, setPincode] = useState('');
@@ -247,6 +248,7 @@ const OnboardingScreen = () => {
     { label: 'Mali Samaj', value: 'Mali Samaj' },
     { label: 'Patel Samaj', value: 'Patel Samaj' },
     { label: 'Verma Samaj', value: 'Verma Samaj' },
+    { label: 'Other', value: 'other' },
   ];
 
   // Dynamic API Data
@@ -260,12 +262,19 @@ const OnboardingScreen = () => {
         if (res.data.success && res.data.data.length > 0) {
           const fetched = res.data.data.map(c => ({ label: c.name, value: c._id }));
           const mergedMap = new Map();
-          [...fetched, ...DEFAULT_COMMUNITIES].forEach(item => {
-            if (!mergedMap.has(item.label.toLowerCase())) {
+          fetched.forEach(item => {
+            if (item.label.toLowerCase() !== 'other') {
               mergedMap.set(item.label.toLowerCase(), item);
             }
           });
-          setApiCommunities(Array.from(mergedMap.values()));
+          DEFAULT_COMMUNITIES.forEach(item => {
+            if (item.value !== 'other' && !mergedMap.has(item.label.toLowerCase())) {
+              mergedMap.set(item.label.toLowerCase(), item);
+            }
+          });
+          const list = Array.from(mergedMap.values());
+          list.push({ label: 'Other', value: 'other' });
+          setApiCommunities(list);
         } else {
           setApiCommunities(DEFAULT_COMMUNITIES);
         }
@@ -295,7 +304,7 @@ const OnboardingScreen = () => {
 
   useEffect(() => {
     const loadCities = async () => {
-      if (!selectedCommunity) {
+      if (!selectedCommunity || selectedCommunity === 'other') {
         setApiCities(DEFAULT_INDIAN_CITIES);
         return;
       }
@@ -394,10 +403,23 @@ const OnboardingScreen = () => {
       if (userToLoad.gender) setGender(userToLoad.gender);
       if (userToLoad.communityId) {
         const cId = userToLoad.communityId._id || userToLoad.communityId;
-        setSelectedCommunity(cId);
+        const matched = apiCommunities.find(c => c.value === cId || c.label.toLowerCase() === (userToLoad.community || '').toLowerCase());
+        if (matched && matched.value !== 'other') {
+          setSelectedCommunity(matched.value);
+        } else if (userToLoad.community) {
+          setSelectedCommunity('other');
+          setCustomCommunity(userToLoad.community);
+        } else {
+          setSelectedCommunity(cId);
+        }
       } else if (userToLoad.community && apiCommunities.length > 0) {
-        const matched = apiCommunities.find(c => c.label === userToLoad.community);
-        if (matched) setSelectedCommunity(matched.value);
+        const matched = apiCommunities.find(c => c.label.toLowerCase() === userToLoad.community.toLowerCase());
+        if (matched && matched.value !== 'other') {
+          setSelectedCommunity(matched.value);
+        } else {
+          setSelectedCommunity('other');
+          setCustomCommunity(userToLoad.community);
+        }
       }
       if (userToLoad.subCommunity) setSelectedSubCommunity(userToLoad.subCommunity);
       if (userToLoad.city) setSelectedCity(userToLoad.city);
@@ -469,7 +491,8 @@ const OnboardingScreen = () => {
   const calculateCompletion = () => {
     let pct = 0;
     pct += 15; // Prefilled mobile verification
-    if (selectedCommunity && selectedSubCommunity && pincode) pct += 15;
+    const isCommValid = selectedCommunity && (selectedCommunity !== 'other' || customCommunity.trim().length > 0);
+    if (isCommValid && selectedSubCommunity && pincode) pct += 15;
     if (name && gender) pct += 20;
     if (qualification || school) pct += 10;
     if (profession || company) pct += 10;
@@ -545,7 +568,11 @@ const OnboardingScreen = () => {
   const validateStep = (stepNum) => {
     const errors = {};
     if (stepNum === 2) {
-      if (!selectedCommunity) errors.community = 'Please select a community.';
+      if (!selectedCommunity) {
+        errors.community = 'Please select a community.';
+      } else if (selectedCommunity === 'other' && !customCommunity.trim()) {
+        errors.customCommunity = 'Please write your community name.';
+      }
       if (!selectedCity) errors.city = 'Please select your city.';
     }
     if (stepNum === 3) {
@@ -578,8 +605,17 @@ const OnboardingScreen = () => {
   };
 
   const handleSaveProfile = async () => {
-    const resolvedComm = apiCommunities.find(c => c.value === selectedCommunity || c.label === selectedCommunity);
-    const communityName = resolvedComm ? resolvedComm.label : (typeof selectedCommunity === 'string' && selectedCommunity ? selectedCommunity : '');
+    let communityName = '';
+    let communityIdVal = '';
+
+    if (selectedCommunity === 'other') {
+      communityName = customCommunity.trim() || 'Other';
+      communityIdVal = customCommunity.trim() || 'other';
+    } else {
+      const resolvedComm = apiCommunities.find(c => c.value === selectedCommunity || c.label === selectedCommunity);
+      communityName = resolvedComm ? resolvedComm.label : (typeof selectedCommunity === 'string' && selectedCommunity ? selectedCommunity : '');
+      communityIdVal = selectedCommunity;
+    }
 
     const completeUserObj = {
       id: auth.user?.id || auth.user?._id || `u-${Date.now()}`,
@@ -587,7 +623,7 @@ const OnboardingScreen = () => {
       phone: String(phone || auth.user?.phone || ''),
       email: String(email || auth.user?.email || ''),
       community: communityName || auth.user?.community || 'Jain Samaj',
-      communityId: String(selectedCommunity || auth.user?.communityId || 'Jain Samaj'),
+      communityId: String(communityIdVal || auth.user?.communityId || 'Jain Samaj'),
       subCommunity: String(selectedSubCommunity || ''),
       city: String(selectedCity || ''),
       district: String(district || ''),
@@ -862,7 +898,13 @@ const OnboardingScreen = () => {
                   <label className="text-[11px] font-bold text-text-secondary uppercase tracking-wider block mb-1.5">Select Community</label>
                   <CustomSelect
                     value={selectedCommunity}
-                    onChange={(val) => { setSelectedCommunity(val); setSelectedSubCommunity(''); setSelectedCity(''); setStepErrors(prev => ({ ...prev, community: '' })); }}
+                    onChange={(val) => { 
+                      setSelectedCommunity(val); 
+                      if (val !== 'other') setCustomCommunity('');
+                      setSelectedSubCommunity(''); 
+                      setSelectedCity(''); 
+                      setStepErrors(prev => ({ ...prev, community: '', customCommunity: '' })); 
+                    }}
                     options={apiCommunities}
                     placeholder="Select community"
                     disabled={isCommunityLocked}
@@ -872,6 +914,33 @@ const OnboardingScreen = () => {
                   )}
                   {stepErrors.community && <p role="alert" className="text-[10px] text-red-500 font-semibold mt-1">{stepErrors.community}</p>}
                 </div>
+
+                {/* Custom Community Input when "Other" is selected */}
+                {selectedCommunity === 'other' && (
+                  <div className="bg-purple-50/70 p-3.5 border border-purple-200/90 rounded-2xl space-y-1.5 animate-fade-in">
+                    <label className="text-[11px] font-bold text-[#6D28D9] uppercase tracking-wider block">
+                      Write Your Community Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Maheshwari Samaj, Brahmin Samaj, etc."
+                      value={customCommunity}
+                      onChange={(e) => {
+                        setCustomCommunity(e.target.value);
+                        setStepErrors(prev => ({ ...prev, customCommunity: '', community: '' }));
+                      }}
+                      className="w-full bg-white border border-purple-200 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-[#7C3AED] focus:ring-2 focus:ring-purple-500/15 transition-all placeholder:text-slate-400"
+                      autoFocus
+                    />
+                    <p className="text-[10px] text-purple-700 font-medium">
+                      If your Samaj is not listed above, please write your community name here.
+                    </p>
+                    {stepErrors.customCommunity && (
+                      <p role="alert" className="text-[10px] text-red-500 font-semibold">{stepErrors.customCommunity}</p>
+                    )}
+                  </div>
+                )}
+
                 <div>
                   <label className="text-[11px] font-bold text-text-secondary uppercase tracking-wider block mb-1.5">Sub-Community / Category</label>
                   <CustomSelect
@@ -879,7 +948,7 @@ const OnboardingScreen = () => {
                     onChange={setSelectedSubCommunity}
                     options={selectedCommunity ? ['General'] : []}
                     placeholder="Select sub-community"
-                    disabled={!selectedCommunity}
+                    disabled={!selectedCommunity || (selectedCommunity === 'other' && !customCommunity.trim())}
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -901,7 +970,7 @@ const OnboardingScreen = () => {
                       onChange={(val) => { setSelectedCity(val); setStepErrors(prev => ({ ...prev, city: '' })); }}
                       options={selectedCity ? [{ label: selectedCity, value: selectedCity }, ...apiCities.filter(c => c.value !== selectedCity)] : apiCities}
                       placeholder="Select city"
-                      disabled={!selectedCommunity}
+                      disabled={!selectedCommunity || (selectedCommunity === 'other' && !customCommunity.trim())}
                     />
                     {stepErrors.city && <p role="alert" className="text-[10px] text-red-500 font-semibold mt-1">{stepErrors.city}</p>}
                   </div>

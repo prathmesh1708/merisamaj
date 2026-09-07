@@ -58,6 +58,21 @@ const headDonationService = {
   getLedger: async () => {
     const response = await axiosPrivate.get('/head/donations/ledger');
     return response.data.data;
+  },
+
+  getCategories: async () => {
+    const response = await axiosPrivate.get('/head/donations/categories');
+    return response.data.data || response.data;
+  },
+
+  createCategory: async (categoryData) => {
+    const response = await axiosPrivate.post('/head/donations/categories', categoryData);
+    return response.data.data || response.data;
+  },
+
+  deleteCategory: async (id) => {
+    const response = await axiosPrivate.delete(`/head/donations/categories/${id}`);
+    return response.data;
   }
 };
 

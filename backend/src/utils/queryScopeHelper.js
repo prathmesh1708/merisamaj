@@ -65,7 +65,10 @@ const applyScopeFilter = (req, baseFilter = {}, options = {}) => {
     const campaignTargetingCondition = [
       { communityId: targetCommId },
       { isGlobalCampaign: true },
-      { targetedCommunities: targetCommId }
+      { visibility: { $in: ['All Members', 'All Communities', 'Global', 'All Locations'] } },
+      { targetedCommunities: targetCommId },
+      { communityId: null },
+      { communityId: { $exists: false } }
     ];
     if (filter.$or) {
       const existingOr = filter.$or;

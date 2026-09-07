@@ -38,7 +38,7 @@ const donationSchema = new mongoose.Schema({
 
   status: {
     type: String,
-    enum: ['Draft', 'Pending', 'Scheduled', 'Active', 'Completed', 'Closed', 'Suspended', 'Archived', 'Approved', 'Failed', 'Cancelled'],
+    enum: ['Draft', 'Pending', 'Scheduled', 'Active', 'Published', 'Completed', 'Closed', 'Suspended', 'Archived', 'Approved', 'Failed', 'Cancelled'],
     default: 'Active',
     index: true
   },

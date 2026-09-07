@@ -394,16 +394,16 @@ export default function DharmashalaManagement() {
   };
 
   return (
-    <div className="p-6 bg-slate-50 min-h-screen text-slate-800 font-sans space-y-6">
+    <div className="p-3 sm:p-6 bg-slate-50 min-h-screen text-slate-800 font-sans space-y-4 sm:space-y-6">
       {/* Header Banner - White Neo Style */}
-      <div className="flex justify-between items-center bg-white border border-slate-100 p-6 rounded-2xl shadow-sm">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white border border-slate-100 p-4 sm:p-6 rounded-2xl shadow-sm">
         <div>
-          <h2 className="text-xl font-black text-slate-800 tracking-tight flex items-center gap-2">
-            <Building className="text-indigo-600" /> Dharmashala Management Desk
+          <h2 className="text-lg sm:text-xl font-black text-slate-800 tracking-tight flex items-center gap-2">
+            <Building className="text-indigo-600 shrink-0" size={20} /> Dharmashala Management Desk
           </h2>
           <p className="text-slate-500 text-xs font-semibold mt-1">Manage your community properties, room inventory, guest check-ins, and bookings scheduling.</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex w-full sm:w-auto">
           <button 
             onClick={() => {
               setPropertyEditId(null);
@@ -416,15 +416,15 @@ export default function DharmashalaManagement() {
               });
               setShowPropertyModal(true);
             }}
-            className="px-5 py-3 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold rounded-xl text-[12px] transition-all flex items-center gap-2 shadow-sm"
+            className="w-full sm:w-auto justify-center px-4 sm:px-5 py-2.5 sm:py-3 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold rounded-xl text-xs sm:text-[12px] transition-all flex items-center gap-2 shadow-sm"
           >
             <Plus size={15} /> Add New Property
           </button>
         </div>
       </div>
 
-      {/* Tabs Switcher - Light style */}
-      <div className="flex border-b border-slate-200 bg-white p-1 rounded-xl shadow-sm gap-1">
+      {/* Tabs Switcher - Light style with horizontal scroll for mobile */}
+      <div className="flex overflow-x-auto no-scrollbar border-b border-slate-200 bg-white p-1.5 rounded-xl shadow-sm gap-1.5 scroll-smooth">
         {[
           { id: 'overview', label: 'Overview & Statistics' },
           { id: 'properties', label: 'Properties Directory' },
@@ -434,7 +434,7 @@ export default function DharmashalaManagement() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`px-5 py-2.5 rounded-lg text-[12.5px] font-black transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-850'}`}
+            className={`whitespace-nowrap shrink-0 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-lg text-xs sm:text-[12.5px] font-black transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}
           >
             {tab.label}
           </button>
@@ -447,12 +447,11 @@ export default function DharmashalaManagement() {
           <p className="text-slate-450 text-xs font-semibold">Loading data, please wait...</p>
         </div>
       ) : (
-        <>
-          {/* TAB 1: OVERVIEW */}
+        <>          {/* TAB 1: OVERVIEW */}
           {activeTab === 'overview' && (
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               {/* Stats Cards Grid - Light Style */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4">
                 {[
                   { label: 'Total Dharmashalas', val: stats.totalDharmashalas || 0, color: 'text-indigo-600', desc: 'Registered Properties' },
                   { label: 'Active Properties', val: stats.activeDharmashalas || 0, color: 'text-emerald-600', desc: 'Open for Bookings' },
@@ -463,16 +462,16 @@ export default function DharmashalaManagement() {
                   { label: 'Today Departures', val: stats.todayCheckOuts || 0, color: 'text-slate-650', desc: 'Scheduled Check-outs' },
                   { label: 'Monthly Revenue', val: `₹${stats.monthlyRevenue || 0}`, color: 'text-emerald-700 font-extrabold', desc: 'Current Month Income' }
                 ].map((s, idx) => (
-                  <div key={idx} className="bg-white border border-slate-100 p-5 rounded-2xl shadow-sm flex flex-col justify-between">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{s.label}</span>
-                    <span className={`text-2xl font-black block mt-2 ${s.color}`}>{s.val}</span>
-                    <span className="text-[9.5px] text-slate-450 mt-1 block font-semibold">{s.desc}</span>
+                  <div key={idx} className="bg-white border border-slate-100 p-3.5 sm:p-5 rounded-2xl shadow-sm flex flex-col justify-between">
+                    <span className="text-[9px] sm:text-[10px] text-slate-400 font-bold uppercase tracking-wider line-clamp-1">{s.label}</span>
+                    <span className={`text-xl sm:text-2xl font-black block mt-1.5 sm:mt-2 ${s.color}`}>{s.val}</span>
+                    <span className="text-[8.5px] sm:text-[9.5px] text-slate-450 mt-1 block font-semibold">{s.desc}</span>
                   </div>
                 ))}
               </div>
 
               {/* Occupancy Progress Tracker */}
-              <div className="bg-white border border-slate-100 p-6 rounded-2xl shadow-sm">
+              <div className="bg-white border border-slate-100 p-4 sm:p-6 rounded-2xl shadow-sm">
                 <div className="flex justify-between items-center mb-3">
                   <h3 className="text-xs font-black text-slate-700">Property Occupancy Rate</h3>
                   <span className="text-indigo-600 font-black text-sm">{stats.occupancyRate || 0}%</span>
@@ -484,25 +483,25 @@ export default function DharmashalaManagement() {
               </div>
 
               {/* Today's Schedule Live Desk */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 {/* Check-ins */}
-                <div className="bg-white border border-slate-100 p-6 rounded-2xl shadow-sm space-y-4">
+                <div className="bg-white border border-slate-100 p-4 sm:p-6 rounded-2xl shadow-sm space-y-3 sm:space-y-4">
                   <h3 className="text-xs font-black text-slate-800 flex items-center gap-2 border-b border-slate-50 pb-2.5">
                     <Check className="text-emerald-600" size={16} /> Today's Arrivals (Check-ins)
                   </h3>
-                  <div className="space-y-3">
+                  <div className="space-y-2.5 sm:space-y-3">
                     {bookings.filter(b => b.status === 'approved' || b.status === 'upcoming').length === 0 ? (
                       <p className="text-slate-400 text-xs font-bold py-6 text-center">No arrivals scheduled for today.</p>
                     ) : (
                       bookings.filter(b => b.status === 'approved' || b.status === 'upcoming').map(b => (
-                        <div key={b._id} className="bg-slate-50 border border-slate-100 p-4 rounded-xl flex justify-between items-center">
-                          <div>
-                            <span className="text-xs font-black text-slate-800">{b.bookedBy}</span>
-                            <span className="text-[10px] text-slate-450 block mt-0.5">ID: {b.bookingId} | Rooms: {b.rooms?.map(r=>r.roomNumber).join(', ') || 'None'}</span>
+                        <div key={b._id} className="bg-slate-50 border border-slate-100 p-3 sm:p-4 rounded-xl flex justify-between items-center gap-2">
+                          <div className="min-w-0 flex-1">
+                            <span className="text-xs font-black text-slate-800 truncate block">{b.bookedBy}</span>
+                            <span className="text-[10px] text-slate-450 block mt-0.5 truncate">ID: {b.bookingId} | Rooms: {b.rooms?.map(r=>r.roomNumber).join(', ') || 'None'}</span>
                           </div>
                           <button 
                             onClick={() => handleBookingAction(b, 'checked_in')}
-                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-xl transition-all"
+                            className="shrink-0 px-3 sm:px-4 py-1.5 sm:py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-xl transition-all"
                           >
                             Check In
                           </button>
@@ -513,23 +512,23 @@ export default function DharmashalaManagement() {
                 </div>
 
                 {/* Check-outs */}
-                <div className="bg-white border border-slate-100 p-6 rounded-2xl shadow-sm space-y-4">
+                <div className="bg-white border border-slate-100 p-4 sm:p-6 rounded-2xl shadow-sm space-y-3 sm:space-y-4">
                   <h3 className="text-xs font-black text-slate-800 flex items-center gap-2 border-b border-slate-50 pb-2.5">
                     <X className="text-rose-600" size={16} /> Today's Departures (Check-outs)
                   </h3>
-                  <div className="space-y-3">
+                  <div className="space-y-2.5 sm:space-y-3">
                     {bookings.filter(b => b.status === 'checked_in').length === 0 ? (
                       <p className="text-slate-400 text-xs font-bold py-6 text-center">No departures scheduled for today.</p>
                     ) : (
                       bookings.filter(b => b.status === 'checked_in').map(b => (
-                        <div key={b._id} className="bg-slate-50 border border-slate-100 p-4 rounded-xl flex justify-between items-center">
-                          <div>
-                            <span className="text-xs font-black text-slate-800">{b.bookedBy}</span>
-                            <span className="text-[10px] text-slate-450 block mt-0.5">ID: {b.bookingId} | Rooms: {b.rooms?.map(r=>r.roomNumber).join(', ') || 'N/A'}</span>
+                        <div key={b._id} className="bg-slate-50 border border-slate-100 p-3 sm:p-4 rounded-xl flex justify-between items-center gap-2">
+                          <div className="min-w-0 flex-1">
+                            <span className="text-xs font-black text-slate-800 truncate block">{b.bookedBy}</span>
+                            <span className="text-[10px] text-slate-450 block mt-0.5 truncate">ID: {b.bookingId} | Rooms: {b.rooms?.map(r=>r.roomNumber).join(', ') || 'N/A'}</span>
                           </div>
                           <button 
                             onClick={() => handleBookingAction(b, 'checked_out')}
-                            className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold rounded-xl transition-all"
+                            className="shrink-0 px-3 sm:px-4 py-1.5 sm:py-2 bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold rounded-xl transition-all"
                           >
                             Check Out
                           </button>
@@ -613,32 +612,32 @@ export default function DharmashalaManagement() {
 
           {/* TAB 3: ROOMS INVENTORY */}
           {activeTab === 'rooms' && (
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               {/* Property Select Dropdown */}
-              <div className="bg-white border border-slate-100 p-5 rounded-2xl shadow-sm flex justify-between items-center flex-wrap gap-4">
-                <div className="flex items-center gap-3">
-                  <label className="text-xs font-bold text-slate-500">Select Property:</label>
+              <div className="bg-white border border-slate-100 p-4 sm:p-5 rounded-2xl shadow-sm flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 sm:gap-4">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <label className="text-xs font-bold text-slate-500 shrink-0">Select Property:</label>
                   <select 
                     value={selectedPropertyId}
                     onChange={(e) => setSelectedPropertyId(e.target.value)}
-                    className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"
+                    className="flex-1 sm:flex-none bg-slate-50 border border-slate-200 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"
                   >
                     {properties.map(p => (
                       <option key={p._id} value={p._id}>{p.name}</option>
                     ))}
                   </select>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <button 
                     onClick={openMaintenanceForm}
-                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl text-xs font-black transition-all text-slate-700 flex items-center gap-1.5"
+                    className="flex-1 sm:flex-none justify-center px-3.5 sm:px-4 py-2 sm:py-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl text-xs font-black transition-all text-slate-700 flex items-center gap-1.5"
                   >
                     <Wrench size={14} className="text-amber-600" /> Maintenance Schedule
                   </button>
                   <button 
                     onClick={openAddRoom}
                     disabled={properties.length === 0}
-                    className="px-4 py-2.5 bg-indigo-650 hover:bg-indigo-600 disabled:opacity-50 text-white text-xs font-black rounded-xl transition-all flex items-center gap-1.5 shadow-sm"
+                    className="flex-1 sm:flex-none justify-center px-3.5 sm:px-4 py-2 sm:py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-black rounded-xl transition-all flex items-center gap-1.5 shadow-sm"
                   >
                     <Plus size={14} /> Add New Room
                   </button>
@@ -646,16 +645,16 @@ export default function DharmashalaManagement() {
               </div>
 
               {/* Rooms Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
                 {rooms.length === 0 ? (
-                  <div className="col-span-full bg-white p-12 rounded-2xl border border-slate-100 text-center space-y-3 shadow-sm">
+                  <div className="col-span-full bg-white p-8 sm:p-12 rounded-2xl border border-slate-100 text-center space-y-3 shadow-sm">
                     <Grid size={40} className="mx-auto text-slate-400" />
                     <h3 className="text-sm font-black text-slate-800">No rooms registered under this property</h3>
                     <p className="text-xs text-slate-450">Click 'Add New Room' to configure property inventory details.</p>
                   </div>
                 ) : (
                   rooms.map(room => (
-                    <div key={room._id} className="bg-white border border-slate-100 p-5 rounded-2xl shadow-sm flex flex-col space-y-4">
+                    <div key={room._id} className="bg-white border border-slate-100 p-4 sm:p-5 rounded-2xl shadow-sm flex flex-col space-y-3 sm:space-y-4">
                       <div className="flex justify-between items-start">
                         <div>
                           <span className="text-sm font-black text-slate-800">Room No. {room.roomNumber}</span>
@@ -674,11 +673,11 @@ export default function DharmashalaManagement() {
                       <div className="pt-3 border-t border-slate-50 grid grid-cols-2 gap-y-2 text-xs font-bold text-slate-600">
                         <div>Category: <span className="text-slate-800 font-extrabold">{room.roomCategory}</span></div>
                         <div>Type: <span className="text-slate-800 font-extrabold">{room.isAc ? 'AC' : 'General'}</span></div>
-                        <div>Price: <span className="text-emerald-650 font-extrabold">₹{room.price}</span></div>
+                        <div>Price: <span className="text-emerald-600 font-extrabold">₹{room.price}</span></div>
                         <div>Max Guests: <span className="text-slate-800 font-extrabold">{room.maxGuests}</span></div>
                       </div>
 
-                      <div className="pt-4 border-t border-slate-50 flex gap-2 justify-end">
+                      <div className="pt-3 sm:pt-4 border-t border-slate-50 flex gap-2 justify-end">
                         <button 
                           onClick={() => openEditRoom(room)}
                           className="p-2 border border-slate-200 hover:bg-slate-50 rounded-lg text-slate-600 transition-all"
@@ -702,20 +701,20 @@ export default function DharmashalaManagement() {
           {/* TAB 4: BOOKINGS DESK */}
           {activeTab === 'bookings' && (
             <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
-              <div className="p-5 border-b border-slate-50 flex justify-between items-center">
+              <div className="p-4 sm:p-5 border-b border-slate-50 flex justify-between items-center">
                 <h3 className="text-xs font-black text-slate-800">Dharmashala Guest Bookings Panel</h3>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs font-semibold text-slate-600">
+                <table className="w-full min-w-[650px] text-left text-xs font-semibold text-slate-600">
                   <thead className="bg-slate-50 text-slate-500 font-extrabold uppercase border-b border-slate-100">
                     <tr>
-                      <th className="px-5 py-4">Booking ID</th>
-                      <th className="px-5 py-4">Member Details</th>
-                      <th className="px-5 py-4">Check-in / Out</th>
-                      <th className="px-5 py-4">Allocated Room</th>
-                      <th className="px-5 py-4">Amount</th>
-                      <th className="px-5 py-4">Status</th>
-                      <th className="px-5 py-4 text-right">Actions</th>
+                      <th className="px-4 sm:px-5 py-3 sm:py-4">Booking ID</th>
+                      <th className="px-4 sm:px-5 py-3 sm:py-4">Member Details</th>
+                      <th className="px-4 sm:px-5 py-3 sm:py-4">Check-in / Out</th>
+                      <th className="px-4 sm:px-5 py-3 sm:py-4">Allocated Room</th>
+                      <th className="px-4 sm:px-5 py-3 sm:py-4">Amount</th>
+                      <th className="px-4 sm:px-5 py-3 sm:py-4">Status</th>
+                      <th className="px-4 sm:px-5 py-3 sm:py-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -726,23 +725,23 @@ export default function DharmashalaManagement() {
                     ) : (
                       bookings.map(b => (
                         <tr key={b._id} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="px-5 py-4 font-black text-indigo-650">{b.bookingId}</td>
-                          <td className="px-5 py-4">
+                          <td className="px-4 sm:px-5 py-3 sm:py-4 font-black text-indigo-600">{b.bookingId}</td>
+                          <td className="px-4 sm:px-5 py-3 sm:py-4">
                             <span className="text-slate-800 font-bold block">{b.bookedBy}</span>
                             <span className="text-[10px] text-slate-450 block font-medium mt-0.5">{b.phone}</span>
                           </td>
-                          <td className="px-5 py-4">
+                          <td className="px-4 sm:px-5 py-3 sm:py-4">
                             <span>{new Date(b.checkIn).toLocaleDateString('en-US')} - {new Date(b.checkOut).toLocaleDateString('en-US')}</span>
                             <span className="text-[10px] text-slate-450 block font-medium mt-0.5">({b.nights} Nights)</span>
                           </td>
-                          <td className="px-5 py-4">
+                          <td className="px-4 sm:px-5 py-3 sm:py-4">
                             <span className="text-slate-700 block">{b.roomType} room</span>
                             {b.rooms && b.rooms.length > 0 && (
-                              <span className="text-[10px] text-emerald-650 block font-bold mt-0.5">Room No: {b.rooms.map(r=>r.roomNumber).join(', ')}</span>
+                              <span className="text-[10px] text-emerald-600 block font-bold mt-0.5">Room No: {b.rooms.map(r=>r.roomNumber).join(', ')}</span>
                             )}
                           </td>
-                          <td className="px-5 py-4 text-emerald-650 font-black">₹{b.totalAmount}</td>
-                          <td className="px-5 py-4">
+                          <td className="px-4 sm:px-5 py-3 sm:py-4 text-emerald-600 font-black">₹{b.totalAmount}</td>
+                          <td className="px-4 sm:px-5 py-3 sm:py-4">
                             <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase ${
                               b.status === 'pending_approval' ? 'bg-amber-50 text-amber-700 border border-amber-100' :
                               b.status === 'approved' || b.status === 'upcoming' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
@@ -756,19 +755,19 @@ export default function DharmashalaManagement() {
                                b.status === 'checked_out' ? 'Checked-Out' : 'Completed'}
                             </span>
                           </td>
-                          <td className="px-5 py-4 text-right">
+                          <td className="px-4 sm:px-5 py-3 sm:py-4 text-right">
                             <div className="flex gap-2 justify-end">
                               {b.status === 'pending_approval' && (
                                 <>
                                   <button 
                                     onClick={() => handleBookingAction(b, 'approved')}
-                                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold"
+                                    className="px-2.5 sm:px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold"
                                   >
                                     Approve
                                   </button>
                                   <button 
                                     onClick={() => handleBookingAction(b, 'cancelled')}
-                                    className="px-3 py-1.5 border border-rose-100 hover:bg-rose-50 text-rose-650 rounded-lg text-[10px] font-bold"
+                                    className="px-2.5 sm:px-3 py-1.5 border border-rose-100 hover:bg-rose-50 text-rose-600 rounded-lg text-[10px] font-bold"
                                   >
                                     Reject
                                   </button>
@@ -778,7 +777,7 @@ export default function DharmashalaManagement() {
                               {b.status === 'approved' && (
                                 <button 
                                   onClick={() => handleBookingAction(b, 'checked_in')}
-                                  className="px-3 py-1.5 bg-purple-650 hover:bg-purple-700 text-white rounded-lg text-[10px] font-bold"
+                                  className="px-2.5 sm:px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-[10px] font-bold"
                                 >
                                   Check In
                                 </button>
@@ -787,7 +786,7 @@ export default function DharmashalaManagement() {
                               {b.status === 'checked_in' && (
                                 <button 
                                   onClick={() => handleBookingAction(b, 'checked_out')}
-                                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[10px] font-bold"
+                                  className="px-2.5 sm:px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[10px] font-bold"
                                 >
                                   Check Out
                                 </button>
@@ -805,18 +804,18 @@ export default function DharmashalaManagement() {
 
           {/* TAB 5: MAINTENANCE */}
           {activeTab === 'maintenance' && (
-            <div className="space-y-6">
-              <div className="bg-white border border-slate-100 p-5 rounded-2xl shadow-sm flex justify-between items-center">
+            <div className="space-y-4 sm:space-y-6">
+              <div className="bg-white border border-slate-100 p-4 sm:p-5 rounded-2xl shadow-sm flex justify-between items-center">
                 <span className="text-xs font-bold text-slate-500">Maintenance &amp; Blockouts Logs</span>
                 <button 
                   onClick={openMaintenanceForm}
-                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-black rounded-xl transition-all"
+                  className="px-3.5 sm:px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-black rounded-xl transition-all"
                 >
                   Schedule Lockout
                 </button>
               </div>
 
-              <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden p-8 text-center shadow-sm">
+              <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden p-6 sm:p-8 text-center shadow-sm">
                 <AlertCircle className="mx-auto text-amber-500 mb-3" size={32} />
                 <p className="text-slate-500 text-xs font-bold">Property cleaning, room repairs, and restoration lockouts scheduler records logs will appear here.</p>
               </div>
@@ -827,16 +826,16 @@ export default function DharmashalaManagement() {
 
       {/* Property Modal Form */}
       {showPropertyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white border border-slate-100 w-full max-w-2xl rounded-2xl shadow-2xl my-8 max-h-[95vh] flex flex-col">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="text-sm font-black text-slate-800">{propertyEditId ? 'Edit Property Details' : 'Register New Property'}</h3>
-              <button onClick={() => setShowPropertyModal(false)} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-655"><X size={16} /></button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white border border-slate-100 w-full max-w-2xl rounded-2xl sm:rounded-3xl shadow-2xl my-4 sm:my-8 max-h-[92vh] flex flex-col">
+            <div className="p-4 sm:p-6 border-b border-slate-100 flex justify-between items-center">
+              <h3 className="text-sm sm:text-base font-black text-slate-800">{propertyEditId ? 'Edit Property Details' : 'Register New Property'}</h3>
+              <button onClick={() => setShowPropertyModal(false)} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer"><X size={16} /></button>
             </div>
             
-            <form onSubmit={handlePropertySubmit} className="flex-1 overflow-y-auto p-6 space-y-4 text-slate-600">
-              <div className="grid grid-cols-2 gap-4 text-xs font-bold">
-                <div className="col-span-2 grid grid-cols-2 gap-3">
+            <form onSubmit={handlePropertySubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 text-slate-600">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-xs font-bold">
+                <div className="col-span-1 sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Dharmashala Name</label>
                     <input 
@@ -878,7 +877,7 @@ export default function DharmashalaManagement() {
                   />
                 </div>
 
-                <div className="col-span-2">
+                <div className="col-span-1 sm:col-span-2">
                   <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Full Address</label>
                   <input 
                     type="text" required
@@ -945,9 +944,9 @@ export default function DharmashalaManagement() {
                   />
                 </div>
 
-                <div className="col-span-2">
+                <div className="col-span-1 sm:col-span-2">
                   <label className="text-[10px] font-black uppercase text-slate-400 block mb-2">Amenities List Select</label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {allAmenities.map(amenity => (
                       <label key={amenity} className="flex items-center gap-2 text-xs font-bold cursor-pointer">
                         <input 
@@ -968,7 +967,7 @@ export default function DharmashalaManagement() {
                   </div>
                 </div>
 
-                <div className="col-span-2">
+                <div className="col-span-1 sm:col-span-2">
                   <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Description</label>
                   <textarea 
                     rows="3"
@@ -979,11 +978,11 @@ export default function DharmashalaManagement() {
                 </div>
 
                 {/* Single Image Upload - Property Cover Photo */}
-                <div className="col-span-2 space-y-1.5">
+                <div className="col-span-1 sm:col-span-2 space-y-1.5">
                   <label className="text-[10px] font-black uppercase text-slate-400 block">
                     Property Cover Image (Single Upload)
                   </label>
-                  <div className="flex items-center gap-4 bg-slate-50 border border-dashed border-slate-200 p-3 rounded-xl">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 bg-slate-50 border border-dashed border-slate-200 p-3 rounded-xl">
                     {(propertyForm.coverFile || propertyForm.image) ? (
                       <div className="relative w-20 h-20 rounded-lg overflow-hidden border border-slate-200 shrink-0">
                         <img 
@@ -1030,7 +1029,7 @@ export default function DharmashalaManagement() {
                 </div>
 
                 {/* Multiple Images Upload - Property Gallery */}
-                <div className="col-span-2 space-y-1.5">
+                <div className="col-span-1 sm:col-span-2 space-y-1.5">
                   <label className="text-[10px] font-black uppercase text-slate-400 block">
                     Property Gallery Images (Multiple Upload)
                   </label>
@@ -1107,9 +1106,9 @@ export default function DharmashalaManagement() {
                 </div>
               </div>
 
-              <div className="pt-6 border-t border-slate-100 flex justify-end gap-2">
-                <button type="button" onClick={() => setShowPropertyModal(false)} className="px-5 py-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl text-xs font-bold text-slate-500">Cancel</button>
-                <button type="submit" className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-sm">Save Changes</button>
+              <div className="pt-4 sm:pt-6 border-t border-slate-100 flex flex-col-reverse sm:flex-row justify-end gap-2">
+                <button type="button" onClick={() => setShowPropertyModal(false)} className="w-full sm:w-auto px-5 py-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl text-xs font-bold text-slate-500">Cancel</button>
+                <button type="submit" className="w-full sm:w-auto px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-sm cursor-pointer">Save Changes</button>
               </div>
             </form>
           </div>
@@ -1118,21 +1117,21 @@ export default function DharmashalaManagement() {
 
       {/* Room Modal Form */}
       {showRoomModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white border border-slate-100 w-full max-w-md rounded-2xl shadow-2xl">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="text-sm font-black text-slate-805">{roomEditId ? 'Edit Room Configuration' : 'Add New Room'}</h3>
-              <button onClick={() => setShowRoomModal(false)} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-655"><X size={16} /></button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white border border-slate-100 w-full max-w-md rounded-2xl sm:rounded-3xl shadow-2xl my-4 max-h-[92vh] flex flex-col">
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex justify-between items-center">
+              <h3 className="text-sm sm:text-base font-black text-slate-800">{roomEditId ? 'Edit Room Configuration' : 'Add New Room'}</h3>
+              <button onClick={() => setShowRoomModal(false)} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer"><X size={16} /></button>
             </div>
             
-            <form onSubmit={handleRoomSubmit} className="p-5 space-y-4 text-slate-600 text-xs font-bold">
+            <form onSubmit={handleRoomSubmit} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 sm:space-y-4 text-slate-600 text-xs font-bold">
               <div>
                 <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Room Number</label>
                 <input 
                   type="text" required
                   value={roomForm.roomNumber}
                   onChange={(e) => setRoomForm(prev => ({ ...prev, roomNumber: e.target.value }))}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-805 outline-none focus:border-indigo-500 focus:bg-white"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 focus:bg-white"
                 />
               </div>
 
@@ -1142,17 +1141,17 @@ export default function DharmashalaManagement() {
                   type="text" placeholder="e.g. Deluxe Double Room"
                   value={roomForm.roomName}
                   onChange={(e) => setRoomForm(prev => ({ ...prev, roomName: e.target.value }))}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-805 outline-none focus:border-indigo-500 focus:bg-white"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 focus:bg-white"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Room Category</label>
                   <select 
                     value={roomForm.roomCategory}
                     onChange={(e) => setRoomForm(prev => ({ ...prev, roomCategory: e.target.value }))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-805 outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500"
                   >
                     <option value="Standard">Standard</option>
                     <option value="Deluxe">Deluxe</option>
@@ -1165,7 +1164,7 @@ export default function DharmashalaManagement() {
                     type="text" placeholder="e.g. 1st Floor"
                     value={roomForm.floor}
                     onChange={(e) => setRoomForm(prev => ({ ...prev, floor: e.target.value }))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-850 outline-none focus:border-indigo-500 focus:bg-white"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 focus:bg-white"
                   />
                 </div>
               </div>
@@ -1182,14 +1181,14 @@ export default function DharmashalaManagement() {
                 </label>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Price per Night</label>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Price per Night (₹)</label>
                   <input 
                     type="number" required
                     value={roomForm.price}
                     onChange={(e) => setRoomForm(prev => ({ ...prev, price: parseInt(e.target.value) || 0 }))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-805 outline-none focus:border-indigo-500 focus:bg-white"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 focus:bg-white"
                   />
                 </div>
                 <div>
@@ -1198,14 +1197,14 @@ export default function DharmashalaManagement() {
                     type="number"
                     value={roomForm.maxGuests}
                     onChange={(e) => setRoomForm(prev => ({ ...prev, maxGuests: parseInt(e.target.value) || 2 }))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-805 outline-none focus:border-indigo-500 focus:bg-white"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 focus:bg-white"
                   />
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-slate-100 flex justify-end gap-2">
-                <button type="button" onClick={() => setShowRoomModal(false)} className="px-4 py-2 border border-slate-200 hover:bg-slate-50 rounded-lg text-slate-500">Cancel</button>
-                <button type="submit" className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm">Save Room</button>
+              <div className="pt-4 border-t border-slate-100 flex flex-col-reverse sm:flex-row justify-end gap-2">
+                <button type="button" onClick={() => setShowRoomModal(false)} className="w-full sm:w-auto px-4 py-2 border border-slate-200 hover:bg-slate-50 rounded-xl text-slate-500 font-bold">Cancel</button>
+                <button type="submit" className="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-sm font-bold cursor-pointer">Save Room</button>
               </div>
             </form>
           </div>
@@ -1214,17 +1213,17 @@ export default function DharmashalaManagement() {
 
       {/* Booking Acceptance Drawer/Modal */}
       {showBookingModal && activeBooking && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-          <div className="bg-white border border-slate-100 w-full max-w-sm rounded-[24px] overflow-hidden shadow-2xl">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="text-sm font-black text-slate-800">Assign Room &amp; Approve</h3>
-              <button onClick={() => setShowBookingModal(false)} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-655"><X size={16} /></button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white border border-slate-100 w-full max-w-md rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl my-4 max-h-[92vh] flex flex-col">
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex justify-between items-center">
+              <h3 className="text-sm sm:text-base font-black text-slate-800">Assign Room &amp; Approve</h3>
+              <button onClick={() => setShowBookingModal(false)} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer"><X size={16} /></button>
             </div>
-            <div className="p-5 space-y-4 text-xs font-bold text-slate-600">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 sm:space-y-4 text-xs font-bold text-slate-600">
               <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-2xl">
                 <p className="text-[10px] text-slate-400 font-bold uppercase">Guest Profile</p>
                 <p className="text-slate-800 text-sm font-bold mt-0.5">{activeBooking.bookedBy}</p>
-                <p className="text-[10px] text-indigo-600 mt-1 block">Requested: <span className="font-extrabold text-slate-850">{activeBooking.roomType} room</span></p>
+                <p className="text-[10px] text-indigo-600 mt-1 block">Requested: <span className="font-extrabold text-slate-800">{activeBooking.roomType} room</span></p>
               </div>
 
               <div>
@@ -1242,7 +1241,7 @@ export default function DharmashalaManagement() {
                     <option key={r._id} value={r._id}>Room {r.roomNumber} - {r.roomCategory} ({r.isAc ? 'AC' : 'Non-AC'})</option>
                   ))}
                 </select>
-                <span className="text-[9px] text-slate-450 mt-1 block font-semibold">Hold Ctrl key to assign multiple rooms.</span>
+                <span className="text-[9px] text-slate-400 mt-1 block font-semibold">Hold Ctrl key to assign multiple rooms.</span>
               </div>
 
               {/* Pricing & Final Amount Entry */}
@@ -1314,12 +1313,12 @@ export default function DharmashalaManagement() {
                 />
               </div>
 
-              <div className="pt-4 border-t border-slate-100 flex gap-2">
-                <button onClick={() => setShowBookingModal(false)} className="flex-1 py-3 border border-slate-200 hover:bg-slate-50 text-slate-500 font-bold rounded-xl">Cancel</button>
+              <div className="pt-4 border-t border-slate-100 flex flex-col-reverse sm:flex-row gap-2">
+                <button onClick={() => setShowBookingModal(false)} className="w-full sm:w-auto flex-1 py-2.5 sm:py-3 border border-slate-200 hover:bg-slate-50 text-slate-500 font-bold rounded-xl cursor-pointer">Cancel</button>
                 <button 
                   onClick={handleConfirmApproval}
                   disabled={finalAmount <= 0}
-                  className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl shadow-md transition-all cursor-pointer"
+                  className="w-full sm:w-auto flex-1 py-2.5 sm:py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl shadow-md transition-all cursor-pointer"
                 >
                   Confirm &amp; Approve (₹{finalAmount})
                 </button>
@@ -1331,20 +1330,20 @@ export default function DharmashalaManagement() {
 
       {/* Maintenance Blocks Form Modal */}
       {showMaintenanceModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-          <div className="bg-white border border-slate-100 w-full max-w-sm rounded-[24px] overflow-hidden shadow-2xl">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="text-sm font-black text-slate-805">Schedule Room Lockout</h3>
-              <button onClick={() => setShowMaintenanceModal(false)} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-655"><X size={16} /></button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white border border-slate-100 w-full max-w-md rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl my-4 max-h-[92vh] flex flex-col">
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex justify-between items-center">
+              <h3 className="text-sm sm:text-base font-black text-slate-800">Schedule Room Lockout</h3>
+              <button onClick={() => setShowMaintenanceModal(false)} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer"><X size={16} /></button>
             </div>
             
-            <form onSubmit={handleMaintenanceSubmit} className="p-5 space-y-4 text-xs font-bold text-slate-600">
+            <form onSubmit={handleMaintenanceSubmit} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 sm:space-y-4 text-xs font-bold text-slate-600">
               <div>
-                <label className="text-[10px] font-black uppercase text-slate-450 block mb-1">Select Room</label>
+                <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Select Room</label>
                 <select 
                   value={maintenanceForm.roomId}
                   onChange={(e) => setMaintenanceForm(prev => ({ ...prev, roomId: e.target.value }))}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-805 outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500"
                 >
                   <option value="">Block Entire Property</option>
                   {rooms.map(r => (
@@ -1353,33 +1352,33 @@ export default function DharmashalaManagement() {
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] font-black uppercase text-slate-450 block mb-1">Start Date</label>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Start Date</label>
                   <input 
                     type="date" required
                     value={maintenanceForm.startDate}
                     onChange={(e) => setMaintenanceForm(prev => ({ ...prev, startDate: e.target.value }))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-805 outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none focus:border-indigo-500"
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black uppercase text-slate-450 block mb-1">End Date</label>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">End Date</label>
                   <input 
                     type="date" required
                     value={maintenanceForm.endDate}
                     onChange={(e) => setMaintenanceForm(prev => ({ ...prev, endDate: e.target.value }))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-805 outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none focus:border-indigo-500"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-[10px] font-black uppercase text-slate-450 block mb-1">Reason</label>
+                <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Reason</label>
                 <select 
                   value={maintenanceForm.reason}
                   onChange={(e) => setMaintenanceForm(prev => ({ ...prev, reason: e.target.value }))}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-805 outline-none"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 outline-none"
                 >
                   <option value="Cleaning">Cleaning</option>
                   <option value="Repair">Repair</option>
@@ -1389,18 +1388,18 @@ export default function DharmashalaManagement() {
               </div>
 
               <div>
-                <label className="text-[10px] font-black uppercase text-slate-450 block mb-1">Internal Note</label>
+                <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Internal Note</label>
                 <input 
                   type="text"
                   value={maintenanceForm.remarks}
                   onChange={(e) => setMaintenanceForm(prev => ({ ...prev, remarks: e.target.value }))}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-805 outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500"
                 />
               </div>
 
-              <div className="pt-4 border-t border-slate-100 flex gap-2">
-                <button type="button" onClick={() => setShowMaintenanceModal(false)} className="flex-1 py-3 border border-slate-200 hover:bg-slate-50 rounded-xl text-slate-500">Cancel</button>
-                <button type="submit" className="flex-1 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl shadow-sm">Confirm Block</button>
+              <div className="pt-4 border-t border-slate-100 flex flex-col-reverse sm:flex-row gap-2">
+                <button type="button" onClick={() => setShowMaintenanceModal(false)} className="w-full sm:w-auto flex-1 py-2.5 sm:py-3 border border-slate-200 hover:bg-slate-50 rounded-xl text-slate-500 font-bold cursor-pointer">Cancel</button>
+                <button type="submit" className="w-full sm:w-auto flex-1 py-2.5 sm:py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl shadow-sm font-bold cursor-pointer">Confirm Block</button>
               </div>
             </form>
           </div>
