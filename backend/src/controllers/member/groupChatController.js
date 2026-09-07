@@ -132,10 +132,18 @@ exports.sendGroupMessage = async (req, res) => {
       mentionedUsers: mentionedUsers ? JSON.parse(mentionedUsers) : []
     });
 
-    // Emit to room
+    // Emit to room and members
     const io = req.app.get('io');
     if (io) {
       io.to(`conv:${conversationId}`).emit('chat:new_message', populatedMsg);
+      if (group && group.members) {
+        group.members.forEach(m => {
+          const mUserId = m.userId?.toString();
+          if (mUserId && mUserId !== userId.toString()) {
+            io.to(`user:${mUserId}`).emit('chat:new_message', populatedMsg);
+          }
+        });
+      }
     }
 
     // Notify offline members

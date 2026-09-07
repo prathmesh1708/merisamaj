@@ -4,12 +4,14 @@ import { groupService } from '../../../core/api/groupService';
 import { matrimonialChatService } from '../../../core/api/matrimonialService';
 import { useChatSocket } from './useChatSocket';
 import { useAuth } from '../../../core/auth/useAuth';
+import { useNotifications } from '../context/NotificationContext';
 
 export const useUnifiedConversations = () => {
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const { user } = useAuth();
+  const { refreshUnreadChatCount } = useNotifications();
 
   const fetchAll = useCallback(async () => {
     if (!user) return;
@@ -154,7 +156,10 @@ export const useUnifiedConversations = () => {
     setConversations(prev => prev.map(c => 
       c.conversationId === conversationId ? { ...c, unreadCount: 0 } : c
     ));
-  }, []);
+    if (refreshUnreadChatCount) {
+      refreshUnreadChatCount();
+    }
+  }, [refreshUnreadChatCount]);
 
   const sortedAndOnline = useMemo(() => {
     return conversations.map(c => ({

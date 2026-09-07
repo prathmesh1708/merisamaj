@@ -13,6 +13,7 @@ import {
 import { Avatar } from '../common/Avatar';
 import { ApprovalRequiredModal } from '../common/ApprovalRequiredModal';
 import { isMemberApproved } from '../../utils/approvalUtils';
+import { useNotifications } from '../../context/NotificationContext';
 
 const hiddenPaths = ['/member/events', '/member/groups', '/member/notifications', '/member/splash', '/member/login', '/member/setup-profile', '/member/select-community', '/member/verify-otp', '/member/chat/room', '/member/chat/call'];
 const sideNavHiddenPaths = ['/member/events', '/member/groups', '/member/notifications', '/member/splash', '/member/login', '/member/setup-profile', '/member/select-community', '/member/verify-otp'];
@@ -23,6 +24,7 @@ export const MemberLayout = () => {
   const { isMobileMenuOpen, setMobileMenuOpen, currentUser } = useData();
   const { auth, logout } = useAuth();
   const { headAuth } = useHeadAuth();
+  const { unreadChatCount } = useNotifications();
 
   const activeUser = auth?.isAuthenticated ? auth?.user : currentUser;
   const effectiveRole = activeUser?.role;
@@ -70,7 +72,7 @@ export const MemberLayout = () => {
 
   const handleMenuLinkClick = (item) => {
     setMobileMenuOpen(false);
-    const unrestrictedPaths = ['/member/home', '/member/leadership', '/member/profile', '/member/settings', '/member/referral'];
+    const unrestrictedPaths = ['/member/home', '/member/leadership', '/member/profile', '/member/settings', '/member/referral', '/member/chat'];
     if (!isApproved && !unrestrictedPaths.includes(item.path)) {
       setApprovalModalState({
         isOpen: true,
@@ -241,6 +243,11 @@ export const MemberLayout = () => {
                       <Icon size={16} style={{ color: isActive ? 'rgba(196,181,253,0.95)' : 'rgba(255,255,255,0.55)' }} />
                     </div>
                     <span className="relative z-10">{item.name}</span>
+                    {item.path === '/member/chat' && unreadChatCount > 0 && (
+                      <span className="ml-auto relative z-10 px-2 py-0.5 bg-gradient-to-r from-rose-500 to-red-600 text-white text-[10px] font-black rounded-full shadow-md shadow-rose-500/40">
+                        {unreadChatCount > 99 ? '99+' : unreadChatCount}
+                      </span>
+                    )}
                   </button>
                 );
               })}

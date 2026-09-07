@@ -4,6 +4,7 @@ import { Home, Users, Heart, BookOpen, User, Settings, LogOut, MessageCircle, Gi
 import { useData } from '../../context/DataProvider';
 import { useAuth } from '../../../../core/auth/useAuth';
 import { useHeadAuth } from '../../../head/auth/useHeadAuth';
+import { useNotifications } from '../../context/NotificationContext';
 import { isMemberApproved, showApprovalRequiredNotice } from '../../utils/approvalUtils';
 
 const tabPaths = ['/member/home', '/member/social', '/member/matrimonial', '/member/directory', '/member/profile'];
@@ -14,6 +15,7 @@ export const SideNav = () => {
   const { logoutUser, currentUser } = useData();
   const { auth } = useAuth();
   const { headAuth } = useHeadAuth();
+  const { unreadChatCount } = useNotifications();
 
   const activeUser = auth?.isAuthenticated ? auth?.user : currentUser;
   const effectiveRole = activeUser?.role;
@@ -37,7 +39,7 @@ export const SideNav = () => {
   ];
 
   const handleNavClick = (e, item) => {
-    const unrestrictedPaths = ['/member/home', '/member/profile', '/member/referral'];
+    const unrestrictedPaths = ['/member/home', '/member/profile', '/member/referral', '/member/chat'];
     if (!isApproved && !unrestrictedPaths.includes(item.path)) {
       e.preventDefault();
       showApprovalRequiredNotice(item.name);
@@ -108,6 +110,13 @@ export const SideNav = () => {
               <span className={`text-[14px] ${isActive ? 'font-semibold' : 'font-medium'}`}>
                 {item.name}
               </span>
+
+              {/* Chat Unread Badge */}
+              {item.name === 'Chat' && unreadChatCount > 0 && (
+                <span className="ml-auto px-2 py-0.5 bg-gradient-to-r from-rose-500 to-red-600 text-white text-[11px] font-black rounded-full shadow-md shadow-rose-500/30">
+                  {unreadChatCount > 99 ? '99+' : unreadChatCount}
+                </span>
+              )}
             </NavLink>
           );
         })}

@@ -49,8 +49,17 @@ exports.openConversation = async (req, res) => {
       return res.status(403).json({ status: 'error', message: 'You can only chat with members of your own community.' });
     }
 
-    if (req.user.verificationStatus !== 'verified') {
-      return res.status(403).json({ status: 'error', message: 'Only verified members can use community chat.' });
+    const isHeadInteraction = targetUser.role === 'head' || req.user.role === 'head' || targetUser.role === 'admin' || req.user.role === 'admin';
+    if (req.user.verificationStatus !== 'verified' && !isHeadInteraction) {
+      // Allow if conversation already exists (e.g. member received a message from another member or head)
+      const existing = await Conversation.findOne({
+        type: 'member',
+        participants: { $all: [myId, targetUserId], $size: 2 },
+        isDeleted: false
+      });
+      if (!existing) {
+        return res.status(403).json({ status: 'error', message: 'Direct member chat is available once approved by your Community Head. You can chat with your Community Head anytime.' });
+      }
     }
 
     const { conversation, isNew } = await findOrCreateConversation(myId, targetUserId, 'member');
@@ -155,12 +164,15 @@ exports.sendMessage = async (req, res) => {
 
     // Emit via socket
     const io = req.app.get('io');
+    const otherParticipants = conv.participants.filter(p => p.toString() !== userId.toString());
     if (io) {
       io.to(`conv:${conversationId}`).emit('chat:new_message', populatedMsg);
+      for (const pid of otherParticipants) {
+        io.to(`user:${pid.toString()}`).emit('chat:new_message', populatedMsg);
+      }
     }
 
     // Notify offline participants
-    const otherParticipants = conv.participants.filter(p => p.toString() !== userId.toString());
     for (const pid of otherParticipants) {
       notifyNewMessage(pid, req.user.name, conversationId, 'chat');
     }

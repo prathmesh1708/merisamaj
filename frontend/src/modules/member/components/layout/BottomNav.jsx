@@ -4,6 +4,7 @@ import { Home, Users, Heart, MessageCircle, User } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../../../core/auth/useAuth';
 import { useData } from '../../context/DataProvider';
+import { useNotifications } from '../../context/NotificationContext';
 import { isMemberApproved, showApprovalRequiredNotice } from '../../utils/approvalUtils';
 
 // Sub-pages where bottom nav should be hidden
@@ -14,6 +15,7 @@ export const BottomNav = ({ isVisible = true }) => {
   const navigate = useNavigate();
   const { auth } = useAuth();
   const { currentUser } = useData();
+  const { unreadChatCount } = useNotifications();
 
   const activeUser = auth?.isAuthenticated ? auth?.user : currentUser;
   const isApproved = isMemberApproved(activeUser);
@@ -34,7 +36,7 @@ export const BottomNav = ({ isVisible = true }) => {
   ];
 
   const handleNavClick = (e, item) => {
-    const unrestrictedPaths = ['/member/home', '/member/profile'];
+    const unrestrictedPaths = ['/member/home', '/member/profile', '/member/referral', '/member/chat'];
     if (!isApproved && !unrestrictedPaths.includes(item.path)) {
       e.preventDefault();
       showApprovalRequiredNotice(item.name);
@@ -85,7 +87,7 @@ export const BottomNav = ({ isVisible = true }) => {
                   />
                 )}
 
-                {/* Animated Icon */}
+                {/* Animated Icon Container */}
                 <motion.div 
                   whileTap={{ scale: 0.88 }}
                   animate={{ 
@@ -93,7 +95,7 @@ export const BottomNav = ({ isVisible = true }) => {
                     scale: isActive ? 1.08 : 1,
                   }}
                   transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                  className="flex items-center justify-center"
+                  className="flex items-center justify-center relative"
                 >
                   <Icon 
                     size={20} 
@@ -102,6 +104,17 @@ export const BottomNav = ({ isVisible = true }) => {
                     fill={isActive && (item.icon === Heart || item.icon === Home) ? 'currentColor' : 'none'}
                     className="transition-colors duration-200"
                   />
+
+                  {/* Chat Unread Badge / Live Point Indicator */}
+                  {item.name === 'Chat' && unreadChatCount > 0 && (
+                    <motion.span 
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      className="absolute -top-1.5 -right-2.5 min-w-[17px] h-[17px] px-1 bg-gradient-to-r from-rose-500 to-red-600 text-white text-[9.5px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-md shadow-rose-500/40"
+                    >
+                      {unreadChatCount > 99 ? '99+' : unreadChatCount}
+                    </motion.span>
+                  )}
                 </motion.div>
 
                 {/* Label */}

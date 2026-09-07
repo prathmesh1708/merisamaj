@@ -147,6 +147,13 @@ export const MemberRoutes = () => {
               <Route path="referral/earnings" element={<AnimatedPage><MyEarningsPage /></AnimatedPage>} />
               <Route path="referral/redeem" element={<AnimatedPage><RedeemPointsPage /></AnimatedPage>} />
 
+              {/* Community Chat Routes (Accessible so members can chat with Community Head and active conversations) */}
+              <Route path="chat" element={<AnimatedPage><ChatListPage /></AnimatedPage>} />
+              <Route path="chat/conv/:conversationId" element={<AnimatedPage><ChatRoomPage chatType="member" /></AnimatedPage>} />
+              <Route path="chat/member/:targetUserId" element={<AnimatedPage><ChatRoomPage chatType="member" openByUserId /></AnimatedPage>} />
+              <Route path="chat/:chatId" element={<AnimatedPage><ChatRouteWrapper /></AnimatedPage>} />
+              <Route path="chat/info/:chatId" element={<AnimatedPage><ChatInfoPage /></AnimatedPage>} />
+
               {/* ─── Approved-Only Protected Member Routes (Requires Head Approval) ─── */}
               <Route element={<ApprovedRouteGuard />}>
                 {/* Social Hub */}
@@ -168,13 +175,6 @@ export const MemberRoutes = () => {
                   <Route path="chat/:conversationId" element={<AnimatedPage><MatrimonialChatPage /></AnimatedPage>} />
                   <Route path="subscription" element={<AnimatedPage><MatrimonialSubscriptionPage /></AnimatedPage>} />
                 </Route>
-
-                {/* Community Chat Routes */}
-                <Route path="chat" element={<AnimatedPage><ChatListPage /></AnimatedPage>} />
-                <Route path="chat/conv/:conversationId" element={<AnimatedPage><ChatRoomPage chatType="member" /></AnimatedPage>} />
-                <Route path="chat/member/:targetUserId" element={<AnimatedPage><ChatRoomPage chatType="member" openByUserId /></AnimatedPage>} />
-                <Route path="chat/:chatId" element={<AnimatedPage><ChatRouteWrapper /></AnimatedPage>} />
-                <Route path="chat/info/:chatId" element={<AnimatedPage><ChatInfoPage /></AnimatedPage>} />
 
                 {/* Member Directory */}
                 <Route path="directory" element={<AnimatedPage><DirectoryPage /></AnimatedPage>} />

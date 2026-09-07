@@ -192,13 +192,16 @@ const chatSocketService = (io) => {
           metadata
         });
 
-        // Broadcast to room
+        // Broadcast to conversation room
         io.to(`conv:${conversationId}`).emit('chat:new_message', populatedMsg);
 
         // Handle delivery and notifications for each participant
         for (const participantId of conversation.participants) {
           const pid = participantId.toString();
           if (pid === userId.toString()) continue;
+
+          // Always emit chat:new_message to user personal room so unread counts & toast alerts update live
+          io.to(`user:${pid}`).emit('chat:new_message', populatedMsg);
 
           if (isOnline(pid)) {
             // Participant is online → mark delivered
