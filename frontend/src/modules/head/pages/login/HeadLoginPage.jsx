@@ -142,15 +142,15 @@ const HeadLoginPage = () => {
                   className="text-[10px] font-black uppercase tracking-[0.18em]"
                   style={{ color: 'rgba(253,230,138,0.85)' }}
                 >
-                  President Council
+                  Head & Local Head Portal
                 </span>
                 <Award size={13} className="text-amber-400" />
               </div>
               <h1 className="text-[24px] font-black text-white leading-tight tracking-tight">
-                Community Head
+                Leadership Login
               </h1>
               <p className="text-[13px] mt-1" style={{ color: 'rgba(167,139,250,0.7)' }}>
-                Sign in to access the administration panel
+                Sign in with your Login ID, Email, or Phone Number
               </p>
             </div>
           </div>
@@ -172,14 +172,14 @@ const HeadLoginPage = () => {
 
           {/* ─── Form ─── */}
           <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-            {/* Email Field */}
+            {/* Identifier Field (Email, Phone, or Login ID) */}
             <div className="space-y-1.5">
               <label
-                htmlFor="head-email"
+                htmlFor="head-loginId"
                 className="block text-[11px] font-bold uppercase tracking-wider"
                 style={{ color: 'rgba(167,139,250,0.8)' }}
               >
-                Login ID
+                Login ID / Email / Phone
               </label>
               <div className="relative">
                 <div
@@ -197,7 +197,7 @@ const HeadLoginPage = () => {
                   onChange={handleChange}
                   onFocus={() => setFocusedField('loginId')}
                   onBlur={() => setFocusedField(null)}
-                  placeholder="e.g. rahul_head"
+                  placeholder="e.g. email@example.com, phone, or login ID"
                   disabled={isLoading}
                   className="w-full pl-10 pr-4 py-3 rounded-xl text-[14px] text-white placeholder-white/25 transition-all duration-200 outline-none disabled:opacity-50"
                   style={{

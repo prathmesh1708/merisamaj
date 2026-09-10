@@ -16,8 +16,9 @@ const ProfileCard = ({ profile, onInterest, onShortlist, isShortlisted, interest
   const state     = profile.location?.state;
   const profession= profile.education?.occupation || profile.education?.profession;
   const community = profile.personal?.community;
-  const photo     = profile.photos?.find(p => p.isPrimary && p.status === 'approved')?.url
-                  || profile.photos?.find(p => p.status === 'approved')?.url;
+  const photo     = profile.photos?.find(p => p.isPrimary)?.url
+                  || profile.photos?.[0]?.url
+                  || profile.avatar;
   const isVerified= profile.verificationStatus === 'verified';
   const isPremium = profile.isPremium;
   const matchScore= profile.matchScore;
@@ -114,6 +115,7 @@ const MatrimonialSearchPage = () => {
     gender:        'female',
     ageMin:        21,
     ageMax:        35,
+    communityScope:'all',
     community:     '',
     city:          '',
     state:         '',
@@ -253,6 +255,24 @@ const MatrimonialSearchPage = () => {
                     onClick={() => setFilters(f => ({ ...f, gender: g.v }))}
                     className={`flex-1 py-2.5 rounded-xl text-[12.5px] font-bold border transition-all ${filters.gender === g.v ? 'bg-rose-500 border-rose-500 text-white' : 'bg-white border-slate-200 text-slate-600'}`}>
                     {g.l}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Community Scope */}
+            <div className="col-span-2">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Community Scope</label>
+              <div className="flex gap-2">
+                {[
+                  { v: 'all', l: '🌐 All Members' },
+                  { v: 'my', l: '🤝 My Samaj' },
+                  { v: 'other', l: '🌍 Other Samaj' }
+                ].map(cs => (
+                  <button key={cs.v} type="button"
+                    onClick={() => setFilters(f => ({ ...f, communityScope: cs.v }))}
+                    className={`flex-1 py-2 rounded-xl text-[11px] font-bold border transition-all ${filters.communityScope === cs.v ? 'bg-rose-500 border-rose-500 text-white' : 'bg-white border-slate-200 text-slate-600'}`}>
+                    {cs.l}
                   </button>
                 ))}
               </div>

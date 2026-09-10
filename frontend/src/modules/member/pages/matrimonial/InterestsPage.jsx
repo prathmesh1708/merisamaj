@@ -34,7 +34,7 @@ const InterestCard = ({ interest, tab, onAccept, onReject, onCancel, onChat, tog
 
   const profileId  = otherProfile._id;
   const name       = otherProfile.personal?.fullName || 'Unknown';
-  const photo      = otherProfile.photos?.find(p => p.isPrimary && p.status === 'approved')?.url
+  const photo      = otherProfile.photos?.find(p => p.isPrimary)?.url
                   || otherProfile.photos?.[0]?.url
                   || otherProfile.userId?.avatar
                   || otherProfile.avatar

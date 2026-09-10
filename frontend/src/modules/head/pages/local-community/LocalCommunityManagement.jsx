@@ -368,11 +368,29 @@ export default function LocalCommunityManagement() {
         <div className="flex justify-between items-center">
           <div>
             <h2 className="text-lg font-black text-slate-800">Local Head Accounts</h2>
-            <p className="text-xs text-slate-500">Share the email and password with each Local Head so they can log in to the Head panel.</p>
+            <p className="text-xs text-slate-500">Share the email/phone and password with each Local Head so they can log in to their Local Head panel.</p>
           </div>
           <button onClick={fetchLocalHeads} className="p-2 text-slate-400 hover:text-indigo-600">
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           </button>
+        </div>
+
+        {/* Login Instruction Card */}
+        <div className="bg-indigo-50/70 border border-indigo-100 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2.5 text-indigo-900 font-semibold">
+            <Shield size={16} className="text-indigo-600 shrink-0" />
+            <span>
+              <strong>How Local Heads Log In:</strong> Direct them to <code className="bg-white px-2 py-0.5 rounded-lg border border-indigo-200 text-indigo-700 font-mono text-[11px]">/head/login</code> or the Member App login. They enter their <strong>Email or Phone</strong> and the <strong>Password</strong> set below.
+            </span>
+          </div>
+          <a
+            href="/head/login"
+            target="_blank"
+            rel="noreferrer"
+            className="px-3 py-1.5 bg-indigo-600 text-white font-bold rounded-xl text-[11px] shadow-sm hover:bg-indigo-700 shrink-0 transition-colors"
+          >
+            Open Login Page ↗
+          </a>
         </div>
 
         <div className="overflow-x-auto">

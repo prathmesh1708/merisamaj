@@ -118,6 +118,8 @@ const getRecommendations = async (userId, myProfile, subscription) => {
     ? { $ne: userObjectId, $nin: excludeUsers }
     : { $ne: userObjectId };
 
+  const userCommunity = (myProfile?.personal?.community || userDoc?.community || '').trim();
+
   const baseQuery = {
     userId:   userExclusion,
     status:   'active',      // Only active profiles appear in matchmaking
@@ -125,6 +127,19 @@ const getRecommendations = async (userId, myProfile, subscription) => {
     isDeleted: false,
     'profileCompletion.percentage': { $gte: completionRequired }
   };
+
+  if (userCommunity) {
+    const escapeRegex = (str) => (str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    baseQuery.$or = [
+      { 'personal.community': new RegExp('^' + escapeRegex(userCommunity) + '$', 'i') },
+      {
+        'personal.community': { $not: new RegExp('^' + escapeRegex(userCommunity) + '$', 'i') },
+        visibility: { $in: ['all_members', 'public'] }
+      }
+    ];
+  } else {
+    baseQuery.visibility = { $in: ['all_members', 'public'] };
+  }
 
   // ─── Apply opposite gender filter (Strictly Enforce) ────────────────────
   let myGender = null;

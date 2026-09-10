@@ -297,35 +297,63 @@ const MatrimonialHomePage = () => {
   };
 
   // ─── Feed from Dashboard API ──────────────────────────────────────────────
-  // Uses dashboard.recommendations.newMembers as the primary feed.
-  // Falls back to empty array while dashboard is loading.
+  // Uses combined recommendations (recommendedMatches, newMembers, recentlyActive, etc.)
+  // Deduplicates profiles and falls back gracefully.
   const feedProfiles = useMemo(() => {
-    const base = dashboard?.recommendations?.newMembers || [];
-    return base.map(profile => ({
-      ...profile,
-      id: profile._id || profile.id,
-      name: profile.personal?.fullName || profile.name || 'Unknown',
-      age: profile.age ?? null,
-      gender: profile.personal?.gender || '',
-      city: profile.location?.city || '',
-      community: profile.personal?.community || '',
-      gotra: profile.personal?.gotra || '',
-      profession: profile.education?.profession || profile.education?.occupation || '',
-      income: profile.education?.annualIncome || '',
-      education: profile.education?.highestQualification || '',
-      diet: profile.lifestyle?.diet || '',
-      avatar: (profile.photos || []).find(p => p.isPrimary)?.url || null,
-      photoCount: (profile.photos || []).length,
-      activeStatus: profile.lastActiveAt
-        ? new Date(profile.lastActiveAt) > new Date(Date.now() - 3600000)
-          ? 'Online Now'
-          : 'Active Recently'
-        : 'Active Today',
-      membershipTier: 'Normal',
-      verifiedStatus: profile.verificationStatus === 'verified',
-      isNew: new Date(profile.createdAt) > new Date(Date.now() - 7 * 24 * 3600000),
-      isRestricted: profile.isRestricted ?? true,
-    }));
+    const recs = dashboard?.recommendations;
+    const combined = [
+      ...(recs?.recommendedMatches || []),
+      ...(recs?.newMembers || []),
+      ...(recs?.recentlyActive || []),
+      ...(recs?.premiumMembers || []),
+      ...(recs?.nearYou || [])
+    ];
+
+    const seen = new Set();
+    const uniqueList = [];
+    for (const p of combined) {
+      const pid = (p._id || p.id)?.toString();
+      if (pid && !seen.has(pid)) {
+        seen.add(pid);
+        uniqueList.push(p);
+      }
+    }
+
+    const base = uniqueList.length > 0 ? uniqueList : (recs?.newMembers || []);
+    return base.map(profile => {
+      let calculatedAge = profile.age;
+      if (!calculatedAge && profile.personal?.dateOfBirth) {
+        const diff = Date.now() - new Date(profile.personal.dateOfBirth).getTime();
+        calculatedAge = Math.floor(diff / (365.25 * 24 * 60 * 60 * 1000));
+      }
+
+      return {
+        ...profile,
+        id: profile._id || profile.id,
+        name: profile.personal?.fullName || profile.name || 'Member',
+        age: calculatedAge ?? null,
+        gender: profile.personal?.gender || '',
+        city: profile.location?.city || '',
+        community: profile.personal?.community || '',
+        gotra: profile.personal?.gotra || '',
+        profession: profile.education?.profession || profile.education?.occupation || '',
+        income: profile.education?.annualIncome || '',
+        education: profile.education?.highestQualification || '',
+        diet: profile.lifestyle?.diet || '',
+        avatar: (profile.photos || []).find(p => p.isPrimary)?.url || (profile.photos && profile.photos[0]?.url) || profile.avatar || null,
+        photoCount: (profile.photos || []).length,
+        activeStatus: profile.lastActiveAt
+          ? new Date(profile.lastActiveAt) > new Date(Date.now() - 3600000)
+            ? 'Online Now'
+            : 'Active Recently'
+          : 'Active Today',
+        membershipTier: profile.membershipTier || 'Normal',
+        verifiedStatus: profile.verificationStatus === 'verified',
+        isNew: profile.createdAt ? new Date(profile.createdAt) > new Date(Date.now() - 7 * 24 * 3600000) : false,
+        isRestricted: profile.isRestricted ?? true,
+        visibility: profile.visibility || 'all_members'
+      };
+    });
   }, [dashboard]);
 
   // ─── filteredFeed — same filter logic, now on live data ──────────────────
@@ -345,16 +373,24 @@ const MatrimonialHomePage = () => {
       const userCity = currentUser?.city || '';
       if (activeFilterPill === 'nearby' && userCity && profile.city !== userCity) return false;
 
-      // ─── Community Scope & Other Community Filtering ───────────────────────
+      // ─── Community Scope & Visibility Filtering ───────────────────────
       const userComm = (currentUser?.community || myProfile?.personal?.community || '').toLowerCase();
       const profComm = (profile.community || profile.personal?.community || '').toLowerCase();
+      const isCrossCommunity = userComm && profComm && !profComm.includes(userComm);
+      const isAllMembers = profile.visibility === 'all_members' || profile.visibility === 'public' || profile.visibility === undefined;
+
+      // Cross-community rule: other community profiles MUST have selected "All Members" visibility
+      if (isCrossCommunity && !isAllMembers) {
+        return false;
+      }
 
       if (activeFilterPill === 'other_community' || selectedCommunityScope === 'other') {
-        if (userComm && profComm && profComm.includes(userComm)) return false;
-      } else if (selectedCommunityScope === 'my') {
-        if (userComm && profComm && !profComm.includes(userComm)) return false;
+        if (!isCrossCommunity || !isAllMembers) return false;
+      } else if (activeFilterPill === 'my_community' || selectedCommunityScope === 'my') {
+        if (isCrossCommunity) return false;
       } else if (selectedCommunityScope === 'specific' && selectedSpecificCommunity) {
         if (!profComm.includes(selectedSpecificCommunity.toLowerCase())) return false;
+        if (isCrossCommunity && !isAllMembers) return false;
       }
 
       if (profile.age !== null && profile.age !== undefined) {
@@ -471,7 +507,7 @@ const MatrimonialHomePage = () => {
         </button>
 
         <button
-          onClick={() => navigate('/member/profile/upgrade')}
+          onClick={() => navigate('/member/matrimonial/subscription')}
           className="flex items-center justify-center gap-1 py-1.5 px-1 bg-gradient-to-r from-rose-500 to-pink-600 text-white rounded-xl text-[11px] md:text-xs font-black shadow-xs hover:opacity-95 active:scale-95 transition-all"
         >
           <Crown size={11} />
@@ -584,6 +620,7 @@ const MatrimonialHomePage = () => {
               {[
                 { label: 'All matches', key: 'all' },
                 { label: 'Other Community', key: 'other_community' },
+                { label: 'My Community', key: 'my_community' },
                 { label: 'Verified', key: 'verified' },
                 { label: 'Just Joined', key: 'joined' },
                 { label: 'Nearby', key: 'nearby' }
@@ -596,6 +633,10 @@ const MatrimonialHomePage = () => {
                       setSelectedCommunityScope('other');
                       setSelectedSpecificCommunity('');
                       showToast('Showing matches from other communities 🌐');
+                    } else if (key === 'my_community') {
+                      setSelectedCommunityScope('my');
+                      setSelectedSpecificCommunity('');
+                      showToast('Showing matches from your community 🤝');
                     } else if (key === 'all') {
                       setSelectedCommunityScope('all');
                       setSelectedSpecificCommunity('');
@@ -666,7 +707,7 @@ const MatrimonialHomePage = () => {
                     </p>
                   </div>
                   <button 
-                    onClick={() => navigate('/member/profile/upgrade')}
+                    onClick={() => navigate('/member/matrimonial/subscription')}
                     className="self-start px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-[10.5px] font-black shadow-sm active:scale-95 transition-all uppercase tracking-wider"
                   >
                     Upgrade Now

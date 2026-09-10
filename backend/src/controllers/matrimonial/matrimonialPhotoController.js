@@ -49,7 +49,8 @@ exports.uploadPhotos = async (req, res) => {
         url,
         publicId,
         isPrimary: existingApproved.length === 0 && i === 0, // First photo is primary if no photos exist
-        status: 'pending', // Requires admin/head approval
+        isVerified: true,
+        status: 'approved',
         uploadedAt: new Date()
       };
     });
@@ -60,7 +61,7 @@ exports.uploadPhotos = async (req, res) => {
 
     res.status(201).json({
       status: 'success',
-      message: `${newPhotos.length} photo(s) uploaded. Pending moderation approval.`,
+      message: `${newPhotos.length} photo(s) uploaded successfully.`,
       data: { photos: profile.photos }
     });
   } catch (err) {

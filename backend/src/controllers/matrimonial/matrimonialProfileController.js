@@ -10,7 +10,7 @@ const UserBlock           = require('../../models/UserBlock');
 const ProfileVisitor      = require('../../models/ProfileVisitor');
 const { calculateMatchPercentage, calcAge } = require('../../services/matchService');
 const { buildRestrictedProfile, buildFullProfile } = require('../../middleware/matrimonialPrivacy');
-const { notifyProfileViewed, createNotification, notifyProfileSubmittedToAdmin } = require('../../services/notificationService');
+const { notifyProfileViewed, createNotification } = require('../../services/notificationService');
 const { getEffectiveFeatures } = require('../../middleware/subscriptionMiddleware');
 const { inheritTenantPayload } = require('../../utils/queryScopeHelper');
 
@@ -32,8 +32,8 @@ const calculateCompletion = (profile) => {
 
   for (const section of sections) {
     if (section === 'photos') {
-      const approvedPhotos = (profile.photos || []).filter(p => p.status === 'approved');
-      if (approvedPhotos.length > 0) completedSections.push('photos');
+      const validPhotos = (profile.photos || []).filter(p => !p.isDeleted);
+      if (validPhotos.length > 0) completedSections.push('photos');
       continue;
     }
     const requiredFields = SECTION_REQUIRED_FIELDS[section];
@@ -74,41 +74,29 @@ exports.createProfile = async (req, res) => {
     };
 
     const profile = new MatrimonialProfile(profileData);
-    // ─── Production rule: always start as 'pending' ──────────────────────────
-    // Admin/Head must verify before the profile appears in search
-    profile.status = 'pending';
-    profile.visibility = req.body.visibility || 'public';
+    profile.status = 'active';
+    profile.verificationStatus = 'verified';
+    profile.visibility = req.body.visibility || 'all_members';
     const completion = calculateCompletion(profile);
     profile.profileCompletion = completion;
 
     await profile.save();
-
-    // Notify admin/head about new pending profile
-    try {
-      const Community = require('../../models/Community');
-      const comm = await Community.findById(req.communityId).select('headId').lean();
-      if (comm?.headId) {
-        notifyProfileSubmittedToAdmin([comm.headId], req.user.name || 'A member', profile._id);
-      }
-    } catch (notifErr) {
-      console.warn('[Notify] createProfile profile_submitted_to_admin failed:', notifErr.message);
-    }
 
     // Notify user
     createNotification({
       userId:        req.user._id,
       module:        'matrimonial',
       type:          'matrimonial_profile_created',
-      title:         'Profile Under Review ⏳',
-      message:       'Your matrimonial profile has been submitted and is pending admin verification. You will be notified once it is approved.',
-      icon:          '⏳',
+      title:         'Profile Active! 💕',
+      message:       'Your matrimonial profile is now active and published. Happy matchmaking!',
+      icon:          '💕',
       priority:      'normal',
       actionUrl:     '/member/matrimonial/profile'
     });
 
     res.status(201).json({
       status: 'success',
-      message: 'Profile created and pending verification.',
+      message: 'Profile created and active.',
       data: { profile }
     });
   } catch (err) {
@@ -201,6 +189,24 @@ exports.getUserProfile = async (req, res) => {
     });
     if (isBlocked) {
       return res.status(403).json({ status: 'error', message: 'You cannot view this profile.' });
+    }
+
+    // ─── Cross-community Privacy Check ──────────────────────────────────────
+    const viewerCommunity = (req.user?.community || '').trim().toLowerCase();
+    const profileCommunity = (profile.personal?.community || '').trim().toLowerCase();
+    const isCrossCommunity = viewerCommunity && profileCommunity && viewerCommunity !== profileCommunity;
+    const isAllMembers = profile.visibility === 'all_members' || profile.visibility === 'public';
+
+    if (isCrossCommunity && !isAllMembers && !profileOwnerUserId.equals(viewerId)) {
+      const hasConnection = await InterestRequest.findOne({
+        $or: [
+          { senderId: viewerId, receiverId: profileOwnerUserId },
+          { senderId: profileOwnerUserId, receiverId: viewerId }
+        ]
+      });
+      if (!hasConnection) {
+        return res.status(403).json({ status: 'error', message: 'This profile is only visible to members of the same community.' });
+      }
     }
 
     const { features } = await getEffectiveFeatures(viewerId);
@@ -396,18 +402,42 @@ exports.searchProfiles = async (req, res) => {
     const prefixRegex = (val) => new RegExp('^' + escapeRegex(val.trim()), 'i');
     const exactRegex  = (val) => new RegExp('^' + escapeRegex(val.trim()) + '$', 'i');
 
-    // ─── Community & Community Scope Filter ──────────────────────────────────
+    // ─── Community & Cross-Community Visibility Scope Filter ──────────────────
     const userCommunity = (myProfile?.personal?.community || req.user?.community || '').trim();
     if (req.query.communityScope === 'other') {
       if (userCommunity) {
         query['personal.community'] = { $not: new RegExp('^' + escapeRegex(userCommunity) + '$', 'i') };
       }
+      query.visibility = { $in: ['all_members', 'public'] };
     } else if (req.query.communityScope === 'my') {
       if (userCommunity) {
         query['personal.community'] = new RegExp('^' + escapeRegex(userCommunity) + '$', 'i');
       }
     } else if (community && community.trim()) {
       query['personal.community'] = prefixRegex(community);
+      if (userCommunity && !community.trim().toLowerCase().includes(userCommunity.toLowerCase())) {
+        query.visibility = { $in: ['all_members', 'public'] };
+      }
+    } else {
+      if (userCommunity) {
+        const communityCondition = [
+          { 'personal.community': new RegExp('^' + escapeRegex(userCommunity) + '$', 'i') },
+          {
+            'personal.community': { $not: new RegExp('^' + escapeRegex(userCommunity) + '$', 'i') },
+            visibility: { $in: ['all_members', 'public'] }
+          }
+        ];
+        if (query.$or) {
+          const existingOr = query.$or;
+          delete query.$or;
+          query.$and = query.$and || [];
+          query.$and.push({ $or: existingOr }, { $or: communityCondition });
+        } else {
+          query.$or = communityCondition;
+        }
+      } else {
+        query.visibility = { $in: ['all_members', 'public'] };
+      }
     }
     if (religion)      query['personal.religion']                = prefixRegex(religion);
     if (gotra)         query['personal.gotra']                   = prefixRegex(gotra);
@@ -430,7 +460,7 @@ exports.searchProfiles = async (req, res) => {
 
     // ─── With Photo Only ─────────────────────────────────────────────────────
     if (withPhoto === 'true' || withPhoto === true) {
-      query['photos.status'] = 'approved';
+      query['photos.0'] = { $exists: true };
     }
 
     // ─── Sort ────────────────────────────────────────────────────────────────
@@ -475,7 +505,7 @@ exports.searchProfiles = async (req, res) => {
     profiles = await Promise.all(profiles.map(async (profile) => {
       const isOwner     = profile.userId.toString() === req.user._id.toString();
       const isConnected = connectedUserIds.has(profile.userId.toString());
-      const isPublic    = profile.visibility === 'public';
+      const isPublic    = profile.visibility === 'public' || profile.visibility === 'all_members';
       const hasSentInterest = sentToUserIds.has(profile.userId.toString());
 
       let safeProfile;

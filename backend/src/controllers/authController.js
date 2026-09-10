@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const config = require('../config/config');
-const { notifyInvitationAccepted, notifySecurityAlert } = require('../services/notificationService');
+const { notifyInvitationAccepted, notifySecurityAlert, notifyLocalHeadNewMember } = require('../services/notificationService');
 const { sendPushNotification } = require('../services/pushNotificationService');
 
 // Centralized production-secure cookie helper
@@ -99,7 +99,11 @@ const getUserResponsePayload = (user) => {
     membershipPlan: user.membershipPlan || '',
     membershipExpiry: user.membershipExpiry || '',
     membershipStartDate: user.membershipStartDate || '',
-    matrimonySubscription: user.matrimonySubscription || null
+    matrimonySubscription: user.matrimonySubscription || null,
+    accountType: user.accountType || null,
+    designation: user.designation || '',
+    department: user.department || '',
+    parentHeadId: user.parentHeadId || null
   };
 };
 
@@ -160,6 +164,9 @@ const registerUser = async (req, res) => {
 
       // ── Process Referral Points & Single Notification via Referral Service ──────────
       await referralService.processRegistrationReferral(user, referralCode);
+
+      // ── Notify Local Head (matching member city) & Community Head ──────────
+      notifyLocalHeadNewMember(user).catch(err => console.warn('[notifyLocalHeadNewMember error]:', err.message));
 
       const { accessToken, refreshToken } = generateTokens(user);
       
@@ -608,6 +615,10 @@ const updateProfile = async (req, res) => {
       const updatedUser = await user.save();
       await updatedUser.populate('communityId', 'name slug isActive settings logoUrl description city');
       await updatedUser.populate('assignedCommunityIds', 'name slug isActive settings logoUrl description city');
+
+      if (updatedUser.verificationStatus === 'pending' || updatedUser.accountStatus === 'pending verification') {
+        notifyLocalHeadNewMember(updatedUser).catch(err => console.warn('[notifyLocalHeadNewMember error]:', err.message));
+      }
 
       res.json({
         ...getUserResponsePayload(updatedUser),

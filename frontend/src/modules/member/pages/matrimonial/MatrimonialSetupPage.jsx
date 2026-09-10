@@ -70,7 +70,7 @@ const MatrimonialSetupPage = ({ isHub = false, onPublish }) => {
   const [form, setForm] = useState({
     // Step 1
     photoVisibility: 'connections',
-    visibility:      'private',
+    visibility:      'all_members',
     // Step 2
     fullName:     '',
     gender:       'male',
@@ -162,8 +162,8 @@ const MatrimonialSetupPage = ({ isHub = false, onPublish }) => {
           partnerExpectations: p.about?.partnerExpectations || '',
           state:            p.location?.state || currentUser?.state || '',
           city:             p.location?.city || currentUser?.city || '',
-          photoVisibility:  p.visibility || 'private',
-          visibility:       p.visibility || 'private',
+          photoVisibility:  p.visibility || 'all_members',
+          visibility:       p.visibility || 'all_members',
         }));
       } else if (currentUser) {
         // First time setup: Pre-fill from user registration data
@@ -355,7 +355,7 @@ const MatrimonialSetupPage = ({ isHub = false, onPublish }) => {
           <div className="bg-rose-50/50 border border-rose-100 rounded-2xl p-4 flex items-start gap-3">
             <Lock size={16} className="text-rose-500 shrink-0 mt-0.5" />
             <p className="text-[12px] text-rose-700 leading-relaxed font-semibold">
-              Photos are reviewed before appearing on your profile. They're only visible to connections unless set to Public.
+              Choose your profile visibility. Selecting <strong>"All Members"</strong> allows candidates across all Samaj communities on MeriSamaj to view and discover your profile.
             </p>
           </div>
 
@@ -363,8 +363,9 @@ const MatrimonialSetupPage = ({ isHub = false, onPublish }) => {
             <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Profile Visibility</label>
             <CustomSelect value={form.visibility} onChange={v => setForm(f => ({ ...f, visibility: v }))}
               options={[
-                { value: 'private', label: 'Private (Connections only)' },
-                { value: 'public',  label: 'Public (Visible to all)' },
+                { value: 'all_members',  label: 'All Members (Visible to all communities)' },
+                { value: 'my_community', label: 'My Community Only (Visible only to my Samaj)' },
+                { value: 'private',      label: 'Private (Connections only)' },
               ]} />
           </div>
         </div>
@@ -507,7 +508,7 @@ const MatrimonialSetupPage = ({ isHub = false, onPublish }) => {
             <div>
               <p className="text-[13px] font-extrabold text-emerald-800">Ready to Publish!</p>
               <p className="text-[11.5px] text-emerald-600 mt-0.5 leading-relaxed font-semibold">
-                Your profile will go live after photo approval. Matches will be shown based on compatibility.
+                Your profile will be live and active immediately. Matches will be shown based on your chosen preferences and visibility settings.
               </p>
             </div>
           </div>

@@ -118,13 +118,13 @@ const MatrimonialProfilePage = () => {
   );
 
   // Data
-  const photos     = profile.photos?.filter(p => p.status === 'approved') || [];
+  const photos     = profile.photos?.filter(p => !p.isDeleted) || [];
   const primaryPhoto = photos.find(p => p.isPrimary) || photos[0];
   const displayPhotos = photos.length > 0 ? photos : [];
 
   const isConnected    = interestStatus === 'accepted';
   const isInterestSent = interestStatus === 'sent';
-  const isPhotoVisible = profile.visibility === 'public' || isConnected || profile.isOwnProfile;
+  const isPhotoVisible = profile.visibility === 'public' || profile.visibility === 'all_members' || isConnected || profile.isOwnProfile;
   const isBlocked      = matriCtx?.isBlocked(profile.userId?._id);
   const isShortlisted  = matriCtx?.isShortlisted(profile._id);
 

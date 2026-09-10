@@ -84,7 +84,7 @@ export const ApprovalRequiredModal = ({ isOpen, onClose, featureName = '' }) => 
                   </>
                 ) : (
                   <>
-                    Access to <strong className="text-slate-900 font-bold">Chat, Social Feed, Matrimony</strong>, and other member features is restricted for new members.
+                    Access to <strong className="text-slate-900 font-bold">Chat, Social Feed, Directory</strong>, and other member features is restricted for new members.
                   </>
                 )}
               </p>
@@ -97,7 +97,7 @@ export const ApprovalRequiredModal = ({ isOpen, onClose, featureName = '' }) => 
             <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-emerald-50/70 border border-emerald-100 rounded-xl text-left">
               <Shield size={16} className="text-emerald-600 shrink-0" />
               <p className="text-[11px] text-emerald-800 font-medium leading-tight">
-                Currently, you can view the <strong>Home Banner</strong>, <strong>Core Members</strong>, and <strong>Success Stories</strong>.
+                Currently, you can view the <strong>Home Banner</strong>, <strong>Core Members</strong>, <strong>Success Stories</strong>, and <strong>Matrimony</strong>.
               </p>
             </div>
 

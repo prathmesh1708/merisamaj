@@ -8,10 +8,10 @@ router.use(protect);
 // GET /api/v1/head/dashboard/stats — View stats (Head, Sub-Head, Admins)
 router.get('/stats', authorize('head', 'sub_head', 'admin', 'super_admin', 'master_admin'), headDashboardCtrl.getDashboardStats);
 
-// Member verification actions — Restricted to Main Head and Admins
-router.patch('/members/:id/approve', authorize('head', 'admin', 'super_admin', 'master_admin'), headDashboardCtrl.approveMember);
-router.patch('/members/:id/reject', authorize('head', 'admin', 'super_admin', 'master_admin'), headDashboardCtrl.rejectMember);
-router.patch('/members/:id/revoke', authorize('head', 'admin', 'super_admin', 'master_admin'), headDashboardCtrl.revokeMember);
+// Member verification actions — Available to Head, Sub-Head (Local Head), and Admins
+router.patch('/members/:id/approve', authorize('head', 'sub_head', 'admin', 'super_admin', 'master_admin'), headDashboardCtrl.approveMember);
+router.patch('/members/:id/reject', authorize('head', 'sub_head', 'admin', 'super_admin', 'master_admin'), headDashboardCtrl.rejectMember);
+router.patch('/members/:id/revoke', authorize('head', 'sub_head', 'admin', 'super_admin', 'master_admin'), headDashboardCtrl.revokeMember);
 
 // Community Banner Update — Scoped to req.communityId
 router.put('/community/banner', authorize('head', 'sub_head', 'admin', 'super_admin', 'master_admin'), headDashboardCtrl.updateCommunityBanner);

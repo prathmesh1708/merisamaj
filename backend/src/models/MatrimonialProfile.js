@@ -4,8 +4,8 @@ const photoSchema = new mongoose.Schema({
   url:        { type: String, required: true },
   publicId:   { type: String },           // Cloudinary public_id for deletion
   isPrimary:  { type: Boolean, default: false },
-  isVerified: { type: Boolean, default: false },
-  status:     { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+  isVerified: { type: Boolean, default: true },
+  status:     { type: String, enum: ['pending', 'approved', 'rejected'], default: 'approved' },
   uploadedAt: { type: Date, default: Date.now }
 }, { _id: true });
 
@@ -29,19 +29,19 @@ const matrimonialProfileSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: ['draft', 'pending', 'active', 'hidden', 'suspended', 'married', 'deleted'],
-      default: 'draft',
+      default: 'active',
       index: true
     },
     visibility: {
       type: String,
-      enum: ['public', 'private'],
-      default: 'private',
+      enum: ['public', 'all_members', 'my_community', 'private'],
+      default: 'all_members',
       index: true
     },
     verificationStatus: {
       type: String,
       enum: ['pending', 'verified', 'rejected'],
-      default: 'pending',
+      default: 'verified',
       index: true
     },
     verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

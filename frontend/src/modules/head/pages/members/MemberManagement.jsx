@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Users, CheckCircle2, Heart, Calendar, Search, ShieldAlert, Sparkles, Send, Plus, 
@@ -13,7 +13,13 @@ import { filterMembersForHead } from '../../utils/headCommunityFilter';
 
 export const MemberManagement = () => {
   const { headAuth } = useHeadAuth();
-  const { members, verifyMember, rejectMember, currentUser } = useData();
+  const { members, verifyMember, rejectMember, currentUser, loadMembers } = useData();
+
+  useEffect(() => {
+    if (loadMembers) {
+      loadMembers();
+    }
+  }, []);
 
   const headUser = headAuth?.headUser || currentUser;
 
@@ -31,7 +37,7 @@ export const MemberManagement = () => {
 
   const communityMembers = useMemo(() => {
     return assignedMembers.map(m => {
-      const cityName = typeof m.city === 'object' && m.city?.name ? m.city.name : (m.city || (Number(m.id || 1) % 2 === 0 ? 'Indore' : 'Bhopal'));
+      const cityName = typeof m.city === 'object' && m.city?.name ? m.city.name : (m.city || 'Indore');
       return {
         ...m,
         city: cityName,
@@ -238,15 +244,17 @@ export const MemberManagement = () => {
     setActiveModal('status_confirm');
   };
 
-  const confirmStatusChange = () => {
+  const confirmStatusChange = async () => {
+    const targetId = selectedMemberForStatus.id || selectedMemberForStatus._id;
     if (targetStatus === 'verify') {
-      verifyMember(selectedMemberForStatus.id);
+      await verifyMember(targetId);
       showToast(`Account verified for ${selectedMemberForStatus.name}!`);
     } else if (targetStatus === 'suspend') {
       showToast(`Account suspended for ${selectedMemberForStatus.name}`);
     } else if (targetStatus === 'activate') {
       showToast(`Account activated for ${selectedMemberForStatus.name}`);
     } else if (targetStatus === 'remove') {
+      await rejectMember(targetId);
       showToast(`Account soft-deleted for ${selectedMemberForStatus.name}`);
     }
     setActiveModal(null);
@@ -264,18 +272,18 @@ export const MemberManagement = () => {
     showToast(`Exported ${filteredMembers.length} records in ${format} format!`);
   };
 
-  const handleApprove = (id, name) => {
-    verifyMember(id);
+  const handleApprove = async (id, name) => {
+    await verifyMember(id);
     showToast(`Approved membership for ${name}!`);
-    if (verificationDoc?.id === id) setVerificationDoc(null);
-    if (activeDrawerMember?.id === id) setActiveDrawerMember(null);
+    if (verificationDoc?.id === id || verificationDoc?._id === id) setVerificationDoc(null);
+    if (activeDrawerMember?.id === id || activeDrawerMember?._id === id) setActiveDrawerMember(null);
   };
 
-  const handleReject = (id, name) => {
-    rejectMember(id);
+  const handleReject = async (id, name) => {
+    await rejectMember(id);
     showToast(`Rejected membership for ${name}`);
-    if (verificationDoc?.id === id) setVerificationDoc(null);
-    if (activeDrawerMember?.id === id) setActiveDrawerMember(null);
+    if (verificationDoc?.id === id || verificationDoc?._id === id) setVerificationDoc(null);
+    if (activeDrawerMember?.id === id || activeDrawerMember?._id === id) setActiveDrawerMember(null);
   };
 
   return (

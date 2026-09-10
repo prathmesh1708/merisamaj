@@ -492,7 +492,7 @@ const HomePage = () => {
                   Account Under Community Head Review
                 </h3>
                 <p className="text-[11px] text-amber-100/90 font-medium mt-1 leading-relaxed">
-                  You can explore the Samaj Banner, Core Leaders, and Success Stories below. Full access to Chat, Social Feed, Matrimony, and other features will be active once approved by the Community Head.
+                  You can explore the Samaj Banner, Core Leaders, Success Stories, and Matrimony. Full access to Chat, Social Feed, and other features will be active once approved by the Community Head.
                 </p>
                 <div className="mt-3 flex items-center gap-2">
                   <button
@@ -1091,7 +1091,7 @@ const HomePage = () => {
         <div className="px-3 flex items-center justify-between mb-4">
           <h3 className="text-[17px] font-bold text-text-primary tracking-tight">Success Stories</h3>
           <button 
-            onClick={() => isApproved ? navigate('/member/matrimonial') : showApprovalRequiredNotice('Matrimony')} 
+            onClick={() => navigate('/member/matrimonial')} 
             className="text-[13px] text-pink-600 font-bold press-scale flex items-center gap-0.5"
           >
             Find Your Perfect Match <ChevronRight size={16} />
@@ -1102,7 +1102,7 @@ const HomePage = () => {
         {displaySuccessStories.length > 0 && displaySuccessStories[0].featured && (
           <div className="px-3 mb-4">
             <div 
-              onClick={() => isApproved ? navigate(displaySuccessStories[0]._id ? `/member/matrimonial/success-stories/${displaySuccessStories[0]._id}` : '/member/matrimonial') : showApprovalRequiredNotice('Matrimony')}
+              onClick={() => navigate(displaySuccessStories[0]._id ? `/member/matrimonial/success-stories/${displaySuccessStories[0]._id}` : '/member/matrimonial')}
               className="w-full h-[220px] rounded-[24px] relative overflow-hidden shadow-lg shadow-purple-500/15 cursor-pointer active:scale-[0.98] transition-transform border border-purple-100/20"
             >
               <img src={displaySuccessStories[0].coverImage || displaySuccessStories[0].avatar} alt={displaySuccessStories[0].title || displaySuccessStories[0].groomName} className="absolute inset-0 w-full h-full object-cover" />
@@ -1126,7 +1126,7 @@ const HomePage = () => {
           {displaySuccessStories.filter(s => !s.featured).map((story, idx) => (
             <div 
               key={story.id || story._id || `story-${idx}`} 
-              onClick={() => isApproved ? navigate(story._id ? `/member/matrimonial/success-stories/${story._id}` : '/member/matrimonial') : showApprovalRequiredNotice('Matrimony')}
+              onClick={() => navigate(story._id ? `/member/matrimonial/success-stories/${story._id}` : '/member/matrimonial')}
               className="snap-center shrink-0 w-[275px] h-[340px] rounded-[28px] relative overflow-hidden shadow-lg shadow-purple-500/10 active:scale-[0.98] transition-transform cursor-pointer border border-white/10"
             >
               <img src={story.coverImage || story.avatar} alt={story.title || story.groomName} className="absolute inset-0 w-full h-full object-cover" />

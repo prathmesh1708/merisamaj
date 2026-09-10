@@ -46,9 +46,13 @@ const applyScopeFilter = (req, baseFilter = {}, options = {}) => {
   const rawCommunityId = req?.communityId || (user?.communityId?._id || user?.communityId);
   const targetCommId = (rawCommunityId && mongoose.Types.ObjectId.isValid(rawCommunityId))
     ? new mongoose.Types.ObjectId(rawCommunityId.toString())
-    : (rawCommunityId ? rawCommunityId : new mongoose.Types.ObjectId('000000000000000000000000'));
+    : null;
 
-  if (options.includeGlobalScope) {
+  const commIds = (Array.isArray(user?.assignedCommunityIds) && user.assignedCommunityIds.length > 0)
+    ? user.assignedCommunityIds.map(c => new mongoose.Types.ObjectId(c._id || c)).filter(id => mongoose.Types.ObjectId.isValid(id))
+    : (targetCommId ? [targetCommId] : []);
+
+  if (options.includeGlobalScope && targetCommId) {
     const globalScopeCondition = [
       { scope: 'GLOBAL' },
       { scope: 'COMMUNITY', communityId: targetCommId }
@@ -58,10 +62,12 @@ const applyScopeFilter = (req, baseFilter = {}, options = {}) => {
       delete filter.$or;
       filter.$and = filter.$and || [];
       filter.$and.push({ $or: existingOr }, { $or: globalScopeCondition });
+    } else if (filter.$and) {
+      filter.$and.push({ $or: globalScopeCondition });
     } else {
       filter.$or = globalScopeCondition;
     }
-  } else if (options.includeCampaignTargeting) {
+  } else if (options.includeCampaignTargeting && targetCommId) {
     const campaignTargetingCondition = [
       { communityId: targetCommId },
       { isGlobalCampaign: true },
@@ -75,17 +81,35 @@ const applyScopeFilter = (req, baseFilter = {}, options = {}) => {
       delete filter.$or;
       filter.$and = filter.$and || [];
       filter.$and.push({ $or: existingOr }, { $or: campaignTargetingCondition });
+    } else if (filter.$and) {
+      filter.$and.push({ $or: campaignTargetingCondition });
     } else {
       filter.$or = campaignTargetingCondition;
     }
-  } else {
-    filter.communityId = targetCommId;
+  } else if (commIds.length > 0) {
+    const communityCondition = [
+      { communityId: { $in: commIds } },
+      { assignedCommunityIds: { $in: commIds } }
+    ];
+
+    if (filter.$or) {
+      const existingOr = filter.$or;
+      delete filter.$or;
+      filter.$and = filter.$and || [];
+      filter.$and.push({ $or: existingOr }, { $or: communityCondition });
+    } else if (filter.$and) {
+      filter.$and.push({ $or: communityCondition });
+    } else {
+      filter.$or = communityCondition;
+    }
   }
 
   // OPTIONAL Level 2 City Scope (strict AND condition WITHIN community)
-  const activeCity = options.overrideCity || req?.query?.city;
+  // For Local Head (role === 'sub_head' or accountType === 'local_head'), automatically scope to their assigned city
+  const isLocalHead = (userRole === 'sub_head' || user?.accountType === 'local_head') && user?.city;
+  const activeCity = options.overrideCity || req?.query?.city || (isLocalHead ? user.city : null);
   if (activeCity && typeof activeCity === 'string' && activeCity !== 'all' && activeCity !== 'All') {
-    filter[cityField] = activeCity.trim();
+    filter[cityField] = new RegExp(`^${activeCity.trim()}$`, 'i');
   }
 
   return filter;

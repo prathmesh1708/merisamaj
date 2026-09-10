@@ -15,6 +15,7 @@ export const HeadDashboard = () => {
   const navigate = useNavigate();
   const { headAuth } = useHeadAuth();
   const headUser = headAuth?.headUser;
+  const isLocalHead = headUser?.role === 'sub_head' || headUser?.accountType === 'local_head';
 
   const [statsData, setStatsData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -208,12 +209,14 @@ export const HeadDashboard = () => {
           </div>
           <div className="min-w-0">
             <h1 className="text-[15px] sm:text-base font-bold text-slate-900 tracking-tight truncate">
-              President Dashboard
+              {isLocalHead ? (headUser?.city ? `Local Head Dashboard • ${headUser.city}` : 'Local Head Dashboard') : 'President Dashboard'}
             </h1>
             <p className="text-[11px] sm:text-[12px] text-slate-500 font-medium mt-0.5 truncate flex items-center gap-1.5">
               <span className="truncate">{headUser?.community || 'Community Governance'}</span>
               <span>•</span>
-              <span className="text-indigo-600 font-semibold shrink-0">Active Council Session</span>
+              <span className="text-indigo-600 font-semibold shrink-0">
+                {isLocalHead ? `Local Council (${headUser?.city || 'Regional'})` : 'Active Council Session'}
+              </span>
             </p>
           </div>
         </div>

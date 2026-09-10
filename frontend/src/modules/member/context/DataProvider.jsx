@@ -443,21 +443,21 @@ const adaptNotifications = (notificationsList, community) => {
 const adaptMembers = (membersList, community) => {
   const surname = getCommunitySurname(community);
   return membersList.map(m => {
-    const newName = m.name.replaceAll('Agrawal', surname);
-    const newInitials = newName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+    const newName = m.name ? m.name.replaceAll('Agrawal', surname) : '';
+    const newInitials = m.initials || (newName ? newName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : '?');
     const newFamily = m.familyMembers?.map(fm => {
-      const newFmName = fm.name.replaceAll('Agrawal', surname);
+      const newFmName = fm.name ? fm.name.replaceAll('Agrawal', surname) : '';
       return {
         ...fm,
         name: newFmName,
-        initials: newFmName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
+        initials: newFmName ? newFmName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : '?'
       };
     });
     return {
       ...m,
-      name: newName,
+      name: newName || m.name,
       initials: newInitials,
-      community: community,
+      community: m.community || community,
       familyMembers: newFamily
     };
   });
@@ -679,6 +679,7 @@ export const DataProvider = ({ children }) => {
         const mapped = response.data.data.map(m => ({
           ...m,
           id: m._id || m.id,
+          isVerified: m.verificationStatus === 'verified' || m.accountStatus === 'active',
           initials: m.name ? m.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : '?'
         }));
         setMembers(mapped);
@@ -692,12 +693,14 @@ export const DataProvider = ({ children }) => {
   const currentUserId = auth.user?._id || auth.user?.id || currentUser?._id || currentUser?.id;
 
   useEffect(() => {
-    if (auth.isAuthenticated && currentUserId) {
+    const isAuth = Boolean(auth.isAuthenticated || headAuth.isAuthenticated);
+    const activeUserId = currentUserId || headAuth.headUser?._id || headAuth.headUser?.id;
+    if (isAuth && activeUserId) {
       loadMembers();
-    } else if (!auth.isAuthenticated) {
+    } else if (!isAuth) {
       setMembers(initialMembers);
     }
-  }, [auth.isAuthenticated, currentUserId]);
+  }, [auth.isAuthenticated, headAuth.isAuthenticated, currentUserId, headAuth.headUser]);
 
   const [admins, setAdmins] = useState(() => {
     const loaded = loadState('admins', initialAdmins);
@@ -2411,12 +2414,28 @@ export const DataProvider = ({ children }) => {
     }
   };
 
-  const verifyMember = (memberId) => {
-    setMembers(prev => prev.map(m => m.id === memberId ? { ...m, isVerified: true } : m));
+  const verifyMember = async (memberId) => {
+    try {
+      if (headAuth?.isAuthenticated) {
+        await axiosPrivate.patch(`/head/dashboard/members/${memberId}/approve`);
+      }
+      setMembers(prev => prev.map(m => (m.id === memberId || m._id === memberId) ? { ...m, isVerified: true, verificationStatus: 'verified', accountStatus: 'active' } : m));
+    } catch (error) {
+      console.error('Failed to verify member on backend:', error);
+      setMembers(prev => prev.map(m => (m.id === memberId || m._id === memberId) ? { ...m, isVerified: true, verificationStatus: 'verified', accountStatus: 'active' } : m));
+    }
   };
 
-  const rejectMember = (memberId) => {
-    setMembers(prev => prev.filter(m => m.id !== memberId));
+  const rejectMember = async (memberId) => {
+    try {
+      if (headAuth?.isAuthenticated) {
+        await axiosPrivate.patch(`/head/dashboard/members/${memberId}/reject`);
+      }
+      setMembers(prev => prev.filter(m => m.id !== memberId && m._id !== memberId));
+    } catch (error) {
+      console.error('Failed to reject member on backend:', error);
+      setMembers(prev => prev.filter(m => m.id !== memberId && m._id !== memberId));
+    }
   };
 
   const addEvent = async (eventData) => {
@@ -2915,6 +2934,7 @@ export const DataProvider = ({ children }) => {
     updateFamilyMember,
     deleteFamilyMember,
     members: adaptedMembersList,
+    loadMembers,
     admins: adaptedAdminsList,
     posts: adaptedPostsList,
     events,

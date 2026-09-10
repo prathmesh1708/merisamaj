@@ -39,7 +39,7 @@ export const SideNav = () => {
   ];
 
   const handleNavClick = (e, item) => {
-    const unrestrictedPaths = ['/member/home', '/member/profile', '/member/referral', '/member/chat'];
+    const unrestrictedPaths = ['/member/home', '/member/profile', '/member/referral', '/member/chat', '/member/matrimonial'];
     if (!isApproved && !unrestrictedPaths.includes(item.path)) {
       e.preventDefault();
       showApprovalRequiredNotice(item.name);

@@ -1184,6 +1184,72 @@ const notifyProfileClosed = (userId) =>
     actionUrl:'/member/matrimonial'
   });
 
+/**
+ * Notify Local Head (matching member's city) and Main Community Head about a new member approval request
+ * @param {Object} memberUser - Mongoose User document or plain object of the registered member
+ */
+const notifyLocalHeadNewMember = async (memberUser) => {
+  try {
+    if (!memberUser || !memberUser.communityId) return;
+
+    const commId = memberUser.communityId._id || memberUser.communityId;
+    const memberCity = (memberUser.city || '').trim();
+
+    // 1. If member has a city, find and notify Local Head(s) for that city & community
+    if (memberCity) {
+      const localHeads = await User.find({
+        communityId: commId,
+        role: 'sub_head',
+        accountType: 'local_head',
+        city: new RegExp(`^${memberCity}$`, 'i'),
+        accountStatus: 'active'
+      }).select('_id name email phone');
+
+      for (const lh of localHeads) {
+        await createNotification({
+          userId: lh._id,
+          communityId: commId,
+          module: 'members',
+          type: 'member_verification_request',
+          title: 'New Member Approval Request 👤',
+          message: `${memberUser.name || 'A new member'} from ${memberCity} has registered and requested verification approval.`,
+          icon: '👤',
+          priority: 'high',
+          actionUrl: '/head/members?tab=verification',
+          referenceId: memberUser._id,
+          referenceType: 'User'
+        });
+      }
+    }
+
+    // 2. Also notify the Main Community Head(s)
+    const mainHeads = await User.find({
+      $or: [
+        { communityId: commId, role: 'head', accountStatus: 'active' },
+        { assignedCommunityIds: commId, role: 'head', accountStatus: 'active' }
+      ]
+    }).select('_id name email phone');
+
+    for (const head of mainHeads) {
+      await createNotification({
+        userId: head._id,
+        communityId: commId,
+        module: 'members',
+        type: 'member_verification_request',
+        title: 'New Member Approval Request 👤',
+        message: `${memberUser.name || 'A new member'}${memberCity ? ` from ${memberCity}` : ''} has registered and is awaiting verification approval.`,
+        icon: '👤',
+        priority: 'high',
+        actionUrl: '/head/members?tab=verification',
+        referenceId: memberUser._id,
+        referenceType: 'User'
+      });
+    }
+  } catch (err) {
+    console.error('[NotificationService] notifyLocalHeadNewMember error:', err.message);
+  }
+};
+
 module.exports = {
 
   createNotification,
@@ -1261,5 +1327,6 @@ module.exports = {
   // ─── Invitations ─────────────────────────────────────────────────────────────
   notifyInvitationReceived,
   notifyInvitationAccepted,
-  notifyReferralBonusEarned
+  notifyReferralBonusEarned,
+  notifyLocalHeadNewMember
 };

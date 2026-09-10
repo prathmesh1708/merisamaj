@@ -28,8 +28,10 @@ const buildRestrictedProfile = (profile) => {
     profileCompletion:  profile.profileCompletion,
     // Only primary photo visible (not full gallery)
     photos: (profile.photos || [])
-      .filter(p => p.isPrimary && p.status === 'approved')
-      .slice(0, 1),
+      .filter(p => !p.isDeleted && p.isPrimary)
+      .length > 0
+        ? (profile.photos || []).filter(p => !p.isDeleted && p.isPrimary).slice(0, 1)
+        : (profile.photos || []).filter(p => !p.isDeleted).slice(0, 1),
     personal: {
       fullName:     profile.personal?.fullName,
       gender:       profile.personal?.gender,
@@ -75,9 +77,9 @@ const buildRestrictedProfile = (profile) => {
 const buildFullProfile = (profile, features = {}) => {
   const full = profile.toObject ? profile.toObject() : { ...profile };
 
-  // Filter photos to only approved ones
+  // Filter photos to active non-deleted ones
   if (full.photos) {
-    full.photos = full.photos.filter(p => p.status === 'approved');
+    full.photos = full.photos.filter(p => !p.isDeleted);
   }
 
   // Contact info: only expose if user has contactDetailsAccess in their plan

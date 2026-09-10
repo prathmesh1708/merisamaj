@@ -62,7 +62,7 @@ exports.getCommunityMembers = async (req, res) => {
 
     const [members, total] = await Promise.all([
       User.find(filter)
-        .select('name avatar city profession phone community communityId accountStatus verificationStatus createdAt')
+        .select('name avatar city profession phone email gender gotra community communityId assignedCommunityIds accountStatus verificationStatus isAadharVerified area familyMembers role createdAt')
         .sort({ name: 1 })
         .skip(skip)
         .limit(Number(limit))

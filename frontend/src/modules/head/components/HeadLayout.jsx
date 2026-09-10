@@ -17,6 +17,7 @@ export const HeadLayout = () => {
   const navigate = useNavigate();
 
   const headUser = headAuth.headUser || currentUser;
+  const isLocalHead = headUser?.role === 'sub_head' || headUser?.accountType === 'local_head';
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true);
   const [expandedItems, setExpandedItems] = useState({});
@@ -43,7 +44,7 @@ export const HeadLayout = () => {
       category: 'CORE DASHBOARD',
       items: [
         { 
-          name: 'President Dashboard', 
+          name: isLocalHead ? 'Local Head Dashboard' : 'President Dashboard', 
           path: '/head/dashboard', 
           icon: LayoutDashboard,
           permKey: 'canViewDashboard',
@@ -384,7 +385,7 @@ export const HeadLayout = () => {
           {/* Executive Tag */}
           <div className="bg-amber-500/10 border border-amber-500/20 text-amber-200/90 font-bold uppercase tracking-wider text-[10px] px-3.5 py-2 rounded-xl flex items-center gap-2 mx-4 mb-4">
             <Award size={16} className="text-amber-500 animate-pulse shrink-0" />
-            <span>President Council</span>
+            <span>{headUser?.role === 'sub_head' ? (headUser?.city ? `Local Head • ${headUser.city}` : 'Local Head Council') : 'President Council'}</span>
           </div>
 
           {/* Nav Items */}
@@ -404,8 +405,10 @@ export const HeadLayout = () => {
                 color="bg-gradient-to-br from-amber-400 to-purple-600 text-white font-bold"
               />
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-bold text-white truncate leading-none">{headUser?.name || 'Community Head'}</p>
-                <p className="text-[10px] font-semibold text-purple-300/60 truncate mt-1 leading-none">{headUser?.title || 'Adhyaksh (Head)'}</p>
+                <p className="text-xs font-bold text-white truncate leading-none">{headUser?.name || (isLocalHead ? 'Local Head' : 'Community Head')}</p>
+                <p className="text-[10px] font-semibold text-purple-300/60 truncate mt-1 leading-none">
+                  {isLocalHead ? (headUser?.city ? `Local Head (${headUser.city})` : 'Local Head') : (headUser?.designation || headUser?.title || 'Adhyaksh (Head)')}
+                </p>
                 {/* Community badge — shows community from DB (communityId.name) */}
                 {(headUser?.communityId?.name || headUser?.community) && (
                   <p className="text-[9px] font-bold text-amber-400/80 truncate mt-1 leading-none">
@@ -441,7 +444,9 @@ export const HeadLayout = () => {
           </div>
           <div>
             <h1 className="text-[15px] font-bold text-slate-800 leading-none">MeriSamaj</h1>
-            <p className="text-[8px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">Council Head</p>
+            <p className="text-[8px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">
+              {isLocalHead ? `Local Head • ${headUser?.city || 'City'}` : 'Council Head'}
+            </p>
           </div>
         </div>
 
@@ -496,7 +501,7 @@ export const HeadLayout = () => {
             {/* Executive Tag */}
             <div className="bg-amber-500/10 border border-amber-500/20 text-amber-200/90 font-bold uppercase tracking-wider text-[10px] px-3.5 py-2 rounded-xl flex items-center gap-2 mx-4 mb-4">
               <Award size={16} className="text-amber-500 animate-pulse shrink-0" />
-              <span>President Council</span>
+              <span>{isLocalHead ? (headUser?.city ? `Local Head • ${headUser.city}` : 'Local Head Council') : 'President Council'}</span>
             </div>
 
             {/* Nav items list */}
@@ -516,8 +521,10 @@ export const HeadLayout = () => {
                   color="bg-gradient-to-br from-amber-400 to-purple-600 text-white font-bold"
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-bold text-white truncate leading-none">{headUser?.name || 'Community Head'}</p>
-                  <p className="text-[10px] font-semibold text-purple-300/60 truncate mt-1.5 leading-none">{headUser?.title || 'Adhyaksh (Head)'}</p>
+                  <p className="text-xs font-bold text-white truncate leading-none">{headUser?.name || (isLocalHead ? 'Local Head' : 'Community Head')}</p>
+                  <p className="text-[10px] font-semibold text-purple-300/60 truncate mt-1.5 leading-none">
+                    {isLocalHead ? (headUser?.city ? `Local Head (${headUser.city})` : 'Local Head') : (headUser?.designation || headUser?.title || 'Adhyaksh (Head)')}
+                  </p>
                 </div>
               </div>
 
@@ -559,8 +566,10 @@ export const HeadLayout = () => {
             <div className="h-6 w-[1px] bg-slate-200" />
             <div className="flex items-center gap-3">
               <div className="text-right">
-                <p className="text-xs font-bold text-slate-850 leading-none">{headUser?.name || 'Community Head'}</p>
-                <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider font-semibold">{headUser?.role === 'head' ? 'Administrator' : 'Head Panel'}</p>
+                <p className="text-xs font-bold text-slate-850 leading-none">{headUser?.name || (isLocalHead ? 'Local Head' : 'Community Head')}</p>
+                <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider font-semibold">
+                  {isLocalHead ? `Local Head (${headUser?.city || 'Local'})` : (headUser?.role === 'head' ? 'Community President' : 'Head Panel')}
+                </p>
               </div>
               <Avatar 
                 initials={headUser?.initials || (headUser?.name ? headUser.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'MA')} 

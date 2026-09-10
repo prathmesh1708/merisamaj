@@ -128,7 +128,7 @@ const MatrimonialShortlistPage = () => {
               if (!profile) return null;
               const profileId  = profile._id;
               const name       = profile.personal?.fullName || 'Unknown';
-              const photo      = profile.photos?.find(p => p.isPrimary && p.status === 'approved')?.url
+              const photo      = profile.photos?.find(p => p.isPrimary)?.url
                               || profile.photos?.[0]?.url;
               const age        = profile.age;
               const city       = profile.location?.city;

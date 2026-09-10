@@ -154,6 +154,20 @@ export const MemberRoutes = () => {
               <Route path="chat/:chatId" element={<AnimatedPage><ChatRouteWrapper /></AnimatedPage>} />
               <Route path="chat/info/:chatId" element={<AnimatedPage><ChatInfoPage /></AnimatedPage>} />
 
+              {/* Matrimonial Module (Accessible to all registered members) */}
+              <Route path="matrimonial" element={<MatrimonialProvider />}>
+                <Route index element={<AnimatedPage><MatrimonialHomePage /></AnimatedPage>} />
+                <Route path="setup" element={<AnimatedPage><MatrimonialSetupPage /></AnimatedPage>} />
+                <Route path="interests" element={<AnimatedPage><InterestsPage /></AnimatedPage>} />
+                <Route path="search" element={<AnimatedPage><MatrimonialSearchPage /></AnimatedPage>} />
+                <Route path="shortlist" element={<AnimatedPage><MatrimonialShortlistPage /></AnimatedPage>} />
+                <Route path="stories" element={<AnimatedPage><MatrimonialSuccessStories /></AnimatedPage>} />
+                <Route path="success-stories/:id" element={<AnimatedPage><SuccessStoryDetails /></AnimatedPage>} />
+                <Route path=":profileId" element={<AnimatedPage><MatrimonialProfilePage /></AnimatedPage>} />
+                <Route path="chat/:conversationId" element={<AnimatedPage><MatrimonialChatPage /></AnimatedPage>} />
+                <Route path="subscription" element={<AnimatedPage><MatrimonialSubscriptionPage /></AnimatedPage>} />
+              </Route>
+
               {/* ─── Approved-Only Protected Member Routes (Requires Head Approval) ─── */}
               <Route element={<ApprovedRouteGuard />}>
                 {/* Social Hub */}
@@ -161,20 +175,6 @@ export const MemberRoutes = () => {
                 <Route path="social/insights" element={<AnimatedPage><SocialInsightsPage /></AnimatedPage>} />
                 <Route path="social/create" element={<AnimatedPage><CreatePostPage /></AnimatedPage>} />
                 <Route path="social/:postId" element={<AnimatedPage><PostDetailPage /></AnimatedPage>} />
-
-                {/* Matrimonial Module */}
-                <Route path="matrimonial" element={<MatrimonialProvider />}>
-                  <Route index element={<AnimatedPage><MatrimonialHomePage /></AnimatedPage>} />
-                  <Route path="setup" element={<AnimatedPage><MatrimonialSetupPage /></AnimatedPage>} />
-                  <Route path="interests" element={<AnimatedPage><InterestsPage /></AnimatedPage>} />
-                  <Route path="search" element={<AnimatedPage><MatrimonialSearchPage /></AnimatedPage>} />
-                  <Route path="shortlist" element={<AnimatedPage><MatrimonialShortlistPage /></AnimatedPage>} />
-                  <Route path="stories" element={<AnimatedPage><MatrimonialSuccessStories /></AnimatedPage>} />
-                  <Route path="success-stories/:id" element={<AnimatedPage><SuccessStoryDetails /></AnimatedPage>} />
-                  <Route path=":profileId" element={<AnimatedPage><MatrimonialProfilePage /></AnimatedPage>} />
-                  <Route path="chat/:conversationId" element={<AnimatedPage><MatrimonialChatPage /></AnimatedPage>} />
-                  <Route path="subscription" element={<AnimatedPage><MatrimonialSubscriptionPage /></AnimatedPage>} />
-                </Route>
 
                 {/* Member Directory */}
                 <Route path="directory" element={<AnimatedPage><DirectoryPage /></AnimatedPage>} />

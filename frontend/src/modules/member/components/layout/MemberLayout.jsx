@@ -72,7 +72,7 @@ export const MemberLayout = () => {
 
   const handleMenuLinkClick = (item) => {
     setMobileMenuOpen(false);
-    const unrestrictedPaths = ['/member/home', '/member/leadership', '/member/profile', '/member/settings', '/member/referral', '/member/chat'];
+    const unrestrictedPaths = ['/member/home', '/member/leadership', '/member/profile', '/member/settings', '/member/referral', '/member/chat', '/member/matrimonial'];
     if (!isApproved && !unrestrictedPaths.includes(item.path)) {
       setApprovalModalState({
         isOpen: true,
