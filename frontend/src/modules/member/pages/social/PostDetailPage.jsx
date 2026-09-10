@@ -22,6 +22,7 @@ const InstagramIcon = (props) => (
 import { Avatar } from '../../components/common/Avatar';
 import { useData } from '../../context/DataProvider';
 import socialService from '../../../../core/api/socialService';
+import { SharePostModal } from './components/SharePostModal';
 
 const categoryColors = {
   Notice: 'text-emerald-700 bg-emerald-500 border-emerald-500',
@@ -472,6 +473,7 @@ const PostDetailPage = () => {
   const [toastMessage, setToastMessage] = useState('');
   const [replyingToComment, setReplyingToComment] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   useEffect(() => {
     if (postId) {
@@ -708,10 +710,7 @@ const PostDetailPage = () => {
               <span>Like</span>
             </button>
             <button 
-              onClick={() => {
-                navigator.clipboard.writeText(window.location.href);
-                triggerToast('Link copied to clipboard!');
-              }}
+              onClick={() => setIsShareModalOpen(true)}
               className="flex items-center justify-center gap-1.5 px-3 py-2 text-[13.5px] font-bold text-slate-500 hover:text-emerald-600 hover:bg-slate-100/50 rounded-xl transition-all"
             >
               <Share2 size={18} />
@@ -929,6 +928,16 @@ const PostDetailPage = () => {
           </button>
         </div>
       </div>
+
+      {/* Share Post Modal */}
+      <SharePostModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        post={post}
+        onPostShared={() => {
+          triggerToast('Post shared successfully!');
+        }}
+      />
     </div>
   );
 };
