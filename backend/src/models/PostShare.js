@@ -19,6 +19,12 @@ const postShareSchema = new mongoose.Schema(
       enum: ['internal', 'facebook', 'whatsapp', 'copy_link'],
       required: true,
     },
+    sharedWithUserId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+      index: true,
+    },
   },
   {
     timestamps: true,

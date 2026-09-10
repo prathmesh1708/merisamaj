@@ -27,6 +27,7 @@ import { PostSkeleton } from '../../components/common/Skeleton';
 import { StoryViewer } from '../../components/common/StoryViewer';
 import { useDraggableScroll } from '../../../../hooks/useDraggableScroll';
 import socialService from '../../../../core/api/socialService';
+import { SharePostModal } from './components/SharePostModal';
 
 // Local translation dictionary for Feed Redesign
 const localT = {
@@ -1016,6 +1017,8 @@ const FeedPage = ({ isHub = false, feedType = 'city', searchQuery = '', isFilter
   const [activeStory, setActiveStory] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
   const [isSearchActive, setIsSearchActive] = useState(false);
+  const [shareModalPost, setShareModalPost] = useState(null);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const storiesRef = useDraggableScroll();
 
   const lang = 'en'; // Force English for Feed Section as requested
@@ -1206,10 +1209,8 @@ const FeedPage = ({ isHub = false, feedType = 'city', searchQuery = '', isFilter
                   index={index} 
                   lang={lang} 
                   onShareClick={(p) => {
-                    // Copy mock link to clipboard & notify
-                    const clientUrl = import.meta.env.VITE_CLIENT_URL || window.location.origin;
-                    navigator.clipboard.writeText(`${clientUrl}/member/social/${p.id}`);
-                    triggerToast("Link copied to clipboard!");
+                    setShareModalPost(p);
+                    setIsShareModalOpen(true);
                   }}
                 />
               ))
@@ -1229,6 +1230,19 @@ const FeedPage = ({ isHub = false, feedType = 'city', searchQuery = '', isFilter
         stories={stories}
         onStoryChange={(nextStory) => setActiveStory(nextStory)}
         onClose={() => setActiveStory(null)} 
+      />
+
+      {/* Share Post Modal */}
+      <SharePostModal 
+        isOpen={isShareModalOpen}
+        onClose={() => {
+          setIsShareModalOpen(false);
+          setShareModalPost(null);
+        }}
+        post={shareModalPost}
+        onPostShared={(postId) => {
+          triggerToast("Post shared successfully!");
+        }}
       />
 
       {/* Category Filter Bottom Sheet */}

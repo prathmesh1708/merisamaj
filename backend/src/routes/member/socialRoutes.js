@@ -32,6 +32,9 @@ router.post('/posts/:id/like', socialController.toggleLike);
 router.post('/posts/:id/save', socialController.toggleSave);
 router.post('/posts/:id/view', socialController.recordView);
 router.post('/posts/:id/share', socialController.recordShare);
+router.post('/posts/:id/share-to-user', socialController.sharePostToUser);
+
+router.get('/share-recipients', socialController.getShareRecipients);
 
 router.route('/posts/:id/comments')
   .get(socialController.getComments)
