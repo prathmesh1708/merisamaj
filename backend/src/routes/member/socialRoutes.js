@@ -49,6 +49,12 @@ router.post('/comments/:id/like', socialController.toggleCommentLike);
 router.get('/search', socialController.searchSocial);
 
 // ─────────────────────────────────────────────
+// ANNOUNCEMENTS SUBSCRIPTION ROUTES
+// ─────────────────────────────────────────────
+router.get('/announcements/follow-status', socialController.getAnnouncementFollowStatus);
+router.post('/announcements/toggle-follow', socialController.toggleFollowAnnouncements);
+
+// ─────────────────────────────────────────────
 // STORIES & HIGHLIGHTS ROUTES
 // ─────────────────────────────────────────────
 router.route('/stories')

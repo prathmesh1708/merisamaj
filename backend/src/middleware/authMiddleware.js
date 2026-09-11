@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const config = require('../config/config');
+const cacheService = require('../utils/cacheService');
 
 // JWT authentication middleware for route protection
 const protect = async (req, res, next) => {
@@ -54,16 +55,49 @@ const protect = async (req, res, next) => {
      *   Model.find({ communityId: populatedObject }) would fail in Mongoose —
      *   it needs the raw ObjectId. So we always attach a plain _id to req.communityId.
      */
-    let user = await User.findById(decoded.id)
-      .select('-password')
-      .populate('communityId', 'name slug isActive settings logoUrl bannerUrl description city')
-      .populate('assignedCommunityIds', 'name slug isActive settings logoUrl bannerUrl description city');
+    const authCacheKey = `auth_user_${decoded.id}`;
+    let user = cacheService.get(authCacheKey);
 
     if (!user) {
-      const isApiAdmin = req.baseUrl.startsWith('/api/v1/admin') || req.path.startsWith('/admin');
-      if (isApiAdmin) {
-        user = await User.findOne({ role: { $in: ['admin', 'super_admin', 'master_admin', 'master'] } })
-          .select('-password');
+      user = await User.findById(decoded.id)
+        .select('-password')
+        .populate('communityId', 'name slug isActive settings logoUrl bannerUrl description city')
+        .populate('assignedCommunityIds', 'name slug isActive settings logoUrl bannerUrl description city');
+
+      if (!user) {
+        const isApiAdmin = req.baseUrl.startsWith('/api/v1/admin') || req.path.startsWith('/admin');
+        if (isApiAdmin) {
+          user = await User.findOne({ role: { $in: ['admin', 'super_admin', 'master_admin', 'master'] } })
+            .select('-password');
+        }
+      }
+
+      if (user) {
+        // Resolve communityId once during initial load
+        if (user.communityId) {
+          user._cachedCommunityId = user.communityId._id ? user.communityId._id : user.communityId;
+        } else if (user.community) {
+          const Community = require('../models/Community');
+          const commDoc = await Community.findOne({ name: user.community }).lean();
+          if (commDoc) {
+            user._cachedCommunityId = commDoc._id;
+            user.communityId = commDoc._id;
+            if (!user.assignedCommunityIds || user.assignedCommunityIds.length === 0) {
+              user.assignedCommunityIds = [commDoc._id];
+            }
+            User.findByIdAndUpdate(user._id, {
+              communityId: commDoc._id,
+              assignedCommunityIds: user.assignedCommunityIds
+            }).catch(() => {});
+          }
+        } else if (user.role === 'head' && user.assignedCommunityIds && user.assignedCommunityIds.length > 0) {
+          const firstComm = user.assignedCommunityIds[0];
+          user._cachedCommunityId = firstComm._id ? firstComm._id : firstComm;
+          user.communityId = user._cachedCommunityId;
+          User.findByIdAndUpdate(user._id, { communityId: user._cachedCommunityId }).catch(() => {});
+        }
+
+        cacheService.set(authCacheKey, user, 60); // 1 minute TTL
       }
     }
 
@@ -100,32 +134,14 @@ const protect = async (req, res, next) => {
 
     /**
      * req.communityId — always a plain ObjectId (or null for admin).
-     * - For member/head: extracted from their assigned communityId.
-     * - For admin: null (admin accesses all communities; uses req.body/query.communityId).
-     * - communityId?._id handles the populated-object case safely.
+     * - Uses user._cachedCommunityId if available to eliminate repeat queries.
      */
-    if (user.communityId) {
-      req.communityId = user.communityId._id
-        ? user.communityId._id   // populated object → extract _id
-        : user.communityId;      // already a plain ObjectId
-    } else if (user.community) {
-      // Self-heal user model using community string fallback
-      const Community = require('../models/Community');
-      const commDoc = await Community.findOne({ name: user.community });
-      if (commDoc) {
-        req.communityId = commDoc._id;
-        user.communityId = commDoc._id;
-        if (!user.assignedCommunityIds || user.assignedCommunityIds.length === 0) {
-          user.assignedCommunityIds = [commDoc._id];
-        }
-        await user.save();
-      }
-    } else if (user.role === 'head' && user.assignedCommunityIds && user.assignedCommunityIds.length > 0) {
-      const firstComm = user.assignedCommunityIds[0];
-      req.communityId = firstComm._id ? firstComm._id : firstComm;
-      // Self-heal user model
-      user.communityId = req.communityId;
-      await user.save();
+    if (user._cachedCommunityId) {
+      req.communityId = user._cachedCommunityId;
+    } else if (user.communityId) {
+      req.communityId = user.communityId._id ? user.communityId._id : user.communityId;
+    } else {
+      req.communityId = null;
     }
 
     if (req.communityId) {
@@ -233,5 +249,50 @@ const communityAccess = (Model) => async (req, res, next) => {
   next();
 };
 
-module.exports = { protect, authorize, communityAccess };
+/**
+ * optionalProtect — Middleware that attempts to decode token and attach user if present,
+ * but does NOT reject the request with 401 if token is missing or expired.
+ * Useful for public/semi-public endpoints like app-content, feed previews, etc.
+ */
+const optionalProtect = async (req, res, next) => {
+  let token;
+  if (
+    req.headers.authorization &&
+    req.headers.authorization.startsWith('Bearer')
+  ) {
+    token = req.headers.authorization.split(' ')[1];
+  } else if (req.cookies) {
+    token = req.cookies.member_jwt || req.cookies.jwt;
+  }
+
+  if (!token) return next();
+
+  try {
+    let decoded;
+    try {
+      decoded = jwt.verify(token, config.jwtSecret);
+    } catch (e) {
+      try {
+        decoded = jwt.verify(token, config.jwtRefreshSecret);
+      } catch (e2) {
+        return next();
+      }
+    }
+
+    if (decoded?.id) {
+      const user = await User.findById(decoded.id)
+        .populate('communityId', 'name slug isActive settings logoUrl bannerUrl description city')
+        .populate('assignedCommunityIds', 'name slug isActive settings logoUrl bannerUrl description city');
+      if (user) {
+        req.user = user;
+        req.communityId = user.communityId?._id || user.communityId;
+      }
+    }
+  } catch (err) {
+    // Non-blocking: continue as guest
+  }
+  next();
+};
+
+module.exports = { protect, optionalProtect, authorize, communityAccess };
 

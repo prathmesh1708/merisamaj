@@ -142,18 +142,6 @@ const HomePage = () => {
       })
       .catch(() => {});
 
-    axiosPrivate.get('/member/leadership')
-      .then(res => {
-        if (isMounted && res.data?.success && res.data?.data) {
-          setLiveCommunityHead(res.data.data.communityHead || null);
-          if (Array.isArray(res.data.data.subLeaders)) setLiveSubLeaders(res.data.data.subLeaders);
-        }
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (isMounted) setLeadershipLoading(false);
-      });
-
     donationService.getStats()
       .then(res => {
         if (isMounted) {
@@ -195,7 +183,10 @@ const HomePage = () => {
           }
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (isMounted) setLeadershipLoading(false);
+      });
 
     return () => { isMounted = false; };
   }, [currentUser?.communityId]);
@@ -340,7 +331,7 @@ const HomePage = () => {
       });
 
   const getSamajImage = (community) => {
-    const c = community.toLowerCase();
+    const c = (community || '').toLowerCase();
     const base = window.location.pathname.includes('/MeriSamaj') ? '/MeriSamaj/' : '/';
     if (c.includes('agrawal')) return `${base}assets/images/rajwada.png`;
     if (c.includes('mali')) return `${base}assets/images/mali.png`;
@@ -349,8 +340,34 @@ const HomePage = () => {
     if (c.includes('jain')) return `${base}assets/images/jain.png`;
     if (c.includes('patel')) return `${base}assets/images/patel.png`;
     if (c.includes('verma')) return `${base}assets/images/verma.png`;
+    if (c.includes('namdev')) return `${base}assets/images/sharma.png`;
     return `${base}assets/images/rajwada.png`; // fallback
   };
+
+  const resolveBannerUrl = (url) => {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:image/') || url.startsWith('blob:')) {
+      return url;
+    }
+    if (url.startsWith('/uploads')) {
+      const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5001/api/v1';
+      const backendBase = apiBase.replace(/\/api(\/v\d+)?\/?$/, '');
+      return `${backendBase}${url}`;
+    }
+    return url;
+  };
+
+  const rawHeroBannerSrc = 
+    effectiveUser?.communityId?.bannerUrl || 
+    effectiveUser?.communityBanner || 
+    currentUser?.communityId?.bannerUrl || 
+    currentUser?.communityBanner || 
+    (homepageContentSettings?.hero?.backgroundImage && !homepageContentSettings.hero.backgroundImage.includes('photo-1590050752117-238cb0fb12b1') 
+      ? homepageContentSettings.hero.backgroundImage 
+      : null) || 
+    getSamajImage(userCommunity);
+
+  const heroBannerSrc = resolveBannerUrl(rawHeroBannerSrc);
 
   const handleDonorClick = (donor) => {
     let targetUserId = donor.userId;
@@ -373,16 +390,17 @@ const HomePage = () => {
   return (
     <div className="min-h-screen bg-surface pb-28">
       {/* ─── SAMAJ HERO BANNER ─── */}
-      <div className="relative w-full overflow-hidden" style={{ minHeight: '240px' }}>
+      <div className="relative w-full overflow-hidden bg-gradient-to-br from-indigo-950 via-slate-900 to-purple-950" style={{ minHeight: '240px' }}>
         {/* Background Image — 100% natural, crisp, untouched as uploaded */}
         <img 
-          src={
-            currentUser?.communityId?.bannerUrl || 
-            currentUser?.communityBanner || 
-            homepageContentSettings?.hero?.backgroundImage || 
-            getSamajImage(userCommunity)
-          } 
+          src={heroBannerSrc} 
           alt={userCommunity}
+          onError={(e) => {
+            const fallback = getSamajImage(userCommunity);
+            if (e.target.src !== fallback) {
+              e.target.src = fallback;
+            }
+          }}
           className="absolute inset-0 w-full h-full object-cover"
         />
 

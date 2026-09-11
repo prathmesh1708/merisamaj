@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ThumbsUp, MessageCircle, Share2, MoreHorizontal, PlusCircle, Image as ImageIcon, Send, Search, Bell, Radio, Clock, Camera, Video, Calendar, Eye, Heart, Bookmark, Award, Sparkles, Smile, Phone, MapPin, Check, Gift, X, SlidersHorizontal, User, Settings, LogOut, Megaphone, HeartHandshake, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ThumbsUp, MessageCircle, Share2, MoreHorizontal, PlusCircle, Image as ImageIcon, Send, Search, Bell, Radio, Clock, Camera, Video, Calendar, Eye, Heart, Bookmark, Award, Sparkles, Smile, Phone, MapPin, Check, Gift, X, SlidersHorizontal, User, Settings, LogOut, Megaphone, HeartHandshake, AlertCircle, ChevronLeft, ChevronRight, Play } from 'lucide-react';
 
 const InstagramIcon = (props) => (
   <svg
@@ -243,11 +243,20 @@ const AutoPauseVideo = ({ src, isSingle = true, onClick }) => {
   );
 };
 
+const extractYouTubeId = (url) => {
+  if (!url || typeof url !== 'string') return '';
+  const match = url.match(/(?:embed\/|v=|vi\/|youtu\.be\/|\/v\/|\/e\/|watch\?v=)([\w-]{11})/);
+  return match ? match[1] : '';
+};
+
 const AutoPauseYouTube = ({ embedUrl }) => {
   const containerRef = React.useRef(null);
   const iframeRef = React.useRef(null);
+  const [isPlaying, setIsPlaying] = React.useState(false);
+  const videoId = extractYouTubeId(embedUrl);
 
   useEffect(() => {
+    if (!isPlaying) return;
     const containerEl = containerRef.current;
     if (!containerEl) return;
 
@@ -268,11 +277,36 @@ const AutoPauseYouTube = ({ embedUrl }) => {
 
     observer.observe(containerEl);
     return () => observer.disconnect();
-  }, []);
+  }, [isPlaying]);
 
   const finalEmbedUrl = embedUrl.includes('?') 
-    ? `${embedUrl}&enablejsapi=1` 
-    : `${embedUrl}?enablejsapi=1`;
+    ? `${embedUrl}&enablejsapi=1&autoplay=1` 
+    : `${embedUrl}?enablejsapi=1&autoplay=1`;
+
+  if (!isPlaying && videoId) {
+    return (
+      <div 
+        ref={containerRef} 
+        className="w-full aspect-video rounded-2xl overflow-hidden bg-black shadow-md relative group cursor-pointer" 
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsPlaying(true);
+        }}
+      >
+        <img 
+          src={`https://img.youtube.com/vi/${videoId}/hqdefault.jpg`} 
+          alt="YouTube Thumbnail" 
+          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+          loading="lazy"
+        />
+        <div className="absolute inset-0 bg-black/25 flex items-center justify-center transition-colors group-hover:bg-black/15">
+          <div className="w-14 h-14 rounded-full bg-red-600/90 text-white flex items-center justify-center shadow-lg group-hover:scale-110 group-hover:bg-red-600 transition-all">
+            <Play size={24} fill="currentColor" className="ml-1" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div ref={containerRef} className="w-full aspect-video rounded-2xl overflow-hidden bg-black shadow-md relative" onClick={(e) => e.stopPropagation()}>
@@ -304,7 +338,7 @@ const extractInstagramEmbedUrl = (url) => {
 const InstagramEmbedPlayer = ({ url }) => {
   const embedUrl = extractInstagramEmbedUrl(url);
   const containerRef = React.useRef(null);
-  const [isInView, setIsInView] = React.useState(true);
+  const [isInView, setIsInView] = React.useState(false);
 
   useEffect(() => {
     const containerEl = containerRef.current;
@@ -368,7 +402,7 @@ const InstagramEmbedPlayer = ({ url }) => {
 
   return (
     <div 
-      ref={containerRef}
+      ref={containerRef} 
       className="w-full rounded-2xl overflow-hidden bg-black shadow-md relative border border-slate-800/80 my-1 min-h-[480px] flex items-center justify-center" 
       onClick={(e) => e.stopPropagation()}
     >
@@ -377,7 +411,8 @@ const InstagramEmbedPlayer = ({ url }) => {
           src={embedUrl}
           className="w-full h-[480px] max-h-[75vh] border-0 rounded-2xl bg-black"
           scrolling="no"
-          allowTransparency="true"
+          allowtransparency="true"
+          loading="lazy"
           allow="encrypted-media; picture-in-picture"
           title="Instagram Reel/Post"
         />
@@ -988,10 +1023,39 @@ const FeedPage = ({ isHub = false, feedType = 'city', searchQuery = '', isFilter
   const setIsFilterOpen = propSetIsFilterOpen !== undefined ? propSetIsFilterOpen : localSetIsFilterOpen;
 
   const navigate = useNavigate();
-  const { posts, members: mockMembers, currentUser, language, stories = [], getUnreadCountForModule, logoutUser } = useData();
+  const { 
+    posts = [], 
+    cityPosts = [], 
+    communityPosts = [], 
+    followedAnnouncements, 
+    toggleFollowedAnnouncement, 
+    members: mockMembers, 
+    currentUser, 
+    language, 
+    stories = [], 
+    getUnreadCountForModule, 
+    logoutUser 
+  } = useData();
   const [activeTab, setActiveTab] = useState('all');
   const [searchText, setSearchText] = useState('');
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  const [isTogglingAnnouncement, setIsTogglingAnnouncement] = useState(false);
+
+  const isAnnouncementsActive = followedAnnouncements?.announcements !== false;
+
+  const handleToggleAnnouncementFollow = async () => {
+    if (isTogglingAnnouncement) return;
+    setIsTogglingAnnouncement(true);
+    try {
+      await toggleFollowedAnnouncement('announcements');
+      const newState = !isAnnouncementsActive;
+      triggerToast(newState ? "Following community announcements ✓" : "Community announcements muted");
+    } catch (err) {
+      triggerToast("Failed to update announcement preference");
+    } finally {
+      setIsTogglingAnnouncement(false);
+    }
+  };
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -1027,7 +1091,7 @@ const FeedPage = ({ isHub = false, feedType = 'city', searchQuery = '', isFilter
     setIsLoading(true);
     const timer = setTimeout(() => {
       setIsLoading(false);
-    }, 600);
+    }, 400);
     return () => clearTimeout(timer);
   }, [activeTab]);
 
@@ -1047,25 +1111,20 @@ const FeedPage = ({ isHub = false, feedType = 'city', searchQuery = '', isFilter
     setTimeout(() => setToastMessage(''), 3000);
   };
 
-  // Filter posts based on active tab, search query, and feed visibility rules
-  const filteredFeedPosts = posts.filter(post => {
+  // Select feed posts cleanly based on feedType to prevent cross-tab state clobbering
+  const feedPostsSource = feedType === 'community'
+    ? (communityPosts && communityPosts.length > 0 ? communityPosts : posts.filter(p => p.feedType === 'community' || p.feedType === 'both'))
+    : (feedType === 'city' ? (cityPosts && cityPosts.length > 0 ? cityPosts : posts.filter(p => p.feedType !== 'community')) : posts);
+
+  // Filter posts based on active category tab and search query
+  const filteredFeedPosts = (feedPostsSource || []).filter(post => {
     const matchesCategory = activeTab === 'all' || post.category === activeTab;
     const matchesSearch = searchText.trim() === '' || 
-      post.content.toLowerCase().includes(searchText.toLowerCase()) ||
+      (post.content && post.content.toLowerCase().includes(searchText.toLowerCase())) ||
       (post.title && post.title.toLowerCase().includes(searchText.toLowerCase())) ||
-      post.author.name.toLowerCase().includes(searchText.toLowerCase());
+      (post.author?.name && post.author.name.toLowerCase().includes(searchText.toLowerCase()));
 
-    // Feed Visibility Filter
-    let matchesFeedType = false;
-    if (feedType === 'city') {
-      matchesFeedType = post.feedType !== 'community';
-    } else if (feedType === 'community') {
-      matchesFeedType = post.feedType === 'community' || post.feedType === 'both';
-    } else {
-      matchesFeedType = true;
-    }
-
-    return matchesCategory && matchesSearch && matchesFeedType;
+    return matchesCategory && matchesSearch;
   }).sort((a, b) => {
     if (a.isPinned && !b.isPinned) return -1;
     if (!a.isPinned && b.isPinned) return 1;
@@ -1117,6 +1176,76 @@ const FeedPage = ({ isHub = false, feedType = 'city', searchQuery = '', isFilter
       
       <div className="px-4.5 pt-2">
 
+        {/* ─── CATEGORY FILTER PILLS ─── */}
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide py-1 mb-2.5 -mx-4.5 px-4.5" data-swipe-block="true">
+          {categoryPills.map(pill => {
+            const isActive = activeTab === pill.id;
+            const Icon = categoryIcons[pill.id];
+            const pillLabel = pill.id === 'all' ? localT[lang].all : (localT[lang][pill.id] || pill.id);
+            return (
+              <button
+                key={pill.id}
+                onClick={() => setActiveTab(pill.id)}
+                className={`px-3 py-1.5 rounded-xl text-[12px] font-bold flex items-center gap-1.5 shrink-0 transition-all active:scale-95 shadow-2xs ${
+                  isActive
+                    ? 'bg-purple-600 text-white shadow-purple-200'
+                    : 'bg-white text-slate-600 border border-slate-200/80 hover:bg-slate-50'
+                }`}
+              >
+                <Icon size={13} strokeWidth={2.4} />
+                <span>{pillLabel}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* ─── COMMUNITY ANNOUNCEMENTS FOLLOW BANNER ─── */}
+        {(feedType === 'community' || activeTab === 'Announcement') && (
+          <div className="mb-3 bg-gradient-to-r from-purple-50/90 via-indigo-50/50 to-white rounded-2xl p-3 border border-purple-100/80 shadow-[0_2px_10px_rgba(124,58,237,0.04)] flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <Megaphone size={16} />
+              </div>
+              <div className="truncate">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[13px] font-black text-slate-800 tracking-tight">Community Announcements</span>
+                  {isAnnouncementsActive && (
+                    <span className="text-[9px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-extrabold uppercase tracking-wide">
+                      Active
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500 font-medium truncate">
+                  {isAnnouncementsActive
+                    ? "Receiving instant alerts for official Samaj circulars"
+                    : "Follow to get notified when official notices are published"}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={handleToggleAnnouncementFollow}
+              disabled={isTogglingAnnouncement}
+              className={`shrink-0 px-3 py-1.5 rounded-xl font-bold text-[12px] flex items-center gap-1.5 transition-all active:scale-95 shadow-2xs ${
+                isAnnouncementsActive
+                  ? "bg-purple-100 text-purple-700 hover:bg-purple-200/80 border border-purple-200/60"
+                  : "bg-purple-600 hover:bg-purple-700 text-white border border-purple-600"
+              }`}
+            >
+              {isAnnouncementsActive ? (
+                <>
+                  <Check size={13} strokeWidth={2.8} />
+                  <span>Following</span>
+                </>
+              ) : (
+                <>
+                  <Bell size={13} strokeWidth={2.4} />
+                  <span>Follow</span>
+                </>
+              )}
+            </button>
+          </div>
+        )}
 
         {/* ─── STORY CARDS (FACEBOOK STYLE) ─── */}
         <div className="pb-1 mb-1 mt-0">
@@ -1216,8 +1345,22 @@ const FeedPage = ({ isHub = false, feedType = 'city', searchQuery = '', isFilter
               ))
             ) : (
               <div className="bg-white rounded-3xl p-10 text-center border border-slate-100 text-slate-400 shadow-sm mt-4.5">
-                <Radio size={40} className="mx-auto mb-2 text-slate-300" />
-                <p className="text-[13.5px] font-bold">No posts found in this category.</p>
+                {activeTab === 'Announcement' ? (
+                  <>
+                    <Megaphone size={40} className="mx-auto mb-2 text-purple-400 animate-pulse" />
+                    <p className="text-[14px] font-black text-slate-700">No Announcements Yet</p>
+                    <p className="text-[12px] text-slate-400 mt-1 max-w-xs mx-auto">
+                      {isAnnouncementsActive
+                        ? "You are following announcements. You'll receive instant alerts as soon as official circulars are published."
+                        : "Official circulars and community notices will appear here. Click Follow above to stay updated!"}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <Radio size={40} className="mx-auto mb-2 text-slate-300" />
+                    <p className="text-[13.5px] font-bold">No posts found in this category.</p>
+                  </>
+                )}
               </div>
             )
           )}

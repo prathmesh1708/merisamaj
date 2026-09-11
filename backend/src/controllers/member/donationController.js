@@ -5,6 +5,7 @@ const { notifyDonationReceived, notifyDonationReceipt } = require('../../service
 const { sendPushNotification } = require('../../services/pushNotificationService');
 const crypto = require('crypto');
 const { applyScopeFilter } = require('../../utils/queryScopeHelper');
+const cacheService = require('../../utils/cacheService');
 
 const escapeRegex = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -640,20 +641,36 @@ exports.handleRazorpayWebhook = async (req, res) => {
 // Get stats and top donors
 exports.getStats = async (req, res) => {
   try {
+    const commId = (req.communityId || req.user?.communityId?._id || req.user?.communityId || 'global').toString();
+    const cacheKey = `donation_stats_${commId}`;
+    const cached = cacheService.get(cacheKey);
+    if (cached) {
+      return res.status(200).json(cached);
+    }
+
     const scopeFilter = applyScopeFilter(req, {});
-
-    const uniqueDonorsList = await Donation.distinct('user', scopeFilter);
-    const totalDonors = uniqueDonorsList.filter(Boolean).length;
-
     const matchQuery = applyScopeFilter(req, { amount: { $exists: true, $gt: 0 } });
-    const amountAggr = await Donation.aggregate([
-      { $match: matchQuery },
-      { $group: { _id: null, totalAmount: { $sum: "$amount" } } }
-    ]);
-    const totalDonatedAmount = amountAggr.length > 0 ? (amountAggr[0].totalAmount || 0) : 0;
-
     const completedPurposesFilter = applyScopeFilter(req, { status: { $in: ['Completed', 'Closed'] } });
-    const completedPurposes = await Donation.countDocuments(completedPurposesFilter);
+    const topFilter = applyScopeFilter(req, { amount: { $exists: true, $gt: 0 } });
+
+    // Execute all 4 queries concurrently in parallel
+    const [uniqueDonorsList, amountAggr, completedPurposes, topDonations] = await Promise.all([
+      Donation.distinct('user', scopeFilter),
+      Donation.aggregate([
+        { $match: matchQuery },
+        { $group: { _id: null, totalAmount: { $sum: "$amount" } } }
+      ]),
+      Donation.countDocuments(completedPurposesFilter),
+      Donation.find(topFilter)
+        .sort({ amount: -1 })
+        .limit(5)
+        .populate('user', 'name avatar role city designation phone profession')
+        .populate('campaign', 'title')
+        .lean()
+    ]);
+
+    const totalDonors = uniqueDonorsList.filter(Boolean).length;
+    const totalDonatedAmount = amountAggr.length > 0 ? (amountAggr[0].totalAmount || 0) : 0;
 
     const impactStats = [
       { id: "st1", label: "Total Contributors", value: `${totalDonors || 0}+` },
@@ -661,14 +678,6 @@ exports.getStats = async (req, res) => {
       { id: "st3", label: "Completed Purposes", value: `${completedPurposes || 0}+` },
       { id: "st4", label: "People Benefited", value: "5000+" }
     ];
-
-    const topFilter = applyScopeFilter(req, { amount: { $exists: true, $gt: 0 } });
-    let topDonations = await Donation.find(topFilter)
-      .sort({ amount: -1 })
-      .limit(5)
-      .populate('user', 'name avatar role city designation phone profession')
-      .populate('campaign', 'title')
-      .lean();
 
     let topDonors = [];
     if (topDonations.length > 0) {
@@ -693,14 +702,17 @@ exports.getStats = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    const payload = {
       success: true,
       status: 'success',
       data: {
         impactStats,
         topDonors
       }
-    });
+    };
+
+    cacheService.set(cacheKey, payload, 60); // 1 min TTL
+    res.status(200).json(payload);
   } catch (error) {
     console.error('Get Stats Error:', error);
     res.status(500).json({ success: false, status: 'error', message: error.message });

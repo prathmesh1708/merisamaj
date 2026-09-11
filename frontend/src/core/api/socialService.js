@@ -188,7 +188,19 @@ const deleteComment = async (commentId) => {
   return response.data;
 };
 
+const getAnnouncementFollowStatus = async () => {
+  const response = await axiosPrivate.get(`${API_URL}/announcements/follow-status`);
+  return response.data;
+};
+
+const toggleFollowAnnouncements = async () => {
+  const response = await axiosPrivate.post(`${API_URL}/announcements/toggle-follow`);
+  return response.data;
+};
+
 const socialService = {
+  getAnnouncementFollowStatus,
+  toggleFollowAnnouncements,
   getPosts,
   getPostById,
   createPost,

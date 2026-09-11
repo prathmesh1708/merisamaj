@@ -8,6 +8,7 @@ const connectDB = require('./config/db');
 const { errorHandler } = require('./middleware/errorMiddleware');
 const rootRouter = require('./routes/index');
 const cookieParser = require('cookie-parser');
+const path = require('path');
 const matrimonialSocket = require('./services/matrimonialSocket');
 const { chatSocketService } = require('./services/chatSocketService');
 const { setIO } = require('./services/socketRegistry');
@@ -76,7 +77,9 @@ app.use(cors({
 }));
 
 if (helmet) {
-  app.use(helmet());
+  app.use(helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' }
+  }));
 }
 
 if (mongoSanitize) {
@@ -96,6 +99,10 @@ if (rateLimit && process.env.NODE_ENV === 'production') {
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cookieParser());
+app.use('/uploads', (req, res, next) => {
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  next();
+}, express.static(path.join(__dirname, '../uploads')));
 
 // Root API Router
 app.use('/api/v1', rootRouter);

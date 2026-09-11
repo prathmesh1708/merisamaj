@@ -1,6 +1,12 @@
 const AppContent = require('../../models/AppContent');
 const Community = require('../../models/Community');
 const mongoose = require('mongoose');
+const cacheService = require('../../utils/cacheService');
+
+const saveAndInvalidate = async (doc) => {
+  await doc.save();
+  cacheService.invalidate('app_content_');
+};
 
 // Helper to get or create default AppContent document for a community
 const getDefaultFeatures = () => [
@@ -237,7 +243,7 @@ const getOrCreateAppContent = async (communityId) => {
       modified = true;
     }
     if (modified) {
-      await doc.save();
+      await saveAndInvalidate(doc);
     }
   }
   return doc;
@@ -278,7 +284,7 @@ exports.updateHeroBanner = async (req, res) => {
     if (buttonLink !== undefined) doc.heroBanner.buttonLink = buttonLink;
     if (enabled !== undefined) doc.heroBanner.enabled = enabled;
 
-    await doc.save();
+    await saveAndInvalidate(doc);
     return res.status(200).json({
       success: true,
       message: 'Header banner updated successfully',
@@ -307,7 +313,7 @@ exports.updateCensusBanner = async (req, res) => {
     if (overlayGradient !== undefined) doc.censusBanner.overlayGradient = overlayGradient;
     if (enabled !== undefined) doc.censusBanner.enabled = enabled;
 
-    await doc.save();
+    await saveAndInvalidate(doc);
     return res.status(200).json({
       success: true,
       message: 'Community census banner updated successfully',
@@ -338,7 +344,7 @@ exports.updateFooterArtwork = async (req, res) => {
     if (caughtUpSubtitle !== undefined) doc.footerArtwork.caughtUpSubtitle = caughtUpSubtitle;
     if (enabled !== undefined) doc.footerArtwork.enabled = enabled;
 
-    await doc.save();
+    await saveAndInvalidate(doc);
     return res.status(200).json({
       success: true,
       message: 'Footer artwork updated successfully',
@@ -379,7 +385,7 @@ exports.createFeature = async (req, res) => {
     };
 
     doc.exclusiveFeatures.push(newFeature);
-    await doc.save();
+    await saveAndInvalidate(doc);
 
     return res.status(201).json({
       success: true,
@@ -413,7 +419,7 @@ exports.updateFeature = async (req, res) => {
       }
     });
 
-    await doc.save();
+    await saveAndInvalidate(doc);
     return res.status(200).json({
       success: true,
       message: 'Feature updated successfully',
@@ -435,7 +441,7 @@ exports.deleteFeature = async (req, res) => {
     const doc = await getOrCreateAppContent(targetCommunityId);
 
     doc.exclusiveFeatures = doc.exclusiveFeatures.filter(f => f.id !== id);
-    await doc.save();
+    await saveAndInvalidate(doc);
 
     return res.status(200).json({
       success: true,
@@ -482,7 +488,7 @@ exports.createSuccessStory = async (req, res) => {
     }
 
     doc.successStories.push(newStory);
-    await doc.save();
+    await saveAndInvalidate(doc);
 
     return res.status(201).json({
       success: true,
@@ -520,7 +526,7 @@ exports.updateSuccessStory = async (req, res) => {
       }
     });
 
-    await doc.save();
+    await saveAndInvalidate(doc);
     return res.status(200).json({
       success: true,
       message: 'Success story updated successfully',
@@ -542,7 +548,7 @@ exports.deleteSuccessStory = async (req, res) => {
     const doc = await getOrCreateAppContent(targetCommunityId);
 
     doc.successStories = doc.successStories.filter(s => s.id !== id);
-    await doc.save();
+    await saveAndInvalidate(doc);
 
     return res.status(200).json({
       success: true,
@@ -571,7 +577,7 @@ exports.updateCommunityHead = async (req, res) => {
       }
     });
 
-    await doc.save();
+    await saveAndInvalidate(doc);
     return res.status(200).json({
       success: true,
       message: 'Community Head profile updated successfully',
@@ -609,7 +615,7 @@ exports.createCommitteeMember = async (req, res) => {
     };
 
     doc.coreMembers.committee.push(newMember);
-    await doc.save();
+    await saveAndInvalidate(doc);
 
     return res.status(201).json({
       success: true,
@@ -643,7 +649,7 @@ exports.updateCommitteeMember = async (req, res) => {
       }
     });
 
-    await doc.save();
+    await saveAndInvalidate(doc);
     return res.status(200).json({
       success: true,
       message: 'Committee member updated successfully',
@@ -665,7 +671,7 @@ exports.deleteCommitteeMember = async (req, res) => {
     const doc = await getOrCreateAppContent(targetCommunityId);
 
     doc.coreMembers.committee = doc.coreMembers.committee.filter(m => m.id !== id);
-    await doc.save();
+    await saveAndInvalidate(doc);
 
     return res.status(200).json({
       success: true,

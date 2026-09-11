@@ -160,7 +160,7 @@ const registerUser = async (req, res) => {
     const user = await User.create(userData);
 
     if (user) {
-      await user.populate('communityId', 'name slug isActive settings logoUrl description city');
+      await user.populate('communityId', 'name slug isActive settings logoUrl bannerUrl description city');
 
       // ── Process Referral Points & Single Notification via Referral Service ──────────
       await referralService.processRegistrationReferral(user, referralCode);
@@ -177,7 +177,8 @@ const registerUser = async (req, res) => {
 
       res.status(201).json({
         user: getUserResponsePayload(user),
-        accessToken
+        accessToken,
+        refreshToken
       });
     } else {
       res.status(400).json({ message: 'Invalid user data' });
@@ -218,8 +219,8 @@ const loginUser = async (req, res) => {
 
     // Find by resolved query
     const user = await User.findOne(searchQuery)
-    .populate('communityId', 'name slug isActive settings logoUrl description city')
-    .populate('assignedCommunityIds', 'name slug isActive settings logoUrl description city');
+    .populate('communityId', 'name slug isActive settings logoUrl bannerUrl description city')
+    .populate('assignedCommunityIds', 'name slug isActive settings logoUrl bannerUrl description city');
 
     if (!user) {
       return res.status(404).json({ message: 'User not found with this identifier' });
@@ -274,7 +275,8 @@ const loginUser = async (req, res) => {
 
       res.json({
         user: getUserResponsePayload(user),
-        accessToken
+        accessToken,
+        refreshToken
       });
     } else {
       res.status(401).json({ message: 'Invalid credentials' });
@@ -291,8 +293,8 @@ const loginUser = async (req, res) => {
 const getMe = async (req, res) => {
   try {
     const user = await User.findById(req.user._id)
-      .populate('communityId', 'name slug isActive settings logoUrl description city')
-      .populate('assignedCommunityIds', 'name slug isActive settings logoUrl description city');
+      .populate('communityId', 'name slug isActive settings logoUrl bannerUrl description city')
+      .populate('assignedCommunityIds', 'name slug isActive settings logoUrl bannerUrl description city');
 
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
@@ -345,8 +347,8 @@ const refreshAuth = async (req, res) => {
   try {
     const decoded = jwt.verify(refreshToken, config.jwtRefreshSecret);
     const user = await User.findById(decoded.id)
-      .populate('communityId', 'name slug isActive settings logoUrl description city')
-      .populate('assignedCommunityIds', 'name slug isActive settings logoUrl description city');
+      .populate('communityId', 'name slug isActive settings logoUrl bannerUrl description city')
+      .populate('assignedCommunityIds', 'name slug isActive settings logoUrl bannerUrl description city');
 
     if (!user) {
       return res.status(401).json({ message: 'User not found' });
@@ -366,7 +368,8 @@ const refreshAuth = async (req, res) => {
 
     res.json({
       user: getUserResponsePayload(user),
-      accessToken: tokens.accessToken
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken
     });
   } catch (error) {
     console.error('Refresh Token Verification Failed:', error.message);
@@ -396,7 +399,8 @@ const refreshAdmin = async (req, res) => {
 
     res.json({
       user: getUserResponsePayload(user),
-      accessToken: tokens.accessToken
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken
     });
   } catch (error) {
     console.error('Admin Refresh Token Failed:', error.message);
@@ -414,8 +418,8 @@ const refreshHead = async (req, res) => {
   try {
     const decoded = jwt.verify(refreshToken, config.jwtRefreshSecret);
     const user = await User.findById(decoded.id)
-      .populate('communityId', 'name slug isActive settings logoUrl description city')
-      .populate('assignedCommunityIds', 'name slug isActive settings logoUrl description city');
+      .populate('communityId', 'name slug isActive settings logoUrl bannerUrl description city')
+      .populate('assignedCommunityIds', 'name slug isActive settings logoUrl bannerUrl description city');
 
     if (!user || !['head', 'admin', 'sub_head'].includes(user.role)) {
       return res.status(401).json({ message: 'Head user not found' });
@@ -432,7 +436,8 @@ const refreshHead = async (req, res) => {
 
     res.json({
       user: getUserResponsePayload(user),
-      accessToken: tokens.accessToken
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken
     });
   } catch (error) {
     console.error('Head Refresh Token Failed:', error.message);
@@ -473,13 +478,56 @@ const updateProfile = async (req, res) => {
         if (req.file.path) {
           user.avatar = req.file.path;
         } else if (req.file.buffer) {
-          user.avatar = `data:${req.file.mimetype || 'image/png'};base64,${req.file.buffer.toString('base64')}`;
+          const fs = require('fs');
+          const path = require('path');
+          const uploadDir = path.join(__dirname, '../../uploads/avatars');
+          if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+          }
+          const ext = req.file.mimetype ? (req.file.mimetype.split('/')[1] || 'png') : 'png';
+          const filename = `avatar_${user._id}_${Date.now()}.${ext}`;
+          fs.writeFileSync(path.join(uploadDir, filename), req.file.buffer);
+          user.avatar = `/uploads/avatars/${filename}`;
         }
       } else if (req.body.avatar) {
-        user.avatar = req.body.avatar;
+        if (typeof req.body.avatar === 'string' && req.body.avatar.startsWith('data:') && req.body.avatar.length > 2048) {
+          const fs = require('fs');
+          const path = require('path');
+          const matches = req.body.avatar.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+          if (matches && matches.length === 3) {
+            const ext = matches[1].split('/')[1] || 'png';
+            const buffer = Buffer.from(matches[2], 'base64');
+            const uploadDir = path.join(__dirname, '../../uploads/avatars');
+            if (!fs.existsSync(uploadDir)) {
+              fs.mkdirSync(uploadDir, { recursive: true });
+            }
+            const filename = `avatar_${user._id}_${Date.now()}.${ext}`;
+            fs.writeFileSync(path.join(uploadDir, filename), buffer);
+            user.avatar = `/uploads/avatars/${filename}`;
+          }
+        } else {
+          user.avatar = req.body.avatar;
+        }
       }
       if (req.body.cover) {
-        user.cover = req.body.cover;
+        if (typeof req.body.cover === 'string' && req.body.cover.startsWith('data:') && req.body.cover.length > 2048) {
+          const fs = require('fs');
+          const path = require('path');
+          const matches = req.body.cover.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+          if (matches && matches.length === 3) {
+            const ext = matches[1].split('/')[1] || 'png';
+            const buffer = Buffer.from(matches[2], 'base64');
+            const uploadDir = path.join(__dirname, '../../uploads/avatars');
+            if (!fs.existsSync(uploadDir)) {
+              fs.mkdirSync(uploadDir, { recursive: true });
+            }
+            const filename = `cover_${user._id}_${Date.now()}.${ext}`;
+            fs.writeFileSync(path.join(uploadDir, filename), buffer);
+            user.cover = `/uploads/avatars/${filename}`;
+          }
+        } else {
+          user.cover = req.body.cover;
+        }
       }
       
       // Community Update & Sync
@@ -613,8 +661,10 @@ const updateProfile = async (req, res) => {
       if (req.body.matrimonySubscription !== undefined) user.matrimonySubscription = req.body.matrimonySubscription;
 
       const updatedUser = await user.save();
-      await updatedUser.populate('communityId', 'name slug isActive settings logoUrl description city');
-      await updatedUser.populate('assignedCommunityIds', 'name slug isActive settings logoUrl description city');
+      const cacheService = require('../utils/cacheService');
+      cacheService.del(`auth_user_${user._id}`);
+      await updatedUser.populate('communityId', 'name slug isActive settings logoUrl bannerUrl description city');
+      await updatedUser.populate('assignedCommunityIds', 'name slug isActive settings logoUrl bannerUrl description city');
 
       if (updatedUser.verificationStatus === 'pending' || updatedUser.accountStatus === 'pending verification') {
         notifyLocalHeadNewMember(updatedUser).catch(err => console.warn('[notifyLocalHeadNewMember error]:', err.message));

@@ -31,6 +31,8 @@ const userNotificationSchema = new mongoose.Schema(
         'dharmashala',
         'obituary',
         'social',
+        'announcement',
+        'community',
         'chat',
         'professional',
         'voting',

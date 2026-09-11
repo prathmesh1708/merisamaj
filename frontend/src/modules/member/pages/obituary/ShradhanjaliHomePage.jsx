@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Search, X, Eye, MessageCircle, Bell, Menu } from 'lucide-react';
@@ -179,6 +179,10 @@ const ShradhanjaliHomePage = () => {
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
   const [showSearch, setShowSearch] = useState(false);
+
+  useEffect(() => {
+    if (loadObituaries) loadObituaries();
+  }, [loadObituaries]);
 
   const communityId = useMemo(() => {
     const comName = currentUser?.community;

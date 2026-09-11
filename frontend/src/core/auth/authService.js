@@ -42,29 +42,38 @@ export const authService = {
   },
 
   refresh: async () => {
-    const token = localStorage.getItem('merisamaj_token');
-    const response = await axiosPublic.post('/auth/refresh', {}, {
-      withCredentials: true,
-      headers: token ? { 'x-refresh-token': token } : {}
-    });
+    const refreshToken = localStorage.getItem('merisamaj_refresh_token') || localStorage.getItem('merisamaj_token');
+    const response = await axiosPublic.post('/auth/refresh', 
+      { refreshToken }, 
+      {
+        withCredentials: true,
+        headers: refreshToken ? { 'x-refresh-token': refreshToken } : {}
+      }
+    );
     return response.data;
   },
 
   refreshAdmin: async () => {
-    const token = localStorage.getItem('admin_auth_token');
-    const response = await axiosPublic.post('/auth/refresh/admin', {}, {
-      withCredentials: true,
-      headers: token ? { 'x-refresh-token': token } : {}
-    });
+    const refreshToken = localStorage.getItem('admin_refresh_token') || localStorage.getItem('admin_auth_token');
+    const response = await axiosPublic.post('/auth/refresh/admin', 
+      { refreshToken }, 
+      {
+        withCredentials: true,
+        headers: refreshToken ? { 'x-refresh-token': refreshToken } : {}
+      }
+    );
     return response.data;
   },
 
   refreshHead: async () => {
-    const token = localStorage.getItem('head_auth_token');
-    const response = await axiosPublic.post('/auth/refresh/head', {}, {
-      withCredentials: true,
-      headers: token ? { 'x-refresh-token': token } : {}
-    });
+    const refreshToken = localStorage.getItem('head_refresh_token') || localStorage.getItem('head_auth_token');
+    const response = await axiosPublic.post('/auth/refresh/head', 
+      { refreshToken }, 
+      {
+        withCredentials: true,
+        headers: refreshToken ? { 'x-refresh-token': refreshToken } : {}
+      }
+    );
     return response.data;
   },
 

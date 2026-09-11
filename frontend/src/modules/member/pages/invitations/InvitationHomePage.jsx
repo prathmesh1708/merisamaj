@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '../../context/DataProvider';
 import { Mail, Search, Bell, Plus, ChevronLeft, Menu, Calendar } from 'lucide-react';
@@ -8,7 +8,11 @@ import SentInvitationAnalyticsModal from './components/SentInvitationAnalyticsMo
 
 export default function InvitationHomePage() {
   const navigate = useNavigate();
-  const { invitations, currentUser, members, setMobileMenuOpen, getUnreadCountForModule } = useData();
+  const { invitations, currentUser, members, setMobileMenuOpen, getUnreadCountForModule, loadInvitations } = useData();
+
+  useEffect(() => {
+    if (loadInvitations) loadInvitations();
+  }, [loadInvitations]);
 
   const [activeCategory, setActiveCategory] = useState('All'); // 'All' | 'Received' | 'Sent'
   const [analyticsInvitationId, setAnalyticsInvitationId] = useState(null);

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Heart, Share2, MoreHorizontal, Send, ArrowLeft, Check, Camera, Smile, ThumbsUp, Calendar, Phone, Eye, MessageCircle, ChevronDown, Clock, X, Bookmark, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Heart, Share2, MoreHorizontal, Send, ArrowLeft, Check, Camera, Smile, ThumbsUp, Calendar, Phone, Eye, MessageCircle, ChevronDown, Clock, X, Bookmark, ChevronLeft, ChevronRight, Play } from 'lucide-react';
 
 const InstagramIcon = (props) => (
   <svg
@@ -117,11 +117,20 @@ const AutoPauseVideo = ({ src, isSingle = true }) => {
   );
 };
 
+const extractYouTubeId = (url) => {
+  if (!url || typeof url !== 'string') return '';
+  const match = url.match(/(?:embed\/|v=|vi\/|youtu\.be\/|\/v\/|\/e\/|watch\?v=)([\w-]{11})/);
+  return match ? match[1] : '';
+};
+
 const AutoPauseYouTube = ({ embedUrl }) => {
   const containerRef = React.useRef(null);
   const iframeRef = React.useRef(null);
+  const [isPlaying, setIsPlaying] = React.useState(false);
+  const videoId = extractYouTubeId(embedUrl);
 
   useEffect(() => {
+    if (!isPlaying) return;
     const containerEl = containerRef.current;
     if (!containerEl) return;
 
@@ -142,11 +151,36 @@ const AutoPauseYouTube = ({ embedUrl }) => {
 
     observer.observe(containerEl);
     return () => observer.disconnect();
-  }, []);
+  }, [isPlaying]);
 
   const finalEmbedUrl = embedUrl.includes('?') 
-    ? `${embedUrl}&enablejsapi=1` 
-    : `${embedUrl}?enablejsapi=1`;
+    ? `${embedUrl}&enablejsapi=1&autoplay=1` 
+    : `${embedUrl}?enablejsapi=1&autoplay=1`;
+
+  if (!isPlaying && videoId) {
+    return (
+      <div 
+        ref={containerRef} 
+        className="w-full aspect-video rounded-2xl overflow-hidden bg-black shadow-md relative group cursor-pointer" 
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsPlaying(true);
+        }}
+      >
+        <img 
+          src={`https://img.youtube.com/vi/${videoId}/hqdefault.jpg`} 
+          alt="YouTube Thumbnail" 
+          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+          loading="lazy"
+        />
+        <div className="absolute inset-0 bg-black/25 flex items-center justify-center transition-colors group-hover:bg-black/15">
+          <div className="w-14 h-14 rounded-full bg-red-600/90 text-white flex items-center justify-center shadow-lg group-hover:scale-110 group-hover:bg-red-600 transition-all">
+            <Play size={24} fill="currentColor" className="ml-1" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div ref={containerRef} className="w-full aspect-video rounded-2xl overflow-hidden bg-black shadow-md relative" onClick={(e) => e.stopPropagation()}>
@@ -176,7 +210,7 @@ const extractInstagramEmbedUrl = (url) => {
 const InstagramEmbedPlayer = ({ url }) => {
   const embedUrl = extractInstagramEmbedUrl(url);
   const containerRef = React.useRef(null);
-  const [isInView, setIsInView] = React.useState(true);
+  const [isInView, setIsInView] = React.useState(false);
 
   useEffect(() => {
     const containerEl = containerRef.current;
@@ -239,7 +273,7 @@ const InstagramEmbedPlayer = ({ url }) => {
 
   return (
     <div 
-      ref={containerRef}
+      ref={containerRef} 
       className="w-full rounded-2xl overflow-hidden bg-black shadow-md relative border border-slate-800/80 my-1 min-h-[480px] flex items-center justify-center"
     >
       {isInView ? (
@@ -247,7 +281,8 @@ const InstagramEmbedPlayer = ({ url }) => {
           src={embedUrl}
           className="w-full h-[480px] max-h-[75vh] border-0 rounded-2xl bg-black"
           scrolling="no"
-          allowTransparency="true"
+          allowtransparency="true"
+          loading="lazy"
           allow="encrypted-media; picture-in-picture"
           title="Instagram Reel/Post"
         />

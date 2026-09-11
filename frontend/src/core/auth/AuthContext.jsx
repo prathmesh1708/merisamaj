@@ -78,7 +78,10 @@ export const AuthProvider = ({ children }) => {
           const response = await authService.refresh();
           if (isMounted) {
             safeSetUserItem(response.user);
-            try { localStorage.setItem('merisamaj_token', response.accessToken); } catch(e){}
+            try { 
+              localStorage.setItem('merisamaj_token', response.accessToken); 
+              if (response.refreshToken) localStorage.setItem('merisamaj_refresh_token', response.refreshToken);
+            } catch(e){}
             setAuth({
               user: response.user,
               accessToken: response.accessToken,
@@ -114,6 +117,7 @@ export const AuthProvider = ({ children }) => {
     safeSetUserItem(response.user);
     try {
       localStorage.setItem('merisamaj_token', response.accessToken);
+      if (response.refreshToken) localStorage.setItem('merisamaj_refresh_token', response.refreshToken);
       localStorage.setItem(SESSION_FLAG_KEY, '1');
 
       if (['head', 'sub_head', 'admin'].includes(response.user.role)) {
@@ -142,6 +146,7 @@ export const AuthProvider = ({ children }) => {
     safeSetUserItem(response.user);
     try {
       localStorage.setItem('merisamaj_token', response.accessToken);
+      if (response.refreshToken) localStorage.setItem('merisamaj_refresh_token', response.refreshToken);
       localStorage.setItem('merisamaj_just_registered', 'true');
       localStorage.setItem(SESSION_FLAG_KEY, '1');
     } catch(e){}
