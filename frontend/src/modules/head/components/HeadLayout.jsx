@@ -226,7 +226,7 @@ export const HeadLayout = () => {
     return filteredNavigationConfig.map((section) => (
       <div key={section.category} className="space-y-1 pt-3">
         {/* Category Header */}
-        <div className="px-4 py-1.5 text-[10px] font-bold tracking-wider text-purple-300/60 uppercase">
+        <div className="px-4 py-1.5 text-[11px] font-bold tracking-wider text-purple-200/90 uppercase">
           {section.category}
         </div>
         
@@ -249,33 +249,33 @@ export const HeadLayout = () => {
                       navigate(`${item.children[0].path}${item.children[0].search || ''}`);
                     }
                   }}
-                  className={`w-full flex items-center justify-between px-3.5 py-2 rounded-lg transition-all duration-200 group relative cursor-pointer border ${
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all duration-200 group relative cursor-pointer border ${
                     isParentActive 
-                      ? 'bg-violet-500/15 border-violet-500/30 text-white font-semibold' 
-                      : 'hover:bg-white/5 border-transparent text-white/80 font-medium'
+                      ? 'bg-violet-500/20 border-violet-500/40 text-white font-bold shadow-xs' 
+                      : 'hover:bg-white/10 border-transparent text-slate-100 font-semibold'
                   }`}
                 >
 
                   <div className="flex items-center">
                     <Icon 
                       size={18} 
-                      className={`mr-3 transition-colors ${isParentActive ? 'text-white' : 'text-white/60 group-hover:text-white/90'}`}
+                      className={`mr-3 transition-colors ${isParentActive ? 'text-violet-300' : 'text-slate-300 group-hover:text-white'}`}
                     />
-                    <span className="text-[13px] tracking-wide">{item.name}</span>
+                    <span className="text-[13.5px] tracking-wide font-semibold">{item.name}</span>
                   </div>
                   
                   <div className="flex items-center gap-1.5">
                     {item.badge !== null && item.badge !== undefined && (
-                      <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-rose-500 text-white animate-pulse">
+                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-500 text-white animate-pulse">
                         {item.badge}
                       </span>
                     )}
-                    {isExpanded ? <ChevronUp size={14} className="text-white/50 group-hover:text-white/85" /> : <ChevronDown size={14} className="text-white/50 group-hover:text-white/85" />}
+                    {isExpanded ? <ChevronUp size={15} className="text-slate-300 group-hover:text-white" /> : <ChevronDown size={15} className="text-slate-300 group-hover:text-white" />}
                   </div>
                 </button>
                 
                 {isExpanded && (
-                  <div className="ml-5 pl-3.5 border-l border-white/10 space-y-1 mt-1 mb-2">
+                  <div className="ml-5 pl-3.5 border-l-2 border-violet-400/30 space-y-1 mt-1 mb-2">
                     {item.children.map((child) => {
                       const isChildActive = location.pathname === child.path && 
                         (!child.search || location.search === child.search);
@@ -289,10 +289,10 @@ export const HeadLayout = () => {
                               setIsMobileOpen(false);
                             }
                           }}
-                          className={`block py-1.5 px-2.5 text-[12.5px] transition-colors rounded-lg border ${
+                          className={`block py-1.5 px-3 text-[13px] transition-colors rounded-lg border ${
                             isChildActive 
-                              ? 'bg-violet-500/10 border-violet-500/20 text-white font-semibold' 
-                              : 'hover:bg-white/5 border-transparent text-white/60 hover:text-white/95 font-medium'
+                              ? 'bg-violet-500/20 border-violet-500/30 text-white font-bold' 
+                              : 'hover:bg-white/10 border-transparent text-slate-200 hover:text-white font-medium'
                           }`}
                         >
                           {child.name}
@@ -314,27 +314,27 @@ export const HeadLayout = () => {
                     setIsMobileOpen(false);
                   }
                 }}
-                className={`flex items-center justify-between px-3.5 py-2 rounded-lg transition-all duration-200 group relative overflow-hidden border ${
+                className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all duration-200 group relative overflow-hidden border ${
                   isActive 
-                    ? 'bg-violet-500/15 border-violet-500/30 text-white font-semibold' 
-                    : 'hover:bg-white/5 border-transparent text-white/80 font-medium'
+                    ? 'bg-violet-500/20 border-violet-500/40 text-white font-bold shadow-xs' 
+                    : 'hover:bg-white/10 border-transparent text-slate-100 font-semibold'
                 }`}
               >
                 {/* Active Accent Bar */}
                 {isActive && (
-                  <div className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full bg-gradient-to-b from-violet-400 to-violet-600 shadow-[0_0_8px_rgba(124,58,237,0.6)]" />
+                  <div className="absolute left-0 top-2 bottom-2 w-[3.5px] rounded-r-full bg-gradient-to-b from-violet-300 to-violet-500 shadow-[0_0_8px_rgba(167,139,250,0.8)]" />
                 )}
                 
                 <div className="flex items-center">
                   <Icon 
                     size={18} 
-                    className={`mr-3 transition-colors ${isActive ? 'text-white' : 'text-white/60 group-hover:text-white/90'}`}
+                    className={`mr-3 transition-colors ${isActive ? 'text-violet-300' : 'text-slate-300 group-hover:text-white'}`}
                   />
-                  <span className="text-[13px] tracking-wide relative z-10">{item.name}</span>
+                  <span className="text-[13.5px] tracking-wide relative z-10 font-semibold">{item.name}</span>
                 </div>
 
                 {item.badge !== null && item.badge !== undefined && (
-                  <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-rose-500 text-white border border-rose-400/20 animate-pulse relative z-10">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-500 text-white border border-rose-400/40 animate-pulse relative z-10">
                     {item.badge}
                   </span>
                 )}

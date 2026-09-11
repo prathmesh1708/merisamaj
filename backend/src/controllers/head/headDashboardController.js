@@ -409,3 +409,52 @@ exports.updateCommunityAccountDetails = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Bulk actions on community members (verify, reject, suspend, activate, revoke)
+ * @route   POST /api/v1/head/dashboard/members/bulk-action
+ * @access  Private (Head/Admin)
+ */
+exports.bulkMemberAction = async (req, res) => {
+  try {
+    const { memberIds, action } = req.body;
+    if (!Array.isArray(memberIds) || memberIds.length === 0) {
+      return res.status(400).json({ status: 'fail', message: 'memberIds array is required.' });
+    }
+    const allowedActions = ['verify', 'reject', 'suspend', 'activate', 'revoke'];
+    if (!allowedActions.includes(action)) {
+      return res.status(400).json({ status: 'fail', message: `action must be one of: ${allowedActions.join(', ')}` });
+    }
+
+    const validIds = memberIds.filter(id => mongoose.Types.ObjectId.isValid(id)).map(id => new mongoose.Types.ObjectId(id));
+    if (validIds.length === 0) {
+      return res.status(400).json({ status: 'fail', message: 'No valid member IDs provided.' });
+    }
+
+    const filter = applyScopeFilter(req, { _id: { $in: validIds } });
+
+    let updateFields = {};
+    if (action === 'verify') {
+      updateFields = { verificationStatus: 'verified', accountStatus: 'active', isAadharVerified: true };
+    } else if (action === 'reject') {
+      updateFields = { verificationStatus: 'rejected', accountStatus: 'inactive' };
+    } else if (action === 'suspend') {
+      updateFields = { accountStatus: 'inactive' };
+    } else if (action === 'activate') {
+      updateFields = { accountStatus: 'active' };
+    } else if (action === 'revoke') {
+      updateFields = { verificationStatus: 'pending', accountStatus: 'pending verification' };
+    }
+
+    const result = await User.updateMany(filter, { $set: updateFields });
+
+    res.status(200).json({
+      status: 'success',
+      message: `Bulk ${action} applied successfully to ${result.modifiedCount} members.`,
+      modifiedCount: result.modifiedCount
+    });
+  } catch (error) {
+    console.error('Bulk Member Action Error:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to perform bulk member action' });
+  }
+};
+

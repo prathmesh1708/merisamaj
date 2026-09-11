@@ -11,4 +11,8 @@ router.delete('/:eventId', ctrl.deleteEvent);
 router.patch('/:eventId/cancel', ctrl.cancelEvent);
 router.get('/:eventId/responses', ctrl.getMemberResponses);
 
+// Event Gallery Management
+router.post('/:eventId/gallery', ctrl.addEventGalleryPhoto);
+router.delete('/:eventId/gallery/:photoId', ctrl.removeEventGalleryPhoto);
+
 module.exports = router;

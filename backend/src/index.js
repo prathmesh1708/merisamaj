@@ -35,6 +35,7 @@ try {
 }
 
 const { initEventReminderRunner } = require('./services/eventReminderRunner');
+const { startNotificationScheduler } = require('./services/notificationScheduler');
 
 const app = express();
 
@@ -131,6 +132,7 @@ const io = new Server(httpServer, {
 matrimonialSocket(io);       // Handles matrimonial:* events (backward compat)
 chatSocketService(io);       // Handles chat:* events (member, group, community, support)
 setIO(io);                   // Store io in registry for service-layer access
+startNotificationScheduler(io); // Start scheduled alert processor
 
 // Attach io to app for access in controllers
 app.set('io', io);

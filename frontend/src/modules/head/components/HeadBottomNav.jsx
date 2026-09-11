@@ -66,13 +66,13 @@ export const HeadBottomNav = ({ pendingApprovalsCount = 0 }) => {
                 >
                   <Icon 
                     size={20} 
-                    strokeWidth={isActive ? 2.4 : 1.75}
-                    style={{ color: isActive ? item.activeColor : '#64748B' }}
+                    strokeWidth={isActive ? 2.5 : 2}
+                    style={{ color: isActive ? item.activeColor : '#475569' }}
                     fill={isActive && (item.icon === Heart) ? 'currentColor' : 'none'}
                     className="transition-colors duration-200"
                   />
                   {item.badge && (
-                    <span className="absolute -top-1 -right-2.5 min-w-[15px] h-[15px] rounded-full bg-rose-500 text-white text-[8.5px] font-extrabold flex items-center justify-center px-0.5 leading-none shadow-sm animate-pulse">
+                    <span className="absolute -top-1 -right-2.5 min-w-[16px] h-[16px] rounded-full bg-rose-500 text-white text-[9.5px] font-black flex items-center justify-center px-0.5 leading-none shadow-sm animate-pulse">
                       {item.badge}
                     </span>
                   )}
@@ -80,10 +80,9 @@ export const HeadBottomNav = ({ pendingApprovalsCount = 0 }) => {
 
                 {/* Label */}
                 <span 
-                  className="text-[9.5px] mt-0.5 tracking-tight transition-colors duration-200"
+                  className="text-[11px] mt-0.5 tracking-tight transition-colors duration-200 font-bold"
                   style={{ 
-                    color: isActive ? item.activeColor : '#64748B',
-                    fontWeight: isActive ? 700 : 500
+                    color: isActive ? item.activeColor : '#334155',
                   }}
                 >
                   {item.name}
