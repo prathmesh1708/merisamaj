@@ -600,8 +600,42 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
                     <img src={msg.mediaUrl} alt="img" className="rounded-xl max-w-[220px] max-h-[220px] mb-1 object-cover" />
                   )}
 
+                  {/* Shared Post Preview Card */}
+                  {msg.metadata?.sharedPostId && (
+                    <div 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/member/social/${msg.metadata.sharedPostId}`);
+                      }}
+                      className={`mb-2 p-2.5 rounded-xl cursor-pointer transition-all flex items-center gap-2.5 border ${
+                        isMine 
+                          ? 'bg-white/15 hover:bg-white/20 border-white/20 text-white' 
+                          : 'bg-purple-50/80 hover:bg-purple-100/70 border-purple-100 text-slate-800'
+                      }`}
+                    >
+                      {msg.metadata.postMedia ? (
+                        <img src={msg.metadata.postMedia} alt="Post" className="w-10 h-10 rounded-lg object-cover shrink-0 border border-black/10" />
+                      ) : (
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${isMine ? 'bg-white/20 text-white' : 'bg-purple-100 text-brand-primary'}`}>
+                          <MessageCircle size={16} />
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1 text-left">
+                        <p className={`text-[10px] font-extrabold uppercase tracking-wider ${isMine ? 'text-purple-200' : 'text-purple-600'}`}>
+                          Shared Post • {msg.metadata.authorName || 'Member'}
+                        </p>
+                        <p className="text-[11.5px] font-bold truncate">
+                          {msg.metadata.postTitle || msg.metadata.postSnippet || 'View post'}
+                        </p>
+                        <span className={`text-[10px] font-bold underline flex items-center gap-0.5 mt-0.5 ${isMine ? 'text-white' : 'text-brand-primary'}`}>
+                          View full post →
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Text */}
-                  {msg.message && <p className="text-[14px] leading-relaxed pr-14 font-medium">{msg.message}</p>}
+                  {msg.message && <p className="text-[14px] leading-relaxed pr-14 font-medium whitespace-pre-wrap">{msg.message}</p>}
 
                   {/* Timestamp + Status */}
                   <div className={`absolute bottom-1.5 right-2.5 flex items-center gap-1 ${msg.message ? '' : 'bg-black/30 px-1.5 rounded-full'}`}>

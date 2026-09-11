@@ -9,6 +9,9 @@ const City = require('../../models/City');
 const User = require('../../models/User');
 const Community = require('../../models/Community');
 const Follower = require('../../models/Follower');
+const UserNotification = require('../../models/UserNotification');
+const { findOrCreateConversation } = require('../../services/conversationService');
+const { createMessage } = require('../../services/messageService');
 const { applyScopeFilter, inheritTenantPayload, adminRoles } = require('../../utils/queryScopeHelper');
 const cloudinary = require('cloudinary').v2;
 const config = require('../../config/config');
@@ -653,6 +656,218 @@ exports.recordShare = async (req, res) => {
   } catch (error) {
     console.error('recordShare error:', error);
     res.status(500).json({ success: false });
+  }
+};
+
+// @desc    Get community members with connection status for sharing
+// @route   GET /api/v1/member/social/share-recipients
+// @access  Private
+exports.getShareRecipients = async (req, res) => {
+  try {
+    const currentUserId = req.user._id;
+    const { search } = req.query;
+
+    const baseFilter = {
+      accountStatus: { $ne: 'deleted' },
+      _id: { $ne: currentUserId }
+    };
+    const filter = applyScopeFilter(req, baseFilter);
+
+    if (search && search.trim()) {
+      const q = search.trim();
+      filter.$or = [
+        { name: { $regex: q, $options: 'i' } },
+        { city: { $regex: q, $options: 'i' } },
+        { profession: { $regex: q, $options: 'i' } }
+      ];
+    }
+
+    const [members, followRecords] = await Promise.all([
+      User.find(filter)
+        .select('name avatar city profession role verificationStatus isPrivate')
+        .sort({ name: 1 })
+        .limit(100)
+        .lean(),
+      Follower.find({
+        $or: [
+          { followerId: currentUserId },
+          { followingId: currentUserId }
+        ]
+      }).lean()
+    ]);
+
+    // Build lookup maps for fast access
+    const followingMap = new Map(); // targetId -> status
+    const followerMap = new Map();  // sourceId -> status
+
+    for (const rel of followRecords) {
+      if (rel.followerId && rel.followerId.toString() === currentUserId.toString()) {
+        followingMap.set(rel.followingId.toString(), rel.status);
+      }
+      if (rel.followingId && rel.followingId.toString() === currentUserId.toString()) {
+        followerMap.set(rel.followerId.toString(), rel.status);
+      }
+    }
+
+    const recipients = members.map(m => {
+      const mid = m._id.toString();
+      const followStatus = followingMap.get(mid);
+      const isFollowedByThem = followerMap.get(mid) === 'accepted';
+      const isFollowing = followStatus === 'accepted';
+      const isPending = followStatus === 'pending';
+      const isConnected = isFollowing || isFollowedByThem;
+
+      return {
+        _id: m._id,
+        id: m._id,
+        name: m.name,
+        avatar: m.avatar,
+        city: m.city,
+        profession: m.profession,
+        role: m.role,
+        verificationStatus: m.verificationStatus,
+        isPrivate: !!m.isPrivate,
+        isFollowing,
+        isFollower: isFollowedByThem,
+        isPending,
+        isConnected
+      };
+    });
+
+    // Sort: Connected members first, then others alphabetically
+    recipients.sort((a, b) => {
+      if (a.isConnected && !b.isConnected) return -1;
+      if (!a.isConnected && b.isConnected) return 1;
+      return a.name.localeCompare(b.name);
+    });
+
+    res.json({
+      success: true,
+      data: recipients
+    });
+  } catch (error) {
+    console.error('getShareRecipients error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// @desc    Share a post directly to another community member via 1-to-1 chat & notification
+// @route   POST /api/v1/member/social/posts/:id/share-to-user
+// @access  Private
+exports.sharePostToUser = async (req, res) => {
+  try {
+    const postId = req.params.id;
+    const senderId = req.user._id;
+    const { recipientId, note } = req.body;
+
+    if (!recipientId) {
+      return res.status(400).json({ success: false, message: 'Recipient ID is required' });
+    }
+
+    if (senderId.toString() === recipientId.toString()) {
+      return res.status(400).json({ success: false, message: 'You cannot share a post with yourself' });
+    }
+
+    const post = await Post.findOne({ _id: postId, isDeleted: false }).populate('userId', 'name avatar');
+    if (!post) {
+      return res.status(404).json({ success: false, message: 'Post not found' });
+    }
+    if (!verifyPostCommunityAccess(req, post)) {
+      return res.status(403).json({ success: false, message: 'Access denied to post' });
+    }
+
+    const recipient = await User.findOne({ _id: recipientId, accountStatus: { $ne: 'deleted' } }).select('name avatar communityId');
+    if (!recipient) {
+      return res.status(404).json({ success: false, message: 'Recipient user not found' });
+    }
+
+    // Check same community
+    const myCommId = req.user.communityId?._id || req.user.communityId;
+    const theirCommId = recipient.communityId?._id || recipient.communityId;
+    if (!myCommId || !theirCommId || myCommId.toString() !== theirCommId.toString()) {
+      return res.status(403).json({ success: false, message: 'Can only share with members of your community' });
+    }
+
+    // 1. Find or create 1-to-1 conversation
+    const { conversation } = await findOrCreateConversation(senderId, recipientId, 'member');
+
+    // 2. Prepare message text
+    const clientUrl = process.env.CLIENT_URL || req.get('origin') || 'http://localhost:5173';
+    const postUrl = `${clientUrl}/member/social/${postId}`;
+    const postSnippet = post.title || (post.content ? post.content.substring(0, 100) : 'Check out this post');
+    
+    let messageText = '';
+    if (note && note.trim()) {
+      messageText = `${note.trim()}\n\nShared a post:\n"${postSnippet}"\n${postUrl}`;
+    } else {
+      messageText = `Shared a post with you:\n"${postSnippet}"\n${postUrl}`;
+    }
+
+    // 3. Create Message in conversation
+    const populatedMsg = await createMessage({
+      conversationId: conversation._id,
+      senderId,
+      type: 'text',
+      message: messageText,
+      metadata: {
+        sharedPostId: post._id,
+        postTitle: post.title || '',
+        postSnippet,
+        postMedia: post.media?.[0]?.url || post.image || null,
+        authorName: post.userId?.name || 'Member',
+        postUrl
+      }
+    });
+
+    // 4. Emit real-time Socket.IO events if available
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`conv:${conversation._id}`).emit('chat:new_message', populatedMsg);
+      io.to(`user:${recipientId.toString()}`).emit('chat:new_message', populatedMsg);
+    }
+
+    // 5. Trigger in-app UserNotification
+    try {
+      await UserNotification.create({
+        userId: recipientId,
+        title: `${req.user.name} shared a post with you 📢`,
+        message: post.title || (post.content ? `"${post.content.substring(0, 60)}..."` : 'Check out this post'),
+        module: 'social',
+        type: 'post_share',
+        actionUrl: `/member/social/${postId}`,
+        data: {
+          postId: post._id,
+          conversationId: conversation._id,
+          senderId,
+          senderName: req.user.name,
+          senderAvatar: req.user.avatar
+        },
+        isRead: false
+      });
+    } catch (notifErr) {
+      console.warn('Share notification warning:', notifErr.message);
+    }
+
+    // 6. Record PostShare and increment sharesCount
+    await PostShare.create({
+      postId,
+      userId: senderId,
+      platform: 'internal',
+      sharedWithUserId: recipientId
+    });
+    await Post.findByIdAndUpdate(postId, { $inc: { sharesCount: 1 } });
+
+    res.json({
+      success: true,
+      message: 'Post shared successfully',
+      data: {
+        conversationId: conversation._id,
+        message: populatedMsg
+      }
+    });
+  } catch (error) {
+    console.error('sharePostToUser error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 

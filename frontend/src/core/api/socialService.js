@@ -58,6 +58,18 @@ const recordShare = async (id, platform = 'copy_link') => {
   return response.data;
 };
 
+const getShareRecipients = async (search = '') => {
+  const params = {};
+  if (search) params.search = search;
+  const response = await axiosPrivate.get(`${API_URL}/share-recipients`, { params });
+  return response.data;
+};
+
+const sharePostToUser = async (postId, recipientId, note = '') => {
+  const response = await axiosPrivate.post(`${API_URL}/posts/${postId}/share-to-user`, { recipientId, note });
+  return response.data;
+};
+
 const searchSocial = async (query) => {
   const response = await axiosPrivate.get(`${API_URL}/search`, { params: { query } });
   return response.data;
@@ -191,6 +203,8 @@ const socialService = {
   toggleSave,
   recordView,
   recordShare,
+  getShareRecipients,
+  sharePostToUser,
   searchSocial,
   getStories,
   createStory,
