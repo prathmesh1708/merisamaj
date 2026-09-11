@@ -34,6 +34,16 @@ export const headEventService = {
   getMemberResponses: async (eventId) => {
     const response = await axiosPrivate.get(`/head/events/${eventId}/responses`);
     return response.data;
+  },
+
+  addGalleryPhoto: async (eventId, photoData) => {
+    const response = await axiosPrivate.post(`/head/events/${eventId}/gallery`, photoData);
+    return response.data;
+  },
+
+  removeGalleryPhoto: async (eventId, photoId) => {
+    const response = await axiosPrivate.delete(`/head/events/${eventId}/gallery/${photoId}`);
+    return response.data;
   }
 };
 

@@ -112,9 +112,16 @@ const eventSchema = new mongoose.Schema({
   // Structured Info
   objectiveEn: { type: String },
   programsEn: [{ type: String }],
-  audienceEn: { type: String },
   importantInfoEn: { type: String },
-  tagsEn: [{ type: String }]
+  tagsEn: [{ type: String }],
+
+  // Event Gallery Media
+  gallery: [{
+    url: { type: String, required: true },
+    caption: { type: String, default: '' },
+    uploadedAt: { type: Date, default: Date.now },
+    uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+  }]
 }, {
   timestamps: true
 });

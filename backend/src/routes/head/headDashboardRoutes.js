@@ -12,6 +12,7 @@ router.get('/stats', authorize('head', 'sub_head', 'admin', 'super_admin', 'mast
 router.patch('/members/:id/approve', authorize('head', 'sub_head', 'admin', 'super_admin', 'master_admin'), headDashboardCtrl.approveMember);
 router.patch('/members/:id/reject', authorize('head', 'sub_head', 'admin', 'super_admin', 'master_admin'), headDashboardCtrl.rejectMember);
 router.patch('/members/:id/revoke', authorize('head', 'sub_head', 'admin', 'super_admin', 'master_admin'), headDashboardCtrl.revokeMember);
+router.post('/members/bulk-action', authorize('head', 'sub_head', 'admin', 'super_admin', 'master_admin'), headDashboardCtrl.bulkMemberAction);
 
 // Community Banner Update — Scoped to req.communityId
 router.put('/community/banner', authorize('head', 'sub_head', 'admin', 'super_admin', 'master_admin'), headDashboardCtrl.updateCommunityBanner);

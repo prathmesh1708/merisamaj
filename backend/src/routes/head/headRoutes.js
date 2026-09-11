@@ -62,4 +62,8 @@ router.use('/invitations', headInvitationRoutes);
 const headObituaryRoutes = require('./headObituaryRoutes');
 router.use('/obituaries', headObituaryRoutes);
 
+// Head Broadcast & Notification Management Routes
+const headNotificationRoutes = require('./headNotificationRoutes');
+router.use('/notifications', headNotificationRoutes);
+
 module.exports = router;

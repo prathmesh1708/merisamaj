@@ -592,3 +592,76 @@ exports.getAnalytics = async (req, res) => {
     res.status(500).json({ status: 'error', message: 'Failed to fetch analytics data' });
   }
 };
+
+// @desc    Add photo to event gallery
+// @route   POST /api/v1/head/events/:eventId/gallery
+// @access  Head
+exports.addEventGalleryPhoto = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { url, caption } = req.body;
+
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({ status: 'fail', message: 'Photo URL is required.' });
+    }
+
+    const event = await Event.findOne({ _id: eventId, isDeleted: { $ne: true } });
+    if (!event) {
+      return res.status(404).json({ status: 'fail', message: 'Event not found.' });
+    }
+
+    if (!hasHeadEventAccess(req, event.communityId)) {
+      return res.status(404).json({ status: 'fail', message: 'Event not found.' });
+    }
+
+    const photoObj = {
+      url,
+      caption: caption || '',
+      uploadedAt: new Date(),
+      uploadedBy: req.user?._id || req.user?.id
+    };
+
+    event.gallery = event.gallery || [];
+    event.gallery.push(photoObj);
+    await event.save();
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Photo added to event gallery.',
+      data: event.gallery
+    });
+  } catch (error) {
+    console.error('Add Event Gallery Photo Error:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to add photo to event gallery' });
+  }
+};
+
+// @desc    Remove photo from event gallery
+// @route   DELETE /api/v1/head/events/:eventId/gallery/:photoId
+// @access  Head
+exports.removeEventGalleryPhoto = async (req, res) => {
+  try {
+    const { eventId, photoId } = req.params;
+
+    const event = await Event.findOne({ _id: eventId, isDeleted: { $ne: true } });
+    if (!event) {
+      return res.status(404).json({ status: 'fail', message: 'Event not found.' });
+    }
+
+    if (!hasHeadEventAccess(req, event.communityId)) {
+      return res.status(404).json({ status: 'fail', message: 'Event not found.' });
+    }
+
+    event.gallery = (event.gallery || []).filter(p => p._id.toString() !== photoId && p.url !== photoId);
+    await event.save();
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Photo removed from event gallery.',
+      data: event.gallery
+    });
+  } catch (error) {
+    console.error('Remove Event Gallery Photo Error:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to remove photo from event gallery' });
+  }
+};

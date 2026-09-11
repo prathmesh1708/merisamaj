@@ -186,9 +186,9 @@ exports.getPendingProfiles = async (req, res) => {
 // ─── Community Reports ────────────────────────────────────────────────────────
 exports.listCommunityReports = async (req, res) => {
   try {
-    const { page = 1, limit = 20, status } = req.query;
+    const { page = 1, limit = 50, status } = req.query;
     const query = {};
-    if (status) query.status = status;
+    if (status && status !== 'all') query.status = status;
 
     // Get community user IDs first
     const User = require('../../models/User');
@@ -197,11 +197,13 @@ exports.listCommunityReports = async (req, res) => {
 
     const total = await ProfileReport.countDocuments(query);
     const reports = await ProfileReport.find(query)
-      .populate('reporterId', 'name')
-      .populate('reportedUserId', 'name')
+      .populate('reporterId', 'name phone email avatar')
+      .populate('reportedUserId', 'name phone email avatar city gotra')
+      .populate('reviewedBy', 'name')
       .sort({ createdAt: -1 })
       .skip((Number(page) - 1) * Number(limit))
-      .limit(Number(limit));
+      .limit(Number(limit))
+      .lean();
 
     res.json({ status: 'success', data: { reports, total, page: Number(page) } });
   } catch (err) {
@@ -236,7 +238,7 @@ exports.updateProfileStatus = async (req, res) => {
 exports.resolveReport = async (req, res) => {
   try {
     const { id } = req.params;
-    const { action, adminNotes } = req.body; // 'actioned' | 'dismissed'
+    const { action, adminNotes, suspendUser } = req.body; // 'actioned' | 'dismissed'
 
     const User = require('../../models/User');
     const communityUsers = await User.find({ communityId: req.communityId }).distinct('_id');
@@ -255,6 +257,14 @@ exports.resolveReport = async (req, res) => {
     if (adminNotes) report.adminNotes = adminNotes;
     await report.save();
 
+    // If head actioned report and chose to suspend profile
+    if (suspendUser && action === 'actioned') {
+      await MatrimonialProfile.findOneAndUpdate(
+        { userId: report.reportedUserId, communityId: req.communityId },
+        { status: 'suspended' }
+      );
+    }
+
     res.json({ status: 'success', message: `Report ${action} successfully.` });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
@@ -265,13 +275,13 @@ exports.resolveReport = async (req, res) => {
 exports.getMarriedMembers = async (req, res) => {
   try {
     const communityId = req.communityId;
-    const { page = 1, limit = 20 } = req.query;
+    const { page = 1, limit = 50 } = req.query;
 
     const total    = await MatrimonialProfile.countDocuments({ communityId, isDeleted: false, status: 'married' });
     const profiles = await MatrimonialProfile.find({ communityId, isDeleted: false, status: 'married' })
-      .populate('userId', 'name phone')
-      .populate('marriageConfirmedWith', 'name')
-      .sort({ closedAt: -1 })
+      .populate('userId', 'name phone email avatar city')
+      .populate('marriageConfirmedWith', 'name phone email avatar city')
+      .sort({ closedAt: -1, updatedAt: -1 })
       .skip((Number(page) - 1) * Number(limit))
       .limit(Number(limit))
       .lean({ virtuals: true });
@@ -286,18 +296,23 @@ exports.getMarriedMembers = async (req, res) => {
 exports.getCommunityMarriageRequests = async (req, res) => {
   try {
     const communityId = req.communityId;
-    const { page = 1, limit = 20, status } = req.query;
+    const { page = 1, limit = 50, status } = req.query;
 
     const User = require('../../models/User');
     const communityUserIds = await User.find({ communityId }).distinct('_id');
 
-    const query = { requesterId: { $in: communityUserIds } };
-    if (status) query.status = status;
+    const query = {
+      $or: [
+        { requesterId: { $in: communityUserIds } },
+        { receiverId: { $in: communityUserIds } }
+      ]
+    };
+    if (status && status !== 'all') query.status = status;
 
     const total = await MarriageRequest.countDocuments(query);
     const requests = await MarriageRequest.find(query)
-      .populate('requesterId', 'name phone')
-      .populate('receiverId', 'name phone')
+      .populate('requesterId', 'name phone email avatar city gotra')
+      .populate('receiverId', 'name phone email avatar city gotra')
       .sort({ createdAt: -1 })
       .skip((Number(page) - 1) * Number(limit))
       .limit(Number(limit))
