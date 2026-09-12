@@ -61,6 +61,7 @@ const isAllowedOrigin = (origin) => {
   if (/^http:\/\/localhost(:\d+)?$/.test(normalizedOrigin)) return true;
   if (/^http:\/\/127\.0\.0\.1(:\d+)?$/.test(normalizedOrigin)) return true;
   if (/^https:\/\/([a-zA-Z0-9_-]+\.)*vercel\.app$/.test(normalizedOrigin)) return true;
+  if (/^https?:\/\/([a-zA-Z0-9_-]+\.)*merisamaj\.com$/.test(normalizedOrigin)) return true;
 
   return false;
 };

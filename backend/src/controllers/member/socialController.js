@@ -868,8 +868,7 @@ exports.sharePostToUser = async (req, res) => {
     // 1. Find or create 1-to-1 conversation
     const { conversation } = await findOrCreateConversation(senderId, recipientId, 'member');
 
-    // 2. Prepare message text
-    const clientUrl = process.env.CLIENT_URL || req.get('origin') || 'http://localhost:5173';
+    const clientUrl = req.get('origin') || (process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',')[0].trim() : 'http://localhost:5173');
     const postUrl = `${clientUrl}/member/social/${postId}`;
     const postSnippet = post.title || (post.content ? post.content.substring(0, 100) : 'Check out this post');
     
