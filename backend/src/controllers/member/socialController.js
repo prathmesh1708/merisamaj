@@ -12,6 +12,7 @@ const Follower = require('../../models/Follower');
 const UserNotification = require('../../models/UserNotification');
 const { findOrCreateConversation } = require('../../services/conversationService');
 const { createMessage } = require('../../services/messageService');
+const { notifyOfficialPost } = require('../../services/notificationService');
 const { applyScopeFilter, inheritTenantPayload, adminRoles } = require('../../utils/queryScopeHelper');
 const cloudinary = require('cloudinary').v2;
 const config = require('../../config/config');
@@ -55,6 +56,15 @@ const verifyPostCommunityAccess = (req, post) => {
   const userCommId = (req.communityId || req.user?.communityId?._id || req.user?.communityId || '').toString();
   const postCommId = (post?.communityId?._id || post?.communityId || '').toString();
   return !!(userCommId && postCommId && userCommId === postCommId);
+};
+
+// Helper to sanitize base64 data URIs from avatars to prevent 6MB+ payload bursts
+const sanitizeUserAvatar = (u) => {
+  if (!u) return u;
+  if (typeof u.avatar === 'string' && u.avatar.startsWith('data:') && u.avatar.length > 2048) {
+    u.avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name || 'User')}&background=6B21A8&color=fff`;
+  }
+  return u;
 };
 
 // Helper to extract raw ObjectIds for communityIds
@@ -146,7 +156,7 @@ exports.getPosts = async (req, res) => {
     }
 
     const posts = await Post.find(filter)
-      .populate('userId authorId', 'name avatar role city community communityId')
+      .populate('userId', 'name avatar role city community communityId')
       .populate('communityId', 'name slug city')
       .populate('cityId', 'name')
       .sort({ isPinned: -1, createdAt: -1 })
@@ -168,11 +178,16 @@ exports.getPosts = async (req, res) => {
     const likedPostIds = new Set(likes.map(l => l.postId.toString()));
     const savedPostIds = new Set(saves.map(s => s.postId.toString()));
 
-    const formattedPosts = posts.map(p => ({
-      ...p,
-      isLiked: likedPostIds.has(p._id.toString()),
-      isSaved: savedPostIds.has(p._id.toString())
-    }));
+    const formattedPosts = posts.map(p => {
+      const author = sanitizeUserAvatar(p.userId);
+      return {
+        ...p,
+        userId: author,
+        authorId: p.authorId || author,
+        isLiked: likedPostIds.has(p._id.toString()),
+        isSaved: savedPostIds.has(p._id.toString())
+      };
+    });
 
     res.json({
       success: true,
@@ -223,6 +238,34 @@ exports.getPostById = async (req, res) => {
   } catch (error) {
     console.error('getPostById error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// Helper to fan-out notifications to community members who follow announcements
+const dispatchAnnouncementNotifications = async (communityId, author, postCategory, contentPreview, postId) => {
+  try {
+    if (!communityId) return;
+    const subscribers = await User.find({
+      communityId,
+      _id: { $ne: author._id },
+      accountStatus: 'active',
+      isBlocked: { $ne: true },
+      'notificationPreferences.announcements': { $ne: false }
+    }).select('_id').lean();
+
+    if (subscribers && subscribers.length > 0) {
+      const subscriberIds = subscribers.map(s => s._id);
+      await notifyOfficialPost(
+        subscriberIds,
+        postCategory,
+        author.name || 'Community Admin',
+        contentPreview,
+        postId,
+        communityId
+      );
+    }
+  } catch (err) {
+    console.error('[AnnouncementNotification] Failed to notify subscribers:', err.message);
   }
 };
 
@@ -352,15 +395,34 @@ exports.createPost = async (req, res) => {
 
       const populatedCity = await Post.findById(cityPost._id)
         .populate('userId', 'name avatar role city community communityId')
-        .populate('authorId', 'name avatar role city community communityId')
         .populate('communityId', 'name slug city')
-        .populate('cityId', 'name');
+        .populate('cityId', 'name')
+        .lean();
 
       const populatedCommunity = await Post.findById(communityPost._id)
         .populate('userId', 'name avatar role city community communityId')
-        .populate('authorId', 'name avatar role city community communityId')
         .populate('communityId', 'name slug city')
-        .populate('cityId', 'name');
+        .populate('cityId', 'name')
+        .lean();
+
+      if (category === 'Announcement' || category === 'Emergency') {
+        dispatchAnnouncementNotifications(
+          targetCommunityId,
+          req.user,
+          category,
+          content.trim(),
+          populatedCommunity._id
+        );
+      }
+
+      if (populatedCity) {
+        populatedCity.userId = sanitizeUserAvatar(populatedCity.userId);
+        populatedCity.authorId = populatedCity.authorId || populatedCity.userId;
+      }
+      if (populatedCommunity) {
+        populatedCommunity.userId = sanitizeUserAvatar(populatedCommunity.userId);
+        populatedCommunity.authorId = populatedCommunity.authorId || populatedCommunity.userId;
+      }
 
       return res.status(201).json({
         success: true,
@@ -384,9 +446,24 @@ exports.createPost = async (req, res) => {
 
     const populated = await Post.findById(post._id)
       .populate('userId', 'name avatar role city community communityId')
-      .populate('authorId', 'name avatar role city community communityId')
       .populate('communityId', 'name slug city')
-      .populate('cityId', 'name');
+      .populate('cityId', 'name')
+      .lean();
+
+    if (populated) {
+      populated.userId = sanitizeUserAvatar(populated.userId);
+      populated.authorId = populated.authorId || populated.userId;
+    }
+
+    if (category === 'Announcement' || category === 'Emergency') {
+      dispatchAnnouncementNotifications(
+        targetCommunityId,
+        req.user,
+        category,
+        content.trim(),
+        populated._id
+      );
+    }
 
     res.status(201).json({ success: true, data: populated });
   } catch (error) {
@@ -791,8 +868,7 @@ exports.sharePostToUser = async (req, res) => {
     // 1. Find or create 1-to-1 conversation
     const { conversation } = await findOrCreateConversation(senderId, recipientId, 'member');
 
-    // 2. Prepare message text
-    const clientUrl = process.env.CLIENT_URL || req.get('origin') || 'http://localhost:5173';
+    const clientUrl = req.get('origin') || (process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',')[0].trim() : 'http://localhost:5173');
     const postUrl = `${clientUrl}/member/social/${postId}`;
     const postSnippet = post.title || (post.content ? post.content.substring(0, 100) : 'Check out this post');
     
@@ -960,14 +1036,20 @@ exports.getMySavedPosts = async (req, res) => {
         path: 'postId',
         populate: [
           { path: 'userId', select: 'name avatar role city community' },
-          { path: 'authorId', select: 'name avatar role city community' },
           { path: 'communityId', select: 'name slug city' },
           { path: 'cityId', select: 'name' }
         ]
-      });
+      })
+      .lean();
 
     const validPosts = savedRecords
-      .map(r => r.postId)
+      .map(r => {
+        const p = r.postId;
+        if (!p) return null;
+        p.userId = sanitizeUserAvatar(p.userId);
+        p.authorId = p.authorId || p.userId;
+        return p;
+      })
       .filter(post => {
         if (!post || post.isDeleted) return false;
         if (isAdmin) return true;
@@ -1000,14 +1082,20 @@ exports.getMyLikedPosts = async (req, res) => {
         path: 'postId',
         populate: [
           { path: 'userId', select: 'name avatar role city community' },
-          { path: 'authorId', select: 'name avatar role city community' },
           { path: 'communityId', select: 'name slug city' },
           { path: 'cityId', select: 'name' }
         ]
-      });
+      })
+      .lean();
 
     const validPosts = likedRecords
-      .map(r => r.postId)
+      .map(r => {
+        const p = r.postId;
+        if (!p) return null;
+        p.userId = sanitizeUserAvatar(p.userId);
+        p.authorId = p.authorId || p.userId;
+        return p;
+      })
       .filter(post => {
         if (!post || post.isDeleted) return false;
         if (isAdmin) return true;
@@ -1046,7 +1134,7 @@ exports.getUserPosts = async (req, res) => {
     const filter = applyScopeFilter(req, baseFilter);
 
     const posts = await Post.find(filter)
-      .populate('userId authorId', 'name avatar role city community communityId')
+      .populate('userId', 'name avatar role city community communityId')
       .populate('communityId', 'name slug city')
       .populate('cityId', 'name')
       .sort({ createdAt: -1 })
@@ -1067,12 +1155,17 @@ exports.getUserPosts = async (req, res) => {
     const likedPostIds = new Set(likes.map(l => l.postId.toString()));
     const savedPostIds = new Set(saves.map(s => s.postId.toString()));
 
-    const formattedPosts = posts.map(p => ({
-      ...p,
-      id: p._id,
-      isLiked: likedPostIds.has(p._id.toString()),
-      isSaved: savedPostIds.has(p._id.toString())
-    }));
+    const formattedPosts = posts.map(p => {
+      const author = sanitizeUserAvatar(p.userId);
+      return {
+        ...p,
+        id: p._id,
+        userId: author,
+        authorId: p.authorId || author,
+        isLiked: likedPostIds.has(p._id.toString()),
+        isSaved: savedPostIds.has(p._id.toString())
+      };
+    });
 
     res.json({
       success: true,
@@ -1278,6 +1371,52 @@ exports.deleteComment = async (req, res) => {
   } catch (error) {
     console.error('deleteComment error:', error);
     res.status(500).json({ success: false, message: error.message || 'Server error deleting comment' });
+  }
+};
+
+// @desc    Get announcement follow status for logged in member
+// @route   GET /api/v1/member/social/announcements/follow-status
+// @access  Private
+exports.getAnnouncementFollowStatus = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('notificationPreferences').lean();
+    const isFollowing = user?.notificationPreferences?.announcements !== false;
+    res.json({ success: true, isFollowing });
+  } catch (error) {
+    console.error('getAnnouncementFollowStatus error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// @desc    Toggle announcement follow status for logged in member
+// @route   POST /api/v1/member/social/announcements/toggle-follow
+// @access  Private
+exports.toggleFollowAnnouncements = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('notificationPreferences');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    if (!user.notificationPreferences) {
+      user.notificationPreferences = { email: true, sms: true, push: true, announcements: true };
+    }
+
+    const currentStatus = user.notificationPreferences.announcements !== false;
+    const newStatus = !currentStatus;
+
+    user.notificationPreferences.announcements = newStatus;
+    user.markModified('notificationPreferences');
+    await user.save();
+
+    res.json({
+      success: true,
+      isFollowing: newStatus,
+      message: newStatus ? 'Subscribed to community announcements' : 'Muted community announcements'
+    });
+  } catch (error) {
+    console.error('toggleFollowAnnouncements error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 

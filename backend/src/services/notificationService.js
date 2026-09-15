@@ -476,15 +476,16 @@ const notifyGroupInviteDeclined = (inviterId, memberName, groupName) =>
  * @param {string}   messagePreview
  * @param {string}   postId
  */
-const notifyOfficialPost = (memberIds, category, authorName, messagePreview, postId) => {
+const notifyOfficialPost = (memberIds, category, authorName, messagePreview, postId, communityId) => {
   const preview = (messagePreview || '').substring(0, 80);
   const isEmergency = category === 'Emergency';
   
   const promises = (memberIds || []).map(memberId =>
     createNotification({
       userId:        memberId,
-      module:        'community',
-      type:          isEmergency ? 'emergency' : 'announcement',
+      communityId:   communityId || undefined,
+      module:        'social',
+      type:          isEmergency ? 'emergency' : 'community_announcement',
       title:         isEmergency ? `🚨 EMERGENCY UPDATE` : `📢 ${category} from ${authorName}`,
       message:       preview,
       icon:          isEmergency ? '🚨' : '📢',

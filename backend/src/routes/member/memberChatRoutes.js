@@ -17,8 +17,11 @@ router.get('/conversations',                                     chatCtrl.getCon
 router.get('/conversations/:conversationId/messages',            chatCtrl.getMessages);
 router.post('/conversations/:conversationId/messages',           imageLimiter, uploadChatImage, chatCtrl.sendMessage);
 router.post('/conversations/:conversationId/seen',               chatCtrl.markSeen);
+router.post('/conversations/:conversationId/clear',              chatCtrl.clearChat);
+router.delete('/conversations/:conversationId',                chatCtrl.deleteConversation);
 
 // ─── Messages ─────────────────────────────────────────────────────────────────
+router.patch('/messages/:messageId',  chatCtrl.editMessage);
 router.delete('/messages/:messageId', chatCtrl.deleteMessage);
 
 module.exports = router;

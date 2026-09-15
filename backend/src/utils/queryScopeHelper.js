@@ -109,7 +109,27 @@ const applyScopeFilter = (req, baseFilter = {}, options = {}) => {
   const isLocalHead = (userRole === 'sub_head' || user?.accountType === 'local_head') && user?.city;
   const activeCity = options.overrideCity || req?.query?.city || (isLocalHead ? user.city : null);
   if (activeCity && typeof activeCity === 'string' && activeCity !== 'all' && activeCity !== 'All') {
-    filter[cityField] = new RegExp(`^${activeCity.trim()}$`, 'i');
+    if (options.includeUnassignedCity) {
+      const cityRegex = new RegExp(`^${activeCity.trim()}$`, 'i');
+      const unassignedCondition = [
+        { [cityField]: cityRegex },
+        { [cityField]: null },
+        { [cityField]: '' },
+        { [cityField]: { $exists: false } }
+      ];
+      if (filter.$or) {
+        const existingOr = filter.$or;
+        delete filter.$or;
+        filter.$and = filter.$and || [];
+        filter.$and.push({ $or: existingOr }, { $or: unassignedCondition });
+      } else if (filter.$and) {
+        filter.$and.push({ $or: unassignedCondition });
+      } else {
+        filter.$or = unassignedCondition;
+      }
+    } else {
+      filter[cityField] = new RegExp(`^${activeCity.trim()}$`, 'i');
+    }
   }
 
   return filter;

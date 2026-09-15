@@ -73,7 +73,7 @@ exports.getDashboardStats = async (req, res) => {
         { verificationStatus: 'pending' },
         { accountStatus: 'pending verification' }
       ]
-    }, { overrideCity: activeCity });
+    }, { overrideCity: activeCity, includeUnassignedCity: true });
 
     const pendingMembersCount = await User.countDocuments(pendingQuery);
     const pendingMembersList = await User.find(pendingQuery)
@@ -239,7 +239,7 @@ exports.approveMember = async (req, res) => {
       return res.status(400).json({ status: 'fail', message: 'Invalid member ID format.' });
     }
 
-    const filter = applyScopeFilter(req, { _id: new mongoose.Types.ObjectId(req.params.id) });
+    const filter = applyScopeFilter(req, { _id: new mongoose.Types.ObjectId(req.params.id) }, { includeUnassignedCity: true });
     const user = await User.findOne(filter);
     if (!user) {
       return res.status(404).json({ status: 'fail', message: 'Member not found or not in your community.' });
@@ -267,7 +267,7 @@ exports.rejectMember = async (req, res) => {
       return res.status(400).json({ status: 'fail', message: 'Invalid member ID format.' });
     }
 
-    const filter = applyScopeFilter(req, { _id: new mongoose.Types.ObjectId(req.params.id) });
+    const filter = applyScopeFilter(req, { _id: new mongoose.Types.ObjectId(req.params.id) }, { includeUnassignedCity: true });
     const user = await User.findOne(filter);
     if (!user) {
       return res.status(404).json({ status: 'fail', message: 'Member not found or not in your community.' });
@@ -294,7 +294,7 @@ exports.revokeMember = async (req, res) => {
       return res.status(400).json({ status: 'fail', message: 'Invalid member ID format.' });
     }
 
-    const filter = applyScopeFilter(req, { _id: new mongoose.Types.ObjectId(req.params.id) });
+    const filter = applyScopeFilter(req, { _id: new mongoose.Types.ObjectId(req.params.id) }, { includeUnassignedCity: true });
     const user = await User.findOne(filter);
     if (!user) {
       return res.status(404).json({ status: 'fail', message: 'Member not found or not in your community.' });
@@ -430,7 +430,7 @@ exports.bulkMemberAction = async (req, res) => {
       return res.status(400).json({ status: 'fail', message: 'No valid member IDs provided.' });
     }
 
-    const filter = applyScopeFilter(req, { _id: { $in: validIds } });
+    const filter = applyScopeFilter(req, { _id: { $in: validIds } }, { includeUnassignedCity: true });
 
     let updateFields = {};
     if (action === 'verify') {

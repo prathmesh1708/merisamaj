@@ -873,7 +873,7 @@ export const HeadDashboard = () => {
                           </div>
                           <div>
                             <h4 className="text-xs font-bold text-slate-900">{member.name}</h4>
-                            <p className="text-xs text-slate-600 font-medium">{member.city} • {member.phone}</p>
+                            <p className="text-xs text-slate-600 font-medium">{member.city || 'City Unassigned'} • {member.phone}</p>
                           </div>
                         </div>
                         <div className="flex gap-2 shrink-0">

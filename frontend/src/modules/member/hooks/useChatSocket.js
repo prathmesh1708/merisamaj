@@ -61,6 +61,7 @@ export const useChatSocket = ({
   onUserTyping,
   onUserStoppedTyping,
   onMessageDeleted,
+  onMessageEdited,
   onMessagesSeen,
   onMessagesDelivered,
   onMemberJoined,
@@ -110,6 +111,7 @@ export const useChatSocket = ({
     if (onUserTyping)        socket.on('chat:user_typing',          onUserTyping);
     if (onUserStoppedTyping) socket.on('chat:user_stopped_typing',  onUserStoppedTyping);
     if (onMessageDeleted)    socket.on('chat:message_deleted',      onMessageDeleted);
+    if (onMessageEdited)     socket.on('chat:message_edited',       onMessageEdited);
     if (onMessagesSeen)      socket.on('chat:messages_seen',        onMessagesSeen);
     if (onMessagesDelivered) socket.on('chat:messages_delivered',   onMessagesDelivered);
 
@@ -131,6 +133,7 @@ export const useChatSocket = ({
       socket.off('chat:user_typing',          onUserTyping);
       socket.off('chat:user_stopped_typing',  onUserStoppedTyping);
       socket.off('chat:message_deleted',      onMessageDeleted);
+      socket.off('chat:message_edited',       onMessageEdited);
       socket.off('chat:messages_seen',        onMessagesSeen);
       socket.off('chat:messages_delivered',   onMessagesDelivered);
       socket.off('chat:member_joined',        onMemberJoined);

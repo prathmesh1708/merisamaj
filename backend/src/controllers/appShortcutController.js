@@ -2,6 +2,7 @@ const AppShortcut = require('../models/AppShortcut');
 const Invitation = require('../models/Invitation');
 const Donation = require('../models/Donation');
 const Obituary = require('../models/Obituary');
+const cacheService = require('../utils/cacheService');
 
 // Helper to seed defaults if DB is empty
 const ensureDefaults = async () => {
@@ -15,6 +16,11 @@ const ensureDefaults = async () => {
  */
 exports.getPublicShortcuts = async (req, res) => {
   try {
+    const cached = cacheService.get('app_shortcuts_public');
+    if (cached) {
+      return res.status(200).json(cached);
+    }
+
     await ensureDefaults();
 
     const shortcuts = await AppShortcut.find({ isActive: true }).sort({ order: 1, createdAt: 1 }).lean();
@@ -54,11 +60,14 @@ exports.getPublicShortcuts = async (req, res) => {
       };
     });
 
-    res.status(200).json({
+    const payload = {
       success: true,
       count: enrichedShortcuts.length,
       data: enrichedShortcuts
-    });
+    };
+
+    cacheService.set('app_shortcuts_public', payload, 60);
+    res.status(200).json(payload);
   } catch (error) {
     console.error('Error fetching public app shortcuts:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch shortcuts', error: error.message });
@@ -124,6 +133,7 @@ exports.updateShortcut = async (req, res) => {
     if (manualBadgeCount !== undefined) shortcut.manualBadgeCount = Number(manualBadgeCount);
 
     await shortcut.save();
+    cacheService.del('app_shortcuts_public');
 
     res.status(200).json({
       success: true,
@@ -169,6 +179,7 @@ exports.uploadShortcutIcon = async (req, res) => {
     shortcut.customIconUrl = iconUrl;
     shortcut.iconType = 'custom_upload';
     await shortcut.save();
+    cacheService.del('app_shortcuts_public');
 
     res.status(200).json({
       success: true,
@@ -197,6 +208,7 @@ exports.resetShortcutToPreset = async (req, res) => {
     shortcut.customIconUrl = '';
     shortcut.iconType = 'preset';
     await shortcut.save();
+    cacheService.del('app_shortcuts_public');
 
     res.status(200).json({
       success: true,

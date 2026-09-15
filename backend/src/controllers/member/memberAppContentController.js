@@ -1,6 +1,7 @@
 const AppContent = require('../../models/AppContent');
 const Community = require('../../models/Community');
 const mongoose = require('mongoose');
+const cacheService = require('../../utils/cacheService');
 
 // @desc    Get active home content configuration for member app
 // @route   GET /api/v1/member/app-content
@@ -9,8 +10,14 @@ exports.getMemberAppContent = async (req, res) => {
   try {
     let targetCommunityId = req.query.communityId || req.communityId || req.user?.communityId?._id || req.user?.communityId;
     if (!targetCommunityId) {
-      const firstComm = await Community.findOne({ status: 'Active' });
+      const firstComm = await Community.findOne({ isActive: true });
       targetCommunityId = firstComm ? firstComm._id : new mongoose.Types.ObjectId('000000000000000000000001');
+    }
+
+    const cacheKey = `app_content_${targetCommunityId.toString()}`;
+    const cached = cacheService.get(cacheKey);
+    if (cached) {
+      return res.status(200).json(cached);
     }
 
     let doc = await AppContent.findOne({ communityId: targetCommunityId }).lean();
@@ -18,7 +25,7 @@ exports.getMemberAppContent = async (req, res) => {
       // Return default configuration if no custom document exists yet
       doc = {
         heroBanner: {
-          backgroundImage: 'https://images.unsplash.com/photo-1590050752117-238cb0fb12b1?auto=format&fit=crop&w=1200&q=80',
+          backgroundImage: '',
           title: '',
           subtitle: '',
           buttonText: '',
@@ -185,6 +192,27 @@ exports.getMemberAppContent = async (req, res) => {
       };
     }
 
+    // Fallback heroBanner background image to Community bannerUrl if not specifically customized
+    try {
+      const comm = await Community.findById(targetCommunityId).select('name bannerUrl description logoUrl').lean();
+      if (comm && comm.bannerUrl) {
+        if (!doc.heroBanner) {
+          doc.heroBanner = {
+            backgroundImage: comm.bannerUrl,
+            title: '',
+            subtitle: '',
+            buttonText: '',
+            buttonLink: '/member/directory',
+            enabled: true
+          };
+        } else if (!doc.heroBanner.backgroundImage) {
+          doc.heroBanner.backgroundImage = comm.bannerUrl;
+        }
+      }
+    } catch (commErr) {
+      console.warn('[getMemberAppContent] Failed to fetch community fallback banner:', commErr.message);
+    }
+
     // Filter enabled items only for member app
     const activeFeatures = (doc.exclusiveFeatures || [])
       .filter(f => f.enabled)
@@ -204,7 +232,7 @@ exports.getMemberAppContent = async (req, res) => {
       .filter(c => c.enabled)
       .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
 
-    return res.status(200).json({
+    const payload = {
       success: true,
       data: {
         heroBanner: doc.heroBanner || {},
@@ -229,7 +257,10 @@ exports.getMemberAppContent = async (req, res) => {
           enabled: true
         }
       }
-    });
+    };
+
+    cacheService.set(cacheKey, payload, 300); // 5 min TTL
+    return res.status(200).json(payload);
   } catch (error) {
     console.error('Error in getMemberAppContent:', error);
     return res.status(500).json({ success: false, message: error.message });

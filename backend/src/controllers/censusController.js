@@ -4,6 +4,7 @@ const CensusUpdateRequest = require('../models/CensusUpdateRequest');
 const { applyScopeFilter, inheritTenantPayload } = require('../utils/queryScopeHelper');
 const { createNotification } = require('../services/notificationService');
 const { sendPushNotification } = require('../services/pushNotificationService');
+const cacheService = require('../utils/cacheService');
 
 // Helper to compute age from dob or static age field
 const computeAge = (dob, staticAge) => {
@@ -50,6 +51,13 @@ const isJointFamily = (user) => {
 // GET /api/v1/member/census/summary (or /head/census/summary, /admin/census/summary)
 exports.getCensusSummary = async (req, res) => {
   try {
+    const commId = (req.communityId || req.user?.communityId?._id || req.user?.communityId || 'global').toString();
+    const cacheKey = `census_summary_${commId}`;
+    const cached = cacheService.get(cacheKey);
+    if (cached) {
+      return res.status(200).json(cached);
+    }
+
     const filter = applyScopeFilter(req, { accountStatus: { $ne: 'deleted' } });
 
     const users = await User.find(filter)
@@ -210,7 +218,7 @@ exports.getCensusSummary = async (req, res) => {
       else maritalStatusBreakdown.notSpecified++;
     });
 
-    res.status(200).json({
+    const payload = {
       success: true,
       status: 'success',
       data: {
@@ -235,7 +243,10 @@ exports.getCensusSummary = async (req, res) => {
         citiesBreakdown,
         ageBrackets
       }
-    });
+    };
+
+    cacheService.set(cacheKey, payload, 120);
+    res.status(200).json(payload);
   } catch (error) {
     console.error('Census Summary Error:', error);
     res.status(500).json({ success: false, message: error.message });

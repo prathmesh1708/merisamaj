@@ -90,7 +90,9 @@ export const ReferralProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
-    fetchReferralData();
+    if (typeof window !== 'undefined' && window.location.pathname.includes('/referral')) {
+      fetchReferralData();
+    }
   }, [fetchReferralData]);
 
   // Real backend validation function

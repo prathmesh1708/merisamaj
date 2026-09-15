@@ -85,6 +85,9 @@ export const useAxiosPrivate = () => {
               
               setAuth(prev => {
                 localStorage.setItem('merisamaj_token', newAccessToken);
+                if (response.refreshToken) {
+                  localStorage.setItem('merisamaj_refresh_token', response.refreshToken);
+                }
                 return { ...prev, user: response.user, accessToken: newAccessToken, isAuthenticated: true };
               });
               
@@ -116,6 +119,7 @@ export const useAxiosPrivate = () => {
             } else {
               localStorage.removeItem('merisamaj_user');
               localStorage.removeItem('merisamaj_token');
+              localStorage.removeItem('merisamaj_refresh_token');
               localStorage.removeItem('merisamaj_has_session');
               
               setAuth({

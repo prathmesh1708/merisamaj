@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const memberAppContentController = require('../../controllers/member/memberAppContentController');
-const { protect } = require('../../middleware/authMiddleware');
+const { optionalProtect } = require('../../middleware/authMiddleware');
 
 // GET /api/v1/member/app-content — Get active dynamic home page customization
-router.get('/', protect, memberAppContentController.getMemberAppContent);
+router.get('/', optionalProtect, memberAppContentController.getMemberAppContent);
 
 module.exports = router;
+

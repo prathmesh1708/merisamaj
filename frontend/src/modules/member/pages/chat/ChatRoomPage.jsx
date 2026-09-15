@@ -5,7 +5,7 @@ import {
   Smile, Camera, CheckCheck, Search, X, FileText, Check,
   Square, CornerUpLeft, Star, BellOff, Trash2, Pin, Play,
   MapPin, UserSquare, Reply, Forward, Info, MessageCircle, Image as ImageIcon,
-  Headphones, AlertTriangle, Loader2, RefreshCcw
+  Headphones, AlertTriangle, Loader2, RefreshCcw, Pencil, Copy, ChevronDown
 } from 'lucide-react';
 import { useAuth } from '../../../../core/auth/useAuth';
 import { Avatar } from '../../components/common/Avatar';
@@ -93,7 +93,7 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
   const {
     messages, loading, sending, error, hasMore, typingUsers,
     isConnected, isUserOnline,
-    loadOlderMessages, sendMessage, deleteMessage,
+    loadOlderMessages, sendMessage, editMessage, deleteMessage, clearChat, deleteConversation,
     startTyping, stopTyping, markSeen
   } = useMemberChat(conversationId);
 
@@ -108,6 +108,8 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
   const [isSearchOpen, setIsSearchOpen]               = useState(false);
   const [searchQuery, setSearchQuery]                 = useState('');
   const [selectedMessages, setSelectedMessages]       = useState([]);
+  const [editingMessage, setEditingMessage]           = useState(null);
+  const [showDeleteModal, setShowDeleteModal]         = useState(false);
   const [reactionTarget, setReactionTarget]           = useState(null);
   const [replyTarget, setReplyTarget]                 = useState(null);
   const [reactionPosition, setReactionPosition]       = useState('top');
@@ -189,7 +191,7 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
     groupedMessages.push({ type: 'message', ...msg });
   });
 
-  // ── Send ──────────────────────────────────────────────────────────────────
+  // ── Send / Edit ───────────────────────────────────────────────────────────
   const handleSend = useCallback(async () => {
     const trimmed = newMessage.trim();
     if (!trimmed && !pendingAttachment) return;
@@ -197,19 +199,25 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
     stopTyping();
 
     try {
-      await sendMessage({
-        text: trimmed || undefined,
-        imageFile: pendingAttachment?.type === 'image' ? pendingAttachment.file : undefined,
-        replyTo: replyTarget?._id || undefined
-      });
-      setNewMessage('');
-      setReplyTarget(null);
-      setPendingAttachment(null);
+      if (editingMessage) {
+        await editMessage(editingMessage._id, trimmed);
+        setEditingMessage(null);
+        setNewMessage('');
+      } else {
+        await sendMessage({
+          text: trimmed || undefined,
+          imageFile: pendingAttachment?.type === 'image' ? pendingAttachment.file : undefined,
+          replyTo: replyTarget?._id || undefined
+        });
+        setNewMessage('');
+        setReplyTarget(null);
+        setPendingAttachment(null);
+      }
       inputRef.current?.focus();
     } catch (err) {
-      setSendError(err.response?.data?.message || 'Failed to send message.');
+      setSendError(err.response?.data?.message || 'Failed to process message.');
     }
-  }, [newMessage, pendingAttachment, replyTarget, sendMessage, stopTyping]);
+  }, [newMessage, pendingAttachment, replyTarget, editingMessage, editMessage, sendMessage, stopTyping]);
 
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
@@ -358,13 +366,44 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
             <span className="font-extrabold text-[16px] text-slate-800">{selectedMessages.length} selected</span>
           </div>
           <div className="flex items-center gap-1">
+            <button
+              onClick={() => {
+                const txt = messages.filter(m => selectedMessages.includes(m._id)).map(m => m.message || '').filter(Boolean).join('\n');
+                if (txt) navigator.clipboard.writeText(txt);
+                setSelectedMessages([]);
+              }}
+              title="Copy Message"
+              className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center justify-center text-slate-700 hover:bg-purple-50 transition-colors press-scale"
+            >
+              <Copy size={17} />
+            </button>
+            {selectedMessages.length === 1 && (() => {
+              const selectedMsg = messages.find(m => m._id === selectedMessages[0]);
+              const isMyMsg = (selectedMsg?.senderId?._id || selectedMsg?.senderId)?.toString() === myId;
+              if (isMyMsg && !selectedMsg?.isDeleted && selectedMsg?.type === 'text') {
+                return (
+                  <button
+                    onClick={() => {
+                      setEditingMessage(selectedMsg);
+                      setNewMessage(selectedMsg.message || '');
+                      setSelectedMessages([]);
+                    }}
+                    title="Edit Message"
+                    className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center justify-center text-slate-700 hover:bg-purple-50 transition-colors press-scale"
+                  >
+                    <Pencil size={17} />
+                  </button>
+                );
+              }
+              return null;
+            })()}
             {selectedMessages.length === 1 && (
               <button onClick={() => { setReplyTarget(messages.find(m => m._id === selectedMessages[0])); setSelectedMessages([]); }}
                 className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center justify-center text-slate-700 hover:bg-purple-50 transition-colors press-scale">
                 <Reply size={18} />
               </button>
             )}
-            <button onClick={() => showConfirm('Delete for me?', () => handleDeleteSelected('me'))}
+            <button onClick={() => setShowDeleteModal(true)}
               className="w-9 h-9 rounded-xl bg-rose-50 border border-rose-200/60 flex items-center justify-center text-rose-600 hover:bg-rose-100 transition-colors press-scale">
               <Trash2 size={18} />
             </button>
@@ -434,9 +473,13 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
                           className="w-full text-left px-4 py-2.5 text-[13px] font-extrabold text-purple-600 flex items-center gap-2 hover:bg-purple-50/50 transition-colors border-b border-slate-100 mb-1">
                           <ArrowLeft size={16} /> Back
                         </button>
-                        <button onClick={(e) => { e.stopPropagation(); setShowMenu(false); showConfirm('Clear all messages?', async () => {}); }}
+                        <button onClick={(e) => { e.stopPropagation(); setShowMenu(false); showConfirm('Clear all messages in this chat?', async () => { await clearChat(); }); }}
                           className="w-full text-left px-4 py-2.5 text-[13px] font-extrabold text-rose-600 hover:bg-rose-50/50 transition-colors">
                           Clear Chat
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); setShowMenu(false); showConfirm('Delete this conversation?', async () => { await deleteConversation(); navigate('/member/social', { state: { tab: 'chat' } }); }); }}
+                          className="w-full text-left px-4 py-2.5 text-[13px] font-extrabold text-rose-600 hover:bg-rose-50/50 transition-colors border-t border-slate-100">
+                          Delete Conversation
                         </button>
                       </>
                     )}
@@ -571,20 +614,43 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
 
           return (
             <div key={msg._id}
-              className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} pb-1 ${isSelected ? 'bg-purple-100/50 rounded-lg p-1 transition-colors' : 'transition-colors'}`}
+              className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} pb-1.5 group/msg ${isSelected ? 'bg-purple-100/50 rounded-lg p-1 transition-colors' : 'transition-colors'}`}
               onMouseDown={e => handlePressStart(e, msg._id)}
               onTouchStart={e => handlePressStart(e, msg._id)}
               onMouseMove={handlePressMove}
               onTouchMove={handlePressMove}
               onMouseUp={e => handlePressEnd(e, msg._id)}
               onTouchEnd={e => handlePressEnd(e, msg._id)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const rect = e.currentTarget.getBoundingClientRect();
+                setReactionPosition(rect.top < 220 ? 'bottom' : 'top');
+                setReactionTarget(msg._id);
+              }}
             >
-              <div className="relative max-w-[82%]">
+              <div className="relative max-w-[85%] sm:max-w-[75%]">
                 <div onClick={e => handleMessageClick(e, msg._id)}
-                  className={`px-3.5 py-2.5 rounded-2xl shadow-2xs relative cursor-pointer select-none border text-left ${
+                  className={`px-3.5 py-2.5 rounded-2xl shadow-2xs relative cursor-pointer select-none border text-left pr-8 ${
                     isMine ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-tr-xs border-purple-500/30' : 'bg-white rounded-tl-xs border-slate-200/80 text-slate-800'
                   }`}
                 >
+                  {/* Dropdown Chevron Trigger */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setReactionPosition(rect.top < 220 ? 'bottom' : 'top');
+                      setReactionTarget(reactionTarget === msg._id ? null : msg._id);
+                    }}
+                    className={`absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center transition-all ${
+                      isMine ? 'bg-white/20 hover:bg-white/30 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                    } ${reactionTarget === msg._id ? 'opacity-100' : 'opacity-80 md:opacity-0 group-hover/msg:opacity-100'}`}
+                    title="Message actions"
+                  >
+                    <ChevronDown size={13} />
+                  </button>
+
                   {/* Reply preview */}
                   {repliedMsg && (
                     <div className={`rounded-xl p-2 mb-1.5 border-l-4 ${isMine ? 'bg-white/15 border-white text-white' : 'bg-purple-50 border-purple-600 text-slate-800'}`}>
@@ -635,12 +701,13 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
                   )}
 
                   {/* Text */}
-                  {msg.message && <p className="text-[14px] leading-relaxed pr-14 font-medium whitespace-pre-wrap">{msg.message}</p>}
+                  {msg.message && <p className="text-[14px] leading-relaxed pr-8 font-medium whitespace-pre-wrap">{msg.message}</p>}
 
                   {/* Timestamp + Status */}
                   <div className={`absolute bottom-1.5 right-2.5 flex items-center gap-1 ${msg.message ? '' : 'bg-black/30 px-1.5 rounded-full'}`}>
                     <span className={`text-[9.5px] font-bold ${isMine ? 'text-purple-200' : 'text-slate-400'}`}>
                       {formatMsgTime(msg.createdAt || msg.timestamp)}
+                      {msg.isEdited && ' • edited'}
                     </span>
                     {isMine && (
                       <MessageStatusIcon
@@ -652,19 +719,94 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
                   </div>
                 </div>
 
-                {/* Reaction picker */}
+                {/* Direct Message Action & Reaction Popover Menu */}
                 {reactionTarget === msg._id && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={e => { e.stopPropagation(); setReactionTarget(null); }} />
-                    <div className={`absolute z-50 ${isMine ? 'right-0' : 'left-0'} bg-white border border-slate-200 rounded-full px-3 py-1.5 shadow-xl flex items-center gap-2.5 animate-scale-in ${
-                      reactionPosition === 'bottom' ? 'top-full mt-1.5' : '-top-12'
+                    <div className={`absolute z-50 ${isMine ? 'right-0' : 'left-0'} bg-white text-slate-800 border border-slate-200/90 rounded-2xl shadow-2xl py-2 w-[210px] animate-scale-in text-left ${
+                      reactionPosition === 'bottom' ? 'top-full mt-1.5' : '-top-48'
                     }`}>
-                      {EMOJI_REACTIONS.map(emoji => (
-                        <button key={emoji} onClick={e => { e.stopPropagation(); setReactionTarget(null); }}
-                          className="text-[20px] hover:scale-125 transition-transform opacity-90 press-scale">
-                          {emoji}
+                      {/* Emoji Quick Reactions */}
+                      <div className="flex items-center justify-around px-2 pb-2 border-b border-slate-100">
+                        {EMOJI_REACTIONS.map(emoji => (
+                          <button key={emoji} onClick={e => { e.stopPropagation(); setReactionTarget(null); }}
+                            className="text-[18px] hover:scale-125 transition-transform press-scale">
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Menu Options */}
+                      <div className="pt-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setReplyTarget(msg);
+                            setReactionTarget(null);
+                            inputRef.current?.focus();
+                          }}
+                          className="w-full text-left px-3.5 py-2 text-[12.5px] font-extrabold text-slate-700 hover:bg-purple-50/60 transition-colors flex items-center gap-2.5 cursor-pointer"
+                        >
+                          <Reply size={15} className="text-purple-600" />
+                          <span>Reply</span>
                         </button>
-                      ))}
+
+                        {isMine && msg.type === 'text' && !msg.isDeleted && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingMessage(msg);
+                              setNewMessage(msg.message || '');
+                              setReactionTarget(null);
+                              inputRef.current?.focus();
+                            }}
+                            className="w-full text-left px-3.5 py-2 text-[12.5px] font-extrabold text-slate-700 hover:bg-purple-50/60 transition-colors flex items-center gap-2.5 cursor-pointer"
+                          >
+                            <Pencil size={15} className="text-indigo-600" />
+                            <span>Edit Message</span>
+                          </button>
+                        )}
+
+                        {msg.message && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigator.clipboard.writeText(msg.message);
+                              setReactionTarget(null);
+                            }}
+                            className="w-full text-left px-3.5 py-2 text-[12.5px] font-extrabold text-slate-700 hover:bg-purple-50/60 transition-colors flex items-center gap-2.5 cursor-pointer"
+                          >
+                            <Copy size={15} className="text-slate-500" />
+                            <span>Copy Text</span>
+                          </button>
+                        )}
+
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteMessage(msg._id, 'me');
+                            setReactionTarget(null);
+                          }}
+                          className="w-full text-left px-3.5 py-2 text-[12.5px] font-extrabold text-slate-700 hover:bg-purple-50/60 transition-colors flex items-center gap-2.5 cursor-pointer"
+                        >
+                          <Trash2 size={15} className="text-slate-400" />
+                          <span>Delete for Me</span>
+                        </button>
+
+                        {isMine && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteMessage(msg._id, 'everyone');
+                              setReactionTarget(null);
+                            }}
+                            className="w-full text-left px-3.5 py-2 text-[12.5px] font-extrabold text-rose-600 hover:bg-rose-50/60 transition-colors flex items-center gap-2.5 cursor-pointer border-t border-slate-100 mt-1 pt-2"
+                          >
+                            <Trash2 size={15} className="text-rose-500" />
+                            <span>Delete for Everyone</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </>
                 )}
@@ -681,6 +823,26 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
       <div className="bg-white/85 backdrop-blur-xl border-t border-purple-100/30 px-3 py-2 flex flex-col gap-1.5 z-20 shrink-0 select-none shadow-[0_-2px_12px_rgba(124,58,237,0.03)]" onClick={e => e.stopPropagation()}>
         <input type="file" ref={imageInputRef} accept="image/*" onChange={handleImageChange} style={{ display: 'none' }} />
         <input type="file" ref={docInputRef} onChange={handleDocChange} style={{ display: 'none' }} />
+
+        {/* Editing message preview banner */}
+        {editingMessage && (
+          <div className="mx-1 flex items-center justify-between bg-purple-50/90 border-l-4 border-purple-600 rounded-xl px-3 py-2 shadow-2xs">
+            <div className="flex items-center gap-2 text-purple-700 font-extrabold text-[12px] truncate min-w-0">
+              <Pencil size={14} className="shrink-0" />
+              <span>Editing message:</span>
+              <span className="text-slate-600 font-medium truncate font-sans font-semibold">"{editingMessage.message}"</span>
+            </div>
+            <button
+              onClick={() => {
+                setEditingMessage(null);
+                setNewMessage('');
+              }}
+              className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-purple-100 text-slate-400 press-scale shrink-0"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
 
         {/* Reply preview */}
         {replyTarget && (
@@ -801,6 +963,49 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
             <button onClick={() => setShowWallpaperDialog(false)}
               className="px-4 py-3 bg-brand-primary text-white font-bold rounded-xl w-full active:scale-95 transition-transform">
               Apply Wallpaper
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── DELETE CHOICE MODAL ── */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4" onClick={() => setShowDeleteModal(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-xs shadow-2xl p-5 space-y-3 animate-in fade-in zoom-in-95" onClick={e => e.stopPropagation()}>
+            <h3 className="text-[16px] font-extrabold text-slate-900">Delete Message</h3>
+            <p className="text-[12px] text-slate-500 font-semibold">Choose how you want to delete the selected message(s):</p>
+            <div className="space-y-2 pt-1">
+              <button
+                onClick={() => {
+                  handleDeleteSelected('me');
+                  setShowDeleteModal(false);
+                }}
+                className="w-full py-2.5 px-3.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-[13px] font-extrabold transition-all text-left flex items-center justify-between cursor-pointer"
+              >
+                <span>Delete for Me</span>
+                <Trash2 size={15} className="text-slate-400" />
+              </button>
+              {selectedMessages.every(id => {
+                const m = messages.find(msg => msg._id === id);
+                return (m?.senderId?._id || m?.senderId)?.toString() === myId;
+              }) && (
+                <button
+                  onClick={() => {
+                    handleDeleteSelected('everyone');
+                    setShowDeleteModal(false);
+                  }}
+                  className="w-full py-2.5 px-3.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-[13px] font-extrabold border border-rose-200 transition-all text-left flex items-center justify-between cursor-pointer"
+                >
+                  <span>Delete for Everyone</span>
+                  <Trash2 size={15} className="text-rose-500" />
+                </button>
+              )}
+            </div>
+            <button
+              onClick={() => setShowDeleteModal(false)}
+              className="w-full py-2 text-center text-[12px] font-bold text-slate-400 hover:text-slate-600 pt-1 cursor-pointer"
+            >
+              Cancel
             </button>
           </div>
         </div>

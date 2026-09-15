@@ -24,18 +24,22 @@ export const useUnifiedConversations = () => {
         matrimonialChatService.getConversations()
       ]);
 
+      const myId = (user?.id || user?._id || '').toString();
       const normalized = [];
 
       // 1. Direct Chats (Member)
       if (memberRes.status === 'fulfilled') {
         const memberChats = memberRes.value.data?.data?.conversations || [];
         memberChats.forEach(c => {
-          const otherUser = c.participants?.find(p => p._id !== user._id);
+          const otherUser = c.otherUser || c.participants?.find(p => {
+            const pid = (p?._id?._id || p?._id || p?.id || p || '').toString();
+            return pid && pid !== myId;
+          });
           normalized.push({
             id: c._id,
             conversationId: c._id,
             type: 'direct',
-            title: otherUser?.name || 'Unknown User',
+            title: otherUser?.name || 'Community Member',
             avatar: otherUser?.avatar || null,
             lastMessagePreview: c.lastMessagePreview || c.lastMessageId?.message || '',
             lastMessageAt: c.lastMessageAt || c.createdAt,
@@ -44,7 +48,7 @@ export const useUnifiedConversations = () => {
             isOnline: false, // Updated by socket if needed
             isPinned: false,
             metadata: {
-              targetUserId: otherUser?._id,
+              targetUserId: otherUser?._id || otherUser?.id,
               verificationStatus: otherUser?.verificationStatus
             }
           });
@@ -83,7 +87,10 @@ export const useUnifiedConversations = () => {
       if (matRes.status === 'fulfilled') {
         const matChats = matRes.value.data?.data?.conversations || [];
         matChats.forEach(c => {
-          const otherUser = c.participants?.find(p => p._id !== user._id);
+          const otherUser = c.otherUser || c.participants?.find(p => {
+            const pid = (p?._id?._id || p?._id || p?.id || p || '').toString();
+            return pid && pid !== myId;
+          });
           normalized.push({
             id: c._id,
             conversationId: c._id,
@@ -97,7 +104,7 @@ export const useUnifiedConversations = () => {
             isOnline: false,
             isPinned: false,
             metadata: {
-              targetUserId: otherUser?._id,
+              targetUserId: otherUser?._id || otherUser?.id,
               referenceId: c.referenceId
             }
           });

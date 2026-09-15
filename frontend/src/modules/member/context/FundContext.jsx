@@ -45,7 +45,11 @@ export const FundProvider = ({ children }) => {
 
   useEffect(() => {
     if (auth.isAuthenticated) {
-      fetchFundsData();
+      if (typeof window !== 'undefined' && window.location.pathname.includes('/fund')) {
+        fetchFundsData();
+      } else {
+        setLoading(false);
+      }
     } else {
       // Reset state on logout
       setFunds([]);

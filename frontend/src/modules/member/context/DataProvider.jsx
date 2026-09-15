@@ -695,8 +695,16 @@ export const DataProvider = ({ children }) => {
   useEffect(() => {
     const isAuth = Boolean(auth.isAuthenticated || headAuth.isAuthenticated);
     const activeUserId = currentUserId || headAuth.headUser?._id || headAuth.headUser?.id;
+    const isRelevantPath = typeof window !== 'undefined' && (
+      window.location.pathname.startsWith('/head') ||
+      window.location.pathname.includes('/invitations') ||
+      window.location.pathname.includes('/directory') ||
+      window.location.pathname.includes('/social')
+    );
     if (isAuth && activeUserId) {
-      loadMembers();
+      if (isRelevantPath) {
+        loadMembers();
+      }
     } else if (!isAuth) {
       setMembers(initialMembers);
     }
@@ -718,8 +726,16 @@ export const DataProvider = ({ children }) => {
 
   useEffect(() => {
     if (auth.isAuthenticated && currentUserId) {
-      fetchFeedPosts('city');
+      // Stories and announcement status are lightweight; feeds are fetched on-demand in SocialHubPage
       fetchStoriesList();
+      socialService.getAnnouncementFollowStatus().then(res => {
+        if (res && res.success && typeof res.isFollowing === 'boolean') {
+          setFollowedAnnouncements(prev => ({
+            ...prev,
+            announcements: res.isFollowing
+          }));
+        }
+      }).catch(() => {});
     } else {
       setPosts([]);
       setCityPosts([]);
@@ -877,16 +893,21 @@ export const DataProvider = ({ children }) => {
   // Invitation ids whose "opened" record has already been sent this session
   const trackedInvitationOpensRef = useRef(new Set());
 
+  const loadInvitations = async () => {
+    try {
+      const data = await invitationService.getInvitations();
+      setInvitations(data);
+    } catch (error) {
+      console.error('Failed to load invitations', error);
+    }
+  };
+
   useEffect(() => {
-    const loadInvitations = async () => {
-      try {
-        const data = await invitationService.getInvitations();
-        setInvitations(data);
-      } catch (error) {
-        console.error('Failed to load invitations', error);
-      }
-    };
-    if (auth.isAuthenticated || headAuth?.isAuthenticated) {
+    const isInvitationsRoute = typeof window !== 'undefined' && (
+      window.location.pathname.includes('/invitations') ||
+      window.location.pathname.includes('/nimantran')
+    );
+    if ((auth.isAuthenticated || headAuth?.isAuthenticated) && isInvitationsRoute) {
       loadInvitations();
     }
   }, [auth.isAuthenticated, headAuth?.isAuthenticated]);
@@ -948,7 +969,11 @@ export const DataProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    if (auth.isAuthenticated || headAuth?.isAuthenticated) {
+    const isObituaryRoute = typeof window !== 'undefined' && (
+      window.location.pathname.includes('/obituary') ||
+      window.location.pathname.includes('/shradhanjali')
+    );
+    if ((auth.isAuthenticated || headAuth?.isAuthenticated) && isObituaryRoute) {
       loadObituaries();
     }
     // NOTE: Matrimonial profiles are loaded by MatrimonialContext, not DataProvider
@@ -1607,11 +1632,25 @@ export const DataProvider = ({ children }) => {
     }
   };
 
-  const toggleFollowedAnnouncement = (type) => {
+  const toggleFollowedAnnouncement = async (type) => {
     setFollowedAnnouncements(prev => ({
       ...prev,
       [type]: !prev[type]
     }));
+
+    if (type === 'announcements') {
+      try {
+        const res = await socialService.toggleFollowAnnouncements();
+        if (res && res.success && typeof res.isFollowing === 'boolean') {
+          setFollowedAnnouncements(prev => ({
+            ...prev,
+            announcements: res.isFollowing
+          }));
+        }
+      } catch (err) {
+        console.error('Failed to toggle backend announcement subscription:', err);
+      }
+    }
   };
 
   const addMatrimonialProfile = (profileData) => {
@@ -2282,6 +2321,8 @@ export const DataProvider = ({ children }) => {
   const adaptedMembersList = adaptMembers(members, activeCommunity);
   const adaptedAdminsList = adaptAdmins(admins, activeCommunity);
   const adaptedPostsList = adaptPosts(posts, activeCommunity);
+  const adaptedCityPostsList = adaptPosts(cityPosts, activeCommunity);
+  const adaptedCommunityPostsList = adaptPosts(communityPosts, activeCommunity);
   const adaptedStoriesList = adaptStories(stories, activeCommunity);
   const adaptedMatrimonialList = matrimonialProfiles; // Admin functions operate on injected data; no adapt needed
   const adaptedGroupsList = adaptGroups(groups, activeCommunity);
@@ -2937,6 +2978,10 @@ export const DataProvider = ({ children }) => {
     loadMembers,
     admins: adaptedAdminsList,
     posts: adaptedPostsList,
+    cityPosts: adaptedCityPostsList,
+    setCityPosts,
+    communityPosts: adaptedCommunityPostsList,
+    setCommunityPosts,
     events,
     eventsLoading,
     eventsError,
@@ -3010,6 +3055,7 @@ export const DataProvider = ({ children }) => {
     updateInvitationStatus,
     updateInvitation,
     deleteInvitation,
+    loadInvitations,
     invitationFormConfig,
     updateInvitationConfig,
     obituaries,
