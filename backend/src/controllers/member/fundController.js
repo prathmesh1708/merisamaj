@@ -16,17 +16,39 @@ const formatDisplayDate = (date) => {
   return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
 };
 
-// 1. Unified Funds Loader (Community scoped)
+// 1. Unified Funds Loader (Community & Local Head scoped)
 // Fetches funds, contributions, expenses, and community users
 exports.getFundsData = async (req, res) => {
   try {
-    const scopeFilter = applyScopeFilter(req, {}, { includeGlobalScope: true });
-
-    // 1. Fetch all funds (Global or Community-scoped for members, all for admin)
-    const fundsList = await Fund.find(scopeFilter).sort({ createdAt: -1 }).lean();
-
+    const userRole = (req.user?.role || '').toLowerCase();
+    const isAdmin = ['admin', 'super_admin', 'master_admin', 'master'].includes(userRole);
     const communityId = req.communityId || req.user?.communityId;
+    const userCity = req.user?.city || '';
     const myId = req.user._id;
+
+    let fundQuery = {};
+    if (isAdmin) {
+      if (req.query.communityId) fundQuery.communityId = req.query.communityId;
+    } else {
+      const conditions = [
+        { scope: 'GLOBAL' }
+      ];
+
+      if (communityId) {
+        // Return all Community Master funds AND Local Chapter funds for this community
+        conditions.push({ communityId });
+      }
+
+      fundQuery = { $or: conditions };
+    }
+
+    // 1. Fetch all matching funds
+    const fundsList = await Fund.find(fundQuery)
+      .populate('createdBy', 'name role city designation')
+      .populate('localHeadId', 'name city designation')
+      .sort({ createdAt: -1 })
+      .lean();
+
     const fundIds = fundsList.map(f => f._id);
 
     // 2. Bulk self-healing check: Ensure the current user has a contribution ledger for each fund
@@ -64,7 +86,7 @@ exports.getFundsData = async (req, res) => {
       : { accountStatus: { $ne: 'deleted' } };
 
     const membersList = await User.find(memberQuery)
-      .select('name phone avatar')
+      .select('name phone avatar city')
       .lean();
 
     // 4. Fetch all contributions and expenses for these funds
@@ -77,19 +99,30 @@ exports.getFundsData = async (req, res) => {
 
     // 5. Format output
     const memberIdsStr = membersList.map(m => m._id.toString());
-    const formattedFunds = fundsList.map(f => ({
-      id: f._id.toString(),
-      name: f.name,
-      purpose: f.purpose || '',
-      description: f.description || '',
-      targetAmount: f.targetAmount,
-      contributionPerMember: f.contributionPerMember,
-      dueDate: f.dueDate ? new Date(f.dueDate).toISOString().split('T')[0] : '',
-      startDate: f.startDate ? new Date(f.startDate).toISOString().split('T')[0] : '',
-      endDate: f.endDate ? new Date(f.endDate).toISOString().split('T')[0] : '',
-      status: f.status,
-      assignedMembers: memberIdsStr
-    }));
+    const formattedFunds = fundsList.map(f => {
+      const creatorName = f.createdBy?.name || (f.creatorType === 'LOCAL_HEAD' ? 'Local Head' : 'Community Head');
+      const creatorCity = f.city || f.localHeadId?.city || f.createdBy?.city || '';
+
+      return {
+        id: f._id.toString(),
+        name: f.name,
+        purpose: f.purpose || '',
+        description: f.description || '',
+        scope: f.scope || 'COMMUNITY',
+        creatorRole: f.creatorRole || 'head',
+        creatorType: f.creatorType || 'COMMUNITY_HEAD',
+        localHeadId: f.localHeadId ? (f.localHeadId._id || f.localHeadId).toString() : null,
+        city: creatorCity,
+        createdBy: creatorName,
+        targetAmount: f.targetAmount,
+        contributionPerMember: f.contributionPerMember,
+        dueDate: f.dueDate ? new Date(f.dueDate).toISOString().split('T')[0] : '',
+        startDate: f.startDate ? new Date(f.startDate).toISOString().split('T')[0] : '',
+        endDate: f.endDate ? new Date(f.endDate).toISOString().split('T')[0] : '',
+        status: f.status,
+        assignedMembers: (f.assignedMembers && f.assignedMembers.length > 0) ? f.assignedMembers.map(m => m.toString()) : memberIdsStr
+      };
+    });
 
     // Build HashMap for O(1) contribution matrix lookups
     const contribMap = new Map();
@@ -107,6 +140,10 @@ exports.getFundsData = async (req, res) => {
 
         return {
           memberId: mIdStr,
+          name: m.name,
+          phone: m.phone,
+          avatar: m.avatar,
+          city: m.city,
           assignedAmount: found ? found.assignedAmount : 0,
           paidAmount: found ? found.paidAmount : 0,
           lastPaymentDate: found && found.lastPaymentDate ? formatDisplayDate(found.lastPaymentDate) : null
@@ -140,6 +177,8 @@ exports.getFundsData = async (req, res) => {
       id: m._id.toString(),
       name: m.name || 'Member',
       phone: m.phone || '',
+      avatar: m.avatar || '',
+      city: m.city || '',
       profilePic: m.name ? m.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'M'
     }));
 
@@ -161,13 +200,19 @@ exports.getFundsData = async (req, res) => {
 
 
 // 2. Submit a payment/contribution
-// ⚠️  DEPRECATED: This route now only handles legacy / manual payments.
-// All Razorpay-backed contributions go through createFundOrder → verifyFundPayment.
+// ⚠️  DEPRECATED: This route only handles online/gateway verified payments. Direct cash payments are blocked for members.
 exports.makePayment = async (req, res) => {
   try {
     const { fundId } = req.params;
     const { amount, paymentMethod } = req.body;
     const myId = req.user._id;
+
+    if (paymentMethod && paymentMethod.toLowerCase() === 'cash') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cash payments cannot be self-submitted. Please give physical cash to your Local Head or Community Head, who will update your verified digital receipt.'
+      });
+    }
 
     if (!amount || amount <= 0) {
       return res.status(400).json({ success: false, message: 'Invalid payment amount' });

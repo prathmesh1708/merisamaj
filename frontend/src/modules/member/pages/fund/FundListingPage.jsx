@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, Plus, Wallet, IndianRupee, Users, TrendingUp, AlertCircle, Menu, ChevronRight, ArrowRight, Sparkles } from 'lucide-react';
 import { useFund } from '../../context/FundContext';
@@ -6,8 +6,9 @@ import { useData } from '../../context/DataProvider';
 
 export default function FundListingPage() {
   const navigate = useNavigate();
-  const { funds, currentUserId, isAdmin, getUserFunds, contributions, loading, error } = useFund();
+  const { funds, currentUserId, isAdmin, contributions, loading, error } = useFund();
   const { setMobileMenuOpen } = useData();
+  const [selectedScope, setSelectedScope] = useState('ALL'); // 'ALL' | 'COMMUNITY' | 'LOCAL'
 
   if (loading) {
     return (
@@ -30,8 +31,16 @@ export default function FundListingPage() {
     );
   }
 
-  // If Admin, they see all funds. If member, they see only assigned funds.
-  const displayFunds = isAdmin ? funds : getUserFunds(currentUserId);
+  // Filter funds by selected scope
+  const displayFunds = funds.filter(f => {
+    const isLocal = f.scope === 'LOCAL' || f.creatorType === 'LOCAL_HEAD' || f.creatorRole === 'sub_head';
+    if (selectedScope === 'COMMUNITY') return !isLocal;
+    if (selectedScope === 'LOCAL') return isLocal;
+    return true;
+  });
+
+  const communityFundsCount = funds.filter(f => f.scope !== 'LOCAL' && f.creatorType !== 'LOCAL_HEAD' && f.creatorRole !== 'sub_head').length;
+  const localFundsCount = funds.filter(f => f.scope === 'LOCAL' || f.creatorType === 'LOCAL_HEAD' || f.creatorRole === 'sub_head').length;
 
   // Calculate overall statistics
   const totalFunds = funds.length;
@@ -44,15 +53,17 @@ export default function FundListingPage() {
     fundContribs.forEach(c => {
       overallExpected += c.assignedAmount || 0;
       overallCollected += c.paidAmount || 0;
-      overallContributors.add(c.memberId);
+      if (c.paidAmount > 0) {
+        overallContributors.add(c.memberId);
+      }
     });
   });
 
-  const overallPending = overallExpected - overallCollected;
-  const overallPercentage = overallExpected > 0 ? Math.round((overallCollected / overallExpected) * 100) : 0;
+  const overallPending = Math.max(0, overallExpected - overallCollected);
+  const overallPercentage = overallExpected > 0 ? Math.min(100, Math.round((overallCollected / overallExpected) * 100)) : 0;
 
   return (
-    <div className="min-h-screen bg-slate-50/70 flex flex-col font-sans pb-24">
+    <div className="min-h-screen bg-slate-50/70 flex flex-col font-sans pb-24 select-none">
       {/* Header Bar — Glass morphism */}
       <div className="bg-white/85 backdrop-blur-xl border-b border-purple-100/30 px-4 h-14 flex items-center justify-between sticky top-0 z-30 shadow-[0_2px_12px_rgba(124,58,237,0.03)] shrink-0">
         <div className="flex items-center gap-3">
@@ -62,7 +73,7 @@ export default function FundListingPage() {
           >
             <Menu size={20} strokeWidth={2.5} />
           </button>
-          <h1 className="text-[17px] font-extrabold text-slate-800 tracking-tight">Community Funds</h1>
+          <h1 className="text-[17px] font-extrabold text-slate-800 tracking-tight">Samaj Funds & Dues</h1>
         </div>
       </div>
 
@@ -83,42 +94,42 @@ export default function FundListingPage() {
             </div>
             <button 
               onClick={() => navigate('/member/fund/total-report')}
-              className="px-3.5 py-1.5 bg-white/15 hover:bg-white/25 border border-white/20 text-white rounded-xl text-[11px] font-bold transition-all press-scale backdrop-blur-md flex items-center gap-1"
+              className="px-3.5 py-1.5 bg-white/15 hover:bg-white/25 border border-white/20 text-white rounded-xl text-[11px] font-bold transition-all press-scale backdrop-blur-md flex items-center gap-1 cursor-pointer"
             >
-              View Report <ArrowRight size={12} />
+              View Audit <ArrowRight size={12} />
             </button>
           </div>
 
           <div className="grid grid-cols-2 gap-3.5 relative z-10 mb-4">
-            <div className="bg-white/10 backdrop-blur-md p-3.5 rounded-2xl border border-white/15 relative overflow-hidden">
+            <div className="bg-white/10 backdrop-blur-md p-3.5 rounded-2xl border border-white/15 relative overflow-hidden text-left">
               <p className="text-[9.5px] font-extrabold text-emerald-300 mb-1 uppercase tracking-wider">Total Collected</p>
               <p className="text-[19px] font-black text-white leading-none tracking-tight">₹{overallCollected.toLocaleString('en-IN')}</p>
             </div>
-            <div className="bg-white/10 backdrop-blur-md p-3.5 rounded-2xl border border-white/15 relative overflow-hidden">
-              <p className="text-[9.5px] font-extrabold text-purple-200 mb-1 uppercase tracking-wider">Total Expected</p>
+            <div className="bg-white/10 backdrop-blur-md p-3.5 rounded-2xl border border-white/15 relative overflow-hidden text-left">
+              <p className="text-[9.5px] font-extrabold text-purple-200 mb-1 uppercase tracking-wider">Total Target</p>
               <p className="text-[19px] font-black text-white leading-none tracking-tight">₹{overallExpected.toLocaleString('en-IN')}</p>
             </div>
           </div>
 
           <div className="flex justify-between items-center bg-white/8 backdrop-blur-md p-3.5 rounded-2xl border border-white/10 relative z-10 mb-4">
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2.5 text-left">
               <div className="w-9 h-9 rounded-xl bg-rose-500/20 border border-rose-300/30 text-rose-300 flex items-center justify-center">
                 <AlertCircle size={16} />
               </div>
-              <div className="text-left">
-                <p className="text-[9.5px] font-extrabold text-purple-200 uppercase tracking-wider leading-tight">Total Pending</p>
+              <div>
+                <p className="text-[9.5px] font-extrabold text-purple-200 uppercase tracking-wider leading-tight">Total Remaining Dues</p>
                 <p className="text-[13.5px] font-black text-rose-300 mt-0.5">₹{overallPending.toLocaleString('en-IN')}</p>
               </div>
             </div>
             <div className="text-right">
-              <p className="text-[9.5px] font-extrabold text-purple-200 uppercase tracking-wider leading-tight mb-0.5">Total Contributors</p>
-              <p className="text-[13px] font-black text-white">{overallContributors.size} Members</p>
+              <p className="text-[9.5px] font-extrabold text-purple-200 uppercase tracking-wider leading-tight mb-0.5">Donors</p>
+              <p className="text-[13px] font-black text-white">{overallContributors.size} Active</p>
             </div>
           </div>
           
           <div className="relative z-10">
             <div className="flex justify-between items-center mb-1.5">
-              <span className="text-[10.5px] font-bold text-purple-200">Overall Progress</span>
+              <span className="text-[10.5px] font-bold text-purple-200">Overall Community Progress</span>
               <span className="text-[12px] font-black text-amber-300">{overallPercentage}%</span>
             </div>
             <div className="h-2 w-full bg-white/15 rounded-full overflow-hidden">
@@ -129,11 +140,42 @@ export default function FundListingPage() {
 
         {/* Funds List */}
         <div>
-          <div className="flex items-center justify-between mb-3 px-1">
-            <h3 className="text-[15px] font-extrabold text-slate-800 tracking-tight">Your Assigned Funds</h3>
-            <span className="text-[11px] font-bold text-purple-600 bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-100">
-              {displayFunds.length} Active Funds
-            </span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-3 px-1">
+            <h3 className="text-[15px] font-extrabold text-slate-800 tracking-tight">Available Samaj Funds</h3>
+            
+            {/* Scope Filter Tabs */}
+            <div className="flex items-center gap-1.5 bg-slate-100/90 p-1 rounded-2xl border border-slate-200/70 overflow-x-auto scrollbar-hide">
+              <button
+                onClick={() => setSelectedScope('ALL')}
+                className={`px-3 py-1 rounded-xl text-[11px] font-extrabold transition-all cursor-pointer ${
+                  selectedScope === 'ALL'
+                    ? 'bg-purple-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                All ({funds.length})
+              </button>
+              <button
+                onClick={() => setSelectedScope('COMMUNITY')}
+                className={`px-3 py-1 rounded-xl text-[11px] font-extrabold transition-all cursor-pointer flex items-center gap-1 ${
+                  selectedScope === 'COMMUNITY'
+                    ? 'bg-purple-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                👑 Community ({communityFundsCount})
+              </button>
+              <button
+                onClick={() => setSelectedScope('LOCAL')}
+                className={`px-3 py-1 rounded-xl text-[11px] font-extrabold transition-all cursor-pointer flex items-center gap-1 ${
+                  selectedScope === 'LOCAL'
+                    ? 'bg-amber-500 text-slate-950 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                📍 Local Chapters ({localFundsCount})
+              </button>
+            </div>
           </div>
           
           <div className="space-y-4">
@@ -141,24 +183,40 @@ export default function FundListingPage() {
               const fContribs = contributions[fund.id] || [];
               let fExpected = 0;
               let fCollected = 0;
+              let fDonorsCount = 0;
               fContribs.forEach(c => {
                 fExpected += c.assignedAmount || 0;
                 fCollected += c.paidAmount || 0;
+                if (c.paidAmount > 0) fDonorsCount++;
               });
-              const fPercentage = fExpected > 0 ? Math.round((fCollected / fExpected) * 100) : 0;
+              const fPercentage = fExpected > 0 ? Math.min(100, Math.round((fCollected / fExpected) * 100)) : 0;
+              const isLocalFund = fund.scope === 'LOCAL' || fund.creatorType === 'LOCAL_HEAD' || fund.creatorRole === 'sub_head';
               
               // Personal status for logged-in user
               const myContrib = fContribs.find(c => c.memberId === currentUserId);
               const isPaid = myContrib && myContrib.paidAmount >= myContrib.assignedAmount;
+              const myDue = myContrib ? Math.max(0, myContrib.assignedAmount - myContrib.paidAmount) : fund.contributionPerMember;
 
               return (
                 <div 
                   key={fund.id}
                   onClick={() => navigate(`/member/fund/${fund.id}`)}
-                  className="bg-white rounded-[26px] border border-slate-200/80 p-5 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_10px_28px_rgba(124,58,237,0.08)] hover:border-purple-200 transition-all duration-300 cursor-pointer relative overflow-hidden group"
+                  className="bg-white rounded-[26px] border border-slate-200/80 p-5 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_10px_28px_rgba(124,58,237,0.08)] hover:border-purple-200 transition-all duration-300 cursor-pointer relative overflow-hidden group text-left"
                 >
                   <div className="flex justify-between items-start mb-3">
-                    <div className="pr-12 text-left">
+                    <div className="pr-12">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className={`px-2 py-0.5 rounded text-[8.5px] font-black uppercase tracking-wider border ${
+                          isLocalFund 
+                            ? 'bg-amber-50 text-amber-900 border-amber-200' 
+                            : 'bg-purple-50 text-purple-900 border-purple-200'
+                        }`}>
+                          {isLocalFund ? `📍 Local Chapter (${fund.city || 'Local Area'})` : '👑 Community Master Fund'}
+                        </span>
+                        <span className="text-[10.5px] text-slate-500 font-bold">
+                          Created by: <strong className="text-slate-700">{fund.createdBy}</strong>
+                        </span>
+                      </div>
                       <h4 className="text-[16px] font-extrabold text-slate-800 leading-tight mb-1 group-hover:text-purple-700 transition-colors tracking-tight">{fund.name}</h4>
                       <p className="text-[12px] text-slate-500 font-medium line-clamp-1">{fund.purpose}</p>
                     </div>
@@ -172,23 +230,36 @@ export default function FundListingPage() {
 
                   {myContrib && (
                     <div className="mb-3.5 bg-purple-50/60 p-3 rounded-2xl border border-purple-100/70 flex items-center justify-between">
-                      <div className="text-left">
-                        <p className="text-[9.5px] font-extrabold text-purple-400 uppercase tracking-wider mb-0.5">My Contribution</p>
+                      <div>
+                        <p className="text-[9.5px] font-extrabold text-purple-500 uppercase tracking-wider mb-0.5">My Contribution Status</p>
                         <p className="text-[13.5px] font-black text-slate-800">
                           ₹{myContrib.paidAmount.toLocaleString('en-IN')} <span className="text-slate-400 font-bold text-[11px]">/ ₹{myContrib.assignedAmount}</span>
                         </p>
                       </div>
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-black ${
-                        isPaid ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : myContrib.paidAmount > 0 ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-rose-100 text-rose-700 border border-rose-200'
-                      }`}>
-                        {isPaid ? 'Fully Paid' : myContrib.paidAmount > 0 ? 'Partial' : 'Pending'}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-black ${
+                          isPaid ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : myContrib.paidAmount > 0 ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-rose-100 text-rose-700 border border-rose-200'
+                        }`}>
+                          {isPaid ? 'Fully Paid' : myContrib.paidAmount > 0 ? 'Partial' : 'Pending'}
+                        </span>
+                        {!isPaid && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/member/fund/${fund.id}`);
+                            }}
+                            className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-[11px] font-extrabold transition-all shadow-xs press-scale cursor-pointer"
+                          >
+                            Pay Online
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )}
 
                   <div>
                     <div className="flex justify-between items-end mb-1.5">
-                      <div className="text-left">
+                      <div>
                         <p className="text-[9.5px] font-extrabold text-slate-400 uppercase tracking-wider mb-0.5">Community Collection</p>
                         <p className="text-[13px] font-extrabold text-slate-800">₹{fCollected.toLocaleString('en-IN')} <span className="text-[11px] font-medium text-slate-400">/ ₹{fExpected.toLocaleString('en-IN')}</span></p>
                       </div>
@@ -200,12 +271,20 @@ export default function FundListingPage() {
                   </div>
                   
                   <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-slate-500">
-                      <Users size={14} className="text-purple-500" />
-                      <span className="text-[11.5px] font-bold text-slate-700">{fund.assignedMembers.length} Members</span>
+                    <div className="flex items-center gap-2 text-slate-500">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/member/fund/${fund.id}/dues`);
+                        }}
+                        className="flex items-center gap-1.5 text-purple-700 hover:text-purple-900 font-bold text-[11.5px] bg-purple-50/80 hover:bg-purple-100/80 px-2.5 py-1 rounded-xl transition-colors cursor-pointer"
+                      >
+                        <Users size={13} />
+                        <span>{fDonorsCount} Donors • View List ↗</span>
+                      </button>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-bold text-slate-400">Due: {new Date(fund.dueDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</span>
+                      <span className="text-[11px] font-bold text-slate-400">Due: {fund.dueDate ? new Date(fund.dueDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : 'Ongoing'}</span>
                       <div className="w-6 h-6 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center group-hover:bg-purple-600 group-hover:text-white transition-all">
                         <ChevronRight size={14} />
                       </div>
@@ -220,8 +299,8 @@ export default function FundListingPage() {
                 <div className="w-16 h-16 bg-purple-50 text-purple-600 rounded-full flex items-center justify-center mx-auto mb-3">
                   <Wallet size={26} />
                 </div>
-                <h3 className="text-[15px] font-extrabold text-slate-800 mb-1">No Funds Available</h3>
-                <p className="text-[12px] font-medium text-slate-400">You are not assigned to any active community funds.</p>
+                <h3 className="text-[15px] font-extrabold text-slate-800 mb-1">No Funds Available in this View</h3>
+                <p className="text-[12px] font-medium text-slate-400">Switch tabs above to view all active community or local funds.</p>
               </div>
             )}
           </div>

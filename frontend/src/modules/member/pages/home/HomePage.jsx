@@ -295,11 +295,24 @@ const HomePage = () => {
       .map(f => {
         const matchedStatic = quickActions.find(qa => qa.path === f.path || qa.label.toLowerCase().includes(f.label.toLowerCase().substring(0, 4)));
         const isGroupFeature = f.path === '/member/groups' || f.label?.toLowerCase() === 'groups';
+        const isFundFeature = f.path === '/member/fund' || f.id === 'feature_fund' || (f.label && f.label.toLowerCase().includes('fund'));
+
+        let resolvedPath = f.path;
+        let resolvedState = f.state || matchedStatic?.state;
+
+        if (isGroupFeature) {
+          resolvedPath = '/member/social';
+          resolvedState = { tab: 'groups' };
+        } else if (isFundFeature) {
+          resolvedPath = '/member/fund';
+          resolvedState = null;
+        }
+
         return {
           label: f.label,
           desc: f.desc,
-          path: isGroupFeature ? '/member/social' : f.path,
-          state: isGroupFeature ? { tab: 'groups' } : (f.state || matchedStatic?.state),
+          path: resolvedPath,
+          state: resolvedState,
           icon: LucideIcons[f.icon] || Briefcase,
           bgImage: f.bgImage || matchedStatic?.bgImage || 'https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?auto=format&fit=crop&w=400&q=80'
         };
@@ -1026,6 +1039,8 @@ const HomePage = () => {
               onClick={() => {
                 if (action.path === '/member/groups' || action.state?.tab === 'groups' || action.label?.toLowerCase() === 'groups') {
                   navigate('/member/social', { state: { tab: 'groups' } });
+                } else if (action.path === '/member/fund' || action.label?.toLowerCase().includes('fund')) {
+                  navigate('/member/fund');
                 } else {
                   navigate(action.path, action.state ? { state: action.state } : undefined);
                 }

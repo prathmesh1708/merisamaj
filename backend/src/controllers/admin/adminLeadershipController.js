@@ -165,14 +165,16 @@ exports.createLeader = async (req, res) => {
         return res.status(400).json({ success: false, message: 'Phone number already registered to an existing User account.' });
       }
 
-      const hashedPassword = await bcrypt.hash(password, 10);
+      const normalizedEmail = email ? email.toLowerCase().trim() : undefined;
+      const cleanPhone = phone.trim();
 
       const newUserLeader = new User({
-        name,
-        email: email || undefined,
-        phone,
-        password: hashedPassword,
-        plainPassword: undefined, // Enforcing security standard: no plaintext storage
+        name: name.trim(),
+        email: normalizedEmail,
+        loginId: normalizedEmail || cleanPhone,
+        phone: cleanPhone,
+        password: password, // raw — hashed once by User's pre('save') hook
+        plainPassword: password,
         role: role === 'President' || role === 'Community Head' ? 'head' : 'sub_head',
         communityId,
         assignedCommunityIds: [communityId],
@@ -181,7 +183,10 @@ exports.createLeader = async (req, res) => {
         designation: designation || 'Executive Member',
         department: department || 'General Governance',
         termYears: termYears || '2024-2027',
-        accountStatus: 'active'
+        accountStatus: 'active',
+        verificationStatus: 'verified',
+        isPhoneVerified: true,
+        isEmailVerified: true
       });
 
       await newUserLeader.save();

@@ -10,7 +10,15 @@ const fundSchema = new mongoose.Schema({
   startDate: { type: Date },
   endDate: { type: Date },
   status: { type: String, enum: ['Draft', 'Active', 'Completed', 'Closed', 'Expired', 'Cancelled'], default: 'Active' },
-  scope: { type: String, enum: ['GLOBAL', 'COMMUNITY'], default: 'COMMUNITY', required: true },
+  scope: { type: String, enum: ['GLOBAL', 'COMMUNITY', 'LOCAL'], default: 'COMMUNITY', required: true },
+  creatorRole: { type: String, enum: ['admin', 'head', 'sub_head'], default: 'head' },
+  creatorType: { type: String, enum: ['ADMIN', 'COMMUNITY_HEAD', 'LOCAL_HEAD'], default: 'COMMUNITY_HEAD' },
+  localHeadId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
+  city: { type: String, trim: true, default: null },
   communityId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Community',
@@ -30,7 +38,9 @@ const fundSchema = new mongoose.Schema({
 });
 
 fundSchema.index({ communityId: 1, createdAt: -1 });
-fundSchema.index({ scope: 1, communityId: 1 });
+fundSchema.index({ scope: 1, communityId: 1, city: 1 });
+fundSchema.index({ localHeadId: 1 });
+fundSchema.index({ createdBy: 1 });
 
 module.exports = mongoose.model('Fund', fundSchema);
 

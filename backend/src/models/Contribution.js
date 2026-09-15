@@ -11,6 +11,11 @@ const transactionSchema = new mongoose.Schema({
   currency:      { type: String, default: 'INR' },
   paymentMethod: { type: String, default: 'Online' },
   paidAt:        { type: Date,   default: null },
+  // ── Cash / Collector Audit Fields ──────────────────────────────────────────
+  collectedBy:     { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }, // Head or Local Head user ID
+  collectedByName: { type: String, default: null },
+  receiptNo:       { type: String, default: null },
+  notes:           { type: String, default: null },
   // ── Status ────────────────────────────────────────────────────────────────
   // 'Pending'  → Order created, payment not yet verified
   // 'Approved' → Payment verified & captured

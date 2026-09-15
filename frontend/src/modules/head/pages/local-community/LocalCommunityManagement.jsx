@@ -178,6 +178,9 @@ export default function LocalCommunityManagement() {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const [createdSuccessInfo, setCreatedSuccessInfo] = useState(null);
+  const [copiedSuccess, setCopiedSuccess] = useState(false);
+
   const fetchLocalHeads = async () => {
     setLoading(true);
     try {
@@ -285,6 +288,16 @@ export default function LocalCommunityManagement() {
       if (res.status === 'success') {
         setShowModal(false);
         fetchLocalHeads();
+        if (!editId) {
+          setCreatedSuccessInfo({
+            name: res.data?.name || form.name,
+            email: res.data?.email || form.email,
+            phone: res.data?.phone || form.phone,
+            password: form.password,
+            city: res.data?.city || form.city,
+            state: res.data?.state || form.state
+          });
+        }
       }
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to save Local Head');
@@ -658,6 +671,75 @@ export default function LocalCommunityManagement() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* SUCCESS CREDENTIALS POPUP MODAL */}
+      {createdSuccessInfo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-4 border border-indigo-100">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-xl shrink-0">
+                🎉
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-slate-900">Local Head Created!</h3>
+                <p className="text-xs text-slate-500">Account is active. Share these login credentials:</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2.5 text-xs">
+              <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                <span className="text-slate-500 font-bold">Portal URL</span>
+                <span className="font-mono font-bold text-indigo-700">{window.location.origin}/head/login</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                <span className="text-slate-500 font-bold">Full Name</span>
+                <span className="font-bold text-slate-800">{createdSuccessInfo.name}</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                <span className="text-slate-500 font-bold">Login Email</span>
+                <span className="font-mono font-bold text-slate-800">{createdSuccessInfo.email}</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                <span className="text-slate-500 font-bold">Phone Number</span>
+                <span className="font-mono font-bold text-slate-800">{createdSuccessInfo.phone}</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                <span className="text-slate-500 font-bold">Assigned City</span>
+                <span className="font-bold text-amber-600">{createdSuccessInfo.city}, {createdSuccessInfo.state}</span>
+              </div>
+              <div className="flex justify-between items-center py-1">
+                <span className="text-slate-500 font-bold">Password</span>
+                <span className="font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  {createdSuccessInfo.password}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex gap-2 justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const text = `🎉 *Merisamaj Local Head Portal Credentials*\n\nPortal Login URL: ${window.location.origin}/head/login\nName: ${createdSuccessInfo.name}\nEmail / Login ID: ${createdSuccessInfo.email}\nPhone: ${createdSuccessInfo.phone}\nPassword: ${createdSuccessInfo.password}\nLocation: ${createdSuccessInfo.city}, ${createdSuccessInfo.state}`;
+                  navigator.clipboard.writeText(text);
+                  setCopiedSuccess(true);
+                  setTimeout(() => setCopiedSuccess(false), 2000);
+                }}
+                className="px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-colors"
+              >
+                {copiedSuccess ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+                {copiedSuccess ? 'Copied Details!' : 'Copy Credentials'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setCreatedSuccessInfo(null)}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-colors"
+              >
+                Done
+              </button>
+            </div>
           </div>
         </div>
       )}

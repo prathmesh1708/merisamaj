@@ -84,8 +84,8 @@ exports.getMemberAppContent = async (req, res) => {
           {
             id: 'feature_fund',
             label: 'Samaj Fund',
-            desc: 'Community Donations & Campaigns',
-            path: '/member/donation',
+            desc: 'Community Fund & Member Dues',
+            path: '/member/fund',
             state: null,
             icon: 'Wallet',
             bgImage: 'https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?auto=format&fit=crop&w=600&q=80',
@@ -188,7 +188,13 @@ exports.getMemberAppContent = async (req, res) => {
     // Filter enabled items only for member app
     const activeFeatures = (doc.exclusiveFeatures || [])
       .filter(f => f.enabled)
-      .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+      .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0))
+      .map(f => {
+        if (f.id === 'feature_fund' || (f.label && f.label.toLowerCase().includes('fund'))) {
+          return { ...f, path: '/member/fund' };
+        }
+        return f;
+      });
 
     const activeStories = (doc.successStories || [])
       .filter(s => s.enabled)

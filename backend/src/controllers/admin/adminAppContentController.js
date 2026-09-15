@@ -62,8 +62,8 @@ const getDefaultFeatures = () => [
   {
     id: 'feature_fund',
     label: 'Samaj Fund',
-    desc: 'Community Donations & Campaigns',
-    path: '/member/donation',
+    desc: 'Community Fund & Member Dues',
+    path: '/member/fund',
     state: null,
     icon: 'Wallet',
     bgImage: 'https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?auto=format&fit=crop&w=600&q=80',

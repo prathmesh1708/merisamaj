@@ -65,7 +65,7 @@ exports.createLocalHead = async (req, res) => {
       }
 
       const normalizedEmail = email ? email.toLowerCase().trim() : existingUser.email;
-      const targetPhone = phone || existingUser.phone;
+      const targetPhone = phone ? phone.trim() : existingUser.phone;
 
       if (normalizedEmail && normalizedEmail !== existingUser.email) {
         const dupEmail = await User.findOne({ email: normalizedEmail, _id: { $ne: userId } });
@@ -83,9 +83,10 @@ exports.createLocalHead = async (req, res) => {
         existingUser.phone = targetPhone;
       }
 
-      if (name) existingUser.name = name;
+      if (name) existingUser.name = name.trim();
       if (state) existingUser.state = state;
       if (city) existingUser.city = city;
+      existingUser.loginId = normalizedEmail || targetPhone;
       existingUser.password = password; // raw — hashed by User's pre('save') hook
       existingUser.plainPassword = password;
       existingUser.role = 'sub_head';
@@ -95,6 +96,9 @@ exports.createLocalHead = async (req, res) => {
       existingUser.department = 'Local Community';
       existingUser.joiningDate = existingUser.joiningDate || new Date();
       existingUser.accountStatus = 'active';
+      existingUser.verificationStatus = 'verified';
+      existingUser.isPhoneVerified = true;
+      existingUser.isEmailVerified = true;
 
       await existingUser.save();
 
@@ -106,8 +110,10 @@ exports.createLocalHead = async (req, res) => {
           name: existingUser.name,
           email: existingUser.email,
           phone: existingUser.phone,
+          loginId: existingUser.loginId,
           city: existingUser.city,
           state: existingUser.state,
+          plainPassword: existingUser.plainPassword,
           accountStatus: existingUser.accountStatus
         }
       });
@@ -119,20 +125,22 @@ exports.createLocalHead = async (req, res) => {
     }
 
     const normalizedEmail = email.toLowerCase().trim();
+    const cleanPhone = phone.trim();
 
-    const existingPhone = await User.findOne({ phone });
+    const existingPhone = await User.findOne({ phone: cleanPhone });
     if (existingPhone) {
-      return res.status(400).json({ status: 'fail', message: 'Phone number already registered.' });
+      return res.status(400).json({ status: 'fail', message: 'Phone number already registered to another user.' });
     }
     const existingEmail = await User.findOne({ email: normalizedEmail });
     if (existingEmail) {
-      return res.status(400).json({ status: 'fail', message: 'Email address already registered.' });
+      return res.status(400).json({ status: 'fail', message: 'Email address already registered to another user.' });
     }
 
     const localHead = new User({
-      name,
+      name: name.trim(),
       email: normalizedEmail,
-      phone,
+      loginId: normalizedEmail,
+      phone: cleanPhone,
       password, // raw — hashed once by User's pre('save') hook
       plainPassword: password, // kept for Head panel credential visibility, matching existing convention
       role: 'sub_head',
@@ -145,7 +153,10 @@ exports.createLocalHead = async (req, res) => {
       designation: 'Local Head',
       department: 'Local Community',
       joiningDate: new Date(),
-      accountStatus: 'active'
+      accountStatus: 'active',
+      verificationStatus: 'verified',
+      isPhoneVerified: true,
+      isEmailVerified: true
     });
 
     await localHead.save();
@@ -158,8 +169,10 @@ exports.createLocalHead = async (req, res) => {
         name: localHead.name,
         email: localHead.email,
         phone: localHead.phone,
+        loginId: localHead.loginId,
         city: localHead.city,
         state: localHead.state,
+        plainPassword: localHead.plainPassword,
         accountStatus: localHead.accountStatus
       }
     });
@@ -208,26 +221,28 @@ exports.updateLocalHead = async (req, res) => {
       if (normalizedEmail !== localHead.email) {
         const existingEmail = await User.findOne({ email: normalizedEmail, _id: { $ne: id } });
         if (existingEmail) {
-          return res.status(400).json({ status: 'fail', message: 'Email address already registered.' });
+          return res.status(400).json({ status: 'fail', message: 'Email address already registered to another user.' });
         }
         localHead.email = normalizedEmail;
+        localHead.loginId = normalizedEmail;
       }
     }
-    if (phone && phone !== localHead.phone) {
-      const existingPhone = await User.findOne({ phone, _id: { $ne: id } });
+    if (phone && phone.trim() !== localHead.phone) {
+      const cleanPhone = phone.trim();
+      const existingPhone = await User.findOne({ phone: cleanPhone, _id: { $ne: id } });
       if (existingPhone) {
-        return res.status(400).json({ status: 'fail', message: 'Phone number already registered.' });
+        return res.status(400).json({ status: 'fail', message: 'Phone number already registered to another user.' });
       }
-      localHead.phone = phone;
+      localHead.phone = cleanPhone;
     }
-    if (name) localHead.name = name;
+    if (name) localHead.name = name.trim();
     if (state !== undefined) localHead.state = state;
     if (city !== undefined) localHead.city = city;
     if (password) {
       if (password.length < 6) {
         return res.status(400).json({ status: 'fail', message: 'Password must be at least 6 characters.' });
       }
-      localHead.password = password; // hashed by pre('save') hook
+      localHead.password = password; // raw — hashed once by pre('save') hook
       localHead.plainPassword = password;
     }
 

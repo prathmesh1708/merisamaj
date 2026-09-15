@@ -15,5 +15,6 @@ router.get('/:id/contributions', headFundController.getFundContributions);
 router.get('/:id/expenses', headFundController.getFundExpenses);
 router.post('/:id/expenses', headFundController.addExpense);
 router.get('/:id/transactions', headFundController.getFundTransactions);
+router.post('/:id/record-cash-payment', headFundController.recordCashPayment);
 
 module.exports = router;

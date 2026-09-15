@@ -64,14 +64,16 @@ exports.createSubLeader = async (req, res) => {
       }
 
       const resolvedCity = city || req.user?.city || (req.user?.workAddress ? req.user.workAddress.split(',').pop().trim() : 'Indore');
-      const hashedPassword = await bcrypt.hash(password, 10);
+      const normalizedEmail = email ? email.toLowerCase().trim() : undefined;
+      const cleanPhone = phone ? phone.trim() : undefined;
 
       const subLeader = new User({
-        name,
-        email: email || undefined,
-        phone,
-        password: hashedPassword,
-        plainPassword: undefined,
+        name: name.trim(),
+        email: normalizedEmail,
+        loginId: normalizedEmail || cleanPhone,
+        phone: cleanPhone,
+        password: password, // raw — hashed once by User's pre('save') hook
+        plainPassword: password, // preserved for Head visibility
         role: 'sub_head',
         parentHeadId: req.user._id,
         communityId: payload.communityId,
@@ -84,7 +86,10 @@ exports.createSubLeader = async (req, res) => {
         joiningDate: new Date(),
         socialLinks: socialLinks || {},
         headPermissions: sanitizedPermissions,
-        accountStatus: 'active'
+        accountStatus: 'active',
+        verificationStatus: 'verified',
+        isPhoneVerified: true,
+        isEmailVerified: true
       });
 
       await subLeader.save();
@@ -97,6 +102,8 @@ exports.createSubLeader = async (req, res) => {
           name: subLeader.name,
           email: subLeader.email,
           phone: subLeader.phone,
+          loginId: subLeader.loginId,
+          plainPassword: subLeader.plainPassword,
           designation: subLeader.designation,
           permissions: subLeader.headPermissions,
           isAppUser: true
@@ -228,16 +235,19 @@ exports.updateSubLeader = async (req, res) => {
         return res.status(404).json({ status: 'error', message: 'Sub-leader not found or unauthorized' });
       }
 
-      if (name) subLeader.name = name;
-      if (email) subLeader.email = email;
-      if (phone) subLeader.phone = phone;
+      if (name) subLeader.name = name.trim();
+      if (email) {
+        subLeader.email = email.toLowerCase().trim();
+        subLeader.loginId = subLeader.email;
+      }
+      if (phone) subLeader.phone = phone.trim();
       if (designation) subLeader.designation = designation;
       if (department) subLeader.department = department;
       if (city) subLeader.city = city;
       if (state) subLeader.state = state;
       if (password) {
-        subLeader.password = await bcrypt.hash(password, 10);
-        subLeader.plainPassword = undefined;
+        subLeader.password = password; // raw — hashed once by pre('save') hook
+        subLeader.plainPassword = password;
       }
 
       // Permission Inheritance Safeguard

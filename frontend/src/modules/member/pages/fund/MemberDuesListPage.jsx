@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ChevronLeft, Search, Filter, CheckCircle2, Clock, AlertTriangle, AlertCircle } from 'lucide-react';
+import { ChevronLeft, Search, Filter, CheckCircle2, Clock, AlertTriangle, AlertCircle, HeartHandshake } from 'lucide-react';
 import { useFund } from '../../context/FundContext';
 
 export default function MemberDuesListPage() {
@@ -18,27 +18,48 @@ export default function MemberDuesListPage() {
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
         <div className="text-center">
           <h2 className="text-xl font-bold text-slate-800">Fund Not Found</h2>
-          <button onClick={() => navigate('/member/fund')} className="mt-4 text-indigo-600 font-bold">Go Back</button>
+          <button onClick={() => navigate('/member/fund')} className="mt-4 text-purple-600 font-bold">Go Back</button>
         </div>
       </div>
     );
   }
 
   const fundContribs = getContributionsByFund(fundId);
+  const isLocalFund = fund.scope === 'LOCAL' || fund.creatorType === 'LOCAL_HEAD';
   
+  // Combine all member IDs from both assignedMembers and fundContribs
+  const memberIdSet = new Set([
+    ...(fund.assignedMembers || []),
+    ...fundContribs.map(c => c.memberId)
+  ]);
+  const allMemberIds = Array.from(memberIdSet);
+
   // Merge user data with contributions
-  const membersList = fund.assignedMembers.map(memberId => {
-    const user = mockUsers.find(u => u.id === memberId);
-    const contrib = fundContribs.find(c => c.memberId === memberId) || { assignedAmount: 0, paidAmount: 0, lastPaymentDate: '-' };
-    const due = contrib.assignedAmount - contrib.paidAmount;
+  const membersList = allMemberIds.map(memberId => {
+    const user = mockUsers.find(u => u.id === memberId || u._id === memberId) || {};
+    const contrib = fundContribs.find(c => c.memberId === memberId) || { 
+      name: user.name, 
+      phone: user.phone, 
+      avatar: user.avatar, 
+      assignedAmount: fund.contributionPerMember, 
+      paidAmount: 0, 
+      lastPaymentDate: '-' 
+    };
+    const due = Math.max(0, (contrib.assignedAmount || fund.contributionPerMember) - (contrib.paidAmount || 0));
     
     let status = 'Pending';
-    if (contrib.paidAmount >= contrib.assignedAmount) status = 'Paid';
+    if (contrib.paidAmount >= contrib.assignedAmount && contrib.assignedAmount > 0) status = 'Paid';
     else if (contrib.paidAmount > 0) status = 'Partial';
 
     return {
-      ...user,
-      ...contrib,
+      id: memberId,
+      name: contrib.name || user.name || 'Community Member',
+      phone: contrib.phone || user.phone || '',
+      avatar: contrib.avatar || user.avatar || user.profilePic || '',
+      city: contrib.city || user.city || '',
+      assignedAmount: contrib.assignedAmount || fund.contributionPerMember,
+      paidAmount: contrib.paidAmount || 0,
+      lastPaymentDate: contrib.lastPaymentDate || '-',
       due,
       status
     };
@@ -54,7 +75,9 @@ export default function MemberDuesListPage() {
   const totalCollectedAmount = membersList.reduce((acc, curr) => acc + curr.paidAmount, 0);
 
   const filtered = membersList.filter(m => {
-    const matchesSearch = m.name?.toLowerCase().includes(searchQuery.toLowerCase()) || m.phone?.includes(searchQuery);
+    const matchesSearch = m.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          m.phone?.includes(searchQuery) ||
+                          (m.city && m.city.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesFilter = filter === 'All' ? true : m.status === filter;
     return matchesSearch && matchesFilter;
   }).sort((a, b) => {
@@ -95,8 +118,10 @@ export default function MemberDuesListPage() {
             <ChevronLeft size={20} strokeWidth={2.5} />
           </button>
           <div className="flex flex-col text-left">
-            <h1 className="text-[16px] font-extrabold text-slate-800 leading-tight tracking-tight">Member Dues & Status</h1>
-            <p className="text-[10px] text-purple-600 font-extrabold leading-none uppercase tracking-wider">{fund.name}</p>
+            <h1 className="text-[16px] font-extrabold text-slate-800 leading-tight tracking-tight">All Donors & Contributions</h1>
+            <p className="text-[10px] text-purple-600 font-extrabold leading-none uppercase tracking-wider">
+              {fund.name} {isLocalFund ? `• Local (${fund.city || 'Chapter'})` : '• Community'}
+            </p>
           </div>
         </div>
       </div>
@@ -107,7 +132,7 @@ export default function MemberDuesListPage() {
           <div className="relative">
             <input 
               type="text" 
-              placeholder="Search member by name or phone..." 
+              placeholder="Search donor by name, city, or phone..." 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200/80 rounded-2xl pl-11 pr-4 py-3 text-[13.5px] font-bold outline-none focus:border-purple-600 focus:ring-2 focus:ring-purple-600/10 transition-all text-slate-800 placeholder-slate-400"
@@ -149,21 +174,23 @@ export default function MemberDuesListPage() {
           <div className="space-y-3">
             {filtered.map((member) => (
               <div 
-                key={member.memberId}
-                onClick={() => navigate(`/member/fund/${fundId}/member/${member.memberId}`)}
+                key={member.id}
+                onClick={() => navigate(`/member/fund/${fundId}/member/${member.id}`)}
                 className="bg-white rounded-[24px] p-4.5 border border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_26px_rgba(124,58,237,0.07)] hover:border-purple-200 transition-all duration-300 cursor-pointer relative overflow-hidden group"
               >
                 <div className="flex items-center gap-3 mb-3.5 relative z-10">
-                  <div className="w-11 h-11 rounded-full overflow-hidden bg-slate-100 text-slate-700 font-black text-[13px] flex items-center justify-center border border-slate-200/80 shrink-0 shadow-2xs">
-                    {member.avatar || member.profilePic ? (
-                      <img src={member.avatar || member.profilePic} alt={member.name} className="w-full h-full object-cover" />
+                  <div className="w-11 h-11 rounded-full overflow-hidden bg-purple-100 text-purple-800 font-black text-[13px] flex items-center justify-center border border-purple-200/80 shrink-0 shadow-2xs">
+                    {member.avatar ? (
+                      <img src={member.avatar} alt={member.name} className="w-full h-full object-cover" />
                     ) : (
                       member.name?.substring(0, 2).toUpperCase() || 'M'
                     )}
                   </div>
                   <div className="flex-1 text-left min-w-0">
                     <h3 className="text-[15px] font-extrabold text-slate-800 leading-tight mb-0.5 truncate group-hover:text-purple-700 transition-colors tracking-tight">{member.name}</h3>
-                    <p className="text-[11px] font-semibold text-slate-400 truncate">{member.phone}</p>
+                    <p className="text-[11px] font-semibold text-slate-400 truncate">
+                      {member.city ? `${member.city} • ` : ''}{member.phone || 'Samaj Member'}
+                    </p>
                   </div>
                   <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border flex items-center shrink-0 ${getStatusColor(member.status)}`}>
                     {getStatusIcon(member.status)}
@@ -173,11 +200,11 @@ export default function MemberDuesListPage() {
 
                 <div className="grid grid-cols-3 gap-2 py-3 px-3 bg-slate-50/70 border border-slate-100 rounded-2xl relative z-10 text-left">
                   <div>
-                    <p className="text-[9.5px] font-extrabold text-slate-400 mb-0.5 uppercase tracking-wider">Assigned</p>
+                    <p className="text-[9.5px] font-extrabold text-slate-400 mb-0.5 uppercase tracking-wider">Target</p>
                     <p className="text-[13px] font-black text-slate-800">₹{member.assignedAmount}</p>
                   </div>
                   <div>
-                    <p className="text-[9.5px] font-extrabold text-slate-400 mb-0.5 uppercase tracking-wider">Paid</p>
+                    <p className="text-[9.5px] font-extrabold text-slate-400 mb-0.5 uppercase tracking-wider">Donated / Paid</p>
                     <p className="text-[13px] font-black text-emerald-600">₹{member.paidAmount}</p>
                   </div>
                   <div>
@@ -188,7 +215,7 @@ export default function MemberDuesListPage() {
 
                 {member.status !== 'Pending' && member.lastPaymentDate && (
                   <p className="text-[10px] font-bold text-slate-400 mt-2.5 relative z-10 text-right">
-                    Last Payment: {member.lastPaymentDate}
+                    Last Verified Contribution: {member.lastPaymentDate}
                   </p>
                 )}
               </div>
@@ -197,7 +224,7 @@ export default function MemberDuesListPage() {
             {filtered.length === 0 && (
               <div className="bg-white rounded-[28px] border border-slate-200/80 p-8 text-center shadow-xs">
                 <AlertCircle size={32} className="mx-auto text-purple-400 mb-2" />
-                <p className="text-[14px] font-extrabold text-slate-700">No members found matching your search</p>
+                <p className="text-[14px] font-extrabold text-slate-700">No contributors found matching your search</p>
               </div>
             )}
           </div>
