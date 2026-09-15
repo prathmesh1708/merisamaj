@@ -179,6 +179,30 @@ const getPinnedMessages = async (conversationId) => {
     .populate('senderId', 'name avatar')
     .populate('pinnedBy', 'name');
 };
+const editMessage = async (messageId, senderId, newText) => {
+  const msg = await Message.findOne({ _id: messageId, isDeleted: false });
+  if (!msg) throw new Error('Message not found.');
+  if (msg.senderId.toString() !== senderId.toString()) {
+    throw new Error('You can only edit your own messages.');
+  }
+  msg.message = newText;
+  msg.isEdited = true;
+  msg.editedAt = new Date();
+  await msg.save();
+
+  return Message.findById(msg._id)
+    .populate('senderId', 'name avatar _id')
+    .populate('replyTo', 'message type senderId')
+    .lean();
+};
+
+// ─── Clear Conversation Messages For User ────────────────────────────────────
+const clearConversationMessages = async (conversationId, userId) => {
+  await Message.updateMany(
+    { conversationId, deletedFor: { $ne: userId } },
+    { $addToSet: { deletedFor: userId } }
+  );
+};
 
 module.exports = {
   createMessage,
@@ -187,6 +211,8 @@ module.exports = {
   markMessagesDelivered,
   deleteMessageForMe,
   deleteMessageForEveryone,
+  editMessage,
+  clearConversationMessages,
   pinMessage,
   unpinMessage,
   getPinnedMessages

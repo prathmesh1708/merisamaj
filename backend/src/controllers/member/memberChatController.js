@@ -11,7 +11,7 @@
 const User    = require('../../models/User');
 const Conversation = require('../../models/Conversation');
 const { findOrCreateConversation, getUserConversations } = require('../../services/conversationService');
-const { createMessage, getMessages, markMessagesSeen, deleteMessageForMe, deleteMessageForEveryone } = require('../../services/messageService');
+const { createMessage, getMessages, markMessagesSeen, deleteMessageForMe, deleteMessageForEveryone, editMessage: editMessageService, clearConversationMessages } = require('../../services/messageService');
 const { notifyNewMessage } = require('../../services/notificationService');
 
 // ─── Open or Find Conversation ────────────────────────────────────────────────
@@ -30,8 +30,8 @@ exports.openConversation = async (req, res) => {
     // Fetch target user and verify same community
     const targetUser = await User.findOne({
       _id: targetUserId,
-      accountStatus: 'active'
-    }).select('name avatar communityId verificationStatus');
+      accountStatus: { $ne: 'deleted' }
+    }).select('name avatar communityId verificationStatus role accountStatus accountType');
 
     if (!targetUser) {
       return res.status(404).json({ status: 'error', message: 'User not found.' });
@@ -49,7 +49,12 @@ exports.openConversation = async (req, res) => {
       return res.status(403).json({ status: 'error', message: 'You can only chat with members of your own community.' });
     }
 
-    const isHeadInteraction = targetUser.role === 'head' || req.user.role === 'head' || targetUser.role === 'admin' || req.user.role === 'admin';
+    const headRoles = ['head', 'sub_head', 'admin', 'super_admin', 'master_admin'];
+    const isHeadInteraction = headRoles.includes(targetUser?.role) ||
+                              headRoles.includes(req.user?.role) ||
+                              req.user?.accountType === 'local_head' ||
+                              targetUser?.accountType === 'local_head';
+
     if (req.user.verificationStatus !== 'verified' && !isHeadInteraction) {
       // Allow if conversation already exists (e.g. member received a message from another member or head)
       const existing = await Conversation.findOne({
@@ -58,7 +63,7 @@ exports.openConversation = async (req, res) => {
         isDeleted: false
       });
       if (!existing) {
-        return res.status(403).json({ status: 'error', message: 'Direct member chat is available once approved by your Community Head. You can chat with your Community Head anytime.' });
+        return res.status(403).json({ status: 'error', message: 'Direct member chat is available once approved by your Community Head or Local Head. You can chat with your Community leadership anytime.' });
       }
     }
 
@@ -259,6 +264,65 @@ exports.deleteMessage = async (req, res) => {
     if (err.message?.includes('own messages')) {
       return res.status(403).json({ status: 'error', message: err.message });
     }
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+// ─── Edit Message ─────────────────────────────────────────────────────────────
+exports.editMessage = async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const { message } = req.body;
+    const userId = req.user._id;
+
+    if (!message || !message.trim()) {
+      return res.status(400).json({ status: 'error', message: 'Message content is required.' });
+    }
+
+    const updatedMsg = await editMessageService(messageId, userId, message.trim());
+
+    // Emit via socket
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`conv:${updatedMsg.conversationId}`).emit('chat:message_edited', updatedMsg);
+    }
+
+    res.json({ status: 'success', data: { message: updatedMsg } });
+  } catch (err) {
+    res.status(400).json({ status: 'error', message: err.message });
+  }
+};
+
+// ─── Clear Chat ───────────────────────────────────────────────────────────────
+exports.clearChat = async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const userId = req.user._id;
+
+    const conv = await Conversation.findOne({ _id: conversationId, participants: userId });
+    if (!conv) return res.status(403).json({ status: 'error', message: 'Access denied.' });
+
+    await clearConversationMessages(conversationId, userId);
+
+    res.json({ status: 'success', message: 'Chat cleared successfully.' });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+// ─── Delete Conversation ─────────────────────────────────────────────────────
+exports.deleteConversation = async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const userId = req.user._id;
+
+    const conv = await Conversation.findOne({ _id: conversationId, participants: userId });
+    if (!conv) return res.status(403).json({ status: 'error', message: 'Access denied.' });
+
+    await clearConversationMessages(conversationId, userId);
+
+    res.json({ status: 'success', message: 'Conversation deleted.' });
+  } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }
 };

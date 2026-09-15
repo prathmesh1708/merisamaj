@@ -36,5 +36,17 @@ export const memberChatService = {
   deleteMessage: (messageId, deleteFor = 'me') =>
     axiosPrivate.delete(`${BASE}/messages/${messageId}`, {
       data: { deleteFor }
-    })
+    }),
+
+  /** Edit a sent message */
+  editMessage: (messageId, message) =>
+    axiosPrivate.patch(`${BASE}/messages/${messageId}`, { message }),
+
+  /** Clear all messages in a conversation for current user */
+  clearChat: (conversationId) =>
+    axiosPrivate.post(`${BASE}/conversations/${conversationId}/clear`),
+
+  /** Delete/remove a conversation for current user */
+  deleteConversation: (conversationId) =>
+    axiosPrivate.delete(`${BASE}/conversations/${conversationId}`)
 };

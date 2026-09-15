@@ -181,6 +181,14 @@ export const useMemberChat = (conversationId) => {
       ));
     },
 
+    onMessageEdited: (updatedMsg) => {
+      const cId = updatedMsg.conversationId?._id || updatedMsg.conversationId;
+      if (cId?.toString() !== conversationId?.toString()) return;
+      setMessages(prev => prev.map(m =>
+        m._id === updatedMsg._id ? { ...m, ...updatedMsg } : m
+      ));
+    },
+
     onMessagesSeen: ({ userId: seenByUserId, messageIds }) => {
       setMessages(prev => prev.map(m =>
         messageIds.includes(m._id)
@@ -258,6 +266,16 @@ export const useMemberChat = (conversationId) => {
     }
   }, [conversationId, user]);
 
+  // ── Edit message ───────────────────────────────────────────────────────────
+  const editMessage = useCallback(async (messageId, newText) => {
+    const res = await memberChatService.editMessage(messageId, newText);
+    const updated = res.data?.data?.message;
+    if (updated) {
+      setMessages(prev => prev.map(m => m._id === messageId ? { ...m, ...updated } : m));
+    }
+    return updated;
+  }, []);
+
   // ── Delete message ─────────────────────────────────────────────────────────
   const deleteMessage = useCallback(async (messageId, deleteFor = 'me') => {
     await memberChatService.deleteMessage(messageId, deleteFor);
@@ -272,6 +290,20 @@ export const useMemberChat = (conversationId) => {
     }
   }, []);
 
+  // ── Clear chat ─────────────────────────────────────────────────────────────
+  const clearChat = useCallback(async () => {
+    if (!conversationId) return;
+    await memberChatService.clearChat(conversationId);
+    setMessages([]);
+  }, [conversationId]);
+
+  // ── Delete conversation ────────────────────────────────────────────────────
+  const deleteConversation = useCallback(async () => {
+    if (!conversationId) return;
+    await memberChatService.deleteConversation(conversationId);
+    setMessages([]);
+  }, [conversationId]);
+
   return {
     messages,
     loading,
@@ -283,7 +315,10 @@ export const useMemberChat = (conversationId) => {
     isUserOnline,
     loadOlderMessages,
     sendMessage,
+    editMessage,
     deleteMessage,
+    clearChat,
+    deleteConversation,
     startTyping,
     stopTyping,
     markSeen
