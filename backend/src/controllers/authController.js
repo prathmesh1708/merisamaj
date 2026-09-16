@@ -18,10 +18,10 @@ const getCookieOptions = (maxAgeMs = 7 * 24 * 60 * 60 * 1000) => {
 
 // Helper to generate stateless access and refresh tokens
 const generateTokens = (user) => {
-  const isPrivileged = ['admin', 'head'].includes(user.role);
+  const isPrivileged = ['admin', 'head', 'sub_head', 'admin_sub_head'].includes(user.role);
   
   const accessToken = jwt.sign(
-    { id: user._id, role: user.role },
+    { id: user._id, role: user.role, subHeadType: user.subHeadType },
     config.jwtSecret,
     { expiresIn: isPrivileged ? '1d' : config.jwtExpiresIn }
   );
@@ -42,6 +42,7 @@ const getUserResponsePayload = (user) => {
     phone: user.phone,
     email: user.email,
     role: user.role,
+    subHeadType: user.subHeadType || null,
     avatar: user.avatar,
     cover: user.cover,
     bio: user.bio || '',
@@ -57,6 +58,7 @@ const getUserResponsePayload = (user) => {
     assignedCommunityId: user.assignedCommunityId,
     assignedCommunityIds: user.assignedCommunityIds,
     headPermissions: user.headPermissions,
+    adminPermissions: user.adminPermissions,
     community: user.communityId?.name || user.community || '',
     communityLogo: user.communityId?.logoUrl || '',
     communityBanner: user.communityId?.bannerUrl || '',
@@ -103,7 +105,10 @@ const getUserResponsePayload = (user) => {
     accountType: user.accountType || null,
     designation: user.designation || '',
     department: user.department || '',
-    parentHeadId: user.parentHeadId || null
+    parentHeadId: user.parentHeadId || null,
+    referralCode: user.referralCode || '',
+    pointsBalance: user.pointsBalance || 0,
+    totalPointsEarned: user.totalPointsEarned || 0
   };
 };
 
@@ -245,11 +250,11 @@ const loginUser = async (req, res) => {
     if (isMatch) {
       const { accessToken, refreshToken } = generateTokens(user);
       
-      const isPrivileged = ['admin', 'head', 'sub_head'].includes(user.role);
+      const isPrivileged = ['admin', 'head', 'sub_head', 'admin_sub_head'].includes(user.role);
       const maxAge = isPrivileged ? 1 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
       const cookieOptions = getCookieOptions(maxAge);
 
-      if (user.role === 'admin') {
+      if (user.role === 'admin' || user.role === 'admin_sub_head' || (user.role === 'sub_head' && user.subHeadType === 'admin')) {
         res.cookie('admin_jwt', refreshToken, cookieOptions);
       } else if (user.role === 'head' || user.role === 'sub_head') {
         res.cookie('head_jwt', refreshToken, cookieOptions);
@@ -271,6 +276,17 @@ const loginUser = async (req, res) => {
         }
       } catch (alertErr) {
         console.warn('[LoginSecurityAlertWarning]', alertErr.message);
+      }
+
+      // Ensure user has a unique referral code
+      if (!user.referralCode) {
+        try {
+          const referralService = require('../services/referralService');
+          user.referralCode = await referralService.generateUniqueReferralCode();
+          await User.findByIdAndUpdate(user._id, { referralCode: user.referralCode });
+        } catch (refErr) {
+          console.warn('[ReferralCodeGenError]', refErr.message);
+        }
       }
 
       res.json({
@@ -298,6 +314,16 @@ const getMe = async (req, res) => {
 
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    if (!user.referralCode) {
+      try {
+        const referralService = require('../services/referralService');
+        user.referralCode = await referralService.generateUniqueReferralCode();
+        await User.findByIdAndUpdate(user._id, { referralCode: user.referralCode });
+      } catch (refErr) {
+        console.warn('[ReferralCodeGetMeGenError]', refErr.message);
+      }
     }
 
     res.json({

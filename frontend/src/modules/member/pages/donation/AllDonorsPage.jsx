@@ -654,15 +654,15 @@ export const AllDonorsPage = () => {
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     <div className="relative shrink-0">
                       {donor.avatar ? (
-                        <div className="w-11 h-11 rounded-full overflow-hidden border border-slate-200 p-0.5 group-hover:border-purple-400 transition-colors">
+                        <div className="w-11 h-11 rounded-xl overflow-hidden border border-slate-200 p-0.5 group-hover:border-purple-400 transition-colors shadow-2xs">
                           <img 
                             src={donor.avatar} 
                             alt={donor.name} 
-                            className="w-full h-full object-cover rounded-full group-hover:scale-105 transition-transform" 
+                            className="w-full h-full object-cover rounded-[10px] group-hover:scale-105 transition-transform" 
                           />
                         </div>
                       ) : (
-                        <div className="w-11 h-11 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white font-black text-xs shadow-xs">
+                        <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white font-black text-xs shadow-xs">
                           {donor.initials || 'A'}
                         </div>
                       )}

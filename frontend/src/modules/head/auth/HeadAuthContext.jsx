@@ -80,7 +80,11 @@ export const HeadAuthProvider = ({ children }) => {
       const { user, accessToken } = response.data;
 
       // Verify the user actually has Head Panel access (Community Head, Admin,
-      // or a Sub-Head/Local Head account created by a Head)
+      // or a Community Sub-Head / Local Sub-Head / Local Head)
+      if (user.role === 'admin_sub_head' || (user.role === 'sub_head' && user.subHeadType === 'admin')) {
+        throw new Error('Admin Sub-Heads must log in through the Admin Panel at /admin/login.');
+      }
+
       if (!['head', 'admin', 'sub_head'].includes(user.role)) {
         throw new Error('Access denied. You do not have Head Panel permissions.');
       }

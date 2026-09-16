@@ -84,32 +84,67 @@ const getMessages = async (conversationId, requestingUserId, page = 1, limit = 5
 // ─── Mark Messages as Seen ───────────────────────────────────────────────────
 /**
  * @param {string[]} messageIds
- * @param {string} userId
+ * @param {string|mongoose.Types.ObjectId} userId
  */
 const markMessagesSeen = async (messageIds, userId) => {
-  await Message.updateMany(
+  if (!Array.isArray(messageIds) || messageIds.length === 0 || !userId) return;
+  const mongoose = require('mongoose');
+  const userObjId = typeof userId === 'string' ? new mongoose.Types.ObjectId(userId) : userId;
+  const validIds = messageIds.map(id => typeof id === 'string' ? new mongoose.Types.ObjectId(id) : id);
+
+  return Message.updateMany(
     {
-      _id: { $in: messageIds },
-      'seenBy.userId': { $ne: userId },
+      _id: { $in: validIds },
+      'seenBy.userId': { $ne: userObjId },
       isDeleted: false
     },
     {
-      $push: { seenBy: { userId, seenAt: new Date() } },
-      $addToSet: { deliveredTo: userId }
+      $push: { seenBy: { userId: userObjId, seenAt: new Date() } },
+      $addToSet: { deliveredTo: userObjId }
+    }
+  );
+};
+
+// ─── Mark Entire Conversation as Seen ─────────────────────────────────────────
+/**
+ * @param {string|mongoose.Types.ObjectId} conversationId
+ * @param {string|mongoose.Types.ObjectId} userId
+ */
+const markConversationSeen = async (conversationId, userId) => {
+  if (!conversationId || !userId) return;
+  const mongoose = require('mongoose');
+  const userObjId = typeof userId === 'string' ? new mongoose.Types.ObjectId(userId) : userId;
+  const convObjId = typeof conversationId === 'string' ? new mongoose.Types.ObjectId(conversationId) : conversationId;
+
+  return Message.updateMany(
+    {
+      conversationId: convObjId,
+      senderId: { $ne: userObjId },
+      'seenBy.userId': { $ne: userObjId },
+      isDeleted: false
+    },
+    {
+      $push: { seenBy: { userId: userObjId, seenAt: new Date() } },
+      $addToSet: { deliveredTo: userObjId }
     }
   );
 };
 
 // ─── Mark Messages as Delivered ──────────────────────────────────────────────
 const markMessagesDelivered = async (conversationId, userId) => {
-  await Message.updateMany(
+  if (!conversationId || !userId) return;
+  const mongoose = require('mongoose');
+  const userObjId = typeof userId === 'string' ? new mongoose.Types.ObjectId(userId) : userId;
+  const convObjId = typeof conversationId === 'string' ? new mongoose.Types.ObjectId(conversationId) : conversationId;
+
+  return Message.updateMany(
     {
-      conversationId,
-      deliveredTo: { $ne: userId },
-      senderId: { $ne: userId },
+      conversationId: convObjId,
+      deliveredTo: { $ne: userObjId },
+      senderId: { $ne: userObjId },
       isDeleted: false
     },
-    { $addToSet: { deliveredTo: userId } }
+    { $addToSet: { deliveredTo: userObjId } }
   );
 };
 
@@ -208,6 +243,7 @@ module.exports = {
   createMessage,
   getMessages,
   markMessagesSeen,
+  markConversationSeen,
   markMessagesDelivered,
   deleteMessageForMe,
   deleteMessageForEveryone,

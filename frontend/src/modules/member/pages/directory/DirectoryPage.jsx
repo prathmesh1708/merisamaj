@@ -21,7 +21,13 @@ import { getMembers } from '../../services/directoryApi';
 
 const DirectoryPage = () => {
   const navigate = useNavigate();
-  const { setMobileMenuOpen, getUnreadCountForModule } = useData();
+  const { setMobileMenuOpen, getUnreadCountForModule, markModuleAsVisited } = useData();
+
+  useEffect(() => {
+    if (markModuleAsVisited) {
+      markModuleAsVisited('directory');
+    }
+  }, [markModuleAsVisited]);
 
   // API State
   const [membersList, setMembersList] = useState([]);

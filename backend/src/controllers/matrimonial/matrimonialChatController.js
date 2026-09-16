@@ -8,6 +8,7 @@ const Message      = require('../../models/Message');
 const InterestRequest = require('../../models/InterestRequest');
 const { checkFeature } = require('../../middleware/subscriptionMiddleware');
 const { notifyNewMessage } = require('../../services/notificationService');
+const { markConversationSeen, markMessagesSeen } = require('../../services/messageService');
 
 // ─── Open or Find Conversation by Profile ID ──────────────────────────────────
 exports.openConversation = async (req, res) => {
@@ -118,6 +119,20 @@ exports.getMessages = async (req, res) => {
       return res.status(403).json({ status: 'error', message: 'Chat is only available after an interest is accepted.' });
     }
 
+    // Mark messages as seen immediately
+    await markConversationSeen(conversationId, req.user._id);
+
+    // Safely emit to socket rooms
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`conv:${conversationId}`).emit('matrimonial:messages_seen', { conversationId, userId: req.user._id });
+      io.to(`conv:${conversationId}`).emit('chat:messages_seen', { conversationId, seenBy: req.user._id, userId: req.user._id });
+      for (const p of conversation.participants) {
+        io.to(`user:${p.toString()}`).emit('chat:messages_seen', { conversationId, seenBy: req.user._id, userId: req.user._id });
+        io.to(`user:${p.toString()}`).emit('matrimonial:messages_seen', { conversationId, userId: req.user._id });
+      }
+    }
+
     const total = await Message.countDocuments({ conversationId, isDeleted: false });
     const messages = await Message.find({ conversationId, isDeleted: false })
       .sort({ createdAt: -1 })
@@ -126,16 +141,46 @@ exports.getMessages = async (req, res) => {
       .populate('senderId', 'name avatar')
       .populate('replyTo', 'message type senderId');
 
-    // Mark as delivered/seen — batch update
-    await Message.updateMany(
-      { conversationId, senderId: { $ne: req.user._id }, 'seenBy.userId': { $ne: req.user._id } },
-      { $push: { seenBy: { userId: req.user._id, seenAt: new Date() }, deliveredTo: req.user._id } }
-    );
-
     res.json({
       status: 'success',
       data: { messages: messages.reverse(), total, page: Number(page) } // Oldest first
     });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+// ─── Mark Messages as Seen ───────────────────────────────────────────────────
+exports.markSeen = async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const { messageIds } = req.body;
+    const userId = req.user._id;
+
+    const conversation = await Conversation.findOne({
+      _id: conversationId,
+      participants: userId,
+      isDeleted: false
+    });
+    if (!conversation) return res.status(403).json({ status: 'error', message: 'Access denied.' });
+
+    if (Array.isArray(messageIds) && messageIds.length > 0) {
+      await markMessagesSeen(messageIds, userId);
+    } else {
+      await markConversationSeen(conversationId, userId);
+    }
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`conv:${conversationId}`).emit('matrimonial:messages_seen', { conversationId, userId, messageIds });
+      io.to(`conv:${conversationId}`).emit('chat:messages_seen', { conversationId, seenBy: userId, userId, messageIds });
+      for (const p of conversation.participants) {
+        io.to(`user:${p.toString()}`).emit('chat:messages_seen', { conversationId, seenBy: userId, userId, messageIds });
+        io.to(`user:${p.toString()}`).emit('matrimonial:messages_seen', { conversationId, userId, messageIds });
+      }
+    }
+
+    res.json({ status: 'success', message: 'Messages marked as seen.' });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }

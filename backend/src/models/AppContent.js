@@ -48,6 +48,24 @@ const committeeMemberSchema = new mongoose.Schema({
   enabled: { type: Boolean, default: true }
 }, { _id: false });
 
+const promotionalBannerSchema = new mongoose.Schema({
+  id: { type: String, required: true },
+  tag: { type: String, default: 'Announcement', trim: true },
+  tagColor: { type: String, default: 'from-purple-600 to-indigo-600 text-white', trim: true },
+  title: { type: String, required: true, trim: true },
+  subtitle: { type: String, default: '', trim: true },
+  buttonText: { type: String, default: 'View Details', trim: true },
+  link: { type: String, default: '/member/events', trim: true },
+  image: { 
+    type: String, 
+    default: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&w=1200&q=80', 
+    trim: true 
+  },
+  accentColor: { type: String, default: '#7C3AED' },
+  displayOrder: { type: Number, default: 0 },
+  enabled: { type: Boolean, default: true }
+}, { _id: false });
+
 const appContentSchema = new mongoose.Schema({
   communityId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -55,6 +73,10 @@ const appContentSchema = new mongoose.Schema({
     required: true,
     unique: true,
     index: true
+  },
+  promotionalBanners: {
+    type: [promotionalBannerSchema],
+    default: []
   },
   heroBanner: {
     backgroundImage: {

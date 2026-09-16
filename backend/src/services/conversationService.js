@@ -126,6 +126,7 @@ const getUserConversations = async (userId, type, limit = 30) => {
             $match: {
               $expr: { $eq: ['$conversationId', '$$convId'] },
               isDeleted: false,
+              deletedFor: { $ne: userObjId },
               senderId: { $ne: userObjId },
               'seenBy.userId': { $ne: userObjId }
             }

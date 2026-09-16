@@ -34,4 +34,9 @@ router.post('/core-members/committee', adminAppContentController.createCommittee
 router.put('/core-members/committee/:id', adminAppContentController.updateCommitteeMember);
 router.delete('/core-members/committee/:id', adminAppContentController.deleteCommitteeMember);
 
+// Promotional Sliding Banners CRUD
+router.post('/promotional-banners', adminAppContentController.createPromotionalBanner);
+router.put('/promotional-banners/:id', adminAppContentController.updatePromotionalBanner);
+router.delete('/promotional-banners/:id', adminAppContentController.deletePromotionalBanner);
+
 module.exports = router;

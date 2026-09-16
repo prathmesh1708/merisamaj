@@ -15,7 +15,7 @@
 const User         = require('../models/User');
 const Conversation = require('../models/Conversation');
 const Group        = require('../models/Group');
-const { createMessage, markMessagesSeen, markMessagesDelivered } = require('./messageService');
+const { createMessage, markMessagesSeen, markConversationSeen, markMessagesDelivered } = require('./messageService');
 const { notifyNewMessage, notifyMention } = require('./notificationService');
 const { sendPushNotification } = require('./pushNotificationService');
 
@@ -132,10 +132,22 @@ const chatSocketService = (io) => {
         socket.join(`conv:${conversationId}`);
         socket.emit('chat:joined', { conversationId, type: conversation.type });
 
-        // Mark messages as delivered when user joins
+        // Mark messages as delivered & seen when user joins
         await markMessagesDelivered(conversationId, userId);
+        await markConversationSeen(conversationId, userId);
+
         socket.to(`conv:${conversationId}`).emit('chat:messages_delivered', {
           conversationId,
+          userId
+        });
+        io.to(`conv:${conversationId}`).emit('chat:messages_seen', {
+          conversationId,
+          seenBy: userId,
+          userId
+        });
+        io.to(`user:${userId}`).emit('chat:messages_seen', {
+          conversationId,
+          seenBy: userId,
           userId
         });
       } catch (err) {
@@ -267,13 +279,31 @@ const chatSocketService = (io) => {
     // ── Read Receipts ─────────────────────────────────────────────────────────
     socket.on('chat:mark_seen', async ({ conversationId, messageIds }) => {
       try {
-        if (!Array.isArray(messageIds) || messageIds.length === 0) return;
-        await markMessagesSeen(messageIds, userId);
-        io.to(`conv:${conversationId}`).emit('chat:messages_seen', {
+        if (Array.isArray(messageIds) && messageIds.length > 0) {
+          await markMessagesSeen(messageIds, userId);
+        } else if (conversationId) {
+          await markConversationSeen(conversationId, userId);
+        }
+
+        const payload = {
           userId,
+          seenBy: userId,
           messageIds,
           conversationId
-        });
+        };
+
+        io.to(`conv:${conversationId}`).emit('chat:messages_seen', payload);
+        io.to(`user:${userId}`).emit('chat:messages_seen', payload);
+
+        const conv = await Conversation.findById(conversationId).select('participants').lean();
+        if (conv && conv.participants) {
+          for (const pid of conv.participants) {
+            const pStr = pid.toString();
+            if (pStr !== userId.toString()) {
+              io.to(`user:${pStr}`).emit('chat:messages_seen', payload);
+            }
+          }
+        }
       } catch (err) {
         socket.emit('chat:error', { message: err.message });
       }

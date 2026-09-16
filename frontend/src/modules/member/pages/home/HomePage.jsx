@@ -19,6 +19,7 @@ const mockSuccessStories = [
 ];
 
 import ReferAndEarnBanner from './ReferAndEarnBanner';
+import DynamicPromoSlider from './DynamicPromoSlider';
 import donationService from '../../../../core/api/donationService';
 import { successStoryService } from '../../../../core/api/matrimonialService';
 import { axiosPrivate } from '../../../../core/api/axiosPrivate';
@@ -111,10 +112,31 @@ const quickActions = [
   }
 ];
 
+const getFeatureModuleKey = (action) => {
+  if (!action) return 'home';
+  const path = (action.path || '').toLowerCase();
+  const label = (action.label || '').toLowerCase();
+  const desc = (action.desc || '').toLowerCase();
+
+  if (path.includes('fund') || label.includes('fund') || desc.includes('fund')) return 'fund';
+  if (path.includes('voting') || label.includes('voting') || label.includes('poll') || label.includes('election')) return 'voting';
+  if (path.includes('dharmashala') || path.includes('dharamshala') || label.includes('dharmashala') || label.includes('dharamshala')) return 'dharmashala';
+  if (path.includes('professional') || label.includes('professional') || label.includes('business') || label.includes('job')) return 'professional';
+  if (path.includes('directory') || label.includes('directory')) return 'directory';
+  if (path.includes('groups') || label.includes('group') || action.state?.tab === 'groups') return 'groups';
+  if (path.includes('matrimonial') || label.includes('matrimonial')) return 'matrimonial';
+  if (path.includes('nimantran') || label.includes('nimantran') || label.includes('invitation')) return 'nimantran';
+  if (path.includes('donation') || label.includes('donation')) return 'donation';
+  if (path.includes('shradhanjali') || label.includes('shradhanjali') || label.includes('obituary')) return 'shradhanjali';
+  if (path.includes('event') || label.includes('event')) return 'event';
+  
+  return label.replace(/\s+/g, '_');
+};
+
 const HomePage = () => {
   const navigate = useNavigate();
   const { auth } = useAuth();
-  const { currentUser, members: mockMembers, admins: contextAdmins, posts: mockPosts, events: mockEvents, language, setLanguage, notifications, getUnreadCountForModule } = useData();
+  const { currentUser, members: mockMembers, admins: contextAdmins, posts: mockPosts, events: mockEvents, language, setLanguage, notifications, getUnreadCountForModule, markModuleAsVisited } = useData();
   const effectiveUser = auth?.isAuthenticated ? auth?.user : currentUser;
   const isApproved = isMemberApproved(effectiveUser);
   const mockAdmins = contextAdmins && contextAdmins.length > 0 ? contextAdmins : mockAdminsRaw;
@@ -159,11 +181,12 @@ const HomePage = () => {
       .then(res => {
         if (isMounted && res.data?.success && res.data?.data) {
           const appData = res.data.data;
-          if (appData.heroBanner) {
+          if (appData.heroBanner || appData.promotionalBanners || appData.exclusiveFeatures) {
             setHomepageContentSettings(prev => ({
               ...(prev || {}),
-              hero: appData.heroBanner,
-              exclusiveFeatures: appData.exclusiveFeatures
+              hero: appData.heroBanner || prev?.hero,
+              exclusiveFeatures: appData.exclusiveFeatures || prev?.exclusiveFeatures,
+              promotionalBanners: appData.promotionalBanners || prev?.promotionalBanners
             }));
           }
           if (Array.isArray(appData.successStories) && appData.successStories.length > 0) {
@@ -402,8 +425,73 @@ const HomePage = () => {
 
   return (
     <div className="min-h-screen bg-surface pb-28">
+      {/* ─── TOP HEADER BAR (Scrolls with page so it hides on scroll) ─── */}
+      <div className="relative w-full bg-white border-b border-slate-100/90 px-4 py-2.5 flex items-center justify-between">
+        {/* Profile Info (Clickable to profile) */}
+        <div 
+          className="flex items-center gap-3 cursor-pointer group active:scale-[0.98] transition-transform min-w-0" 
+          onClick={() => navigate('/member/profile')}
+        >
+          {/* Square User Avatar */}
+          <div className="relative shrink-0">
+            {currentUser?.avatar ? (
+              <img 
+                src={currentUser.avatar} 
+                alt={currentUser.name} 
+                className="w-11 h-11 rounded-xl object-cover border-2 border-purple-100 shadow-xs group-hover:scale-105 transition-transform duration-200"
+              />
+            ) : (
+              <div 
+                className="w-11 h-11 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 text-white font-black text-[15px] flex items-center justify-center shadow-xs border border-purple-200/50 group-hover:scale-105 transition-transform duration-200"
+              >
+                {(currentUser?.name || userCommunity || 'M').substring(0, 1).toUpperCase()}
+              </div>
+            )}
+          </div>
+
+          <div className="text-left min-w-0">
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] font-extrabold tracking-wider uppercase text-slate-500">{greeting}</span>
+              <OmIcon size={12} className="text-amber-500" />
+            </div>
+            <h1 className="text-[16px] sm:text-[18px] font-black text-slate-900 tracking-tight leading-tight truncate">
+              {currentUser?.name || 'Member'}
+            </h1>
+            {(currentUser?.community || userCommunity) && (
+              <p className="text-[11px] font-bold text-slate-500 mt-0.5 leading-tight select-none flex items-center gap-1 truncate">
+                <MapPin size={11} className="text-brand-primary shrink-0" />
+                <span className="truncate">{currentUser?.community || userCommunity}{currentUser?.city ? ` · ${currentUser.city}` : ''}</span>
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Right Actions: Language Switcher & Notification Bell */}
+        <div className="flex items-center gap-2 shrink-0">
+          <button 
+            onClick={() => setLanguage(language === 'en' ? 'hi' : 'en')}
+            className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-700 bg-slate-100/90 hover:bg-purple-50 hover:text-purple-700 hover:border-purple-200 text-[11.5px] font-black uppercase press-scale transition-all border border-slate-200/80 shadow-2xs"
+            title={language === 'en' ? 'Switch to Hindi' : 'Switch to English'}
+          >
+            {language === 'en' ? 'HI' : 'EN'}
+          </button>
+          <button 
+            className="relative w-9 h-9 rounded-xl flex items-center justify-center press-scale transition-all bg-slate-100/90 hover:bg-purple-50 hover:text-purple-700 hover:border-purple-200 text-slate-700 border border-slate-200/80 shadow-2xs"
+            onClick={() => navigate('/member/notifications?module=home')}
+            title="Notifications"
+          >
+            <Bell size={18} />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[17px] h-[17px] px-1 bg-rose-600 text-white font-black text-[9.5px] rounded-full border-2 border-white flex items-center justify-center shadow-xs">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
+          </button>
+        </div>
+      </div>
+
       {/* ─── SAMAJ HERO BANNER ─── */}
-      <div className="relative w-full overflow-hidden bg-gradient-to-br from-indigo-950 via-slate-900 to-purple-950" style={{ minHeight: '240px' }}>
+      <div className="relative w-full overflow-hidden bg-slate-900 shadow-sm" style={{ minHeight: '180px', maxHeight: '300px' }}>
         {/* Background Image — 100% natural, crisp, untouched as uploaded */}
         <img 
           src={heroBannerSrc} 
@@ -414,71 +502,13 @@ const HomePage = () => {
               e.target.src = fallback;
             }
           }}
-          className="absolute inset-0 w-full h-full object-cover"
+          className="w-full h-full object-cover object-center"
+          style={{ minHeight: '180px', maxHeight: '300px' }}
         />
-
-        {/* Floating Top Navbar */}
-        <div className="relative z-10 px-4 pt-4 pb-2 flex items-center justify-between">
-          <div 
-            className="flex items-center gap-3 cursor-pointer group bg-black/40 hover:bg-black/50 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white/25 shadow-lg transition-all" 
-            onClick={() => navigate('/member/profile')}
-          >
-            {/* Neutral Round Avatar Circle */}
-            <div className="relative shrink-0">
-              {currentUser?.avatar ? (
-                <img 
-                  src={currentUser.avatar} 
-                  alt={currentUser.name} 
-                  className="w-11 h-11 rounded-full object-cover border-2 border-white/60 shadow-md group-hover:scale-105 transition-transform duration-200"
-                />
-              ) : (
-                <div 
-                  className="w-11 h-11 rounded-full bg-white/25 text-white font-black text-[15px] flex items-center justify-center backdrop-blur-md border border-white/40 shadow-md group-hover:scale-105 transition-transform duration-200"
-                >
-                  {(currentUser?.name || userCommunity).substring(0, 1).toUpperCase()}
-                </div>
-              )}
-            </div>
-
-            <div className="text-left">
-              <div className="flex items-center gap-1">
-                <span className="text-[10px] font-extrabold tracking-wider uppercase text-white/90 drop-shadow-sm">{greeting}</span>
-                <OmIcon size={11} className="text-amber-300 drop-shadow" />
-              </div>
-              <h1 className="text-[17px] sm:text-[19px] font-black text-white tracking-tight leading-tight drop-shadow-md">{currentUser?.name || 'Member'}</h1>
-              {currentUser?.community && (
-                <p className="text-[10.5px] font-bold text-amber-200 mt-0.5 leading-tight select-none flex items-center gap-1 drop-shadow-sm">
-                  <MapPin size={10} className="text-amber-300" />
-                  {currentUser.community}{currentUser.city ? ` · ${currentUser.city}` : ''}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button 
-              onClick={() => setLanguage(language === 'en' ? 'hi' : 'en')}
-              className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-[11px] font-black uppercase press-scale transition-all bg-black/40 backdrop-blur-md border border-white/25 hover:bg-black/55 shadow-lg"
-            >
-              {language === 'en' ? 'HI' : 'EN'}
-            </button>
-            <button 
-              className="relative w-9 h-9 rounded-xl flex items-center justify-center press-scale transition-all bg-black/40 backdrop-blur-md border border-white/25 hover:bg-black/55 text-white shadow-lg"
-              onClick={() => navigate('/member/notifications?module=home')}
-            >
-              <Bell size={18} />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-600 text-white font-black text-[9px] rounded-full border-2 border-black/40 flex items-center justify-center">
-                  {unreadCount}
-                </span>
-              )}
-            </button>
-          </div>
-        </div>
 
         {/* Samaj Identity Content — bottom of hero */}
         {(homepageContentSettings?.hero?.title || homepageContentSettings?.hero?.subtitle) && (
-          <div className="relative z-10 px-4 pt-3 pb-3 flex flex-col justify-end text-left">
+          <div className="absolute inset-0 z-10 p-4 flex flex-col justify-end text-left bg-gradient-to-t from-black/70 via-black/20 to-transparent">
             <div className="bg-black/40 backdrop-blur-md p-3 rounded-2xl border border-white/25 max-w-fit shadow-lg space-y-1">
               {homepageContentSettings?.hero?.title && (
                 <h2 className="text-white text-[15px] font-extrabold tracking-tight drop-shadow-md">{homepageContentSettings.hero.title}</h2>
@@ -620,7 +650,17 @@ const HomePage = () => {
         invitationCount={invitationCount}
         donationCount={donationCount}
         shradhanjaliCount={shradhanjaliCount}
-        onNavigate={navigate}
+        onNavigate={(path) => {
+          if (!path) return;
+          if (path.includes('invitation') || path.includes('nimantran')) {
+            if (markModuleAsVisited) markModuleAsVisited('nimantran');
+          } else if (path.includes('shradhanjali') || path.includes('obituary')) {
+            if (markModuleAsVisited) markModuleAsVisited('shradhanjali');
+          } else if (path.includes('donation') || path.includes('contribution')) {
+            if (markModuleAsVisited) markModuleAsVisited('donation');
+          }
+          navigate(path);
+        }}
       />
 
 
@@ -726,13 +766,13 @@ const HomePage = () => {
                       {idx + 1}
                     </div>
 
-                    {/* Avatar with Glow Rings */}
+                    {/* Square Avatar with Glow Rings */}
                     <div className="relative shrink-0">
-                      <div className="w-[42px] h-[42px] rounded-full overflow-hidden border border-purple-100/80 group-hover/donor:border-[#FF2162]/50 p-[1.5px] bg-white transition-colors">
+                      <div className="w-[42px] h-[42px] rounded-xl overflow-hidden border border-purple-100/80 group-hover/donor:border-[#FF2162]/50 p-[1.5px] bg-white transition-colors shadow-2xs">
                         {donor.avatar ? (
-                          <img src={donor.avatar} alt={donor.name} className="w-full h-full object-cover rounded-full group-hover/donor:scale-105 transition-transform duration-300" />
+                          <img src={donor.avatar} alt={donor.name} className="w-full h-full object-cover rounded-[9px] group-hover/donor:scale-105 transition-transform duration-300" />
                         ) : (
-                          <div className="w-full h-full rounded-full bg-purple-50 text-brand-primary flex items-center justify-center text-[11px] font-black uppercase">
+                          <div className="w-full h-full rounded-[9px] bg-purple-50 text-brand-primary flex items-center justify-center text-[11px] font-black uppercase">
                             {donor.initials}
                           </div>
                         )}
@@ -781,6 +821,9 @@ const HomePage = () => {
           </div>
         )}
       </div>
+
+      {/* ─── DYNAMIC PROMOTIONAL & ANNOUNCEMENT SLIDING BANNERS ─── */}
+      <DynamicPromoSlider customBanners={homepageContentSettings?.promotionalBanners} />
 
       {/* ─── TODAY'S UPDATES SECTION ─── */}
       <div className="mt-5 relative z-10">
@@ -1051,66 +1094,91 @@ const HomePage = () => {
           <span className="text-[10px] font-bold tracking-wider" style={{ color: 'rgba(124,58,237,0.5)' }}>{mergedFeatures.length} FEATURES</span>
         </div>
         <div className="grid grid-cols-2 gap-3.5">
-          {mergedFeatures.map((action, idx) => (
-            <motion.button
-              key={action.label}
-              onClick={() => {
-                if (action.path === '/member/groups' || action.state?.tab === 'groups' || action.label?.toLowerCase() === 'groups') {
-                  navigate('/member/social', { state: { tab: 'groups' } });
-                } else if (action.path === '/member/fund' || action.label?.toLowerCase().includes('fund')) {
-                  navigate('/member/fund');
-                } else {
-                  navigate(action.path, action.state ? { state: action.state } : undefined);
-                }
-              }}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.08 + (idx * 0.05), type: 'spring', stiffness: 300, damping: 25 }}
-              whileHover={{ y: -5, scale: 1.02 }}
-              whileTap={{ scale: 0.97 }}
-              className={`rounded-[28px] bg-white text-left w-full flex flex-col justify-between min-h-[160px] relative overflow-hidden group shadow-lg`}
-              style={{ padding: '18px' }}
-            >
-              {/* Background Image & Overlay */}
-              <img 
-                src={action.bgImage} 
-                alt={action.label} 
-                className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
-              />
-              <div className="absolute inset-0 bg-black/15 transition-opacity duration-300 group-hover:bg-black/25" />
+          {mergedFeatures.map((action, idx) => {
+            const moduleKey = getFeatureModuleKey(action);
+            const moduleUnreadCount = (getUnreadCountForModule && getUnreadCountForModule(moduleKey)) || 0;
+            const hasUnread = moduleUnreadCount > 0;
 
-              {/* Icon & Arrow Row */}
-              <div className="w-full flex items-center justify-between z-10 relative">
-                <div 
-                  className={`w-12 h-12 bg-white/20 backdrop-blur-md border border-white/30 icon-squircle shadow-lg group-hover:scale-110 group-hover:rotate-3 transition-all duration-300 group-hover:bg-white/30`}
-                  style={{ boxShadow: '0 4px 16px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.4)' }}
-                >
-                  <action.icon size={22} className="text-white relative z-10 drop-shadow-md" strokeWidth={2.2} />
-                </div>
-                <div 
-                  className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm transition-all duration-300 bg-white/20 backdrop-blur-sm border border-white/30 group-hover:bg-white group-hover:border-white`}
-                >
-                  <ChevronRight size={14} className="text-white group-hover:text-brand-primary group-hover:translate-x-0.5 transition-all duration-300" />
-                </div>
-              </div>
+            return (
+              <motion.button
+                key={action.label}
+                onClick={() => {
+                  if (markModuleAsVisited) {
+                    markModuleAsVisited(moduleKey);
+                  }
+                  if (action.path === '/member/groups' || action.state?.tab === 'groups' || action.label?.toLowerCase() === 'groups') {
+                    navigate('/member/social', { state: { tab: 'groups' } });
+                  } else if (action.path === '/member/fund' || action.label?.toLowerCase().includes('fund')) {
+                    navigate('/member/fund');
+                  } else {
+                    navigate(action.path, action.state ? { state: action.state } : undefined);
+                  }
+                }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.08 + (idx * 0.05), type: 'spring', stiffness: 300, damping: 25 }}
+                whileHover={{ y: -5, scale: 1.02 }}
+                whileTap={{ scale: 0.97 }}
+                className={`rounded-[28px] bg-white text-left w-full flex flex-col justify-between min-h-[160px] relative overflow-hidden group shadow-lg`}
+                style={{ padding: '18px' }}
+              >
+                {/* Background Image & Overlay */}
+                <img 
+                  src={action.bgImage} 
+                  alt={action.label} 
+                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
+                />
+                <div className="absolute inset-0 bg-black/15 transition-opacity duration-300 group-hover:bg-black/25" />
 
-              {/* Text content - styled with text shadow directly over clear background */}
-              <div className="mt-4 z-10 relative text-left">
-                <span 
-                  className="font-black text-white leading-snug tracking-tight block text-[15px]"
-                  style={{ textShadow: '0 2px 8px rgba(0, 0, 0, 0.9), 0 1px 3px rgba(0, 0, 0, 0.9)' }}
-                >
-                  {action.label}
-                </span>
-                <span 
-                  className="text-[11px] font-bold text-white/95 mt-1 block leading-tight"
-                  style={{ textShadow: '0 1px 4px rgba(0, 0, 0, 0.9)' }}
-                >
-                  {action.desc}
-                </span>
-              </div>
-            </motion.button>
-          ))}
+                {/* Red Alarm / New Update Pill on Card Corner */}
+                {hasUnread && (
+                  <div className="absolute top-3 right-3 z-30 flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-red-500 via-rose-500 to-red-600 text-white shadow-lg shadow-rose-600/50 border border-white/60 animate-pulse">
+                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping shrink-0" />
+                    <Bell size={10} className="text-white fill-white shrink-0" />
+                    <span className="text-[9.5px] font-black tracking-tight leading-none">
+                      {moduleUnreadCount > 1 ? `${moduleUnreadCount} NEW` : 'NEW'}
+                    </span>
+                  </div>
+                )}
+
+                {/* Icon & Arrow Row */}
+                <div className="w-full flex items-center justify-between z-10 relative">
+                  <div 
+                    className="relative w-12 h-12 bg-white/20 backdrop-blur-md border border-white/30 icon-squircle shadow-lg group-hover:scale-110 group-hover:rotate-3 transition-all duration-300 group-hover:bg-white/30"
+                    style={{ boxShadow: '0 4px 16px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.4)' }}
+                  >
+                    <action.icon size={22} className="text-white relative z-10 drop-shadow-md" strokeWidth={2.2} />
+                    {hasUnread && (
+                      <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-rose-500 border-2 border-white shadow-md ring-2 ring-rose-400/50 animate-bounce z-20" />
+                    )}
+                  </div>
+                  <div 
+                    className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm transition-all duration-300 ${
+                      hasUnread ? 'opacity-0' : 'opacity-100'
+                    } bg-white/20 backdrop-blur-sm border border-white/30 group-hover:bg-white group-hover:border-white`}
+                  >
+                    <ChevronRight size={14} className="text-white group-hover:text-brand-primary group-hover:translate-x-0.5 transition-all duration-300" />
+                  </div>
+                </div>
+
+                {/* Text content - styled with text shadow directly over clear background */}
+                <div className="mt-4 z-10 relative text-left">
+                  <span 
+                    className="font-black text-white leading-snug tracking-tight block text-[15px]"
+                    style={{ textShadow: '0 2px 8px rgba(0, 0, 0, 0.9), 0 1px 3px rgba(0, 0, 0, 0.9)' }}
+                  >
+                    {action.label}
+                  </span>
+                  <span 
+                    className="text-[11px] font-bold text-white/95 mt-1 block leading-tight"
+                    style={{ textShadow: '0 1px 4px rgba(0, 0, 0, 0.9)' }}
+                  >
+                    {action.desc}
+                  </span>
+                </div>
+              </motion.button>
+            );
+          })}
         </div>
       </div>
 

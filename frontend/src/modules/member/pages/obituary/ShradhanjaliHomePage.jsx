@@ -175,14 +175,15 @@ const MemorialCard = ({ obituary, index }) => {
 /* ─── Page ─── */
 const ShradhanjaliHomePage = () => {
   const navigate = useNavigate();
-  const { obituaries, obituariesLoading, obituariesError, loadObituaries, hasMoreObituaries, loadMoreObituaries, getUnreadCountForModule, currentUser, setMobileMenuOpen } = useData();
+  const { obituaries, obituariesLoading, obituariesError, loadObituaries, hasMoreObituaries, loadMoreObituaries, getUnreadCountForModule, currentUser, setMobileMenuOpen, markModuleAsVisited } = useData();
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
   const [showSearch, setShowSearch] = useState(false);
 
   useEffect(() => {
     if (loadObituaries) loadObituaries();
-  }, [loadObituaries]);
+    if (markModuleAsVisited) markModuleAsVisited('shradhanjali');
+  }, []); // Run on mount
 
   const communityId = useMemo(() => {
     const comName = currentUser?.community;
@@ -200,42 +201,85 @@ const ShradhanjaliHomePage = () => {
     return { enabled: true, memberSubmissionEnabled: true, requireApproval: true };
   }, [communityId]);
 
+  const parseDateSafe = (dateStr) => {
+    if (!dateStr) return null;
+    if (dateStr instanceof Date) return dateStr;
+    const str = String(dateStr).trim();
+    // YYYY-MM-DD
+    const ymd = str.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+    if (ymd) {
+      return new Date(parseInt(ymd[1], 10), parseInt(ymd[2], 10) - 1, parseInt(ymd[3], 10));
+    }
+    // DD-MM-YYYY or DD/MM/YYYY
+    const dmy = str.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
+    if (dmy) {
+      return new Date(parseInt(dmy[3], 10), parseInt(dmy[2], 10) - 1, parseInt(dmy[1], 10));
+    }
+    const d = new Date(str);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
   const filtered = obituaries.filter((ob) => {
+    if (!ob) return false;
+
+    // 0. Status check: regular users see Approved posts or their own
+    const currentUserId = String(currentUser?.id || currentUser?._id || '');
+    const isOwner = ob.author?.id && String(ob.author.id) === currentUserId;
+    const status = (ob.status || 'Approved').toLowerCase();
+    if (currentUser?.role !== 'admin' && !isOwner && status !== 'approved') {
+      return false;
+    }
+
     // 1. Search filter
-    if (search) {
-      const q = search.toLowerCase();
+    if (search && search.trim()) {
+      const q = search.toLowerCase().trim();
       const matchSearch = (
         ob.deceasedName?.toLowerCase().includes(q) ||
         ob.deceasedNameEn?.toLowerCase().includes(q) ||
-        ob.author?.name?.toLowerCase().includes(q)
+        ob.author?.name?.toLowerCase().includes(q) ||
+        ob.message?.toLowerCase().includes(q) ||
+        ob.funeralDetails?.venue?.toLowerCase().includes(q) ||
+        ob.funeralDetails?.type?.toLowerCase().includes(q)
       );
       if (!matchSearch) return false;
     }
 
     // 2. Tab filter
     if (activeFilter === 'recent') {
-      if (ob.dateOfPassing) {
-        const passingDate = new Date(ob.dateOfPassing);
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        return passingDate >= thirtyDaysAgo;
+      const dateToCheck = ob.dateOfPassing || ob.createdAt || ob.timestamp;
+      if (dateToCheck) {
+        const passingDate = parseDateSafe(dateToCheck);
+        if (passingDate) {
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+          thirtyDaysAgo.setHours(0, 0, 0, 0);
+          return passingDate >= thirtyDaysAgo;
+        }
       }
       return true;
     }
 
     if (activeFilter === 'ceremony') {
-      if (ob.funeralDetails?.date) {
-        const ritesDate = new Date(ob.funeralDetails.date);
-        ritesDate.setHours(0, 0, 0, 0);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        return ritesDate >= today;
+      const dates = [];
+      if (ob.funeralDetails?.date) dates.push(ob.funeralDetails.date);
+      if (Array.isArray(ob.ceremonies)) {
+        ob.ceremonies.forEach(c => {
+          if (c.date) dates.push(c.date);
+        });
       }
-      return false;
+      if (dates.length === 0) return false;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return dates.some(dStr => {
+        const parsed = parseDateSafe(dStr);
+        if (!parsed) return false;
+        parsed.setHours(0, 0, 0, 0);
+        return parsed >= today;
+      });
     }
 
     if (activeFilter === 'saved') {
-      return !!ob.isSaved;
+      return !!ob.isSaved || !!ob.saved;
     }
 
     return true;
@@ -381,7 +425,7 @@ const ShradhanjaliHomePage = () => {
 
       {/* ─── Cards List ─── */}
       <div className="pt-[116px] pb-32 px-4 max-w-lg mx-auto space-y-6">
-        {obituariesLoading ? (
+        {obituariesLoading && filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3">
             <motion.div
               animate={{ rotate: 360 }}
@@ -392,12 +436,12 @@ const ShradhanjaliHomePage = () => {
             </motion.div>
             <p className="text-[13px] text-slate-600 font-extrabold">Loading tributes...</p>
           </div>
-        ) : obituariesError ? (
+        ) : obituariesError && filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
             <span className="text-[44px]">⚠️</span>
             <p className="text-[13px] text-red-500 font-extrabold">{obituariesError}</p>
             <button
-              onClick={loadObituaries}
+              onClick={() => loadObituaries && loadObituaries()}
               className="px-5 py-2.5 rounded-xl text-[12px] font-extrabold text-white press-scale shadow-md"
               style={{ background: '#7C5C2E' }}
             >

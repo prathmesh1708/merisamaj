@@ -1,14 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Share2, MapPin, Calendar, Clock, Heart, Users, Check, X, Phone, Search, UserCheck, Mail } from 'lucide-react';
+import { 
+  ChevronLeft, Share2, MapPin, Calendar, Clock, Heart, Users, Check, X, 
+  Phone, Search, UserCheck, Mail, Edit3, Trash2, Ban, AlertOctagon, AlertTriangle 
+} from 'lucide-react';
 import { useData } from '../../context/DataProvider';
 import { Avatar } from '../../components/common/Avatar';
 import { extractId, isInvitationCreator } from './utils/invitationAnalytics';
+import CancelInvitationModal from './components/CancelInvitationModal';
+import DeleteInvitationModal from './components/DeleteInvitationModal';
 
 export default function InvitationDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { invitations, currentUser, members, updateInvitationRSVP, trackInvitationOpened, addNotification, groups, addInvitesToInvitation, invitationFormConfig } = useData();
+  const { 
+    invitations, currentUser, members, updateInvitationRSVP, trackInvitationOpened, 
+    addNotification, groups, addInvitesToInvitation, invitationFormConfig,
+    deleteInvitation, cancelInvitation 
+  } = useData();
   
   const inv = invitations.find(i => String(i.id || i._id) === String(id));
   const [currentImgIndex, setCurrentImgIndex] = useState(0);
@@ -16,6 +25,10 @@ export default function InvitationDetailPage() {
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [creatorRsvpTab, setCreatorRsvpTab] = useState('attending');
   const [selectedStatus, setSelectedStatus] = useState(null);
+
+  // Modals for Cancel & Delete
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   // Directory States for inviting more members later
   const [invitedMemberIds, setInvitedMemberIds] = useState([]);
@@ -104,8 +117,20 @@ export default function InvitationDetailPage() {
 
   const attendingList = rsvpMembers.filter(m => m.status === 'attending');
   const familyList = rsvpMembers.filter(m => m.status === 'attending_family');
-  const declinedList = rsvpMembers.filter(m => m.status === 'not_attending');
   const isCreator = isInvitationCreator(inv, currentUser);
+  const canManage = isCreator || ['head', 'admin', 'head_admin', 'super_admin', 'master_admin'].includes((currentUser?.role || '').toLowerCase());
+  const isCancelled = inv.status === 'Cancelled' || inv.isCancelled;
+
+  const handleCancelInvitation = async (reason) => {
+    await cancelInvitation(inv._id || inv.id, reason);
+    showToast('Invitation cancelled successfully. All invitees have been notified.', 'success');
+  };
+
+  const handleDeleteInvitation = async () => {
+    await deleteInvitation(inv._id || inv.id);
+    showToast('Invitation deleted for everyone.', 'success');
+    navigate('/member/invitations');
+  };
 
   const displayTitle = inv.title || `Wedding of ${inv.groomName} & ${inv.brideName}`;
   const displayHost = inv.hostName || inv.familyName;
@@ -427,6 +452,64 @@ export default function InvitationDetailPage() {
 
       {/* Main Content */}
       <div className="p-4 space-y-4 max-w-2xl mx-auto w-full">
+        {/* Host Controls & Actions Bar */}
+        {canManage && (
+          <div className="bg-gradient-to-r from-[#1F0A47] to-[#3B1578] text-white p-4 rounded-3xl shadow-md border border-purple-800/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-left">
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-widest text-purple-300">Host Controls (आयोजक विकल्प)</span>
+              <h3 className="text-sm font-black text-white">Manage This Invitation</h3>
+            </div>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                onClick={() => navigate(`/member/invitations/edit/${inv._id || inv.id}`)}
+                className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 backdrop-blur-md text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all press-scale border border-white/20"
+              >
+                <Edit3 size={14} /> Edit (बदलाव करें)
+              </button>
+              {!isCancelled && (
+                <button
+                  onClick={() => setIsCancelModalOpen(true)}
+                  className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl bg-amber-500/80 hover:bg-amber-500 backdrop-blur-md text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all press-scale border border-amber-400/30"
+                >
+                  <Ban size={14} /> Cancel Event (रद्द करें)
+                </button>
+              )}
+              <button
+                onClick={() => setIsDeleteModalOpen(true)}
+                className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl bg-rose-600/80 hover:bg-rose-600 backdrop-blur-md text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all press-scale border border-rose-400/30"
+              >
+                <Trash2 size={14} /> Delete (हटाएं)
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Cancellation Notice Banner */}
+        {isCancelled && (
+          <div className="bg-gradient-to-r from-rose-50 to-red-50 border-2 border-rose-400 rounded-3xl p-5 shadow-sm space-y-2.5 text-left">
+            <div className="flex items-center gap-2.5 text-rose-700">
+              <div className="w-8 h-8 rounded-xl bg-rose-100 flex items-center justify-center text-rose-600">
+                <AlertOctagon size={18} strokeWidth={2.5} />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-rose-800">EVENT CANCELLED (कार्यक्रम रद्द किया गया)</h3>
+                <p className="text-[11px] text-rose-600 font-semibold">This invitation has been cancelled by the host.</p>
+              </div>
+            </div>
+            {inv.cancellationReason && (
+              <div className="bg-white/90 border border-rose-200 rounded-2xl p-3.5 mt-1">
+                <p className="text-[10px] font-black uppercase tracking-wider text-rose-500">Cancellation Reason (रद्द करने का कारण)</p>
+                <p className="text-xs font-bold text-slate-800 mt-0.5">{inv.cancellationReason}</p>
+              </div>
+            )}
+            {inv.cancelledAt && (
+              <p className="text-[10.5px] text-rose-600 font-medium">
+                Cancelled on: {new Date(inv.cancelledAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Full Card Visual */}
         <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100">
           <div className="relative overflow-hidden flex flex-col items-center justify-center text-center">
@@ -507,22 +590,31 @@ export default function InvitationDetailPage() {
           </div>
           
           <div className="bg-white p-5 border-t border-slate-100">
-            <h4 className="text-center font-bold text-slate-700 text-[13px] mb-4">Time Remaining</h4>
-            <div className="flex items-center justify-center gap-3">
-              {[
-                { label: 'Days', value: timeLeft.days },
-                { label: 'Hours', value: timeLeft.hours },
-                { label: 'Mins', value: timeLeft.minutes },
-                { label: 'Secs', value: timeLeft.seconds }
-              ].map((item, idx) => (
-                <div key={idx} className="flex flex-col items-center">
-                  <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-700 font-black text-xl mb-1 border border-indigo-100/50 shadow-inner">
-                    {String(item.value).padStart(2, '0')}
+            <h4 className="text-center font-bold text-slate-700 text-[13px] mb-4">
+              {isCancelled ? 'Event Status (स्थिति)' : 'Time Remaining (शेष समय)'}
+            </h4>
+            {isCancelled ? (
+              <div className="bg-rose-50 border border-rose-200 text-rose-700 py-3.5 px-4 rounded-2xl text-center font-black text-sm flex items-center justify-center gap-2">
+                <AlertOctagon size={18} className="text-rose-600 shrink-0" />
+                <span>EVENT CANCELLED (रद्द किया गया)</span>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center gap-3">
+                {[
+                  { label: 'Days', value: timeLeft.days },
+                  { label: 'Hours', value: timeLeft.hours },
+                  { label: 'Mins', value: timeLeft.minutes },
+                  { label: 'Secs', value: timeLeft.seconds }
+                ].map((item, idx) => (
+                  <div key={idx} className="flex flex-col items-center">
+                    <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-700 font-black text-xl mb-1 border border-indigo-100/50 shadow-inner">
+                      {String(item.value).padStart(2, '0')}
+                    </div>
+                    <span className="text-[11px] font-bold text-slate-500">{item.label}</span>
                   </div>
-                  <span className="text-[11px] font-bold text-slate-500">{item.label}</span>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -758,40 +850,54 @@ export default function InvitationDetailPage() {
           <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-200">
             <h4 className="font-bold text-slate-800 text-[15px] mb-4">RSVP (Attendance)</h4>
             
-            <div className="flex flex-col gap-3">
-              <button 
-                onClick={() => handleRSVP('attending')}
-                className={`w-full py-3.5 rounded-xl font-bold text-[14px] flex items-center justify-center gap-2 transition-all border-2 ${
-                  selectedStatus === 'attending' 
-                    ? 'border-indigo-600 bg-indigo-600 text-white shadow-md' 
-                    : 'border-slate-200 bg-white text-slate-700 hover:border-indigo-300'
-                }`}
-              >
-                I am Attending
-              </button>
-              <div className="flex gap-3">
-                <button 
-                  onClick={() => handleRSVP('attending_family')}
-                  className={`flex-1 py-3 rounded-xl font-bold text-[13px] flex items-center justify-center gap-2 transition-all border-2 ${
-                    selectedStatus === 'attending_family' 
-                      ? 'border-indigo-600 bg-indigo-600 text-white shadow-md' 
-                      : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-200'
-                  }`}
-                >
-                  With Family
-                </button>
-                <button 
-                  onClick={() => handleRSVP('not_attending')}
-                  className={`flex-1 py-3 rounded-xl font-bold text-[13px] flex items-center justify-center gap-2 transition-all border-2 ${
-                    selectedStatus === 'not_attending' 
-                      ? 'border-indigo-600 bg-indigo-600 text-white shadow-md' 
-                      : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-300'
-                  }`}
-                >
-                  Declined
-                </button>
+            {isCancelled ? (
+              <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 text-center space-y-1.5">
+                <AlertOctagon size={24} className="text-rose-600 mx-auto" />
+                <p className="text-xs font-black text-rose-800">Event Cancelled by Organizer (कार्यक्रम रद्द)</p>
+                <p className="text-[11.5px] text-rose-600 font-medium">RSVP responses are disabled for this event.</p>
+                {inv.cancellationReason && (
+                  <div className="text-[11px] font-bold text-slate-700 mt-2 bg-white/80 p-2.5 rounded-xl border border-rose-100 text-left">
+                    <span className="text-rose-500 block text-[9.5px] font-black uppercase">Reason:</span>
+                    {inv.cancellationReason}
+                  </div>
+                )}
               </div>
-            </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                <button 
+                  onClick={() => handleRSVP('attending')}
+                  className={`w-full py-3.5 rounded-xl font-bold text-[14px] flex items-center justify-center gap-2 transition-all border-2 ${
+                    selectedStatus === 'attending' 
+                      ? 'border-indigo-600 bg-indigo-600 text-white shadow-md' 
+                      : 'border-slate-200 bg-white text-slate-700 hover:border-indigo-300'
+                  }`}
+                >
+                  I am Attending
+                </button>
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => handleRSVP('attending_family')}
+                    className={`flex-1 py-3 rounded-xl font-bold text-[13px] flex items-center justify-center gap-2 transition-all border-2 ${
+                      selectedStatus === 'attending_family' 
+                        ? 'border-indigo-600 bg-indigo-600 text-white shadow-md' 
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-200'
+                    }`}
+                  >
+                    With Family
+                  </button>
+                  <button 
+                    onClick={() => handleRSVP('not_attending')}
+                    className={`flex-1 py-3 rounded-xl font-bold text-[13px] flex items-center justify-center gap-2 transition-all border-2 ${
+                      selectedStatus === 'not_attending' 
+                        ? 'border-indigo-600 bg-indigo-600 text-white shadow-md' 
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-300'
+                    }`}
+                  >
+                    Declined
+                  </button>
+                </div>
+              </div>
+            )}
 
             {selectedStatus !== currentRSVP && (
               <button
@@ -1287,6 +1393,22 @@ export default function InvitationDetailPage() {
           />
         </div>
       )}
+
+      {/* Cancel Invitation Modal */}
+      <CancelInvitationModal
+        isOpen={isCancelModalOpen}
+        onClose={() => setIsCancelModalOpen(false)}
+        invitation={inv}
+        onConfirm={handleCancelInvitation}
+      />
+
+      {/* Delete Invitation Modal */}
+      <DeleteInvitationModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        invitation={inv}
+        onConfirm={handleDeleteInvitation}
+      />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Plus, Clock, MapPin, Calendar, Send, MessageCircle } from 'lucide-react';
@@ -9,9 +9,13 @@ import { Avatar } from '../../components/common/Avatar';
 
 const ObituaryPage = () => {
   const navigate = useNavigate();
-  const { currentUser, obituaries, obituariesLoading, hasMoreObituaries, loadMoreObituaries, toggleObituaryShraddhanjali, addObituaryComment } = useData();
+  const { currentUser, obituaries, obituariesLoading, hasMoreObituaries, loadMoreObituaries, toggleObituaryShraddhanjali, addObituaryComment, markModuleAsVisited } = useData();
   const [commentTexts, setCommentTexts] = useState({});
   const [expandedComments, setExpandedComments] = useState({});
+
+  useEffect(() => {
+    if (markModuleAsVisited) markModuleAsVisited('shradhanjali');
+  }, [markModuleAsVisited]);
 
   const handleCommentSubmit = (obId) => {
     const text = commentTexts[obId]?.trim();

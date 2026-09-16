@@ -82,8 +82,8 @@ const connectDB = async () => {
     }
 
     // 2b. Seed/Update Default Admin User
-    const adminEmail = 'admin@merisamaj.com';
-    const adminPassword = 'Admin@123';
+    const adminEmail = 'admin@gmail.com';
+    const adminPassword = 'Admin!@#123';
     const adminPhone = '7777777777';
 
     let adminUser = await User.findOne({ email: adminEmail });
@@ -103,12 +103,14 @@ const connectDB = async () => {
         accountStatus: 'active',
         verificationStatus: 'verified'
       });
-      console.log('Default Admin seeded successfully (Email: admin@merisamaj.com, Password: Admin@123).');
+      console.log('Default Admin seeded successfully (Email: admin@gmail.com, Password: Admin!@#123).');
     } else {
       adminUser.email = adminEmail;
       adminUser.password = adminPassword;
       adminUser.role = 'admin';
       adminUser.isVerified = true;
+      adminUser.accountStatus = 'active';
+      adminUser.verificationStatus = 'verified';
       await adminUser.save();
       console.log('Default Admin database state verified and updated successfully.');
     }

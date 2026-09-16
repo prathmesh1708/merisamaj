@@ -43,6 +43,11 @@ const ConversationCard = ({ conv, onClick }) => {
             <Heart size={9} fill="white" />
           </div>
         )}
+        {type === 'group' && (
+          <div className="absolute -bottom-0.5 -right-0.5 w-4.5 h-4.5 bg-blue-600 rounded-full flex items-center justify-center border-2 border-white shadow-xs text-white">
+            <Users size={9} />
+          </div>
+        )}
       </div>
 
       <div className="flex-1 min-w-0">

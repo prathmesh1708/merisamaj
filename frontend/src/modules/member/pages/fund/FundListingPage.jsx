@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, Plus, Wallet, IndianRupee, Users, TrendingUp, AlertCircle, Menu, ChevronRight, ArrowRight, Sparkles } from 'lucide-react';
 import { useFund } from '../../context/FundContext';
@@ -7,8 +7,14 @@ import { useData } from '../../context/DataProvider';
 export default function FundListingPage() {
   const navigate = useNavigate();
   const { funds, currentUserId, isAdmin, contributions, loading, error } = useFund();
-  const { setMobileMenuOpen } = useData();
+  const { setMobileMenuOpen, markModuleAsVisited } = useData();
   const [selectedScope, setSelectedScope] = useState('ALL'); // 'ALL' | 'COMMUNITY' | 'LOCAL'
+
+  useEffect(() => {
+    if (markModuleAsVisited) {
+      markModuleAsVisited('fund');
+    }
+  }, [markModuleAsVisited]);
 
   if (loading) {
     return (

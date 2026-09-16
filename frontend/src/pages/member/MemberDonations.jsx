@@ -10,7 +10,14 @@ import { loadRazorpayScript } from '../../core/utils/razorpayLoader';
 
 export const MemberDonations = () => {
   const navigate = useNavigate();
-  const { setMobileMenuOpen, currentUser } = useData();
+  const { setMobileMenuOpen, currentUser, markModuleAsVisited } = useData();
+
+  useEffect(() => {
+    if (markModuleAsVisited) {
+      markModuleAsVisited('donation');
+    }
+  }, [markModuleAsVisited]);
+
   const { user: authUser } = useAuth();
   const activeUser = currentUser || authUser;
   const [donations, setDonations] = useState([]);

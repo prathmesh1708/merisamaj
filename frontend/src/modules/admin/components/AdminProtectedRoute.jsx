@@ -15,8 +15,12 @@ export const AdminProtectedRoute = () => {
     );
   }
 
-  // Check if authenticated AND role is admin
-  if (adminAuth.isAuthenticated && adminAuth.adminUser?.role === 'admin') {
+  // Check if authenticated AND role is admin or admin_sub_head
+  const isAdminRole = adminAuth.adminUser?.role === 'admin' || 
+                      adminAuth.adminUser?.role === 'admin_sub_head' || 
+                      (adminAuth.adminUser?.role === 'sub_head' && adminAuth.adminUser?.subHeadType === 'admin');
+
+  if (adminAuth.isAuthenticated && isAdminRole) {
     return <Outlet />;
   }
 

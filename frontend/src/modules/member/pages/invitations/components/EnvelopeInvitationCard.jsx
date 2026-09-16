@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, X, Eye, PartyPopper, UserX, BarChart3 } from 'lucide-react';
+import { MapPin, X, Eye, PartyPopper, UserX, BarChart3, Edit3, Trash2, Ban, AlertOctagon } from 'lucide-react';
 import { useData } from '../../../context/DataProvider';
 import { buildInvitationAnalytics, isInvitationCreator } from '../utils/invitationAnalytics';
 
@@ -14,7 +14,17 @@ import { buildInvitationAnalytics, isInvitationCreator } from '../utils/invitati
  *
  * phase: 'closed' -> 'opening' -> 'open' -> 'closing' -> 'closed'
  */
-export default function EnvelopeInvitationCard({ inv, onOpenDetail, isSentTab = false, onOpenAnalytics, isOpen = false, onToggleOpen }) {
+export default function EnvelopeInvitationCard({ 
+  inv, 
+  onOpenDetail, 
+  isSentTab = false, 
+  onOpenAnalytics, 
+  isOpen = false, 
+  onToggleOpen,
+  onEdit,
+  onCancel,
+  onDelete
+}) {
   const { currentUser, members, trackInvitationOpened } = useData();
   const [phase, setPhase] = useState(() => (isOpen ? 'open' : 'closed'));
   const [flapBehind, setFlapBehind] = useState(() => (isOpen ? true : false));
@@ -46,6 +56,7 @@ export default function EnvelopeInvitationCard({ inv, onOpenDetail, isSentTab = 
 
   const isCreator = isInvitationCreator(inv, currentUser);
   const showAnalytics = isCreator || isSentTab;
+  const isCancelled = inv.status === 'Cancelled' || inv.isCancelled;
   const stats = showAnalytics ? buildInvitationAnalytics(inv, members) : null;
 
   const handleOpen = () => {
@@ -100,6 +111,14 @@ export default function EnvelopeInvitationCard({ inv, onOpenDetail, isSentTab = 
         >
           {/* Back of the envelope */}
           <div className="absolute inset-0 rounded-[26px] bg-gradient-to-br from-[#1F0A47] via-[#2A0E5C] to-[#3B1578] shadow-[0_10px_30px_rgba(42,14,92,0.25)]" />
+
+          {/* Cancelled badge on envelope */}
+          {isCancelled && (
+            <div className="absolute top-3 right-3 z-30 bg-rose-600/95 text-white text-[10px] font-black uppercase px-2.5 py-1 rounded-full shadow-lg border border-white/30 backdrop-blur-md flex items-center gap-1">
+              <AlertOctagon size={12} strokeWidth={2.5} />
+              <span>Cancelled (रद्द)</span>
+            </div>
+          )}
 
           {/* The letter tucked inside */}
           <motion.div
@@ -214,16 +233,20 @@ export default function EnvelopeInvitationCard({ inv, onOpenDetail, isSentTab = 
           >
             {/* Banner Photo / Graphic */}
             <div className="relative overflow-hidden flex flex-col items-center justify-center text-center border-b border-purple-100/30">
-              {inv.status === 'Pending' && (
+              {isCancelled ? (
+                <span className="absolute top-3.5 right-3.5 bg-rose-600/95 backdrop-blur-md text-white text-[10px] px-3 py-1 rounded-full font-black uppercase tracking-wider z-20 shadow-md border border-rose-300/40 flex items-center gap-1">
+                  <AlertOctagon size={11} strokeWidth={2.5} />
+                  Cancelled (रद्द)
+                </span>
+              ) : inv.status === 'Pending' ? (
                 <span className="absolute top-3.5 right-3.5 bg-amber-500/90 backdrop-blur-md text-white text-[10px] px-3 py-1 rounded-full font-black uppercase tracking-wider z-20 shadow-md border border-amber-300/40">
                   Pending Approval
                 </span>
-              )}
-              {inv.status === 'Rejected' && (
+              ) : inv.status === 'Rejected' ? (
                 <span className="absolute top-3.5 right-3.5 bg-rose-500/90 backdrop-blur-md text-white text-[10px] px-3 py-1 rounded-full font-black uppercase tracking-wider z-20 shadow-md border border-rose-300/40">
                   Rejected
                 </span>
-              )}
+              ) : null}
 
               {/* Close Button — Premium Glassmorphic */}
               <button
@@ -300,6 +323,21 @@ export default function EnvelopeInvitationCard({ inv, onOpenDetail, isSentTab = 
                 </div>
               </div>
 
+              {/* Cancellation Reason Notice if cancelled */}
+              {isCancelled && (
+                <div className="mt-3 p-3 bg-rose-50 border border-rose-200/80 rounded-2xl text-left">
+                  <div className="flex items-center gap-1.5 text-rose-700">
+                    <AlertOctagon size={13} className="shrink-0" />
+                    <p className="text-[10.5px] font-black uppercase tracking-wider">Event Cancelled by Host</p>
+                  </div>
+                  {inv.cancellationReason && (
+                    <p className="text-xs font-bold text-slate-800 mt-1 line-clamp-2">
+                      Reason: {inv.cancellationReason}
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div className="mt-4 pt-3.5 border-t border-slate-100/90 flex items-center gap-2">
                 <button
                   onClick={() => onOpenDetail(detailId)}
@@ -359,6 +397,35 @@ export default function EnvelopeInvitationCard({ inv, onOpenDetail, isSentTab = 
               <BarChart3 size={13} strokeWidth={2.6} />
               View Full List &amp; Responses (व्यू लिस्ट)
             </button>
+
+            {/* Creator Quick Management Actions */}
+            {isCreator && (
+              <div className="mt-2 pt-2 border-t border-purple-100/80 flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onEdit?.(inv); }}
+                  className="flex-1 py-1.5 px-2 bg-white border border-purple-200 hover:bg-purple-50 text-purple-700 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-all press-scale shadow-2xs"
+                >
+                  <Edit3 size={12} /> Edit
+                </button>
+                {!isCancelled && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onCancel?.(inv); }}
+                    className="flex-1 py-1.5 px-2 bg-amber-50 border border-amber-200 hover:bg-amber-100 text-amber-800 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-all press-scale shadow-2xs"
+                  >
+                    <Ban size={12} /> Cancel
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onDelete?.(inv); }}
+                  className="flex-1 py-1.5 px-2 bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-all press-scale shadow-2xs"
+                >
+                  <Trash2 size={12} /> Delete
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

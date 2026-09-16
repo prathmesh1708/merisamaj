@@ -67,6 +67,13 @@ const GroupDetailPage = () => {
     }
   }, [group, groupId]);
 
+  // Immediately mark group conversation as seen when conversationId is active
+  useEffect(() => {
+    if (!groupConversationId) return;
+    groupService.markGroupSeen(groupConversationId).catch(() => {});
+    window.dispatchEvent(new Event('app:refresh_unread_counts'));
+  }, [groupConversationId]);
+
   const {
     messages: realMessages,
     loading: chatLoading,

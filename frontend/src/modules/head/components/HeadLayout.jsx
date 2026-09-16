@@ -30,13 +30,23 @@ export const HeadLayout = () => {
 
   // Permission filter check for Head users
   const permissions = headUser?.headPermissions || {};
-  const isSuperAdmin = currentUser?.role === 'admin';
+  const isSuperAdmin = currentUser?.role === 'admin' || headUser?.role === 'admin';
+  const isMainHead = headUser?.role === 'head';
+  const isLocalHeadLeader = headUser?.accountType === 'local_head' || headUser?.subHeadType === 'local';
 
   const isModuleAllowed = (permKey) => {
     if (isSuperAdmin) return true;
     if (!permKey) return true;
-    // If permission key is explicitly false, hide it; otherwise show
-    return permissions[permKey] !== false;
+    if (permKey === 'canManageSubHeads') {
+      if (isMainHead || isLocalHeadLeader) return true;
+      return permissions[permKey] === true;
+    }
+    // Main Community Head has full access by default
+    if (isMainHead) {
+      return permissions[permKey] !== false;
+    }
+    // Sub-Head requires explicit true permission
+    return permissions[permKey] === true;
   };
 
   const navigationConfig = [
@@ -144,6 +154,12 @@ export const HeadLayout = () => {
           icon: Home
         },
         {
+          name: 'Sub-Heads',
+          path: '/head/sub-heads',
+          permKey: 'canManageSubHeads',
+          icon: Shield
+        },
+        {
           name: 'Leadership & Team',
           path: '/head/leadership',
           permKey: 'canViewLeadership',
@@ -182,8 +198,6 @@ export const HeadLayout = () => {
   ];
 
   // Filter sections and items based on permissions
-  // `headOnly` items (e.g. Local Community) are hidden for Sub-Head/Local Head
-  // accounts — only the Community Head (or Admin) manages Local Heads.
   const filteredNavigationConfig = navigationConfig.map(section => ({
     ...section,
     items: section.items.filter(item =>

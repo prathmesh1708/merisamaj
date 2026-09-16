@@ -11,7 +11,7 @@
 const User    = require('../../models/User');
 const Conversation = require('../../models/Conversation');
 const { findOrCreateConversation, getUserConversations } = require('../../services/conversationService');
-const { createMessage, getMessages, markMessagesSeen, deleteMessageForMe, deleteMessageForEveryone, editMessage: editMessageService, clearConversationMessages } = require('../../services/messageService');
+const { createMessage, getMessages, markMessagesSeen, markConversationSeen, deleteMessageForMe, deleteMessageForEveryone, editMessage: editMessageService, clearConversationMessages } = require('../../services/messageService');
 const { notifyNewMessage } = require('../../services/notificationService');
 
 // ─── Open or Find Conversation ────────────────────────────────────────────────
@@ -116,7 +116,6 @@ exports.getMessages = async (req, res) => {
     const userId = req.user._id;
 
     // Verify participant
-    const Conversation = require('../../models/Conversation');
     const conv = await Conversation.findOne({
       _id: conversationId,
       participants: userId,
@@ -124,6 +123,26 @@ exports.getMessages = async (req, res) => {
       isDeleted: false
     });
     if (!conv) return res.status(403).json({ status: 'error', message: 'Access denied.' });
+
+    // Mark messages as seen in DB immediately
+    await markConversationSeen(conversationId, userId);
+
+    // Emit seen event via socket to both conversation room & user personal rooms
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`conv:${conversationId}`).emit('chat:messages_seen', {
+        conversationId,
+        seenBy: userId,
+        userId
+      });
+      for (const p of conv.participants) {
+        io.to(`user:${p.toString()}`).emit('chat:messages_seen', {
+          conversationId,
+          seenBy: userId,
+          userId
+        });
+      }
+    }
 
     const { messages, total } = await getMessages(conversationId, userId, Number(page), Number(limit));
 
@@ -140,7 +159,6 @@ exports.sendMessage = async (req, res) => {
     const { message, type = 'text', replyTo, mentionedUsers } = req.body;
     const userId = req.user._id;
 
-    const Conversation = require('../../models/Conversation');
     const conv = await Conversation.findOne({
       _id: conversationId,
       participants: userId,
@@ -205,26 +223,26 @@ exports.markSeen = async (req, res) => {
     if (Array.isArray(messageIds) && messageIds.length > 0) {
       await markMessagesSeen(messageIds, userId);
     } else {
-      // Mark all unread messages in conversation as seen
-      const Message = require('../../models/Message');
-      const unread = await Message.find({
-        conversationId,
-        senderId: { $ne: userId },
-        'seen.user': { $ne: userId },
-        isDeleted: false
-      }).select('_id');
-      if (unread.length > 0) {
-        await markMessagesSeen(unread.map(m => m._id), userId);
-      }
+      await markConversationSeen(conversationId, userId);
     }
 
-    // Emit seen event via socket
+    // Emit seen event via socket to conv room and all participant user rooms
     const io = req.app.get('io');
     if (io) {
       io.to(`conv:${conversationId}`).emit('chat:messages_seen', {
         conversationId,
-        seenBy: userId
+        seenBy: userId,
+        userId,
+        messageIds
       });
+      for (const p of conv.participants) {
+        io.to(`user:${p.toString()}`).emit('chat:messages_seen', {
+          conversationId,
+          seenBy: userId,
+          userId,
+          messageIds
+        });
+      }
     }
 
     res.json({ status: 'success', message: 'Messages marked as seen.' });

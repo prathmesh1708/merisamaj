@@ -39,6 +39,7 @@ import AdminReportsDesk from '../pages/reports/AdminReportsDesk';
 import AdminReferralManagement from '../pages/referral/AdminReferralManagement';
 import AdminAppShortcutsManagement from '../pages/shortcuts/AdminAppShortcutsManagement';
 import { UserAppEditsPage } from '../pages/userAppEdits/UserAppEditsPage';
+import AdminSubHeadManagement from '../pages/subheads/AdminSubHeadManagement';
 
 export const AdminRoutes = () => {
   return (
@@ -56,6 +57,7 @@ export const AdminRoutes = () => {
         
         {/* Other Admin views */}
         <Route path="users" element={<UserManagement />} />
+        <Route path="sub-heads" element={<AdminSubHeadManagement />} />
         <Route path="census" element={<AdminCensusManagement />} />
         <Route path="leadership" element={<AdminLeadershipManagement />} />
         <Route path="matrimonial" element={<PlatformMatrimonialManagement />} />

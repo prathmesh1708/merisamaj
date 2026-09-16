@@ -142,8 +142,15 @@ const userSchema = new mongoose.Schema({
 
   role: { 
     type: String, 
-    enum: ['user', 'admin', 'head', 'sub_head'], 
+    enum: ['user', 'admin', 'head', 'sub_head', 'admin_sub_head'], 
     default: 'user' 
+  },
+
+  // Discriminates sub-head category: admin sub-head, community sub-head, or local sub-head
+  subHeadType: {
+    type: String,
+    enum: ['admin', 'community', 'local'],
+    default: null
   },
 
   // Sub-Leader Hierarchy Fields
@@ -152,10 +159,12 @@ const userSchema = new mongoose.Schema({
     ref: 'User',
     default: null
   },
-  // Discriminates the purpose of a sub_head account created by a Head
-  // (e.g. Leadership team member vs. Local Head module) so each module's
-  // list view only shows the accounts it created.
-  accountType: { type: String, enum: ['leadership', 'local_head'] },
+  // Discriminates the purpose of a sub_head account created by an Admin or Head
+  // (e.g. Leadership team member vs. Local Head module vs Admin/Community/Local Sub-Head)
+  accountType: { 
+    type: String, 
+    enum: ['leadership', 'local_head', 'admin_sub_head', 'community_sub_head', 'local_sub_head'] 
+  },
   designation: { type: String, default: 'Member' },
   department: { type: String },
   termYears: { type: String, default: '2024-2027' },
@@ -173,7 +182,47 @@ const userSchema = new mongoose.Schema({
     ref: 'Community',
   }],
   
-  // Granular module permissions for Head & Sub-Head users
+  // Granular module permissions for Admin Sub-Head users
+  adminPermissions: {
+    canViewDashboard: { type: Boolean, default: true },
+    
+    // User & Community Management
+    canViewUsers: { type: Boolean, default: false },
+    canAddUsers: { type: Boolean, default: false },
+    canEditUsers: { type: Boolean, default: false },
+    canDeleteUsers: { type: Boolean, default: false },
+    canManageCommunities: { type: Boolean, default: false },
+    canManageCommunityHeads: { type: Boolean, default: false },
+    canManageCities: { type: Boolean, default: false },
+
+    // Platform Modules
+    canManageMatrimonial: { type: Boolean, default: false },
+    canManageEvents: { type: Boolean, default: false },
+    canManageProfessionals: { type: Boolean, default: false },
+    canManageDonations: { type: Boolean, default: false },
+    canManageFunds: { type: Boolean, default: false },
+    canManageDharmashala: { type: Boolean, default: false },
+    canManageObituaries: { type: Boolean, default: false },
+    canManageCensus: { type: Boolean, default: false },
+    canManageLeadership: { type: Boolean, default: false },
+    canManageInvitations: { type: Boolean, default: false },
+    canManageVoting: { type: Boolean, default: false },
+
+    // Social Management
+    canManageSocial: { type: Boolean, default: false },
+
+    // Content, System & Operations
+    canManageSubscriptions: { type: Boolean, default: false },
+    canManageReferrals: { type: Boolean, default: false },
+    canViewReports: { type: Boolean, default: false },
+    canSendNotifications: { type: Boolean, default: false },
+    canManageShortcuts: { type: Boolean, default: false },
+    canManageAppContent: { type: Boolean, default: false },
+    canManageSubHeads: { type: Boolean, default: false },
+    canManageConfig: { type: Boolean, default: false }
+  },
+
+  // Granular module permissions for Community & Local Sub-Head users
   headPermissions: {
     canViewDashboard: { type: Boolean, default: true },
     
@@ -205,9 +254,11 @@ const userSchema = new mongoose.Schema({
     canViewFunds: { type: Boolean, default: true },
     canManageFunds: { type: Boolean, default: false },
 
-    // Leadership
+    // Leadership & Sub-Heads
     canViewLeadership: { type: Boolean, default: true },
     canManageLeadership: { type: Boolean, default: false },
+    canManageSubHeads: { type: Boolean, default: false },
+    canManageLocalCommunity: { type: Boolean, default: false },
 
     // Dharmashala
     canViewDharmashala: { type: Boolean, default: true },
@@ -238,7 +289,9 @@ const userSchema = new mongoose.Schema({
     canViewHomeContent: { type: Boolean, default: true },
     canManageHomeContent: { type: Boolean, default: false },
 
-    // General Admin & Notifications
+    // Census & Reports & Notifications
+    canViewCensus: { type: Boolean, default: true },
+    canManageCensus: { type: Boolean, default: false },
     canSendNotifications: { type: Boolean, default: false },
     canViewReports: { type: Boolean, default: true }
   }

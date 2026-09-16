@@ -20,18 +20,18 @@ const mongoose = require('mongoose');
  *   @param {boolean} options.forceCommunityId - Force community restriction even if role is admin
  * @returns {Object} Updated Mongoose query filter object
  */
-const adminRoles = ['admin', 'super_admin', 'master_admin', 'master', 'head_admin'];
+const adminRoles = ['admin', 'super_admin', 'master_admin', 'master', 'head_admin', 'admin_sub_head'];
 
 const applyScopeFilter = (req, baseFilter = {}, options = {}) => {
   const filter = { ...baseFilter };
   const user = req?.user;
   const userRole = (user?.role || '').toLowerCase();
-  const isAdmin = adminRoles.includes(userRole);
+  const isAdmin = adminRoles.includes(userRole) || (userRole === 'sub_head' && user?.subHeadType === 'admin');
 
   const cityField = options.cityField || 'city';
 
   if (isAdmin && !options.forceCommunityId) {
-    // Admin Role: Global access by default
+    // Admin & Admin Sub-Head: Global access by default
     // Optional filters via query parameters
     if (req?.query?.communityId && mongoose.Types.ObjectId.isValid(req.query.communityId)) {
       filter.communityId = new mongoose.Types.ObjectId(req.query.communityId);
@@ -105,9 +105,15 @@ const applyScopeFilter = (req, baseFilter = {}, options = {}) => {
   }
 
   // OPTIONAL Level 2 City Scope (strict AND condition WITHIN community)
-  // For Local Head (role === 'sub_head' or accountType === 'local_head'), automatically scope to their assigned city
-  const isLocalHead = (userRole === 'sub_head' || user?.accountType === 'local_head') && user?.city;
-  const activeCity = options.overrideCity || req?.query?.city || (isLocalHead ? user.city : null);
+  // For Local Head & Local Sub-Head, automatically scope to their assigned city
+  const isLocalScope = (
+    user?.accountType === 'local_head' ||
+    user?.accountType === 'local_sub_head' ||
+    (userRole === 'sub_head' && user?.subHeadType === 'local') ||
+    (userRole === 'sub_head' && user?.accountType === 'local_head')
+  ) && user?.city;
+
+  const activeCity = options.overrideCity || req?.query?.city || (isLocalScope ? user.city : null);
   if (activeCity && typeof activeCity === 'string' && activeCity !== 'all' && activeCity !== 'All') {
     if (options.includeUnassignedCity) {
       const cityRegex = new RegExp(`^${activeCity.trim()}$`, 'i');

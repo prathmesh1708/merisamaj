@@ -17,6 +17,7 @@ const ShradhanjaliDetailPage = () => {
     obituaries,
     obituariesLoading,
     obituariesError,
+    loadObituaries,
     toggleHaathJode,
     incrementMalaArpan,
     saveShradhanjali,
@@ -25,6 +26,12 @@ const ShradhanjaliDetailPage = () => {
     deleteObituary,
     currentUser
   } = useData();
+
+  useEffect(() => {
+    if (obituaries.length === 0 && loadObituaries) {
+      loadObituaries();
+    }
+  }, []);
 
   const obituary = obituaries.find(ob => ob.id === id);
 
@@ -38,7 +45,7 @@ const ShradhanjaliDetailPage = () => {
       incrementObituaryViews(id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [id, !!obituary]);
 
   const handleDelete = async () => {
     if (window.confirm('क्या आप सचमुच इस श्रद्धांजलि पोस्ट को हटाना चाहते हैं? Are you sure you want to delete this tribute?')) {
@@ -51,7 +58,7 @@ const ShradhanjaliDetailPage = () => {
     }
   };
 
-  if (obituariesLoading) {
+  if (obituariesLoading && !obituary) {
     return (
       <AnimatedPage>
         <div className="flex flex-col items-center justify-center min-h-screen gap-4">

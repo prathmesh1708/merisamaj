@@ -38,6 +38,10 @@ export const memberChatService = {
       data: { deleteFor }
     }),
 
+  /** Mark messages or conversation as seen */
+  markSeen: (conversationId, messageIds = []) =>
+    axiosPrivate.post(`${BASE}/conversations/${conversationId}/seen`, { messageIds }),
+
   /** Edit a sent message */
   editMessage: (messageId, message) =>
     axiosPrivate.patch(`${BASE}/messages/${messageId}`, { message }),

@@ -104,8 +104,24 @@ const invitationSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['Pending', 'Approved', 'Rejected'],
+    enum: ['Pending', 'Approved', 'Rejected', 'Cancelled', 'cancelled', 'approved', 'pending', 'rejected'],
     default: 'Approved' // Setting to Approved by default for immediate display
+  },
+  isCancelled: {
+    type: Boolean,
+    default: false
+  },
+  cancellationReason: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  cancelledAt: {
+    type: Date
+  },
+  cancelledBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
   },
   rsvps: [rsvpSchema],
   openedBy: [openedBySchema],

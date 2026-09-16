@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { 
-  LayoutDashboard, Users, Heart, Calendar, Settings, LogOut, Menu, X, ShieldAlert, Send, Search, Building2, CreditCard, Globe, ChevronDown, ChevronUp, Network, Briefcase, HeartHandshake, Megaphone, Landmark, Flame, Crown, CheckSquare, BarChart3, Gift, Sparkles, LayoutTemplate
+  LayoutDashboard, Users, Heart, Calendar, Settings, LogOut, Menu, X, Shield, ShieldAlert, Send, Search, Building2, CreditCard, Globe, ChevronDown, ChevronUp, Network, Briefcase, HeartHandshake, Megaphone, Landmark, Flame, Crown, CheckSquare, BarChart3, Gift, Sparkles, LayoutTemplate
 } from 'lucide-react';
 import { useData } from '../../member/context/DataProvider';
 import { Avatar } from '../../member/components/common/Avatar';
@@ -22,6 +22,16 @@ export const AdminLayout = () => {
   // Calculate real-time pending approvals count
   const pendingCount = members.filter(m => !m.isVerified).length;
 
+  const isMasterAdmin = adminUser?.role === 'admin' || adminUser?.role === 'super_admin' || adminUser?.role === 'master_admin';
+  const isSubHead = adminUser?.role === 'admin_sub_head' || (adminUser?.role === 'sub_head' && adminUser?.subHeadType === 'admin');
+  const adminPermissions = adminUser?.adminPermissions || {};
+
+  const isModuleAllowed = (permKey) => {
+    if (isMasterAdmin) return true;
+    if (!permKey) return true;
+    return adminPermissions[permKey] === true;
+  };
+
   const navigationConfig = [
     {
       category: 'CORE DASHBOARD',
@@ -29,7 +39,8 @@ export const AdminLayout = () => {
         { 
           name: 'Admin Dashboard', 
           path: '/admin/dashboard', 
-          icon: LayoutDashboard 
+          icon: LayoutDashboard,
+          permKey: 'canViewDashboard'
         }
       ]
     },
@@ -39,6 +50,7 @@ export const AdminLayout = () => {
         { 
           name: 'Users', 
           icon: Users,
+          permKey: 'canViewUsers',
           badge: pendingCount > 0 ? pendingCount : null,
           children: [
             { name: 'All Users', path: '/admin/users', search: '?tab=list' },
@@ -46,19 +58,28 @@ export const AdminLayout = () => {
           ]
         },
         { 
+          name: 'Sub-Heads', 
+          path: '/admin/sub-heads', 
+          icon: Shield,
+          permKey: 'canManageSubHeads'
+        },
+        { 
           name: 'Communities', 
           path: '/admin/communities', 
-          icon: Landmark 
+          icon: Landmark,
+          permKey: 'canManageCommunities'
         },
         { 
           name: 'Community Heads', 
           path: '/admin/community-heads', 
-          icon: Users 
+          icon: Users,
+          permKey: 'canManageCommunityHeads'
         },
         { 
           name: 'City Management', 
           path: '/admin/cities', 
-          icon: Building2 
+          icon: Building2,
+          permKey: 'canManageCities'
         }
       ]
     },
@@ -68,6 +89,7 @@ export const AdminLayout = () => {
         { 
           name: 'Platform Matrimonial', 
           icon: Heart,
+          permKey: 'canManageMatrimonial',
           children: [
             { name: 'Overview', path: '/admin/matrimonial', search: '?tab=overview' },
             { name: 'Profiles Directory', path: '/admin/matrimonial', search: '?tab=directory' },
@@ -81,11 +103,13 @@ export const AdminLayout = () => {
         { 
           name: 'Event Management', 
           path: '/admin/events',
-          icon: Calendar
+          icon: Calendar,
+          permKey: 'canManageEvents'
         },
         { 
           name: 'Global Professional Directory', 
           icon: Briefcase,
+          permKey: 'canManageProfessionals',
           children: [
             { name: 'Overview', path: '/admin/professionals/overview' },
             { name: 'Directory Grid', path: '/admin/professionals/grid' },
@@ -96,42 +120,50 @@ export const AdminLayout = () => {
         { 
           name: 'Global Donations', 
           path: '/admin/donations',
-          icon: HeartHandshake
+          icon: HeartHandshake,
+          permKey: 'canManageDonations'
         },
         { 
           name: 'Dharmashala Booking', 
           path: '/admin/dharmashala',
-          icon: Building2
+          icon: Building2,
+          permKey: 'canManageDharmashala'
         },
         {
           name: 'Samaj Funds',
           path: '/admin/funds',
-          icon: Landmark
+          icon: Landmark,
+          permKey: 'canManageFunds'
         },
         {
           name: 'Obituary Desk',
           path: '/admin/obituaries',
-          icon: Flame
+          icon: Flame,
+          permKey: 'canManageObituaries'
         },
         {
           name: 'Community Census',
           path: '/admin/census',
-          icon: Users
+          icon: Users,
+          permKey: 'canManageCensus'
         },
         {
           name: 'Leadership Desk',
           path: '/admin/leadership',
-          icon: Crown
+          icon: Crown,
+          permKey: 'canManageLeadership'
         },
         {
           name: 'Digital Invitations',
           path: '/admin/invitations',
-          icon: Send
+          icon: Send,
+          permKey: 'canManageInvitations'
         },
         {
           name: 'Voting & Elections',
           path: '/admin/voting',
-          icon: CheckSquare
+          icon: CheckSquare,
+          permKey: 'canManageVoting'
         }
       ]
     },
@@ -141,6 +173,7 @@ export const AdminLayout = () => {
         {
           name: 'Social',
           icon: Globe,
+          permKey: 'canManageSocial',
           children: [
             { name: 'City Feed', path: '/admin/social/city-feed' },
             { name: 'Community Feed', path: '/admin/social/community-feed' },
@@ -156,6 +189,7 @@ export const AdminLayout = () => {
         { 
           name: 'Subscription Mgmt', 
           icon: CreditCard,
+          permKey: 'canManageSubscriptions',
           children: [
             { name: 'Overview', path: '/admin/subscriptions', search: '?tab=overview' },
             { name: 'Plans', path: '/admin/subscriptions', search: '?tab=plans' },
@@ -171,42 +205,53 @@ export const AdminLayout = () => {
         {
           name: 'Referrals & Rewards',
           path: '/admin/referrals',
-          icon: Gift
+          icon: Gift,
+          permKey: 'canManageReferrals'
         },
         { 
           name: 'Reports & Analytics', 
           path: '/admin/reports', 
-          icon: BarChart3 
+          icon: BarChart3,
+          permKey: 'canViewReports'
         },
         { 
           name: 'Notifications & Push', 
           path: '/admin/notifications', 
-          icon: Send 
+          icon: Send,
+          permKey: 'canSendNotifications'
         },
         { 
           name: 'App Shortcuts & Icons', 
           path: '/admin/shortcuts', 
-          icon: Sparkles 
+          icon: Sparkles,
+          permKey: 'canManageShortcuts'
         },
         { 
           name: 'User App Edits', 
           path: '/admin/user-app-edits', 
-          icon: LayoutTemplate 
+          icon: LayoutTemplate,
+          permKey: 'canManageAppContent'
         },
         { 
           name: 'System Config', 
           path: '/admin/config', 
-          icon: Settings 
+          icon: Settings,
+          permKey: 'canManageConfig'
         }
       ]
     }
   ];
 
+  const filteredNavigationConfig = navigationConfig.map(section => ({
+    ...section,
+    items: section.items.filter(item => isModuleAllowed(item.permKey))
+  })).filter(section => section.items.length > 0);
+
   // Auto-expand active category
   useEffect(() => {
     const newExpanded = { ...expandedItems };
     let changed = false;
-    navigationConfig.forEach(section => {
+    filteredNavigationConfig.forEach(section => {
       section.items.forEach(item => {
         if (item.children) {
           const hasActiveChild = item.children.some(child => 
@@ -240,7 +285,7 @@ export const AdminLayout = () => {
   };
 
   const renderNavItems = (isMobile) => {
-    return navigationConfig.map((section) => (
+    return filteredNavigationConfig.map((section) => (
       <div key={section.category} className="space-y-1 pt-3">
         {/* Category Header */}
         <div className="px-4 py-1 text-[10px] font-black tracking-widest uppercase" style={{ color: 'rgba(167,139,250,0.7)' }}>

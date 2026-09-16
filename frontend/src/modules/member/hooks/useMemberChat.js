@@ -191,8 +191,14 @@ export const useMemberChat = (conversationId) => {
 
     onMessagesSeen: ({ userId: seenByUserId, messageIds }) => {
       setMessages(prev => prev.map(m =>
-        messageIds.includes(m._id)
-          ? { ...m, seenBy: [...(m.seenBy || []), { userId: seenByUserId, seenAt: new Date().toISOString() }] }
+        (!messageIds || messageIds.includes(m._id))
+          ? {
+              ...m,
+              seenBy: [
+                ...(m.seenBy || []).filter(s => (s.userId?._id || s.userId || s)?.toString() !== seenByUserId?.toString()),
+                { userId: seenByUserId, seenAt: new Date().toISOString() }
+              ]
+            }
           : m
       ));
     },

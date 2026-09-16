@@ -24,11 +24,20 @@ export const AdminAuthProvider = ({ children }) => {
 
     if (savedUser && savedToken) {
       try {
-        setAdminAuth({
-          adminUser: JSON.parse(savedUser),
-          isAuthenticated: true,
-          isInitialized: true,
-        });
+        const parsed = JSON.parse(savedUser);
+        const isAdminRole = parsed.role === 'admin' || parsed.role === 'admin_sub_head' || (parsed.role === 'sub_head' && parsed.subHeadType === 'admin');
+        if (isAdminRole) {
+          setAdminAuth({
+            adminUser: parsed,
+            isAuthenticated: true,
+            isInitialized: true,
+          });
+        } else {
+          localStorage.removeItem(STORAGE_KEYS.USER);
+          localStorage.removeItem(STORAGE_KEYS.TOKEN);
+          localStorage.removeItem(STORAGE_KEYS.SESSION);
+          setAdminAuth({ adminUser: null, isAuthenticated: false, isInitialized: true });
+        }
       } catch {
         // Clear corrupt state
         localStorage.removeItem(STORAGE_KEYS.USER);
@@ -52,8 +61,9 @@ export const AdminAuthProvider = ({ children }) => {
 
       const { user, accessToken } = response.data;
 
-      // Verify the user actually has the Admin role
-      if (user.role !== 'admin') {
+      // Verify the user actually has Admin or Admin Sub-Head role
+      const isAdminRole = user.role === 'admin' || user.role === 'admin_sub_head' || (user.role === 'sub_head' && user.subHeadType === 'admin');
+      if (!isAdminRole) {
         throw new Error('Access denied. You do not have Admin permissions.');
       }
 

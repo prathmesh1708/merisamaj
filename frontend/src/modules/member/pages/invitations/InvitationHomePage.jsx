@@ -1,24 +1,50 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '../../context/DataProvider';
-import { Mail, Search, Bell, Plus, ChevronLeft, Menu, Calendar } from 'lucide-react';
+import { Mail, Search, Bell, Plus, ChevronLeft, Menu, Calendar, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import EnvelopeInvitationCard from './components/EnvelopeInvitationCard';
 import SentInvitationAnalyticsModal from './components/SentInvitationAnalyticsModal';
+import CancelInvitationModal from './components/CancelInvitationModal';
+import DeleteInvitationModal from './components/DeleteInvitationModal';
 
 export default function InvitationHomePage() {
   const navigate = useNavigate();
-  const { invitations, currentUser, members, setMobileMenuOpen, getUnreadCountForModule, loadInvitations } = useData();
+  const { 
+    invitations, currentUser, members, setMobileMenuOpen, getUnreadCountForModule, 
+    loadInvitations, cancelInvitation, deleteInvitation, markModuleAsVisited 
+  } = useData();
 
   useEffect(() => {
     if (loadInvitations) loadInvitations();
-  }, [loadInvitations]);
+    if (markModuleAsVisited) markModuleAsVisited('nimantran');
+  }, [loadInvitations, markModuleAsVisited]);
 
   const [activeCategory, setActiveCategory] = useState('All'); // 'All' | 'Received' | 'Sent'
   const [analyticsInvitationId, setAnalyticsInvitationId] = useState(null);
+  const [cancelTargetInv, setCancelTargetInv] = useState(null);
+  const [deleteTargetInv, setDeleteTargetInv] = useState(null);
+  const [toastMessage, setToastMessage] = useState('');
   const [dateFilter, setDateFilter] = useState('All Dates'); // 'All Dates' | 'Today' | 'This Week' | 'This Month' | 'Upcoming' | 'Past'
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const showToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(''), 3000);
+  };
+
+  const handleConfirmCancel = async (reason) => {
+    if (!cancelTargetInv) return;
+    await cancelInvitation(cancelTargetInv._id || cancelTargetInv.id, reason);
+    showToast('Invitation cancelled. All invited members have been notified.');
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTargetInv) return;
+    await deleteInvitation(deleteTargetInv._id || deleteTargetInv.id);
+    showToast('Invitation deleted for all members.');
+  };
 
   // Persisted set of card IDs that have been opened by user and remain open until crossed out
   const [openedCardIds, setOpenedCardIds] = useState(() => {
@@ -57,33 +83,50 @@ export default function InvitationHomePage() {
 
   const parseLocalDate = (dateStr) => {
     if (!dateStr) return new Date(0);
-    const parts = dateStr.split('-');
-    if (parts.length === 3) {
-      return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    if (dateStr instanceof Date) return dateStr;
+    const str = String(dateStr).trim();
+    // Check YYYY-MM-DD
+    const ymd = str.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+    if (ymd) {
+      return new Date(parseInt(ymd[1], 10), parseInt(ymd[2], 10) - 1, parseInt(ymd[3], 10));
     }
-    return new Date(dateStr);
+    // Check DD-MM-YYYY or DD/MM/YYYY
+    const dmy = str.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
+    if (dmy) {
+      return new Date(parseInt(dmy[3], 10), parseInt(dmy[2], 10) - 1, parseInt(dmy[1], 10));
+    }
+    const d = new Date(str);
+    return isNaN(d.getTime()) ? new Date(0) : d;
   };
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   const getCreatorIdStr = (inv) => {
-    if (!inv || !inv.creatorId) return '';
-    return typeof inv.creatorId === 'object' ? String(inv.creatorId._id || inv.creatorId.id) : String(inv.creatorId);
+    if (!inv) return '';
+    const c = inv.creatorId || inv.userId || inv.creator;
+    if (!c) return '';
+    return typeof c === 'object' ? String(c._id || c.id || '') : String(c);
   };
 
   const currentUserIdStr = String(currentUser?.id || currentUser?._id || '');
 
+  const isVisibleStatus = (inv) => {
+    if (!inv) return false;
+    const s = (inv.status || '').toLowerCase();
+    return s === 'approved' || s === 'cancelled' || s === 'pending' || inv.isCancelled === true;
+  };
+
   // Calculate counts for category badges
-  const allCount = invitations.filter(inv => inv.status === 'Approved' || currentUser?.role === 'admin' || getCreatorIdStr(inv) === currentUserIdStr).length;
+  const allCount = invitations.filter(inv => isVisibleStatus(inv) || currentUser?.role === 'admin' || getCreatorIdStr(inv) === currentUserIdStr).length;
   const sentCount = invitations.filter(inv => getCreatorIdStr(inv) === currentUserIdStr).length;
-  const receivedCount = invitations.filter(inv => (inv.status === 'Approved' || currentUser?.role === 'admin') && getCreatorIdStr(inv) !== currentUserIdStr).length;
+  const receivedCount = invitations.filter(inv => (isVisibleStatus(inv) || currentUser?.role === 'admin') && getCreatorIdStr(inv) !== currentUserIdStr).length;
 
   const filteredInvitations = invitations.filter(inv => {
     const isCreatedByMe = getCreatorIdStr(inv) === currentUserIdStr;
 
-    // Only show Approved for regular users unless created by me or admin
-    if (inv.status !== 'Approved' && currentUser?.role !== 'admin' && !isCreatedByMe) {
+    // Only show Approved or Cancelled for regular users unless created by me or admin
+    if (!isVisibleStatus(inv) && currentUser?.role !== 'admin' && !isCreatedByMe) {
       return false;
     }
 
@@ -97,42 +140,48 @@ export default function InvitationHomePage() {
 
     // Search Query
     if (searchQuery) {
-      const lowerQuery = searchQuery.toLowerCase();
+      const lowerQuery = searchQuery.toLowerCase().trim();
       const matchGroom = inv.groomName?.toLowerCase().includes(lowerQuery);
       const matchBride = inv.brideName?.toLowerCase().includes(lowerQuery);
       const matchTitle = inv.title?.toLowerCase().includes(lowerQuery);
       const matchHost = inv.hostName?.toLowerCase().includes(lowerQuery);
       const matchLocation = inv.location?.toLowerCase().includes(lowerQuery);
       const matchFamily = inv.familyName?.toLowerCase().includes(lowerQuery);
+      const matchMessage = inv.message?.toLowerCase().includes(lowerQuery);
 
-      if (!matchGroom && !matchBride && !matchTitle && !matchHost && !matchLocation && !matchFamily) {
+      if (!matchGroom && !matchBride && !matchTitle && !matchHost && !matchLocation && !matchFamily && !matchMessage) {
         return false;
       }
     }
 
     // Date Filter
-    const invDate = parseLocalDate(inv.date);
-    invDate.setHours(0, 0, 0, 0);
+    if (dateFilter && dateFilter !== 'All Dates') {
+      const invDate = parseLocalDate(inv.date);
+      if (!isNaN(invDate.getTime()) && invDate.getTime() > 0) {
+        invDate.setHours(0, 0, 0, 0);
 
-    if (dateFilter === 'Upcoming') {
-      return invDate >= today;
-    }
-    if (dateFilter === 'Past') {
-      return invDate < today;
-    }
-    if (dateFilter === 'Today') {
-      return invDate.getTime() === today.getTime();
-    }
-    if (dateFilter === 'This Week') {
-      const startOfWeek = new Date(today);
-      startOfWeek.setDate(today.getDate() - today.getDay()); // Sunday
-      const endOfWeek = new Date(startOfWeek);
-      endOfWeek.setDate(startOfWeek.getDate() + 6);
-      endOfWeek.setHours(23, 59, 59, 999);
-      return invDate >= startOfWeek && invDate <= endOfWeek;
-    }
-    if (dateFilter === 'This Month') {
-      return invDate.getMonth() === today.getMonth() && invDate.getFullYear() === today.getFullYear();
+        if (dateFilter === 'Upcoming') {
+          return invDate >= today;
+        }
+        if (dateFilter === 'Past') {
+          return invDate < today;
+        }
+        if (dateFilter === 'Today') {
+          return invDate.getTime() === today.getTime();
+        }
+        if (dateFilter === 'This Week') {
+          const startOfWeek = new Date(today);
+          startOfWeek.setDate(today.getDate() - today.getDay()); // Sunday
+          startOfWeek.setHours(0, 0, 0, 0);
+          const endOfWeek = new Date(startOfWeek);
+          endOfWeek.setDate(startOfWeek.getDate() + 6);
+          endOfWeek.setHours(23, 59, 59, 999);
+          return invDate >= startOfWeek && invDate <= endOfWeek;
+        }
+        if (dateFilter === 'This Month') {
+          return invDate.getMonth() === today.getMonth() && invDate.getFullYear() === today.getFullYear();
+        }
+      }
     }
 
     return true;
@@ -260,6 +309,9 @@ export default function InvitationHomePage() {
                 isSentTab={activeCategory === 'Sent'}
                 onOpenAnalytics={(target) => setAnalyticsInvitationId(target._id || target.id)}
                 onOpenDetail={(id) => navigate(`/member/invitations/${id}`)}
+                onEdit={(target) => navigate(`/member/invitations/edit/${target._id || target.id}`)}
+                onCancel={(target) => setCancelTargetInv(target)}
+                onDelete={(target) => setDeleteTargetInv(target)}
               />
             );
           })}
@@ -289,6 +341,30 @@ export default function InvitationHomePage() {
           members={members}
           onClose={() => setAnalyticsInvitationId(null)}
         />
+      )}
+
+      {/* Cancel Modal */}
+      <CancelInvitationModal
+        isOpen={Boolean(cancelTargetInv)}
+        onClose={() => setCancelTargetInv(null)}
+        invitation={cancelTargetInv}
+        onConfirm={handleConfirmCancel}
+      />
+
+      {/* Delete Modal */}
+      <DeleteInvitationModal
+        isOpen={Boolean(deleteTargetInv)}
+        onClose={() => setDeleteTargetInv(null)}
+        invitation={deleteTargetInv}
+        onConfirm={handleConfirmDelete}
+      />
+
+      {/* Toast */}
+      {toastMessage && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[100] bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2 text-xs font-bold animate-fade-in border border-slate-700">
+          <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+          <span>{toastMessage}</span>
+        </div>
       )}
     </div>
   );

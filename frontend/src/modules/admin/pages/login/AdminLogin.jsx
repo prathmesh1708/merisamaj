@@ -54,7 +54,7 @@ export const AdminLogin = () => {
               <label>Email or Mobile Number</label>
               <input
                 type="text"
-                placeholder="admin@merisamaj.com"
+                placeholder="admin@gmail.com"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 className="admin-login-input"

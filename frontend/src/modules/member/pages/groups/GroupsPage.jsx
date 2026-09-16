@@ -353,7 +353,13 @@ const GroupsPage = ({ isHub = false }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
-  const { setMobileMenuOpen } = useData();
+  const { setMobileMenuOpen, markModuleAsVisited } = useData();
+
+  useEffect(() => {
+    if (markModuleAsVisited) {
+      markModuleAsVisited('groups');
+    }
+  }, [markModuleAsVisited]);
 
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchText, setSearchText]         = useState('');

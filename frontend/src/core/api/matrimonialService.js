@@ -57,6 +57,7 @@ export const matrimonialChatService = {
   sendImageMessage:     (cId, formData) => axiosPrivate.post(`${BASE}/chat/conversations/${cId}/messages`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
+  markSeen:             (cId, messageIds = []) => axiosPrivate.post(`${BASE}/chat/conversations/${cId}/seen`, { messageIds }),
   deleteMessage:        (msgId, data)   => axiosPrivate.delete(`${BASE}/chat/messages/${msgId}`, { data }),
 };
 

@@ -3,6 +3,7 @@ const Contribution = require('../../models/Contribution');
 const FundExpense = require('../../models/FundExpense');
 const User = require('../../models/User');
 const Community = require('../../models/Community');
+const { notifyFundCreated, createBroadcastNotification } = require('../../services/notificationService');
 
 // Helper: Format date
 const formatDate = (date) => {
@@ -159,6 +160,28 @@ exports.createFund = async (req, res) => {
       await Contribution.insertMany(contributions);
     }
 
+    // ── Broadcast notification to members about new fund ─────────────────────
+    try {
+      if (scope === 'COMMUNITY' && communityId) {
+        createBroadcastNotification({
+          communityId,
+          module: 'funds',
+          type: 'fund_created',
+          title: 'New Samaj Fund 💼',
+          message: `A new community fund "${fund.name}" has been created.`,
+          icon: '💼',
+          priority: 'high',
+          actionUrl: '/member/fund',
+          referenceId: fund._id,
+          referenceType: 'Fund'
+        });
+      } else if (members.length > 0) {
+        notifyFundCreated(members.map(m => m._id), fund.name, fund._id);
+      }
+    } catch (notifErr) {
+      console.warn('[Notify] Admin createFund notification failed:', notifErr.message);
+    }
+
     res.status(201).json({ success: true, data: fund });
   } catch (error) {
     console.error('createFund error:', error);
@@ -220,6 +243,27 @@ exports.updateFund = async (req, res) => {
         { fundId: fund._id },
         { assignedAmount: Number(contributionPerMember) }
       );
+    }
+
+    // ── Broadcast notification to members about fund update ─────────────────────
+    try {
+      const targetCommId = fund.communityId;
+      if (targetCommId) {
+        createBroadcastNotification({
+          communityId: targetCommId,
+          module: 'funds',
+          type: 'fund_updated',
+          title: 'Samaj Fund Updated 💼',
+          message: `The fund "${fund.name}" has been updated.`,
+          icon: '💼',
+          priority: 'normal',
+          actionUrl: '/member/fund',
+          referenceId: fund._id,
+          referenceType: 'Fund'
+        });
+      }
+    } catch (notifErr) {
+      console.warn('[Notify] Admin updateFund notification failed:', notifErr.message);
     }
 
     res.status(200).json({ success: true, data: fund });

@@ -19,8 +19,14 @@ import { votingInstructions, votingGuidelines, securityFeatures } from './mockVo
 
 const VotingPage = () => {
   const navigate = useNavigate();
-  const { setMobileMenuOpen, getUnreadCountForModule } = useData();
+  const { setMobileMenuOpen, getUnreadCountForModule, markModuleAsVisited } = useData();
   const { elections, votedElections, loading, error, refresh } = useVoting();
+
+  useEffect(() => {
+    if (markModuleAsVisited) {
+      markModuleAsVisited('voting');
+    }
+  }, [markModuleAsVisited]);
 
   const activeElections = elections.filter(e => e.status === 'Active');
   const firstActiveElection = activeElections.find(e => e.status === 'Active'); // Find first one rather than hardcoded 'el1'

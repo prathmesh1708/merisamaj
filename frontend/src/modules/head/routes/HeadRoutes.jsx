@@ -28,6 +28,7 @@ import { HeadCensusManagement } from '../pages/census/HeadCensusManagement';
 import { HeadNotificationCenter } from '../pages/notifications/HeadNotificationCenter';
 import HeadProfileSettings from '../pages/profile/HeadProfileSettings';
 import CommunitySettings from '../pages/settings/CommunitySettings';
+import HeadSubHeadManagement from '../pages/subheads/HeadSubHeadManagement';
 
 export const HeadRoutes = () => {
   return (
@@ -76,6 +77,7 @@ export const HeadRoutes = () => {
           <Route path="notifications" element={<HeadNotificationCenter />} />
           <Route path="home-content" element={<HomepageContentManager />} />
           <Route path="engagement" element={<CommunityEngagement />} />
+          <Route path="sub-heads" element={<HeadSubHeadManagement />} />
           <Route path="leadership" element={<HeadLeadershipManagement />} />
           <Route path="local-community" element={<LocalCommunityManagement />} />
           <Route path="settings" element={<CommunitySettings />} />

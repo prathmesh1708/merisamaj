@@ -2,6 +2,7 @@ const Voting = require('../../models/Voting');
 const Vote = require('../../models/Vote');
 const mongoose = require('mongoose');
 const { applyScopeFilter } = require('../../utils/queryScopeHelper');
+const { createBroadcastNotification } = require('../../services/notificationService');
 
 // GET /api/v1/admin/voting — Platform-wide list of elections and polls with filters
 exports.getAllElections = async (req, res) => {
@@ -194,6 +195,26 @@ exports.updateElectionStatus = async (req, res) => {
 
     if (!election) {
       return res.status(404).json({ success: false, message: 'Election / Poll not found' });
+    }
+
+    // ── Broadcast notification to members about election status change ─────────────────────
+    try {
+      if (election.communityId) {
+        createBroadcastNotification({
+          communityId: election.communityId,
+          module: 'voting',
+          type: 'election_updated',
+          title: `Election Status: ${status} 🗳️`,
+          message: `The election "${election.title}" status has been updated to ${status}.`,
+          icon: '🗳️',
+          priority: 'normal',
+          actionUrl: `/member/voting/${election._id}`,
+          referenceId: election._id,
+          referenceType: 'Voting'
+        });
+      }
+    } catch (notifErr) {
+      console.warn('[Notify] Admin updateElectionStatus notification failed:', notifErr.message);
     }
 
     res.status(200).json({

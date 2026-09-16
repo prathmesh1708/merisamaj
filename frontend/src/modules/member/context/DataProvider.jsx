@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../../../core/auth/useAuth';
 import { useHeadAuth } from '../../head/auth/useHeadAuth';
 import { axiosPrivate } from '../../../core/api/axiosPrivate';
@@ -380,15 +380,22 @@ const defaultTemplates = [
   }
 ];
 
-export const getNotificationModule = (type) => {
-  if (['announcement', 'event', 'system', 'global'].includes(type)) return 'home';
-  if (['matrimonial'].includes(type)) return 'matrimonial';
-  if (['nimantran', 'invitation'].includes(type)) return 'nimantran';
-  if (['chat', 'group', 'message'].includes(type)) return 'chat';
-  if (['donation'].includes(type)) return 'donation';
-  if (['voting'].includes(type)) return 'voting';
-  if (['shradhanjali'].includes(type)) return 'shradhanjali';
-  if (['community', 'member', 'follow_request_sent', 'follow_accept', 'follow_request'].includes(type)) return 'community';
+export const getNotificationModule = (type = '') => {
+  const t = (type || '').toLowerCase();
+  if (t.includes('fund') || t.includes('due') || t.includes('contribution')) return 'fund';
+  if (t.includes('voting') || t.includes('election') || t.includes('poll')) return 'voting';
+  if (t.includes('dharmashala') || t.includes('dharamshala') || t.includes('booking') || t.includes('room')) return 'dharmashala';
+  if (t.includes('professional') || t.includes('business') || t.includes('listing') || t.includes('job')) return 'professional';
+  if (t.includes('directory')) return 'directory';
+  if (t.includes('group')) return 'groups';
+  if (t.includes('chat') || t.includes('message')) return 'chat';
+  if (t.includes('matrimonial') || t.includes('interest')) return 'matrimonial';
+  if (t.includes('nimantran') || t.includes('invitation')) return 'nimantran';
+  if (t.includes('donation') || t.includes('campaign') || t.includes('donor')) return 'donation';
+  if (t.includes('shradhanjali') || t.includes('obituary')) return 'shradhanjali';
+  if (t.includes('event')) return 'event';
+  if (t.includes('announcement') || t.includes('emergency') || t.includes('official') || t.includes('system') || t.includes('global')) return 'home';
+  if (['community', 'member', 'follow_request_sent', 'follow_accept', 'follow_request'].includes(t)) return 'community';
   return 'home';
 };
 
@@ -916,7 +923,7 @@ export const DataProvider = ({ children }) => {
   const [obituariesPage, setObituariesPage] = useState(1);
   const [hasMoreObituaries, setHasMoreObituaries] = useState(true);
 
-  const loadObituaries = async (params = { page: 1, limit: 15 }) => {
+  const loadObituaries = useCallback(async (params = { page: 1, limit: 15 }) => {
     setObituariesLoading(true);
     setObituariesError(null);
     try {
@@ -948,12 +955,12 @@ export const DataProvider = ({ children }) => {
     } finally {
       setObituariesLoading(false);
     }
-  };
+  }, [currentUser?.id, currentUser?._id]);
 
-  const loadMoreObituaries = async () => {
+  const loadMoreObituaries = useCallback(async () => {
     if (obituariesLoading || !hasMoreObituaries) return;
     await loadObituaries({ page: obituariesPage + 1, limit: 15 });
-  };
+  }, [obituariesLoading, hasMoreObituaries, obituariesPage, loadObituaries]);
 
   const loadMatrimonialProfiles = async () => {
     try {
@@ -2286,10 +2293,38 @@ export const DataProvider = ({ children }) => {
 
   const markAllNotificationsRead = (moduleName = null) => {
     setNotifications(prev => prev.map(n => {
-      if (moduleName && getNotificationModule(n.type) !== moduleName) return n;
+      if (moduleName) {
+        const mod = getNotificationModule(n.type || n.module);
+        if (mod !== moduleName) return n;
+      }
       return { ...n, isRead: true };
     }));
   };
+
+  const markModuleAsVisited = useCallback((moduleName) => {
+    if (!moduleName) return;
+    const target = moduleName.toLowerCase();
+
+    // 1. Mark in-memory notifications for this module as read
+    setNotifications(prev => prev.map(n => {
+      const mod = getNotificationModule(n.type || n.module);
+      if (mod === target || (target === 'fund' && mod === 'funds') || (target === 'groups' && mod === 'group')) {
+        return { ...n, isRead: true };
+      }
+      return n;
+    }));
+
+    // 2. Persist last visited timestamp
+    try {
+      localStorage.setItem(`merisamaj_visited_module_${target}`, Date.now().toString());
+    } catch (e) {}
+
+    // 3. Notify app components
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('app:module_visited', { detail: { module: target } }));
+      window.dispatchEvent(new CustomEvent('app:refresh_unread_counts'));
+    }
+  }, []);
 
   const addNotification = (notificationData) => {
     const newNotification = {
@@ -2302,11 +2337,20 @@ export const DataProvider = ({ children }) => {
   };
 
   const getNotificationsForModule = (moduleName) => {
-    return adaptedNotificationsList.filter(n => getNotificationModule(n.type) === moduleName);
+    const target = (moduleName || '').toLowerCase();
+    return adaptedNotificationsList.filter(n => {
+      const mod = getNotificationModule(n.type || n.module);
+      return mod === target || (target === 'fund' && mod === 'funds') || (target === 'groups' && mod === 'group');
+    });
   };
 
   const getUnreadCountForModule = (moduleName) => {
-    return adaptedNotificationsList.filter(n => getNotificationModule(n.type) === moduleName && !n.isRead).length;
+    const target = (moduleName || '').toLowerCase();
+    return adaptedNotificationsList.filter(n => {
+      const mod = getNotificationModule(n.type || n.module);
+      const isMatch = mod === target || (target === 'fund' && mod === 'funds') || (target === 'groups' && mod === 'group');
+      return isMatch && !n.isRead;
+    }).length;
   };
 
   const clearChatMessages = (groupId) => {
@@ -2451,6 +2495,17 @@ export const DataProvider = ({ children }) => {
       setInvitations(prev => prev.filter(inv => inv.id !== invitationId && inv._id !== invitationId));
     } catch (error) {
       console.error('Failed to delete invitation on backend', error);
+      throw error;
+    }
+  };
+
+  const cancelInvitation = async (invitationId, reason) => {
+    try {
+      const updatedInv = await invitationService.cancelInvitation(invitationId, reason);
+      setInvitations(prev => prev.map(inv => (inv.id === invitationId || inv._id === invitationId) ? updatedInv : inv));
+      return updatedInv;
+    } catch (error) {
+      console.error('Failed to cancel invitation', error);
       throw error;
     }
   };
@@ -3055,6 +3110,7 @@ export const DataProvider = ({ children }) => {
     updateInvitationStatus,
     updateInvitation,
     deleteInvitation,
+    cancelInvitation,
     loadInvitations,
     invitationFormConfig,
     updateInvitationConfig,
@@ -3089,6 +3145,7 @@ export const DataProvider = ({ children }) => {
     sendGroupMessage,
     createGroup,
     markAllNotificationsRead,
+    markModuleAsVisited,
     addNotification,
     getNotificationsForModule,
     getUnreadCountForModule,

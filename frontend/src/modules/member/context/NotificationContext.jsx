@@ -3,7 +3,7 @@ import { Bell, X, ExternalLink, MessageCircle } from 'lucide-react';
 import { useAuth } from '../../../core/auth/useAuth';
 import { useHeadAuth } from '../../../modules/head/auth/useHeadAuth';
 import { useAdminAuth } from '../../../modules/admin/auth/useAdminAuth';
-import { notificationService } from '../../../core/api/matrimonialService';
+import { notificationService, matrimonialChatService } from '../../../core/api/matrimonialService';
 import { memberChatService } from '../../../core/api/memberChatService';
 import { groupService } from '../../../core/api/groupService';
 import { getSocket } from '../hooks/useChatSocket';
@@ -41,11 +41,12 @@ export const NotificationProvider = ({ children }) => {
       .then(res => setUnreadCount(res.data?.data?.count || res.data?.data?.unreadCount || 0))
       .catch(() => {});
 
-    // 2. Chat Messages Unread across member & group conversations
+    // 2. Chat Messages Unread across member, group, and matrimonial conversations
     try {
-      const [memberRes, groupRes] = await Promise.allSettled([
+      const [memberRes, groupRes, matRes] = await Promise.allSettled([
         memberChatService.getConversations(),
-        groupService.getMyGroups()
+        groupService.getMyGroups(),
+        matrimonialChatService.getConversations()
       ]);
 
       let totalChatUnread = 0;
@@ -57,6 +58,10 @@ export const NotificationProvider = ({ children }) => {
         const groups = groupRes.value.data?.data?.groups || [];
         totalChatUnread += groups.reduce((acc, g) => acc + (g.unreadCount || 0), 0);
       }
+      if (matRes.status === 'fulfilled') {
+        const matConvs = matRes.value.data?.data?.conversations || [];
+        totalChatUnread += matConvs.reduce((acc, c) => acc + (c.unreadCount || 0), 0);
+      }
       setUnreadChatCount(totalChatUnread);
     } catch {
       // Non-critical background fetch
@@ -65,6 +70,14 @@ export const NotificationProvider = ({ children }) => {
 
   useEffect(() => {
     fetchUnreadCounts();
+    const handleFocus = () => fetchUnreadCounts();
+    const handleCustomRefresh = () => fetchUnreadCounts();
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('app:refresh_unread_counts', handleCustomRefresh);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('app:refresh_unread_counts', handleCustomRefresh);
+    };
   }, [fetchUnreadCounts]);
 
   // ── Socket listener for real-time notifications & incoming messages ─────────
@@ -103,7 +116,7 @@ export const NotificationProvider = ({ children }) => {
 
       // Only count and alert if the message was sent by someone else
       if (senderId && senderId !== myId) {
-        setUnreadChatCount(c => c + 1);
+        fetchUnreadCounts();
 
         const senderName = msg.senderId?.name || 'Community Member';
         const preview = msg.message || (msg.type === 'image' ? '📷 Sent a photo' : '💬 Sent a message');
@@ -131,13 +144,17 @@ export const NotificationProvider = ({ children }) => {
     socket.on('notification:new', newHandler);
     socket.on('notification:update', updateHandler);
     socket.on('chat:new_message', newChatMessageHandler);
+    socket.on('matrimonial:new_message', newChatMessageHandler);
     socket.on('chat:messages_seen', messagesSeenHandler);
+    socket.on('matrimonial:messages_seen', messagesSeenHandler);
 
     return () => {
       socket.off('notification:new', newHandler);
       socket.off('notification:update', updateHandler);
       socket.off('chat:new_message', newChatMessageHandler);
+      socket.off('matrimonial:new_message', newChatMessageHandler);
       socket.off('chat:messages_seen', messagesSeenHandler);
+      socket.off('matrimonial:messages_seen', messagesSeenHandler);
       if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     };
   }, [activeUser?._id, activeUser?.id, fetchUnreadCounts]);

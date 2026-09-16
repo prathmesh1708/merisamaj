@@ -2,7 +2,7 @@ const Dharmashala = require('../../models/Dharmashala');
 const DharmashalaRoom = require('../../models/DharmashalaRoom');
 const DharmashalaBooking = require('../../models/DharmashalaBooking');
 const DharmashalaMaintenance = require('../../models/DharmashalaMaintenance');
-const { notifyBookingStatusChanged } = require('../../services/notificationService');
+const { notifyBookingStatusChanged, createBroadcastNotification } = require('../../services/notificationService');
 const { sendPushNotification } = require('../../services/pushNotificationService');
 const { applyScopeFilter, inheritTenantPayload } = require('../../utils/queryScopeHelper');
 
@@ -170,6 +170,27 @@ exports.createProperty = async (req, res) => {
     });
     
     await property.save();
+
+    // ── Broadcast notification to members about new Dharmashala ─────────────────────
+    try {
+      if (property.communityId) {
+        createBroadcastNotification({
+          communityId: property.communityId,
+          module: 'dharmashala',
+          type: 'dharmashala_created',
+          title: 'New Dharmashala Added 🏠',
+          message: `New property "${property.name}" in ${property.city || 'community'} is now open for booking.`,
+          icon: '🏠',
+          priority: 'high',
+          actionUrl: `/member/dharmashala`,
+          referenceId: property._id,
+          referenceType: 'Dharmashala'
+        });
+      }
+    } catch (notifErr) {
+      console.warn('[Notify] createProperty notification failed:', notifErr.message);
+    }
+
     res.status(201).json({ status: 'success', data: property });
   } catch (error) {
     console.error('dharmashala createProperty error:', error);
@@ -211,6 +232,26 @@ exports.updateProperty = async (req, res) => {
     const property = await Dharmashala.findByIdAndUpdate(req.params.id, updateData, { new: true });
     if (!property) return res.status(404).json({ status: 'error', message: 'Property not found' });
     
+    // ── Broadcast notification to members about Dharmashala update ─────────────────────
+    try {
+      if (property.communityId) {
+        createBroadcastNotification({
+          communityId: property.communityId,
+          module: 'dharmashala',
+          type: 'dharmashala_updated',
+          title: 'Dharmashala Updated 🏠',
+          message: `Details and room availability for "${property.name}" have been updated.`,
+          icon: '🏠',
+          priority: 'normal',
+          actionUrl: `/member/dharmashala`,
+          referenceId: property._id,
+          referenceType: 'Dharmashala'
+        });
+      }
+    } catch (notifErr) {
+      console.warn('[Notify] updateProperty notification failed:', notifErr.message);
+    }
+
     res.status(200).json({ status: 'success', data: property });
   } catch (error) {
     res.status(400).json({ status: 'error', message: error.message });

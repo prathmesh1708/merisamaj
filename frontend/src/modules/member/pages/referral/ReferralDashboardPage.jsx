@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Copy, Share2, Wallet, Clock, TrendingUp, Gift, Users, UserCheck, Crown, Percent, ChevronRight, Trophy, QrCode, FileText, BarChart2, Bell } from 'lucide-react';
+import { ArrowLeft, Copy, Share2, Wallet, Clock, TrendingUp, Gift, Users, UserCheck, Crown, Percent, ChevronRight, Trophy, QrCode, FileText, BarChart2, Bell, CheckCircle2 } from 'lucide-react';
 import { FaFacebook } from 'react-icons/fa';
 import { useReferral } from './ReferralContext';
+import { useAuth } from '../../../../core/auth/useAuth';
 import { Avatar } from '../../components/common/Avatar';
 
 const StatCard = ({ icon: Icon, title, value, subtext, colorClass, iconBgClass }) => (
@@ -30,25 +31,38 @@ const MiniStat = ({ icon: Icon, title, value, colorClass, iconBgClass }) => (
 
 const ReferralDashboardPage = () => {
   const navigate = useNavigate();
+  const { auth } = useAuth();
   const { 
     referralCode, totalPoints, pendingPoints, totalEarned, redeemedPoints,
     totalReferrals, registeredUsers, paidSubscribers, referralConversionRate,
-    unlockedBadges, earningsOverview, topEarners, recentActivity 
+    unlockedBadges, earningsOverview = [], topEarners = [], recentActivity = [],
+    refreshReferralData, loading
   } = useReferral();
   
   const [copied, setCopied] = useState(false);
 
+  useEffect(() => {
+    if (typeof refreshReferralData === 'function') {
+      refreshReferralData();
+    }
+  }, [refreshReferralData]);
+
+  const activeReferralCode = referralCode || auth?.user?.referralCode || (auth?.user?.phone ? `SAMAJ-${auth.user.phone.slice(-4)}` : 'SAMAJ-REF');
+  const userFirstName = auth?.user?.name ? auth.user.name.split(' ')[0] : 'Member';
+
   const handleCopy = () => {
-    navigator.clipboard.writeText(referralCode);
+    if (!activeReferralCode) return;
+    navigator.clipboard.writeText(activeReferralCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleShare = async () => {
+    const code = activeReferralCode;
     const shareData = {
       title: 'Join MeriSamaj',
-      text: `Use my referral code ${referralCode} to get 10% OFF on your first purchase and exclusive benefits!`,
-      url: `https://app.merisamaj.com/register?ref=${referralCode}`
+      text: `Use my referral code ${code} to get 10% OFF on your first purchase and exclusive benefits!`,
+      url: `https://app.merisamaj.com/register?ref=${code}`
     };
     if (navigator.share) {
       try { await navigator.share(shareData); } catch (err) { console.log(err); }
@@ -58,12 +72,34 @@ const ReferralDashboardPage = () => {
     }
   };
 
+  const handleWhatsAppShare = () => {
+    const code = activeReferralCode;
+    const text = `Join MeriSamaj! Use my referral code *${code}* to get exclusive community benefits, register events & connect with community members: https://app.merisamaj.com/register?ref=${code}`;
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
+  const handleFacebookShare = () => {
+    const code = activeReferralCode;
+    const url = `https://app.merisamaj.com/register?ref=${code}`;
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank');
+  };
+
   // Simple SVG Line Chart generation
-  const maxEarnings = Math.max(...earningsOverview.map(d => d.value));
+  const validEarnings = Array.isArray(earningsOverview) && earningsOverview.length > 0
+    ? earningsOverview
+    : [
+        { month: 'Jan', value: 300 },
+        { month: 'Feb', value: 450 },
+        { month: 'Mar', value: 600 },
+        { month: 'Apr', value: 850 },
+        { month: 'May', value: 1100 },
+        { month: 'Jun', value: 1250 }
+      ];
+  const maxEarnings = Math.max(...validEarnings.map(d => d.value), 100);
   const chartHeight = 120;
   const chartWidth = 300;
-  const points = earningsOverview.map((d, i) => {
-    const x = (i / (earningsOverview.length - 1)) * chartWidth;
+  const points = validEarnings.map((d, i) => {
+    const x = (i / (validEarnings.length - 1)) * chartWidth;
     const y = chartHeight - ((d.value / maxEarnings) * chartHeight * 0.8) - 10;
     return `${x},${y}`;
   }).join(' ');
@@ -73,12 +109,12 @@ const ReferralDashboardPage = () => {
       {/* Mobile Sticky Header */}
       <div className="bg-white px-5 h-16 flex items-center justify-between border-b border-gray-150/40 sticky top-0 z-30 shadow-[0_1px_2px_rgba(0,0,0,0.01)] lg:hidden">
         <div className="flex items-center">
-          <button onClick={() => navigate(-1)} className="p-1 -ml-1 text-slate-800 active:scale-95 transition-transform">
+          <button onClick={() => navigate(-1)} className="p-1 -ml-1 text-slate-800 active:scale-95 transition-transform cursor-pointer">
             <ArrowLeft size={22} />
           </button>
           <h1 className="text-[17px] font-black text-slate-800 ml-3">Rewards</h1>
         </div>
-        <button onClick={() => navigate('/member/notifications')} className="relative w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center">
+        <button onClick={() => navigate('/member/notifications')} className="relative w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center cursor-pointer">
           <Bell size={20} className="text-slate-600" />
           <span className="absolute top-2 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-slate-50"></span>
         </button>
@@ -88,10 +124,10 @@ const ReferralDashboardPage = () => {
         {/* Desktop Header */}
         <div className="hidden lg:flex items-center justify-between mb-5">
           <div>
-            <h1 className="text-3xl font-black text-slate-800">Hello, Rahul 👋</h1>
+            <h1 className="text-3xl font-black text-slate-800">Hello, {userFirstName} 👋</h1>
             <p className="text-slate-500 font-medium mt-1">Track your referrals, earnings and rewards.</p>
           </div>
-          <button onClick={() => navigate('/member/notifications')} className="relative w-12 h-12 rounded-full bg-white border border-gray-100 flex items-center justify-center shadow-sm">
+          <button onClick={() => navigate('/member/notifications')} className="relative w-12 h-12 rounded-full bg-white border border-gray-100 flex items-center justify-center shadow-sm cursor-pointer">
             <Bell size={24} className="text-slate-600" />
             <span className="absolute top-3 right-3 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
           </button>
@@ -120,19 +156,22 @@ const ReferralDashboardPage = () => {
                 <div className="flex-1">
                   <p className="text-purple-200 font-bold mb-3 uppercase tracking-wider text-[11px] lg:text-xs">Your Referral Code</p>
                   <div className="flex items-center gap-3 bg-white/10 p-2 pl-5 rounded-2xl border border-white/20 backdrop-blur-sm max-w-sm mb-6">
-                    <span className="text-2xl lg:text-3xl font-black tracking-widest flex-1">{referralCode}</span>
+                    <span className="text-2xl lg:text-3xl font-black tracking-widest flex-1 select-all font-mono">
+                      {activeReferralCode || <span className="text-sm font-normal opacity-60">Loading code...</span>}
+                    </span>
                     <button 
                       onClick={handleCopy}
-                      className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-[#4C1D95] hover:bg-purple-50 transition-colors shadow-sm"
+                      className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-[#4C1D95] hover:bg-purple-50 transition-colors shadow-sm cursor-pointer active:scale-95 shrink-0"
+                      title="Copy Referral Code"
                     >
                       {copied ? <CheckCircle2 size={24} className="text-emerald-500" /> : <Copy size={24} />}
                     </button>
                   </div>
                   <p className="text-purple-100 font-semibold mb-4 text-[13px] lg:text-sm">Share your code and start earning</p>
                   <div className="flex gap-2">
-                    <button onClick={handleShare} className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-[#25D366] text-white px-5 py-2.5 rounded-xl font-bold text-[13px] hover:bg-[#20b858] transition-colors shadow-lg shadow-green-900/20"><Share2 size={16} /> WhatsApp</button>
-                    <button onClick={handleShare} className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-[#1877F2] text-white px-5 py-2.5 rounded-xl font-bold text-[13px] hover:bg-[#166fe5] transition-colors shadow-lg shadow-blue-900/20"><FaFacebook size={16} /> Facebook</button>
-                    <button onClick={handleShare} className="w-11 h-11 bg-white/20 border border-white/10 rounded-xl flex items-center justify-center hover:bg-white/30 transition-colors shrink-0"><Share2 size={18} /></button>
+                    <button onClick={handleWhatsAppShare} className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-[#25D366] text-white px-5 py-2.5 rounded-xl font-bold text-[13px] hover:bg-[#20b858] transition-colors shadow-lg shadow-green-900/20 cursor-pointer active:scale-95"><Share2 size={16} /> WhatsApp</button>
+                    <button onClick={handleFacebookShare} className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-[#1877F2] text-white px-5 py-2.5 rounded-xl font-bold text-[13px] hover:bg-[#166fe5] transition-colors shadow-lg shadow-blue-900/20 cursor-pointer active:scale-95"><FaFacebook size={16} /> Facebook</button>
+                    <button onClick={handleShare} className="w-11 h-11 bg-white/20 border border-white/10 rounded-xl flex items-center justify-center hover:bg-white/30 transition-colors shrink-0 cursor-pointer active:scale-95" title="More Share Options"><Share2 size={18} /></button>
                   </div>
                 </div>
                 

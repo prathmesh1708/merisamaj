@@ -130,41 +130,61 @@ export const useUnifiedConversations = () => {
   const { isConnected, isUserOnline } = useChatSocket({
     onNewMessage: (msg) => {
       setConversations(prev => {
-        const idx = prev.findIndex(c => c.conversationId === msg.conversationId?.toString());
+        const idx = prev.findIndex(c => c.conversationId?.toString() === msg.conversationId?.toString());
         if (idx === -1) {
           fetchAll(); // Refresh if unknown conversation
           return prev;
         }
+        const myId = (user?.id || user?._id)?.toString();
+        const senderId = (msg.senderId?._id || msg.senderId)?.toString();
+        const isFromOther = senderId && senderId !== myId;
+
         const current = prev[idx];
         const updated = {
           ...current,
           lastMessageAt: msg.createdAt,
           lastMessagePreview: msg.message || '📷',
-          unreadCount: msg.senderId?._id !== (user?.id || user?._id) ? (current.unreadCount + 1) : current.unreadCount,
+          unreadCount: isFromOther ? (current.unreadCount + 1) : current.unreadCount,
           metadata: {
             ...current.metadata,
-            lastMessageSender: msg.senderId?._id
+            lastMessageSender: msg.senderId?._id || msg.senderId
           }
         };
         const rest = prev.filter((_, i) => i !== idx);
         return [updated, ...rest]; // Move to top
       });
+
+      if (refreshUnreadChatCount) {
+        refreshUnreadChatCount();
+      }
     },
     onMessagesSeen: ({ conversationId }) => {
       setConversations(prev => prev.map(c => 
-        c.conversationId === conversationId 
+        c.conversationId?.toString() === conversationId?.toString()
           ? { ...c, unreadCount: 0 }
           : c
       ));
+      if (refreshUnreadChatCount) {
+        refreshUnreadChatCount();
+      }
     }
   });
 
-  const markConversationRead = useCallback((conversationId) => {
+  const markConversationRead = useCallback((conversationId, type = 'direct') => {
+    if (!conversationId) return;
     setConversations(prev => prev.map(c => 
-      c.conversationId === conversationId ? { ...c, unreadCount: 0 } : c
+      c.conversationId?.toString() === conversationId?.toString() ? { ...c, unreadCount: 0 } : c
     ));
+    if (type === 'group') {
+      groupService.markGroupSeen(conversationId).catch(() => {});
+    } else if (type === 'matrimonial') {
+      matrimonialChatService.markSeen(conversationId).catch(() => {});
+    } else {
+      memberChatService.markSeen(conversationId).catch(() => {});
+    }
+    window.dispatchEvent(new Event('app:refresh_unread_counts'));
     if (refreshUnreadChatCount) {
-      refreshUnreadChatCount();
+      setTimeout(() => refreshUnreadChatCount(), 300);
     }
   }, [refreshUnreadChatCount]);
 

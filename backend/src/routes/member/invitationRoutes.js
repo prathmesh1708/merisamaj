@@ -7,6 +7,7 @@ const {
   updateRSVP,
   deleteInvitation,
   updateInvitation,
+  cancelInvitation,
   trackInvitationOpened
 } = require('../../controllers/member/invitationController');
 // Routes are protected at the parent level in routes/index.js
@@ -21,6 +22,9 @@ router.route('/:id')
   .get(getInvitationById)
   .put(upload.array('images', 5), updateInvitation)
   .delete(deleteInvitation);
+
+router.route('/:id/cancel')
+  .put(cancelInvitation);
 
 router.route('/:id/rsvp')
   .put(updateRSVP);

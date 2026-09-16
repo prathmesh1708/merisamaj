@@ -221,6 +221,7 @@ export const MemberRoutes = () => {
                 {/* Invitations */}
                 <Route path="invitations" element={<AnimatedPage><InvitationHomePage /></AnimatedPage>} />
                 <Route path="invitations/create" element={<AnimatedPage><CreateInvitationPage /></AnimatedPage>} />
+                <Route path="invitations/edit/:id" element={<AnimatedPage><CreateInvitationPage /></AnimatedPage>} />
                 <Route path="invitations/:id" element={<AnimatedPage><InvitationDetailPage /></AnimatedPage>} />
 
                 {/* Dharmashala Booking */}

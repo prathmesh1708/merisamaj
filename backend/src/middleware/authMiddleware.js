@@ -204,11 +204,13 @@ const authorize = (...roles) => {
     }
 
     const userRole = (req.user.role || '').toLowerCase();
-    const adminRoles = ['admin', 'super_admin', 'master_admin', 'master'];
+    const adminRoles = ['admin', 'super_admin', 'master_admin', 'master', 'admin_sub_head'];
 
     const hasRole = roles.some(role => {
       const targetRole = role.toLowerCase();
-      if (adminRoles.includes(userRole)) return true;
+      if (['admin', 'super_admin', 'master_admin', 'master'].includes(userRole)) return true;
+      if (targetRole === 'admin' && (userRole === 'admin_sub_head' || adminRoles.includes(userRole))) return true;
+      if (targetRole === 'admin_only' && (userRole === 'admin' || userRole === 'super_admin' || userRole === 'master_admin')) return true;
       if (targetRole === 'head' && (userRole === 'head' || userRole === 'sub_head' || adminRoles.includes(userRole))) return true;
       if (targetRole === 'user' && (userRole === 'user' || userRole === 'member' || userRole === 'head' || userRole === 'sub_head' || adminRoles.includes(userRole))) return true;
       return targetRole === userRole;

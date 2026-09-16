@@ -8,6 +8,9 @@ const referralService = require('../../services/referralService');
 exports.getMyReferralInfo = async (req, res) => {
   try {
     let user = await User.findById(req.user._id).select('referralCode pointsBalance totalPointsEarned name avatar').lean();
+    if (!user) {
+      return res.status(404).json({ success: false, status: 'error', message: 'User not found' });
+    }
 
     // Safety net: assign unique referral code if user doesn't have one
     if (!user.referralCode) {

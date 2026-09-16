@@ -25,38 +25,10 @@ exports.getPublicShortcuts = async (req, res) => {
 
     const shortcuts = await AppShortcut.find({ isActive: true }).sort({ order: 1, createdAt: 1 }).lean();
 
-    // Dynamically calculate badge counts if relevant
-    let invitationCount = 0;
-    let donationCount = 0;
-    let obituaryCount = 0;
-
-    try {
-      if (Invitation) {
-        invitationCount = await Invitation.countDocuments({ status: { $ne: 'cancelled' } }).limit(50);
-      }
-    } catch (e) {}
-
-    try {
-      if (Donation) {
-        donationCount = await Donation.countDocuments({ status: 'completed' }).limit(50);
-      }
-    } catch (e) {}
-
-    try {
-      if (Obituary) {
-        obituaryCount = await Obituary.countDocuments({ isApproved: { $ne: false } }).limit(50);
-      }
-    } catch (e) {}
-
     const enrichedShortcuts = shortcuts.map(sc => {
-      let dynamicCount = 0;
-      if (sc.key === 'invitations') dynamicCount = invitationCount;
-      else if (sc.key === 'contributions') dynamicCount = donationCount;
-      else if (sc.key === 'obituary') dynamicCount = obituaryCount;
-
       return {
         ...sc,
-        badgeCount: sc.badgeType === 'dynamic_count' ? dynamicCount : (sc.badgeType === 'manual' ? sc.manualBadgeCount : 0)
+        badgeCount: sc.badgeType === 'manual' ? (sc.manualBadgeCount || 0) : 0
       };
     });
 

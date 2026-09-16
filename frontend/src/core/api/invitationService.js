@@ -55,6 +55,12 @@ const updateInvitation = async (id, invitationData) => {
   return response.data;
 };
 
+// Cancel invitation with a reason
+const cancelInvitation = async (id, reason) => {
+  const response = await axiosPrivate.put(`${API_URL}/${id}/cancel`, { reason });
+  return response.data;
+};
+
 const invitationService = {
   createInvitation,
   getInvitations,
@@ -62,7 +68,8 @@ const invitationService = {
   updateRSVP,
   trackOpened,
   deleteInvitation,
-  updateInvitation
+  updateInvitation,
+  cancelInvitation
 };
 
 export default invitationService;

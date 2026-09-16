@@ -19,6 +19,7 @@ router.get('/conversations',                            checkFeature('chat'), ch
 router.post('/conversations',                           checkFeature('chat'), chatCtrl.openConversation);  // Open/find conversation by profileId
 router.get('/conversations/:conversationId/messages',   checkFeature('chat'), chatCtrl.getMessages);
 router.post('/conversations/:conversationId/messages',  checkFeature('chat'), imageUploadLimiter, uploadChatImage, chatCtrl.sendMessage);
+router.post('/conversations/:conversationId/seen',      checkFeature('chat'), chatCtrl.markSeen);
 router.delete('/messages/:messageId',                  checkFeature('chat'), chatCtrl.deleteMessage);
 
 module.exports = router;

@@ -66,4 +66,8 @@ router.use('/obituaries', headObituaryRoutes);
 const headNotificationRoutes = require('./headNotificationRoutes');
 router.use('/notifications', headNotificationRoutes);
 
+// Sub-Head Management Routes (Community & Local Sub-Heads)
+const headSubHeadRoutes = require('./headSubHeadRoutes');
+router.use('/sub-heads', headSubHeadRoutes);
+
 module.exports = router;

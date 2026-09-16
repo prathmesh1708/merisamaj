@@ -137,6 +137,7 @@ export const UserAppEditsPage = () => {
   const [storyModal, setStoryModal] = useState({ isOpen: false, isEditing: false, data: null });
   const [headModal, setHeadModal] = useState({ isOpen: false, data: null });
   const [committeeModal, setCommitteeModal] = useState({ isOpen: false, isEditing: false, data: null });
+  const [promoBannerModal, setPromoBannerModal] = useState({ isOpen: false, isEditing: false, data: null });
   const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, type: '', id: '', title: '' });
   const [isCommunityDropdownOpen, setIsCommunityDropdownOpen] = useState(false);
   const [communitySearchQuery, setCommunitySearchQuery] = useState('');
@@ -449,6 +450,48 @@ export const UserAppEditsPage = () => {
     }
   };
 
+  // Promotional Sliding Banners Actions
+  const handleSavePromoBanner = async (formData) => {
+    setSaving(true);
+    try {
+      if (promoBannerModal.isEditing) {
+        await appContentService.updatePromotionalBanner(promoBannerModal.data.id, formData, selectedCommunityId);
+        showToast('Sliding banner updated successfully!');
+      } else {
+        await appContentService.createPromotionalBanner(formData, selectedCommunityId);
+        showToast('New sliding banner created successfully!');
+      }
+      setPromoBannerModal({ isOpen: false, isEditing: false, data: null });
+      fetchAppContent(selectedCommunityId);
+    } catch (err) {
+      console.error('Error saving promotional banner:', err);
+      showToast(err.response?.data?.message || 'Failed to save sliding banner', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeletePromoBanner = async (id) => {
+    try {
+      await appContentService.deletePromotionalBanner(id, selectedCommunityId);
+      showToast('Sliding banner deleted successfully');
+      setDeleteConfirm({ isOpen: false, type: '', id: '', title: '' });
+      fetchAppContent(selectedCommunityId);
+    } catch (err) {
+      showToast('Failed to delete sliding banner', 'error');
+    }
+  };
+
+  const handleTogglePromoBanner = async (banner) => {
+    try {
+      await appContentService.updatePromotionalBanner(banner.id, { enabled: !banner.enabled }, selectedCommunityId);
+      showToast(`Banner ${!banner.enabled ? 'activated' : 'deactivated'}`);
+      fetchAppContent(selectedCommunityId);
+    } catch (err) {
+      showToast('Failed to toggle banner', 'error');
+    }
+  };
+
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 animate-fade-in text-left">
       {/* Toast Notification */}
@@ -617,6 +660,18 @@ export const UserAppEditsPage = () => {
         >
           <ImageIcon size={15} />
           Top Header Banner
+        </button>
+
+        <button
+          onClick={() => setActiveTab('promotionalBanners')}
+          className={`flex items-center gap-2 px-5 py-3 rounded-xl text-xs font-black transition-all ${
+            activeTab === 'promotionalBanners'
+              ? 'bg-white text-purple-700 shadow-md shadow-purple-900/5'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+          }`}
+        >
+          <Layers size={15} />
+          Sliding Banners ({(appContent?.promotionalBanners || []).length})
         </button>
 
         <button
@@ -790,49 +845,229 @@ export const UserAppEditsPage = () => {
                   <span>Live Mobile Preview</span>
                 </div>
 
-                <div className="w-full rounded-[28px] overflow-hidden relative shadow-xl min-h-[220px] bg-slate-900 border-4 border-slate-800">
-                  <img
-                    src={heroForm.backgroundImage || 'https://images.unsplash.com/photo-1590050752117-238cb0fb12b1?auto=format&fit=crop&w=1200&q=80'}
-                    alt="Header Preview"
-                    className="absolute inset-0 w-full h-full object-cover"
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.src = 'https://images.unsplash.com/photo-1590050752117-238cb0fb12b1?auto=format&fit=crop&w=1200&q=80';
-                    }}
-                  />
-
-                  <div className="relative z-10 p-4 flex flex-col justify-between h-full min-h-[220px] text-white">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2.5 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/20 shadow-md">
-                        <div className="w-8 h-8 rounded-full bg-white/20 border border-white/30 flex items-center justify-center font-bold text-xs text-white">
-                          RS
-                        </div>
-                        <div>
-                          <p className="text-[8px] font-bold text-white/90 uppercase tracking-widest">GOOD AFTERNOON 🕉️</p>
-                          <h4 className="text-xs font-black text-white">Rahul Sharma</h4>
-                          <p className="text-[9px] text-amber-300 font-semibold">{communityFullTitle}</p>
-                        </div>
+                <div className="w-full rounded-[28px] overflow-hidden relative shadow-xl bg-slate-100 border-4 border-slate-800">
+                  {/* Top Header */}
+                  <div className="bg-white px-3 py-2 flex items-center justify-between border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-purple-600 border border-purple-200 flex items-center justify-center font-bold text-xs text-white">
+                        RS
+                      </div>
+                      <div className="text-left">
+                        <p className="text-[7.5px] font-bold text-slate-400 uppercase tracking-widest">GOOD AFTERNOON 🕉️</p>
+                        <h4 className="text-[11px] font-black text-slate-900 leading-none">Rahul Sharma</h4>
+                        <p className="text-[8.5px] text-purple-600 font-semibold mt-0.5">{communityFullTitle}</p>
                       </div>
                     </div>
+                    <div className="flex items-center gap-1">
+                      <span className="w-6 h-6 rounded-lg bg-slate-100 text-slate-700 font-black text-[9px] flex items-center justify-center border border-slate-200">HI</span>
+                      <span className="w-6 h-6 rounded-lg bg-slate-100 text-slate-700 text-[10px] flex items-center justify-center border border-slate-200">🔔</span>
+                    </div>
+                  </div>
+
+                  {/* Banner Image */}
+                  <div className="relative w-full h-[150px] bg-slate-900 overflow-hidden">
+                    <img
+                      src={heroForm.backgroundImage || 'https://images.unsplash.com/photo-1590050752117-238cb0fb12b1?auto=format&fit=crop&w=1200&q=80'}
+                      alt="Header Preview"
+                      className="absolute inset-0 w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = 'https://images.unsplash.com/photo-1590050752117-238cb0fb12b1?auto=format&fit=crop&w=1200&q=80';
+                      }}
+                    />
 
                     {(heroForm.title || heroForm.subtitle) && (
-                      <div className="mt-4 bg-black/40 backdrop-blur-md p-2.5 rounded-xl border border-white/20 max-w-fit shadow-md">
-                        {heroForm.title && (
-                          <h3 className="text-xs font-black text-white">{heroForm.title}</h3>
-                        )}
-                        {heroForm.subtitle && (
-                          <p className="text-[9.5px] text-white/90 font-medium">{heroForm.subtitle}</p>
-                        )}
-                        {heroForm.buttonText && (
-                          <span className="inline-block mt-1.5 px-2.5 py-0.5 bg-[#FF2162] text-white text-[9.5px] font-black rounded-lg shadow">
-                            {heroForm.buttonText} →
-                          </span>
-                        )}
+                      <div className="absolute inset-0 p-3 flex flex-col justify-end text-left bg-gradient-to-t from-black/70 to-transparent">
+                        <div className="bg-black/40 backdrop-blur-md p-2 rounded-xl border border-white/20 max-w-fit shadow-md">
+                          {heroForm.title && (
+                            <h3 className="text-xs font-black text-white">{heroForm.title}</h3>
+                          )}
+                          {heroForm.subtitle && (
+                            <p className="text-[9px] text-white/90 font-medium">{heroForm.subtitle}</p>
+                          )}
+                          {heroForm.buttonText && (
+                            <span className="inline-block mt-1 px-2 py-0.5 bg-[#FF2162] text-white text-[9px] font-black rounded-lg shadow">
+                              {heroForm.buttonText} →
+                            </span>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* ─── TAB: SLIDING PROMOTIONAL BANNERS ─── */}
+          {activeTab === 'promotionalBanners' && (
+            <div className="space-y-6">
+              {/* Header Section */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm">
+                <div>
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
+                      <Layers size={18} />
+                    </div>
+                    <h3 className="text-base font-black text-slate-900">Sliding Promotional Banners</h3>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Manage multi-slide announcements positioned between Recent Donors & Today's Updates on the Member Home screen.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setPromoBannerModal({
+                    isOpen: true,
+                    isEditing: false,
+                    data: {
+                      tag: '🎉 Grand Event',
+                      tagColor: 'from-amber-500 to-orange-500 text-white',
+                      title: '',
+                      subtitle: '',
+                      buttonText: 'View Details',
+                      link: '/member/events',
+                      image: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&w=1200&q=80',
+                      displayOrder: (appContent?.promotionalBanners || []).length + 1,
+                      enabled: true
+                    }
+                  })}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl text-xs font-black shadow-md hover:opacity-95 shrink-0 press-scale cursor-pointer"
+                >
+                  <Plus size={15} />
+                  Add Sliding Banner
+                </button>
+              </div>
+
+              {/* Banners Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {(appContent?.promotionalBanners || []).map((banner, index) => (
+                  <div
+                    key={banner.id || index}
+                    className={`bg-white rounded-3xl overflow-hidden border shadow-sm transition-all duration-300 flex flex-col justify-between ${
+                      banner.enabled !== false ? 'border-purple-200/80 hover:shadow-md hover:border-purple-300' : 'border-slate-200 opacity-60'
+                    }`}
+                  >
+                    {/* Banner Image & Tag Preview */}
+                    <div className="relative h-44 w-full bg-slate-900 overflow-hidden group">
+                      <img
+                        src={banner.image}
+                        alt={banner.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&w=1200&q=80';
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent" />
+                      
+                      {/* Top Badges */}
+                      <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
+                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-gradient-to-r ${banner.tagColor || 'from-purple-600 to-indigo-600 text-white'} shadow-md border border-white/20 backdrop-blur-md`}>
+                          {banner.tag || 'Announcement'}
+                        </span>
+                        <span className="text-[10px] font-bold text-white/90 bg-black/50 backdrop-blur-md px-2 py-0.5 rounded-full">
+                          Order: {banner.displayOrder || index + 1}
+                        </span>
+                      </div>
+
+                      {/* Bottom Banner Title Overlay */}
+                      <div className="absolute bottom-3 left-3 right-3 text-left">
+                        <h4 className="text-white text-sm font-black line-clamp-1 drop-shadow-md">
+                          {banner.title}
+                        </h4>
+                        {banner.subtitle && (
+                          <p className="text-white/80 text-[11px] font-medium line-clamp-1 mt-0.5 drop-shadow-sm">
+                            {banner.subtitle}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Card Body & Info */}
+                    <div className="p-4 space-y-3 flex-1 flex flex-col justify-between text-left">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-400 font-bold text-[10px] uppercase">Destination:</span>
+                          <span className="text-purple-600 font-bold text-[11px] truncate max-w-[180px] bg-purple-50 px-2 py-0.5 rounded-md">
+                            {banner.link || '/member/events'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-400 font-bold text-[10px] uppercase">CTA Button:</span>
+                          <span className="text-slate-700 font-bold text-[11px]">
+                            {banner.buttonText || 'View Details'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Card Footer: Status & Actions */}
+                      <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                        <button
+                          type="button"
+                          onClick={() => handleTogglePromoBanner(banner)}
+                          className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black cursor-pointer transition-colors ${
+                            banner.enabled !== false 
+                              ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200' 
+                              : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                          }`}
+                        >
+                          <span className={`w-2 h-2 rounded-full ${banner.enabled !== false ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                          {banner.enabled !== false ? 'Active' : 'Disabled'}
+                        </button>
+
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => setPromoBannerModal({ isOpen: true, isEditing: true, data: banner })}
+                            className="p-2 rounded-xl text-slate-500 hover:text-purple-600 hover:bg-purple-50 transition-colors cursor-pointer"
+                            title="Edit Banner"
+                          >
+                            <Edit3 size={15} />
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirm({ isOpen: true, type: 'promoBanner', id: banner.id, title: banner.title })}
+                            className="p-2 rounded-xl text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                            title="Delete Banner"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {(!appContent?.promotionalBanners || appContent.promotionalBanners.length === 0) && (
+                <div className="py-16 text-center bg-white rounded-3xl border border-slate-200/80 shadow-xs">
+                  <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center mx-auto mb-3">
+                    <Layers size={22} />
+                  </div>
+                  <h4 className="text-sm font-black text-slate-800">No Sliding Banners Configured</h4>
+                  <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                    Create custom announcement slides for events, matrimony, donations, and jobs to display on the Member Home screen.
+                  </p>
+                  <button
+                    onClick={() => setPromoBannerModal({
+                      isOpen: true,
+                      isEditing: false,
+                      data: {
+                        tag: '🎉 Grand Event',
+                        tagColor: 'from-amber-500 to-orange-500 text-white',
+                        title: '',
+                        subtitle: '',
+                        buttonText: 'View Details',
+                        link: '/member/events',
+                        image: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&w=1200&q=80',
+                        displayOrder: 1,
+                        enabled: true
+                      }
+                    })}
+                    className="mt-4 px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-black shadow-sm cursor-pointer"
+                  >
+                    + Add First Banner
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -1722,6 +1957,18 @@ export const UserAppEditsPage = () => {
         />
       )}
 
+      {/* ─── MODAL: PROMOTIONAL SLIDING BANNER ─── */}
+      {promoBannerModal.isOpen && (
+        <PromoBannerModal
+          isOpen={promoBannerModal.isOpen}
+          isEditing={promoBannerModal.isEditing}
+          initialData={promoBannerModal.data}
+          onClose={() => setPromoBannerModal({ isOpen: false, isEditing: false, data: null })}
+          onSave={handleSavePromoBanner}
+          saving={saving}
+        />
+      )}
+
       {/* ─── MODAL: DELETE CONFIRMATION ─── */}
       {deleteConfirm.isOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
@@ -1738,7 +1985,7 @@ export const UserAppEditsPage = () => {
             <div className="flex gap-2.5 pt-2">
               <button
                 onClick={() => setDeleteConfirm({ isOpen: false, type: '', id: '', title: '' })}
-                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50"
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
               >
                 Cancel
               </button>
@@ -1747,8 +1994,9 @@ export const UserAppEditsPage = () => {
                   if (deleteConfirm.type === 'feature') handleDeleteFeature(deleteConfirm.id);
                   if (deleteConfirm.type === 'story') handleDeleteStory(deleteConfirm.id);
                   if (deleteConfirm.type === 'committee') handleDeleteCommittee(deleteConfirm.id);
+                  if (deleteConfirm.type === 'promoBanner') handleDeletePromoBanner(deleteConfirm.id);
                 }}
-                className="flex-1 py-2.5 rounded-xl bg-rose-600 text-white text-xs font-black shadow-md hover:bg-rose-700"
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 text-white text-xs font-black shadow-md hover:bg-rose-700 cursor-pointer"
               >
                 Delete
               </button>
@@ -2220,6 +2468,205 @@ const CommitteeFormModal = ({ isOpen, isEditing, initialData, onClose, onSave, s
               className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-xs font-black shadow-md hover:opacity-95 disabled:opacity-50"
             >
               {saving ? 'Saving...' : isEditing ? 'Update Member' : 'Add Member'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const PromoBannerModal = ({ isOpen, isEditing, initialData, onClose, onSave, saving }) => {
+  const [form, setForm] = useState(initialData || {
+    tag: '🎉 Grand Event',
+    tagColor: 'from-amber-500 to-orange-500 text-white',
+    title: '',
+    subtitle: '',
+    buttonText: 'View Details',
+    link: '/member/events',
+    image: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&w=1200&q=80',
+    displayOrder: 1,
+    enabled: true
+  });
+
+  const TAG_COLOR_OPTIONS = [
+    { label: 'Amber Orange', value: 'from-amber-500 to-orange-500 text-white' },
+    { label: 'Rose Pink', value: 'from-rose-500 to-pink-500 text-white' },
+    { label: 'Blue Indigo', value: 'from-blue-600 to-indigo-600 text-white' },
+    { label: 'Emerald Teal', value: 'from-emerald-600 to-teal-600 text-white' },
+    { label: 'Purple Violet', value: 'from-purple-600 to-violet-700 text-white' }
+  ];
+
+  const LINK_PRESETS = [
+    { label: '📅 Events', value: '/member/events' },
+    { label: '💍 Matrimony', value: '/member/matrimonial' },
+    { label: '💼 Career & Jobs', value: '/member/professional' },
+    { label: '🙏 Donations', value: '/member/donation' },
+    { label: '🕊️ Shradhanjali', value: '/member/shradhanjali' },
+    { label: '🏠 Dharmashala', value: '/member/dharmashala' },
+    { label: '📖 Directory', value: '/member/directory' }
+  ];
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSave(form);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto space-y-4 animate-scale-up text-left">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <h3 className="text-base font-black text-slate-900">{isEditing ? 'Edit Sliding Banner' : 'Add New Sliding Banner'}</h3>
+          <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 cursor-pointer"><X size={16} /></button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-[11px] font-black uppercase text-slate-500 mb-1">Banner Headline / Title *</label>
+            <input
+              type="text"
+              required
+              value={form.title || ''}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              placeholder="e.g. All India Samaj Mahasammelan 2026"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 outline-none focus:border-purple-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-black uppercase text-slate-500 mb-1">Subtitle / Description</label>
+            <textarea
+              rows={2}
+              value={form.subtitle || ''}
+              onChange={(e) => setForm({ ...form, subtitle: e.target.value })}
+              placeholder="e.g. Join 5,000+ members in Indore. Cultural performances, youth conclave & grand bhandara."
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 outline-none focus:border-purple-500"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-black uppercase text-slate-500 mb-1">Badge Tag Text</label>
+              <input
+                type="text"
+                value={form.tag || ''}
+                onChange={(e) => setForm({ ...form, tag: e.target.value })}
+                placeholder="🎉 Grand Event"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 outline-none focus:border-purple-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-black uppercase text-slate-500 mb-1">Tag Color Theme</label>
+              <select
+                value={form.tagColor || TAG_COLOR_OPTIONS[0].value}
+                onChange={(e) => setForm({ ...form, tagColor: e.target.value })}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 outline-none focus:border-purple-500 cursor-pointer"
+              >
+                {TAG_COLOR_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-black uppercase text-slate-500 mb-1">CTA Button Text</label>
+              <input
+                type="text"
+                value={form.buttonText || ''}
+                onChange={(e) => setForm({ ...form, buttonText: e.target.value })}
+                placeholder="View Event Details"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 outline-none focus:border-purple-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-black uppercase text-slate-500 mb-1">Display Order</label>
+              <input
+                type="number"
+                value={form.displayOrder || 1}
+                onChange={(e) => setForm({ ...form, displayOrder: parseInt(e.target.value) || 1 })}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 outline-none focus:border-purple-500"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-black uppercase text-slate-500 mb-1">Target Click Destination Route / Link *</label>
+            <input
+              type="text"
+              required
+              value={form.link || ''}
+              onChange={(e) => setForm({ ...form, link: e.target.value })}
+              placeholder="/member/events or https://..."
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 outline-none focus:border-purple-500"
+            />
+            {/* Quick Suggestions */}
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {LINK_PRESETS.map((p) => (
+                <button
+                  type="button"
+                  key={p.value}
+                  onClick={() => setForm({ ...form, link: p.value })}
+                  className={`text-[10px] font-bold px-2 py-1 rounded-lg border transition-colors cursor-pointer ${
+                    form.link === p.value ? 'bg-purple-100 text-purple-700 border-purple-300' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-black uppercase text-slate-500 mb-1">Background Image URL</label>
+            <input
+              type="text"
+              value={form.image || ''}
+              onChange={(e) => setForm({ ...form, image: e.target.value })}
+              placeholder="https://images.unsplash.com/photo-..."
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 outline-none focus:border-purple-500"
+            />
+            {/* Image Preview */}
+            {form.image && (
+              <div className="mt-2 h-24 rounded-xl overflow-hidden border border-slate-200 bg-slate-900 relative">
+                <img src={form.image} alt="Preview" className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-white text-xs font-bold">
+                  Image Preview
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3 pt-2">
+            <input
+              type="checkbox"
+              id="promoEnabled"
+              checked={form.enabled !== false}
+              onChange={(e) => setForm({ ...form, enabled: e.target.checked })}
+              className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 cursor-pointer"
+            />
+            <label htmlFor="promoEnabled" className="text-xs font-bold text-slate-700 cursor-pointer">
+              Active & Visible in Member Home Slider
+            </label>
+          </div>
+
+          <div className="flex gap-2.5 pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-xs font-black shadow-md hover:opacity-95 disabled:opacity-50 cursor-pointer"
+            >
+              {saving ? 'Saving...' : isEditing ? 'Update Banner' : 'Create Banner'}
             </button>
           </div>
         </form>

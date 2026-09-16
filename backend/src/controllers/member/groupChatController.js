@@ -10,6 +10,8 @@ const Message      = require('../../models/Message');
 const {
   createMessage,
   getMessages,
+  markMessagesSeen,
+  markConversationSeen,
   deleteMessageForMe,
   deleteMessageForEveryone,
   pinMessage,
@@ -81,6 +83,24 @@ exports.getGroupMessages = async (req, res) => {
       isDeleted: false
     });
     if (!conv) return res.status(403).json({ status: 'error', message: 'Access denied.' });
+
+    // Mark messages as seen in DB immediately
+    await markConversationSeen(conversationId, userId);
+
+    // Emit seen event via socket to conv room and user room
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`conv:${conversationId}`).emit('chat:messages_seen', {
+        conversationId,
+        seenBy: userId,
+        userId
+      });
+      io.to(`user:${userId.toString()}`).emit('chat:messages_seen', {
+        conversationId,
+        seenBy: userId,
+        userId
+      });
+    }
 
     const { messages, total } = await getMessages(conversationId, userId, Number(page), Number(limit));
 
@@ -313,25 +333,26 @@ exports.markGroupSeen = async (req, res) => {
     });
     if (!conv) return res.status(403).json({ status: 'error', message: 'Access denied.' });
 
-    const { markMessagesSeen } = require('../../services/messageService');
-
     if (Array.isArray(messageIds) && messageIds.length > 0) {
       await markMessagesSeen(messageIds, userId);
     } else {
-      const unread = await Message.find({
-        conversationId,
-        senderId: { $ne: userId },
-        'seen.user': { $ne: userId },
-        isDeleted: false
-      }).select('_id');
-      if (unread.length > 0) {
-        await markMessagesSeen(unread.map(m => m._id), userId);
-      }
+      await markConversationSeen(conversationId, userId);
     }
 
     const io = req.app.get('io');
     if (io) {
-      io.to(`conv:${conversationId}`).emit('chat:messages_seen', { conversationId, seenBy: userId });
+      io.to(`conv:${conversationId}`).emit('chat:messages_seen', {
+        conversationId,
+        seenBy: userId,
+        userId,
+        messageIds
+      });
+      io.to(`user:${userId.toString()}`).emit('chat:messages_seen', {
+        conversationId,
+        seenBy: userId,
+        userId,
+        messageIds
+      });
     }
 
     res.json({ status: 'success', message: 'Messages marked as seen.' });

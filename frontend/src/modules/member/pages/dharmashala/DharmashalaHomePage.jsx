@@ -6,7 +6,14 @@ import { useData } from '../../context/DataProvider';
 
 export default function DharmashalaHomePage() {
   const navigate = useNavigate();
-  const { setMobileMenuOpen } = useData();
+  const { setMobileMenuOpen, markModuleAsVisited } = useData();
+
+  useEffect(() => {
+    if (markModuleAsVisited) {
+      markModuleAsVisited('dharmashala');
+    }
+  }, [markModuleAsVisited]);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [dharamshalas, setDharamshalas] = useState([]);
   const [isLoading, setIsLoading] = useState(true);

@@ -21,7 +21,7 @@ const membershipRanks = {
 };
 const MatrimonialHomePage = () => {
   const navigate = useNavigate();
-  const { currentUser, updateProfile, getUnreadCountForModule } = useData();
+  const { currentUser, updateProfile, getUnreadCountForModule, markModuleAsVisited } = useData();
   const {
     dashboard, dashboardLoading, fetchDashboard,
     myProfile,
@@ -32,6 +32,12 @@ const MatrimonialHomePage = () => {
     visitors,
     toggleShortlist, isShortlisted, searchFilters, setSearchFilters
   } = useMatrimonial();
+
+  useEffect(() => {
+    if (markModuleAsVisited) {
+      markModuleAsVisited('matrimonial');
+    }
+  }, [markModuleAsVisited]);
 
   // ─── Interest Counts from real API ───────────────────────────────────────
   const receivedCount = dashboard?.interests?.received ?? receivedInterests.length;

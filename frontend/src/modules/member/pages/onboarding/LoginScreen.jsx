@@ -159,6 +159,21 @@ const LoginScreen = () => {
       const response = await login({ identifier: loginIdentifier.trim(), password: loginPassword });
       if (response?.user) {
         loginUser(response.user);
+        
+        // Auto-redirect to appropriate panel based on user role
+        if (
+          response.user.role === 'admin' || 
+          response.user.role === 'admin_sub_head' || 
+          (response.user.role === 'sub_head' && response.user.subHeadType === 'admin')
+        ) {
+          navigate('/admin/dashboard');
+          return;
+        }
+        
+        if (response.user.role === 'head' || response.user.role === 'sub_head') {
+          navigate('/head/dashboard');
+          return;
+        }
       }
       navigate('/member/home');
     } catch (error) {

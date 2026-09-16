@@ -135,18 +135,30 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
     hasMountedRef.current = true;
   }, [messages, typingUsers]);
 
-  // Mark messages as seen when page is focused
+  // Immediately mark conversation as seen when conversationId is active
   useEffect(() => {
-    if (!conversationId || !messages.length) return;
+    if (!conversationId) return;
+    memberChatService.markSeen(conversationId).catch(() => {});
+    window.dispatchEvent(new Event('app:refresh_unread_counts'));
+  }, [conversationId]);
+
+  // Mark messages as seen when page is focused or messages load
+  useEffect(() => {
+    if (!conversationId) return;
+    const myId = (user?.id || user?._id)?.toString();
     const unseenIds = messages
       .filter(m => {
-        const senderId = m.senderId?._id || m.senderId;
-        const myId = user?._id?.toString();
-        return senderId?.toString() !== myId && !m.seenBy?.some(s => (s.userId || s)?.toString() === myId);
+        const senderId = (m.senderId?._id || m.senderId)?.toString();
+        return senderId && senderId !== myId && !m.seenBy?.some(s => (s.userId?._id || s.userId || s)?.toString() === myId);
       })
       .map(m => m._id);
-    if (unseenIds.length > 0) markSeen(unseenIds);
-  }, [messages, conversationId]); // eslint-disable-line
+
+    if (unseenIds.length > 0) {
+      markSeen(unseenIds);
+    }
+    memberChatService.markSeen(conversationId).catch(() => {});
+    window.dispatchEvent(new Event('app:refresh_unread_counts'));
+  }, [messages, conversationId, user, markSeen]);
 
   // Derive display info for the other user
   const myId = (user?.id || user?._id)?.toString();

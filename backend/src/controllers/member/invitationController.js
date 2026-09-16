@@ -383,10 +383,112 @@ exports.updateInvitation = async (req, res) => {
     }
 
     await invitation.save();
+
+    // Notify invited members about the update
+    try {
+      const recipientIds = invitation.invitedMemberIds || [];
+      if (recipientIds.length > 0) {
+        recipientIds.forEach(mId => {
+          const mIdStr = mId.toString();
+          if (mIdStr !== req.user._id.toString()) {
+            createNotification({
+              userId: mId,
+              communityId: invitation.communityId || req.communityId,
+              module: 'invitations',
+              type: 'invitation_updated',
+              title: 'Invitation Updated ✏️',
+              message: `Details for "${invitation.title}" have been updated by ${invitation.hostName || req.user.name || 'the host'}.`,
+              icon: '✏️',
+              priority: 'normal',
+              actionUrl: `/member/invitations/${invitation._id}`,
+              referenceId: invitation._id,
+              referenceType: 'Invitation'
+            }).catch(err => console.error('[UpdateNotifError]', err.message));
+          }
+        });
+      }
+    } catch (notifErr) {
+      console.warn('[Notify] updateInvitation notification failed:', notifErr.message);
+    }
+
     const updated = await withAnalyticsPopulate(Invitation.findById(invitation._id));
     res.json(updated);
   } catch (error) {
     console.error('Error updating invitation:', error);
+    res.status(500).json({ message: 'Server Error' });
+  }
+};
+
+// @desc    Cancel an invitation with a reason
+// @route   PUT /api/member/invitations/:id/cancel
+// @access  Private
+exports.cancelInvitation = async (req, res) => {
+  try {
+    const filter = applyScopeFilter(req, { _id: req.params.id });
+    const invitation = await Invitation.findOne(filter);
+
+    if (!invitation) {
+      return res.status(404).json({ message: 'Invitation not found' });
+    }
+
+    const isCreator = invitation.creatorId && invitation.creatorId.toString() === req.user._id.toString();
+    const isHeadOrAdmin = ['head', 'admin', 'head_admin', 'super_admin', 'master_admin'].includes((req.user.role || '').toLowerCase());
+
+    if (!isCreator && !isHeadOrAdmin) {
+      return res.status(401).json({ message: 'Not authorized to cancel this invitation' });
+    }
+
+    const { reason } = req.body;
+    const cancellationReason = reason && reason.trim() ? reason.trim() : 'Event cancelled by organizer';
+
+    invitation.status = 'Cancelled';
+    invitation.isCancelled = true;
+    invitation.cancellationReason = cancellationReason;
+    invitation.cancelledAt = new Date();
+    invitation.cancelledBy = req.user._id;
+
+    await invitation.save();
+
+    // Notify all invited members about the cancellation
+    try {
+      const recipientIds = invitation.invitedMemberIds || [];
+      if (recipientIds.length > 0) {
+        recipientIds.forEach(mId => {
+          const mIdStr = mId.toString();
+          if (mIdStr !== req.user._id.toString()) {
+            createNotification({
+              userId: mId,
+              communityId: invitation.communityId || req.communityId,
+              module: 'invitations',
+              type: 'invitation_cancelled',
+              title: 'Event Cancelled ❌',
+              message: `"${invitation.title}" has been cancelled. Reason: ${cancellationReason}`,
+              icon: '❌',
+              priority: 'high',
+              actionUrl: `/member/invitations/${invitation._id}`,
+              referenceId: invitation._id,
+              referenceType: 'Invitation'
+            }).catch(err => console.error('[CancelNotifError]', err.message));
+
+            sendPushNotification({
+              userId: mId,
+              type: 'invitation_cancelled',
+              title: `Event Cancelled ❌`,
+              message: `"${invitation.title}" has been cancelled. Reason: ${cancellationReason}`,
+              icon: '❌',
+              actionUrl: `/member/invitations/${invitation._id}`
+            }).catch(err => console.error('[CancelPushError]', err.message));
+          }
+        });
+      }
+    } catch (notifErr) {
+      console.warn('[Notify] cancelInvitation notification failed:', notifErr.message);
+    }
+
+    const updated = await withAnalyticsPopulate(Invitation.findById(invitation._id));
+    res.json(updated);
+  } catch (error) {
+    console.error('Error cancelling invitation:', error);
     res.status(500).json({ message: 'Server Error' });
   }
 };

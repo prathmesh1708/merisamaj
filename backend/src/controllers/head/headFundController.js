@@ -2,7 +2,7 @@ const Fund = require('../../models/Fund');
 const Contribution = require('../../models/Contribution');
 const FundExpense = require('../../models/FundExpense');
 const User = require('../../models/User');
-const { notifyFundCreated, createNotification } = require('../../services/notificationService');
+const { notifyFundCreated, createNotification, createBroadcastNotification } = require('../../services/notificationService');
 const { applyScopeFilter, inheritTenantPayload } = require('../../utils/queryScopeHelper');
 
 const formatDate = (date) => {
@@ -341,6 +341,26 @@ exports.updateFund = async (req, res) => {
         { fundId: fund._id },
         { assignedAmount: Number(contributionPerMember) }
       );
+    }
+
+    // ── Broadcast notification to members about fund update ─────────────────────
+    try {
+      if (communityId) {
+        createBroadcastNotification({
+          communityId,
+          module: 'funds',
+          type: 'fund_updated',
+          title: 'Samaj Fund Updated 💼',
+          message: `The fund "${fund.name}" has been updated.`,
+          icon: '💼',
+          priority: 'normal',
+          actionUrl: '/member/fund',
+          referenceId: fund._id,
+          referenceType: 'Fund'
+        });
+      }
+    } catch (notifErr) {
+      console.warn('[Notify] updateHeadFund notification failed:', notifErr.message);
     }
 
     res.status(200).json({ success: true, data: fund });

@@ -32,7 +32,13 @@ const SkeletonCard = () => (
 
 const ProfessionalDirectoryPage = () => {
   const navigate = useNavigate();
-  const { currentUser } = useData();
+  const { currentUser, markModuleAsVisited } = useData();
+
+  useEffect(() => {
+    if (markModuleAsVisited) {
+      markModuleAsVisited('professional');
+    }
+  }, [markModuleAsVisited]);
 
   // State (100% preserved)
   const [searchQuery, setSearchQuery] = useState('');

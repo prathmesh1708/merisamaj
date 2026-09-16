@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Search, MoreVertical, MessageCircle, Users, Archive, PlusCircle, RefreshCcw, Loader2, Heart
+  Search, MoreVertical, MessageCircle, Users, Archive, PlusCircle, RefreshCcw, Loader2, Heart, CheckCheck
 } from 'lucide-react';
 import { useUnifiedConversations } from '../../hooks/useUnifiedConversations';
 import ConversationCard from '../../components/chat/ConversationCard';
@@ -11,9 +11,7 @@ const ChatListPage = ({ isHub = false }) => {
   
   // Tab persistence
   const [activeTab, setActiveTab] = useState(() => {
-    let saved = localStorage.getItem('messagesHub_activeTab') || 'all';
-    if (saved === 'groups') saved = 'all';
-    return saved;
+    return localStorage.getItem('messagesHub_activeTab') || 'all';
   });
   
   const [searchQuery, setSearchQuery] = useState('');
@@ -30,11 +28,13 @@ const ChatListPage = ({ isHub = false }) => {
 
   // Filter conversations based on tab and search
   const filteredConvs = useMemo(() => {
-    let filtered = conversations.filter(c => c.type !== 'group');
+    let filtered = conversations;
 
     // 1. Filter by Tab
     if (activeTab === 'direct') {
       filtered = filtered.filter(c => c.type === 'direct');
+    } else if (activeTab === 'groups') {
+      filtered = filtered.filter(c => c.type === 'group');
     } else if (activeTab === 'matrimonial') {
       filtered = filtered.filter(c => c.type === 'matrimonial');
     }
@@ -51,17 +51,28 @@ const ChatListPage = ({ isHub = false }) => {
   const tabs = [
     { id: 'all', label: 'All' },
     { id: 'direct', label: 'Direct' },
+    { id: 'groups', label: 'Groups' },
     { id: 'matrimonial', label: 'Matrimonial' }
   ];
 
   const handleCardClick = (conv) => {
-    markConversationRead(conv.conversationId);
-    navigate(conv.route, { state: { from: '/member/social', tab: 'chat' } });
+    markConversationRead(conv.conversationId, conv.type);
+    navigate(conv.route, { state: { from: '/member/chat', tab: activeTab } });
+  };
+
+  const handleMarkAllRead = () => {
+    setShowDropdown(false);
+    conversations.forEach(c => {
+      if (c.unreadCount > 0) {
+        markConversationRead(c.conversationId, c.type);
+      }
+    });
   };
 
   const getEmptyState = () => {
     if (searchQuery) return { icon: Search, title: 'No results found', desc: `No conversations match "${searchQuery}"` };
     if (activeTab === 'direct') return { icon: MessageCircle, title: 'No direct chats', desc: 'Start a conversation with a community member.' };
+    if (activeTab === 'groups') return { icon: Users, title: 'No group chats', desc: 'Join or create a community group to start chatting.' };
     if (activeTab === 'matrimonial') return { icon: Heart, title: 'No matrimonial chats', desc: 'Chats will appear here when an interest is accepted.' };
     return { icon: MessageCircle, title: 'No conversations yet', desc: 'Start chatting with members.' };
   };
@@ -97,6 +108,12 @@ const ChatListPage = ({ isHub = false }) => {
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowDropdown(false)} />
                   <div className="absolute top-11 right-0 bg-white rounded-xl shadow-xl border border-purple-100/40 w-48 py-2 z-50 animate-fade-in">
+                    <button
+                      onClick={handleMarkAllRead}
+                      className="w-full px-4 py-2.5 text-left text-[13px] font-semibold hover:bg-purple-50 flex items-center gap-3 text-gray-700"
+                    >
+                      <CheckCheck size={15} className="text-purple-600" /> Mark all as read
+                    </button>
                     <button
                       onClick={() => { setShowDropdown(false); navigate('/member/groups'); }}
                       className="w-full px-4 py-2.5 text-left text-[13px] font-semibold hover:bg-purple-50 flex items-center gap-3 text-gray-700"
@@ -190,6 +207,14 @@ const ChatListPage = ({ isHub = false }) => {
                   className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-extrabold text-[12px] px-5 py-2.5 rounded-xl shadow-sm press-scale"
                 >
                   Browse Directory
+                </button>
+              )}
+              {activeTab === 'groups' && (
+                <button
+                  onClick={() => navigate('/member/groups')}
+                  className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-extrabold text-[12px] px-5 py-2.5 rounded-xl shadow-sm press-scale"
+                >
+                  Discover Groups
                 </button>
               )}
               {activeTab === 'matrimonial' && (

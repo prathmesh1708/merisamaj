@@ -69,6 +69,7 @@ export const useGroupChat = (conversationId, group) => {
         return [...prev, msg];
       });
       markSeen([msg._id]);
+      window.dispatchEvent(new Event('app:refresh_unread_counts'));
     },
 
     onUserTyping: ({ userId: typingUserId, conversationId: cId }) => {
@@ -92,8 +93,8 @@ export const useGroupChat = (conversationId, group) => {
 
     onMessagesSeen: ({ userId: seenByUserId, messageIds }) => {
       setMessages(prev => prev.map(m =>
-        messageIds.includes(m._id)
-          ? { ...m, seenBy: [...(m.seenBy || []), { userId: seenByUserId }] }
+        (!messageIds || messageIds.includes(m._id))
+          ? { ...m, seenBy: [...(m.seenBy || []).filter(s => (s.userId?._id || s.userId || s)?.toString() !== seenByUserId?.toString()), { userId: seenByUserId }] }
           : m
       ));
     },
@@ -122,6 +123,22 @@ export const useGroupChat = (conversationId, group) => {
       ));
     }
   });
+
+  // Mark messages as seen when messages load or change
+  useEffect(() => {
+    if (!conversationId || !messages.length) return;
+    const myId = (user?.id || user?._id)?.toString();
+    const unseenIds = messages
+      .filter(m => {
+        const senderId = (m.senderId?._id || m.senderId)?.toString();
+        return senderId && senderId !== myId && !m.seenBy?.some(s => (s.userId?._id || s.userId || s)?.toString() === myId);
+      })
+      .map(m => m._id);
+    if (unseenIds.length > 0) {
+      markSeen(unseenIds);
+    }
+    window.dispatchEvent(new Event('app:refresh_unread_counts'));
+  }, [messages, conversationId, user, markSeen]);
 
   // ── Send message ───────────────────────────────────────────────────────────
   const sendMessage = useCallback(async ({ text, imageFile, replyTo }) => {

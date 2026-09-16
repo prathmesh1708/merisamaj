@@ -366,10 +366,14 @@ export const AnimatedIconCards = ({
   const getBadgeCount = (card) => {
     if (card.badgeType === 'none') return 0;
     if (card.badgeType === 'manual') return card.manualBadgeCount || 0;
-    if (card.badgeCount !== undefined) return card.badgeCount;
-    if (card.key === 'invitations') return invitationCount;
-    if (card.key === 'contributions') return donationCount;
-    if (card.key === 'obituary') return shradhanjaliCount;
+
+    // For dynamic counts, use the live user-specific unread count passed from context / HomePage
+    const iconKey = card.presetIconKey || card.key;
+    if (iconKey === 'invitations' || card.title?.toLowerCase().includes('invitation')) return invitationCount || 0;
+    if (iconKey === 'contributions' || card.title?.toLowerCase().includes('contribution') || card.title?.toLowerCase().includes('donation')) return donationCount || 0;
+    if (iconKey === 'obituary' || card.title?.toLowerCase().includes('obituary') || card.title?.toLowerCase().includes('shradhanjali')) return shradhanjaliCount || 0;
+
+    if (card.badgeCount !== undefined && card.badgeType !== 'dynamic_count') return card.badgeCount;
     return 0;
   };
 

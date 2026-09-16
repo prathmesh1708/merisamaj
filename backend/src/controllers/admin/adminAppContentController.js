@@ -183,6 +183,74 @@ const getDefaultCoreMembers = () => ({
   ]
 });
 
+const getDefaultPromotionalBanners = () => [
+  {
+    id: 'promo_event_1',
+    tag: '🎉 Grand Event',
+    tagColor: 'from-amber-500 to-orange-500 text-white',
+    title: 'All India Samaj Mahasammelan 2026',
+    subtitle: 'Join 5,000+ members in Indore. Cultural performances, youth conclave & grand bhandara.',
+    buttonText: 'View Event Details',
+    link: '/member/events',
+    image: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&w=1200&q=80',
+    accentColor: '#F59E0B',
+    displayOrder: 1,
+    enabled: true
+  },
+  {
+    id: 'promo_matrimony_2',
+    tag: '💍 Matrimony Special',
+    tagColor: 'from-rose-500 to-pink-500 text-white',
+    title: 'Find Your Perfect Life Partner',
+    subtitle: 'Explore 1,500+ verified community bio-data profiles with complete family background.',
+    buttonText: 'Browse Profiles',
+    link: '/member/matrimonial',
+    image: 'https://images.unsplash.com/photo-1583939003579-730e3918a45a?auto=format&fit=crop&w=1200&q=80',
+    accentColor: '#E11D48',
+    displayOrder: 2,
+    enabled: true
+  },
+  {
+    id: 'promo_jobs_3',
+    tag: '💼 Career & Jobs',
+    tagColor: 'from-blue-600 to-indigo-600 text-white',
+    title: 'Samaj Youth Career & Hiring Expo',
+    subtitle: 'Connect directly with top community entrepreneurs, business owners & hiring managers.',
+    buttonText: 'Explore Opportunities',
+    link: '/member/professional',
+    image: 'https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=1200&q=80',
+    accentColor: '#2563EB',
+    displayOrder: 3,
+    enabled: true
+  },
+  {
+    id: 'promo_donation_4',
+    tag: '🙏 Dharmik Seva',
+    tagColor: 'from-emerald-600 to-teal-600 text-white',
+    title: 'Support Community Seva & Gaushala',
+    subtitle: 'Contribute to daily fodder, medical care & temple renovation with 100% verified transparency.',
+    buttonText: 'Contribute Now',
+    link: '/member/donation',
+    image: 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=1200&q=80',
+    accentColor: '#059669',
+    displayOrder: 4,
+    enabled: true
+  },
+  {
+    id: 'promo_shradhanjali_5',
+    tag: '🕊️ Smriti & Shradhanjali',
+    tagColor: 'from-purple-600 to-violet-700 text-white',
+    title: 'Honor & Remember Loved Ones',
+    subtitle: 'Send digital floral tributes, heartfelt condolences & prayer meeting notifications with family.',
+    buttonText: 'View Memorials',
+    link: '/member/shradhanjali',
+    image: 'https://images.unsplash.com/photo-1518495973542-4542c06a5843?auto=format&fit=crop&w=1200&q=80',
+    accentColor: '#7C3AED',
+    displayOrder: 5,
+    enabled: true
+  }
+];
+
 const getOrCreateAppContent = async (communityId) => {
   let targetCommunityId = communityId;
   if (!targetCommunityId) {
@@ -194,6 +262,7 @@ const getOrCreateAppContent = async (communityId) => {
   if (!doc) {
     doc = await AppContent.create({
       communityId: targetCommunityId,
+      promotionalBanners: getDefaultPromotionalBanners(),
       heroBanner: {
         backgroundImage: 'https://images.unsplash.com/photo-1590050752117-238cb0fb12b1?auto=format&fit=crop&w=1200&q=80',
         title: '',
@@ -220,6 +289,9 @@ const getOrCreateAppContent = async (communityId) => {
         enabled: true
       }
     });
+  } else if (!doc.promotionalBanners || doc.promotionalBanners.length === 0) {
+    doc.promotionalBanners = getDefaultPromotionalBanners();
+    await saveAndInvalidate(doc);
   } else {
     let modified = false;
     if (!doc.censusBanner) {
@@ -679,6 +751,102 @@ exports.deleteCommitteeMember = async (req, res) => {
     });
   } catch (error) {
     console.error('Error deleting committee member:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ─── PROMOTIONAL SLIDING BANNERS ───
+
+// @desc    Create Promotional Banner
+// @route   POST /api/v1/admin/user-app-edits/promotional-banners
+// @access  Admin
+exports.createPromotionalBanner = async (req, res) => {
+  try {
+    const targetCommunityId = req.body.communityId || req.communityId || req.user?.communityId;
+    const doc = await getOrCreateAppContent(targetCommunityId);
+
+    const newBanner = {
+      id: req.body.id || `promo_${Date.now()}`,
+      tag: req.body.tag || 'Announcement',
+      tagColor: req.body.tagColor || 'from-purple-600 to-indigo-600 text-white',
+      title: req.body.title || 'Special Announcement',
+      subtitle: req.body.subtitle || '',
+      buttonText: req.body.buttonText || 'View Details',
+      link: req.body.link || '/member/events',
+      image: req.body.image || 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&w=1200&q=80',
+      accentColor: req.body.accentColor || '#7C3AED',
+      displayOrder: req.body.displayOrder !== undefined ? req.body.displayOrder : (doc.promotionalBanners?.length || 0) + 1,
+      enabled: req.body.enabled !== false
+    };
+
+    if (!doc.promotionalBanners) doc.promotionalBanners = [];
+    doc.promotionalBanners.push(newBanner);
+    await saveAndInvalidate(doc);
+
+    return res.status(201).json({
+      success: true,
+      message: 'Promotional banner added successfully',
+      data: newBanner
+    });
+  } catch (error) {
+    console.error('Error creating promotional banner:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Update Promotional Banner
+// @route   PUT /api/v1/admin/user-app-edits/promotional-banners/:id
+// @access  Admin
+exports.updatePromotionalBanner = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const targetCommunityId = req.body.communityId || req.communityId || req.user?.communityId;
+    const doc = await getOrCreateAppContent(targetCommunityId);
+
+    if (!doc.promotionalBanners) doc.promotionalBanners = [];
+    const bannerIndex = doc.promotionalBanners.findIndex(b => b.id === id);
+    if (bannerIndex === -1) {
+      return res.status(404).json({ success: false, message: 'Promotional banner not found' });
+    }
+
+    const fields = ['tag', 'tagColor', 'title', 'subtitle', 'buttonText', 'link', 'image', 'accentColor', 'displayOrder', 'enabled'];
+    fields.forEach(f => {
+      if (req.body[f] !== undefined) {
+        doc.promotionalBanners[bannerIndex][f] = req.body[f];
+      }
+    });
+
+    await saveAndInvalidate(doc);
+    return res.status(200).json({
+      success: true,
+      message: 'Promotional banner updated successfully',
+      data: doc.promotionalBanners[bannerIndex]
+    });
+  } catch (error) {
+    console.error('Error updating promotional banner:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Delete Promotional Banner
+// @route   DELETE /api/v1/admin/user-app-edits/promotional-banners/:id
+// @access  Admin
+exports.deletePromotionalBanner = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const targetCommunityId = req.query.communityId || req.communityId || req.user?.communityId;
+    const doc = await getOrCreateAppContent(targetCommunityId);
+
+    if (!doc.promotionalBanners) doc.promotionalBanners = [];
+    doc.promotionalBanners = doc.promotionalBanners.filter(b => b.id !== id);
+    await saveAndInvalidate(doc);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Promotional banner deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting promotional banner:', error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };

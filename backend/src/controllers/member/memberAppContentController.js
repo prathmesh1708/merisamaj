@@ -232,10 +232,15 @@ exports.getMemberAppContent = async (req, res) => {
       .filter(c => c.enabled)
       .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
 
+    const activeBanners = (doc.promotionalBanners || [])
+      .filter(b => b.enabled !== false)
+      .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+
     const payload = {
       success: true,
       data: {
         heroBanner: doc.heroBanner || {},
+        promotionalBanners: activeBanners,
         exclusiveFeatures: activeFeatures,
         successStories: activeStories,
         coreMembers: {

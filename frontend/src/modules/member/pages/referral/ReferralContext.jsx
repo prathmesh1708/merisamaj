@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { memberReferralService } from '../../../../core/api/referralService';
+import { useAuth } from '../../../../core/auth/useAuth';
 
 const ReferralContext = createContext();
 
@@ -20,10 +21,11 @@ export const LEVELS = [
 ];
 
 export const ReferralProvider = ({ children }) => {
-  const [loading, setLoading] = useState(true);
-  const [referralCode, setReferralCode] = useState('');
-  const [totalPoints, setTotalPoints] = useState(0);
-  const [totalEarned, setTotalEarned] = useState(0);
+  const { auth } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [referralCode, setReferralCode] = useState(auth?.user?.referralCode || '');
+  const [totalPoints, setTotalPoints] = useState(auth?.user?.pointsBalance || 0);
+  const [totalEarned, setTotalEarned] = useState(auth?.user?.totalPointsEarned || 0);
   const [pendingPoints] = useState(0); // 0 per requirements: points credited immediately
   const [redeemedPoints] = useState(0); // Phase 2
   const [totalReferrals, setTotalReferrals] = useState(0);
@@ -38,6 +40,13 @@ export const ReferralProvider = ({ children }) => {
   const [referredUsers, setReferredUsers] = useState([]);
   const [topEarners, setTopEarners] = useState([]);
 
+  // Sync with auth user if available
+  useEffect(() => {
+    if (auth?.user?.referralCode && !referralCode) {
+      setReferralCode(auth.user.referralCode);
+    }
+  }, [auth?.user?.referralCode, referralCode]);
+
   const fetchReferralData = useCallback(async () => {
     setLoading(true);
     try {
@@ -50,11 +59,14 @@ export const ReferralProvider = ({ children }) => {
 
       if (infoRes.status === 'fulfilled' && infoRes.value.data?.data) {
         const d = infoRes.value.data.data;
-        setReferralCode(d.referralCode || '');
+        const code = d.referralCode || auth?.user?.referralCode || '';
+        if (code) setReferralCode(code);
         setTotalPoints(d.pointsBalance || 0);
         setTotalEarned(d.totalPointsEarned || 0);
         setTotalReferrals(d.totalReferrals || 0);
         if (d.eventBreakdown) setEventBreakdown(d.eventBreakdown);
+      } else if (auth?.user?.referralCode) {
+        setReferralCode(auth.user.referralCode);
       }
 
       if (historyRes.status === 'fulfilled' && historyRes.value.data?.data) {
@@ -87,13 +99,13 @@ export const ReferralProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [auth?.user?.referralCode]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.location.pathname.includes('/referral')) {
+    if (auth?.isAuthenticated) {
       fetchReferralData();
     }
-  }, [fetchReferralData]);
+  }, [auth?.isAuthenticated, fetchReferralData]);
 
   // Real backend validation function
   const validateReferralCode = async (code) => {

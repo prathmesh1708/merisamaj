@@ -192,15 +192,25 @@ const MatrimonialChatPage = () => {
   useEffect(() => {
     loadConversation();
     fetchMessages(conversationId);
+    if (conversationId) {
+      matrimonialChatService.markSeen(conversationId).catch(() => {});
+      window.dispatchEvent(new Event('app:refresh_unread_counts'));
+    }
   }, [conversationId, fetchMessages, loadConversation]);
 
   // Mark messages as seen
   useEffect(() => {
     if (messages.length > 0) {
+      const myId = currentUserId?.toString();
       const unseenIds = messages
-        .filter(m => (m.senderId?._id || m.senderId) !== currentUserId && !m.seenBy?.some(s => s.userId === currentUserId))
+        .filter(m => {
+          const senderId = (m.senderId?._id || m.senderId)?.toString();
+          return senderId && senderId !== myId && !m.seenBy?.some(s => (s.userId?._id || s.userId || s)?.toString() === myId);
+        })
         .map(m => m._id);
       if (unseenIds.length > 0) markSeen(conversationId, unseenIds);
+      matrimonialChatService.markSeen(conversationId).catch(() => {});
+      window.dispatchEvent(new Event('app:refresh_unread_counts'));
     }
   }, [messages, conversationId, currentUserId, markSeen]);
 

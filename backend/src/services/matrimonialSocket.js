@@ -7,6 +7,7 @@ const Conversation  = require('../models/Conversation');
 const Message       = require('../models/Message');
 const InterestRequest = require('../models/InterestRequest');
 const { notifyNewMessage } = require('../services/notificationService');
+const { markConversationSeen, markMessagesSeen } = require('../services/messageService');
 
 // Track online users: { userId: socketId }
 const onlineUsers = new Map();
@@ -44,6 +45,12 @@ const matrimonialSocket = (io) => {
 
         socket.join(`conv:${conversationId}`);
         socket.emit('matrimonial:joined', { conversationId });
+
+        // Mark messages as seen when user joins
+        await markConversationSeen(conversationId, userId);
+        io.to(`conv:${conversationId}`).emit('matrimonial:messages_seen', { conversationId, userId });
+        io.to(`conv:${conversationId}`).emit('chat:messages_seen', { conversationId, seenBy: userId, userId });
+        io.to(`user:${userId}`).emit('chat:messages_seen', { conversationId, seenBy: userId, userId });
       } catch (err) {
         socket.emit('error', { message: err.message });
       }
@@ -125,11 +132,24 @@ const matrimonialSocket = (io) => {
     // ─── Read Receipts ────────────────────────────────────────────────────────
     socket.on('matrimonial:mark_seen', async ({ conversationId, messageIds }) => {
       try {
-        await Message.updateMany(
-          { _id: { $in: messageIds }, 'seenBy.userId': { $ne: userId } },
-          { $push: { seenBy: { userId, seenAt: new Date() } } }
-        );
-        io.to(`conv:${conversationId}`).emit('matrimonial:messages_seen', { userId, messageIds, conversationId });
+        if (Array.isArray(messageIds) && messageIds.length > 0) {
+          await markMessagesSeen(messageIds, userId);
+        } else if (conversationId) {
+          await markConversationSeen(conversationId, userId);
+        }
+
+        const payload = { userId, messageIds, conversationId, seenBy: userId };
+        io.to(`conv:${conversationId}`).emit('matrimonial:messages_seen', payload);
+        io.to(`conv:${conversationId}`).emit('chat:messages_seen', payload);
+        io.to(`user:${userId}`).emit('chat:messages_seen', payload);
+
+        const conv = await Conversation.findById(conversationId).select('participants').lean();
+        if (conv && conv.participants) {
+          for (const pid of conv.participants) {
+            io.to(`user:${pid.toString()}`).emit('matrimonial:messages_seen', payload);
+            io.to(`user:${pid.toString()}`).emit('chat:messages_seen', payload);
+          }
+        }
       } catch (err) {
         socket.emit('error', { message: err.message });
       }

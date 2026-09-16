@@ -92,6 +92,25 @@ export const appContentService = {
     const payload = { ...data, communityId };
     const res = await axiosPrivate.put(`${BASE_URL}/footer-artwork`, payload);
     return res.data;
+  },
+
+  // Promotional Sliding Banners CRUD
+  createPromotionalBanner: async (data, communityId) => {
+    const payload = { ...data, communityId };
+    const res = await axiosPrivate.post(`${BASE_URL}/promotional-banners`, payload);
+    return res.data;
+  },
+
+  updatePromotionalBanner: async (id, data, communityId) => {
+    const payload = { ...data, communityId };
+    const res = await axiosPrivate.put(`${BASE_URL}/promotional-banners/${id}`, payload);
+    return res.data;
+  },
+
+  deletePromotionalBanner: async (id, communityId) => {
+    const params = communityId ? { communityId } : {};
+    const res = await axiosPrivate.delete(`${BASE_URL}/promotional-banners/${id}`, { params });
+    return res.data;
   }
 };
 
