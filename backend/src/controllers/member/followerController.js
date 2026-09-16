@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Follower = require('../../models/Follower');
 const User = require('../../models/User');
 const Notification = require('../../models/Notification');
@@ -9,6 +10,10 @@ exports.toggleFollow = async (req, res) => {
   try {
     const followingId = req.params.id;
     const followerId = req.user._id;
+
+    if (!followingId || followingId === 'undefined' || followingId === 'null' || !mongoose.Types.ObjectId.isValid(followingId)) {
+      return res.status(400).json({ success: false, message: 'Valid user ID is required' });
+    }
 
     if (followingId.toString() === followerId.toString()) {
       return res.status(400).json({ success: false, message: 'You cannot follow yourself' });
@@ -90,6 +95,10 @@ exports.toggleFollow = async (req, res) => {
 exports.getFollowers = async (req, res) => {
   try {
     const userId = req.params.id;
+    if (!userId || userId === 'undefined' || userId === 'null' || !mongoose.Types.ObjectId.isValid(userId)) {
+      return res.json({ success: true, data: [] });
+    }
+
     const followers = await Follower.find({ followingId: userId, status: 'accepted' })
       .populate('followerId', 'name avatar role city community');
 
@@ -106,6 +115,10 @@ exports.getFollowers = async (req, res) => {
 exports.getFollowing = async (req, res) => {
   try {
     const userId = req.params.id;
+    if (!userId || userId === 'undefined' || userId === 'null' || !mongoose.Types.ObjectId.isValid(userId)) {
+      return res.json({ success: true, data: [] });
+    }
+
     const following = await Follower.find({ followerId: userId, status: 'accepted' })
       .populate('followingId', 'name avatar role city community');
 

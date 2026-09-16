@@ -76,9 +76,14 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
 
   // ── Auto open conversation by userId (Route B) ───────────────────────────
   useEffect(() => {
-    if (openByUserId && params.targetUserId && !conversationId) {
+    if (openByUserId && !conversationId) {
+      const targetId = params.targetUserId;
+      if (!targetId || targetId === 'undefined' || targetId === 'null' || targetId === 'me' || targetId.length < 12) {
+        setInitError('Member profile is not available for direct chat.');
+        return;
+      }
       setInitLoading(true);
-      memberChatService.openConversation(params.targetUserId)
+      memberChatService.openConversation(targetId)
         .then(res => {
           const data = res.data?.data;
           setConversationId(data?.conversation?._id);
@@ -87,7 +92,7 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
         .catch(err => setInitError(err.response?.data?.message || 'Failed to open conversation.'))
         .finally(() => setInitLoading(false));
     }
-  }, [openByUserId, params.targetUserId]); // eslint-disable-line
+  }, [openByUserId, params.targetUserId, conversationId]);
 
   // ── Chat hook (activated once we have conversationId) ────────────────────
   const {

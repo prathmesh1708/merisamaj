@@ -103,16 +103,25 @@ const likeStory = async (id) => {
 
 // Follower APIs
 const toggleFollow = async (userId) => {
+  if (!userId || userId === 'undefined' || userId === 'null') {
+    return { success: false, message: 'Invalid user ID' };
+  }
   const response = await axiosPrivate.post(`${API_URL}/follow/${userId}`);
   return response.data;
 };
 
 const getFollowers = async (userId) => {
+  if (!userId || userId === 'undefined' || userId === 'null') {
+    return { success: true, data: [] };
+  }
   const response = await axiosPrivate.get(`${API_URL}/users/${userId}/followers`);
   return response.data;
 };
 
 const getFollowing = async (userId) => {
+  if (!userId || userId === 'undefined' || userId === 'null') {
+    return { success: true, data: [] };
+  }
   const response = await axiosPrivate.get(`${API_URL}/users/${userId}/following`);
   return response.data;
 };

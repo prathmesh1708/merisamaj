@@ -6,6 +6,57 @@ import DatePicker from '../../../../components/ui/DatePicker';
 import TimePicker from '../../../../components/ui/TimePicker';
 import invitationService from '../../../../core/api/invitationService';
 
+const compressImage = (file) => {
+  return new Promise((resolve) => {
+    if (!file || !file.type.startsWith('image/')) {
+      resolve(file);
+      return;
+    }
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const maxWidth = 1400;
+        const maxHeight = 1400;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth || height > maxHeight) {
+          if (width > height) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          } else {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob((blob) => {
+          if (blob && blob.size < file.size) {
+            const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, '') + '.jpg', {
+              type: 'image/jpeg',
+              lastModified: Date.now()
+            });
+            resolve(compressedFile);
+          } else {
+            resolve(file);
+          }
+        }, 'image/jpeg', 0.8);
+      };
+      img.onerror = () => resolve(file);
+    };
+    reader.onerror = () => resolve(file);
+  });
+};
+
 export default function CreateInvitationPage() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -87,14 +138,15 @@ export default function CreateInvitationPage() {
     }
   }, [id, isEditMode, invitations]);
 
-  const handleImageUpload = (e) => {
-    const files = Array.from(e.target.files);
-    if (files.length > 0) {
-      const newUrls = files.map(file => URL.createObjectURL(file));
+  const handleImageUpload = async (e) => {
+    const rawFiles = Array.from(e.target.files || []);
+    if (rawFiles.length > 0) {
+      const compressedFiles = await Promise.all(rawFiles.map(compressImage));
+      const newUrls = compressedFiles.map(file => URL.createObjectURL(file));
       setImagePreviews(prev => [...prev, ...newUrls]);
       setFormData(prev => ({
         ...prev,
-        images: [...(prev.images || []), ...files] // Store File objects
+        images: [...(prev.images || []), ...compressedFiles]
       }));
     }
   };
@@ -367,13 +419,12 @@ export default function CreateInvitationPage() {
 
   const handleInviteAllFriends = () => {
     if (isAllFriendsInvited) {
-      uninvitedFriendsInFilter.forEach(f => {
-        addNotification({
-          type: 'invitation',
-          title: 'मित्र को आमंत्रण (Friend Invited)',
-          message: `${f.name} को "${createdInv?.title || 'कार्यक्रम'}" के लिए आमंत्रित किया गया है।`,
-        });
-      });
+      const matchingIds = filteredFriends.map(f => f.id);
+      setInvitedMemberIds(prev => prev.filter(id => !matchingIds.includes(id)));
+    } else {
+      const uninvited = filteredFriends.filter(f => !invitedMemberIds.includes(f.id));
+      const newIds = uninvited.map(f => f.id);
+      setInvitedMemberIds(prev => [...prev, ...newIds]);
     }
   };
 
@@ -410,7 +461,7 @@ export default function CreateInvitationPage() {
           <form onSubmit={handleSubmit} className="space-y-6">
             
             {/* File Upload Section (Multiple photos) */}
-            {invitationFormConfig?.formFields?.some(f => f.id === 'photos' && f.enabled !== false) && (
+            {(!invitationFormConfig?.formFields || invitationFormConfig.formFields.some(f => f.id === 'photos' && f.enabled !== false)) && (
               <div className="space-y-2">
                 <label className="text-[13px] font-bold text-slate-700 block">
                   Upload Event Photos / Invitation Cards
@@ -957,7 +1008,9 @@ export default function CreateInvitationPage() {
             <button 
               onClick={() => {
                 // Save invited members and groups to context
-                addInvitesToInvitation(createdInv.id, invitedMemberIds, invitedGroupIds);
+                if (createdInv) {
+                  addInvitesToInvitation(createdInv._id || createdInv.id, invitedMemberIds, invitedGroupIds);
+                }
                 
                 // Dispatch all notifications at once
                 invitedMemberIds.forEach(memberId => {
@@ -966,7 +1019,7 @@ export default function CreateInvitationPage() {
                     addNotification({
                       type: 'invitation',
                       title: 'नया आमंत्रण (New Invitation)',
-                      message: `आपको "${createdInv.title || 'कार्यक्रम'}" के लिए आमंत्रित किया गया है।`,
+                      message: `आपको "${createdInv?.title || 'कार्यक्रम'}" के लिए आमंत्रित किया गया है।`,
                     });
                   }
                 });
@@ -977,7 +1030,7 @@ export default function CreateInvitationPage() {
                     addNotification({
                       type: 'invitation',
                       title: 'ग्रुप को आमंत्रण (Group Invited)',
-                      message: `आपके "${group.name}" ग्रुप को "${createdInv.title || 'कार्यक्रम'}" के लिए आमंत्रित किया गया है।`,
+                      message: `आपके "${group.name}" ग्रुप को "${createdInv?.title || 'कार्यक्रम'}" के लिए आमंत्रित किया गया है।`,
                     });
                   }
                 });

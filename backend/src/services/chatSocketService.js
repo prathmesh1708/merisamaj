@@ -124,7 +124,11 @@ const chatSocketService = (io) => {
           }
         } else {
           // Normal Chat: Check if user is a participant
-          if (!conversation.participants.includes(userId)) {
+          const isParticipant = Array.isArray(conversation.participants) && conversation.participants.some(p => {
+            const pId = (p?._id || p)?.toString();
+            return pId && pId === userId.toString();
+          });
+          if (!isParticipant) {
             return socket.emit('chat:error', { message: 'Access denied to this conversation.' });
           }
         }

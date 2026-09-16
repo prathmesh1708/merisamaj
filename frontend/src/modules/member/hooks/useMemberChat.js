@@ -132,12 +132,14 @@ export const useMemberChat = (conversationId) => {
     conversationId,
 
     onNewMessage: (msg) => {
-      if (msg.conversationId !== conversationId) return;
+      const incomingConvId = (msg.conversationId?._id || msg.conversationId)?.toString();
+      const currentConvId = (conversationId?._id || conversationId)?.toString();
+      if (!incomingConvId || !currentConvId || incomingConvId !== currentConvId) return;
       const currentUserId = (user?.id || user?._id)?.toString();
 
       setMessages(prev => {
         // Direct deduplication check by _id
-        if (prev.some(m => m._id === msg._id)) return prev;
+        if (prev.some(m => m._id?.toString() === msg._id?.toString())) return prev;
 
         // If the socket message is from the current user, check if there's a pending optimistic temp_ message to replace
         const msgSenderId = (msg.senderId?._id || msg.senderId?.id || msg.senderId)?.toString();
@@ -161,15 +163,19 @@ export const useMemberChat = (conversationId) => {
     },
 
     onUserTyping: ({ userId: typingUserId, conversationId: cId }) => {
-      if (cId !== conversationId) return;
+      const incomingCId = (cId?._id || cId)?.toString();
+      const currentConvId = (conversationId?._id || conversationId)?.toString();
+      if (incomingCId !== currentConvId) return;
       setTypingUsers(prev =>
-        prev.includes(typingUserId) ? prev : [...prev, typingUserId]
+        prev.includes(typingUserId?.toString()) ? prev : [...prev, typingUserId?.toString()]
       );
     },
 
     onUserStoppedTyping: ({ userId: typingUserId, conversationId: cId }) => {
-      if (cId !== conversationId) return;
-      setTypingUsers(prev => prev.filter(id => id !== typingUserId));
+      const incomingCId = (cId?._id || cId)?.toString();
+      const currentConvId = (conversationId?._id || conversationId)?.toString();
+      if (incomingCId !== currentConvId) return;
+      setTypingUsers(prev => prev.filter(id => id !== typingUserId?.toString()));
     },
 
     onMessageDeleted: ({ messageId, conversationId: cId }) => {

@@ -200,7 +200,14 @@ const MemberSliderCard = ({ member, navigate, activeCityDetail }) => {
           <Phone size={10} />
         </a>
         <button 
-          onClick={() => navigate(`/member/chat/member/${member._id || member.id}`)}
+          onClick={() => {
+            const targetId = member._id || member.id;
+            if (targetId && /^[0-9a-fA-F]{24}$/.test(targetId.toString())) {
+              navigate(`/member/chat/member/${targetId}`);
+            } else {
+              navigate('/member/chat');
+            }
+          }}
           className="w-6 h-6 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 hover:bg-emerald-600 hover:text-white transition-colors"
         >
           <MessageCircle size={10} />

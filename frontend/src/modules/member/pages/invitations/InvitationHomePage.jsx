@@ -193,7 +193,7 @@ export default function InvitationHomePage() {
     : null;
 
   return (
-    <div className="min-h-screen bg-slate-50/70 flex flex-col font-sans select-none pb-44 sm:pb-36">
+    <div className="bg-slate-50/70 flex flex-col font-sans pb-32">
       {/* Header Bar — Glass morphism */}
       <div className="bg-white/85 backdrop-blur-xl px-4 py-3 flex items-center justify-between sticky top-0 z-30 shadow-[0_2px_12px_rgba(124,58,237,0.03)] border-b border-purple-100/30">
         <div className="flex items-center gap-3">
@@ -295,7 +295,7 @@ export default function InvitationHomePage() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3.5 sm:px-4 py-3 sm:py-4 space-y-4 max-w-4xl mx-auto w-full">
+      <div className="px-3.5 sm:px-4 py-3 sm:py-4 space-y-4 max-w-4xl mx-auto w-full">
         <AnimatePresence>
           {filteredInvitations.map(inv => {
             const cardId = String(inv._id || inv.id);

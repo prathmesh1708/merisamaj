@@ -98,7 +98,7 @@ export default function EnvelopeInvitationCard({
       <motion.div
         animate={{ height: phase === 'open' ? 0 : 272, opacity: phase === 'open' ? 0 : 1 }}
         transition={{ duration: 0.38, ease: 'easeInOut' }}
-        className="relative w-full"
+        className={`relative w-full ${phase === 'open' ? 'pointer-events-none select-none' : ''}`}
         style={{ perspective: 1600, overflow: phase === 'closed' ? 'visible' : 'hidden' }}
       >
         <div

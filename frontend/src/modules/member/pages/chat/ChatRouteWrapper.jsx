@@ -13,21 +13,17 @@ const ChatRouteWrapper = () => {
     );
   }
 
-  // Prevent infinite loops if URL is exactly what we would navigate to
-  if (id === 'member') {
-    return <Navigate to={`/member/chat`} replace />;
+  if (!id || id === 'undefined' || id === 'null' || id === 'member' || id === 'me') {
+    return <Navigate to="/member/chat" replace />;
   }
 
-  if (id.length > 20) {
-    // Likely a MongoDB ObjectId for a user or conversation
-    return <Navigate to={`/member/chat/member/${id}`} replace />;
-  } else if (id.startsWith('c')) {
-    // Legacy mock chat ID (c1, c2, c3)
-    return <Navigate to={`/member/chat`} replace />;
-  } else {
-    // Fallback
+  // 24-character hexadecimal ObjectId
+  if (/^[0-9a-fA-F]{24}$/.test(id)) {
     return <Navigate to={`/member/chat/member/${id}`} replace />;
   }
+
+  // Safe fallback for all other invalid or legacy strings
+  return <Navigate to="/member/chat" replace />;
 };
 
 export default ChatRouteWrapper;

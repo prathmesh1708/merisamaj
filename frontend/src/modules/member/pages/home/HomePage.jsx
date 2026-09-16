@@ -176,6 +176,20 @@ const HomePage = () => {
       })
       .catch(() => {});
       
+    // Fetch real community leadership for accurate user IDs
+    axiosPrivate.get('/member/leadership')
+      .then(res => {
+        if (isMounted && res.data?.success && res.data?.data) {
+          if (res.data.data.communityHead) {
+            setLiveCommunityHead(res.data.data.communityHead);
+          }
+          if (Array.isArray(res.data.data.subLeaders) && res.data.data.subLeaders.length > 0) {
+            setLiveSubLeaders(res.data.data.subLeaders);
+          }
+        }
+      })
+      .catch(() => {});
+
     const targetCommId = currentUser?.communityId?._id || currentUser?.communityId || (typeof currentUser?.community === 'string' && currentUser.community) || '';
     axiosPrivate.get('/member/app-content', { params: targetCommId ? { communityId: targetCommId } : {} })
       .then(res => {
@@ -192,10 +206,10 @@ const HomePage = () => {
           if (Array.isArray(appData.successStories) && appData.successStories.length > 0) {
             setLiveSuccessStories(appData.successStories);
           }
-          if (appData.coreMembers?.communityHead) {
+          if (appData.coreMembers?.communityHead && !liveCommunityHead) {
             setLiveCommunityHead(appData.coreMembers.communityHead);
           }
-          if (Array.isArray(appData.coreMembers?.committee) && appData.coreMembers.committee.length > 0) {
+          if (Array.isArray(appData.coreMembers?.committee) && appData.coreMembers.committee.length > 0 && liveSubLeaders.length === 0) {
             setLiveSubLeaders(appData.coreMembers.committee);
           }
           if (appData.censusBanner) {
@@ -1393,7 +1407,18 @@ const HomePage = () => {
                         <Phone size={11} /> Call
                       </a>
                       <button 
-                        onClick={() => isApproved ? navigate(`/member/chat/member/${president.id}`) : showApprovalRequiredNotice('Chat Messenger')}
+                        onClick={() => {
+                          if (!isApproved) {
+                            showApprovalRequiredNotice('Chat Messenger');
+                            return;
+                          }
+                          const targetId = president.id || president._id;
+                          if (targetId && /^[0-9a-fA-F]{24}$/.test(targetId.toString())) {
+                            navigate(`/member/chat/member/${targetId}`);
+                          } else {
+                            navigate('/member/leadership');
+                          }
+                        }}
                         className="flex-1 py-1.5 rounded-xl border border-emerald-300/30 hover:bg-white/5 text-white text-[10px] font-bold flex items-center justify-center gap-1.5 active:scale-95 transition-transform backdrop-blur-sm"
                       >
                         <MessageCircle size={11} /> Chat
@@ -1445,7 +1470,18 @@ const HomePage = () => {
                             <Phone size={10} />
                           </a>
                           <button 
-                            onClick={() => isApproved ? navigate(`/member/chat/member/${member.id}`) : showApprovalRequiredNotice('Chat Messenger')}
+                            onClick={() => {
+                              if (!isApproved) {
+                                showApprovalRequiredNotice('Chat Messenger');
+                                return;
+                              }
+                              const targetId = member.id || member._id;
+                              if (targetId && /^[0-9a-fA-F]{24}$/.test(targetId.toString())) {
+                                navigate(`/member/chat/member/${targetId}`);
+                              } else {
+                                navigate('/member/leadership');
+                              }
+                            }}
                             className="w-6 h-6 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 hover:bg-emerald-600 hover:text-white transition-colors"
                           >
                             <MessageCircle size={10} />

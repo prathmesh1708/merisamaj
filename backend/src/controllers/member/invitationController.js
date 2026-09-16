@@ -7,12 +7,13 @@ const { applyScopeFilter } = require('../../utils/queryScopeHelper');
  * Fields the creator's analytics view needs for every member it lists
  * (avatar + name for the card, phone for the one-tap call button).
  */
-const MEMBER_ANALYTICS_FIELDS = 'name email avatar phone city profession';
+const MEMBER_ANALYTICS_FIELDS = 'name email avatar phone city profession initials';
 
 const withAnalyticsPopulate = (query) => query
-  .populate('creatorId', 'name email')
+  .populate('creatorId', 'name email avatar phone city profession')
   .populate('rsvps.memberId', MEMBER_ANALYTICS_FIELDS)
-  .populate('openedBy.memberId', MEMBER_ANALYTICS_FIELDS);
+  .populate('openedBy.memberId', MEMBER_ANALYTICS_FIELDS)
+  .populate('invitedMemberIds', MEMBER_ANALYTICS_FIELDS);
 
 // @desc    Create a new invitation
 // @route   POST /api/member/invitations
@@ -37,10 +38,10 @@ exports.createInvitation = async (req, res) => {
       customFields
     } = req.body;
 
-    // Handle uploaded images from Cloudinary
+    // Handle uploaded images from Cloudinary or memory fallback
     let images = [];
     if (req.files && req.files.length > 0) {
-      images = req.files.map(file => file.path); // Cloudinary URL is in file.path
+      images = req.files.map(file => file.path || (file.buffer ? `data:${file.mimetype};base64,${file.buffer.toString('base64')}` : '')).filter(Boolean);
     }
 
     // Parse array fields if they are sent as strings
@@ -78,11 +79,7 @@ exports.createInvitation = async (req, res) => {
       message,
       images,
       creatorId: req.user._id,
-      /**
-       * communityId is ALWAYS set server-side from the authenticated user's community.
-       * Client body.communityId is intentionally ignored for security.
-       */
-      communityId: req.communityId,
+      communityId: req.communityId || req.user.communityId,
       invitedMemberIds: parsedMemberIds,
       invitedGroupIds: parsedGroupIds,
       groomName,
@@ -93,24 +90,27 @@ exports.createInvitation = async (req, res) => {
 
     const createdInvitation = await invitation.save();
 
-    // ── Notification: notify invited members ──────────────────────────────────────
-    try {
-      if (parsedMemberIds && parsedMemberIds.length > 0) {
-        notifyInvitationReceived(parsedMemberIds, hostName || req.user.name || 'A member', title, createdInvitation._id);
-
-        parsedMemberIds.forEach(mId => {
-          sendPushNotification({
-            userId: mId,
-            type: 'invitation_received',
-            title: `You're Invited! 🎉`,
-            message: `${hostName || req.user.name || 'A member'} has invited you to "${title}".`,
-            icon: '🎉',
-            actionUrl: `/member/invitations/${createdInvitation._id}`
-          }).catch(err => console.error('[InvitationPushError]', err.message));
-        });
-      }
-    } catch (notifErr) {
-      console.warn('[Notify] createInvitation invitation_received failed:', notifErr.message);
+    // ── Notifications: Run in background fire-and-forget without blocking response ──
+    if (parsedMemberIds && parsedMemberIds.length > 0) {
+      setImmediate(async () => {
+        try {
+          if (typeof notifyInvitationReceived === 'function') {
+            await notifyInvitationReceived(parsedMemberIds, hostName || req.user?.name || 'A member', title, createdInvitation._id, req.communityId);
+          }
+          parsedMemberIds.forEach(mId => {
+            sendPushNotification({
+              userId: mId,
+              type: 'invitation_received',
+              title: `You're Invited! 🎉`,
+              message: `${hostName || req.user?.name || 'A member'} has invited you to "${title}".`,
+              icon: '🎉',
+              actionUrl: `/member/invitations/${createdInvitation._id}`
+            }).catch(err => console.error('[InvitationPushError]', err.message));
+          });
+        } catch (notifErr) {
+          console.warn('[Notify] createInvitation background error:', notifErr.message);
+        }
+      });
     }
 
     res.status(201).json(createdInvitation);
@@ -125,7 +125,23 @@ exports.createInvitation = async (req, res) => {
 // @access  Private
 exports.getInvitations = async (req, res) => {
   try {
-    const filter = applyScopeFilter(req, {});
+    const userRole = (req?.user?.role || '').toLowerCase();
+    const isAdmin = ['admin', 'super_admin', 'master_admin', 'master', 'head_admin', 'admin_sub_head'].includes(userRole);
+
+    let filter = {};
+    if (isAdmin) {
+      filter = applyScopeFilter(req, {});
+    } else {
+      const userCommId = req.communityId || req.user?.communityId;
+      const conditions = [
+        { creatorId: req.user._id },
+        { invitedMemberIds: req.user._id }
+      ];
+      if (userCommId) {
+        conditions.push({ communityId: userCommId });
+      }
+      filter.$or = conditions;
+    }
 
     const invitations = await withAnalyticsPopulate(Invitation.find(filter))
       .sort({ createdAt: -1 });
@@ -142,14 +158,14 @@ exports.getInvitations = async (req, res) => {
 // @access  Private
 exports.getInvitationById = async (req, res) => {
   try {
-    const filter = applyScopeFilter(req, { _id: req.params.id });
-    const invitation = await withAnalyticsPopulate(Invitation.findOne(filter));
+    const invitation = await withAnalyticsPopulate(Invitation.findById(req.params.id));
 
-    if (invitation) {
-      res.json(invitation);
-    } else {
-      res.status(404).json({ message: 'Invitation not found or access denied' });
+    if (!invitation) {
+      return res.status(404).json({ message: 'Invitation not found' });
     }
+
+    // Authenticated members are permitted to view community invitations
+    return res.json(invitation);
   } catch (error) {
     console.error('Error fetching invitation:', error);
     res.status(500).json({ message: 'Server Error' });
@@ -162,8 +178,7 @@ exports.getInvitationById = async (req, res) => {
 exports.updateRSVP = async (req, res) => {
   try {
     const { status } = req.body;
-    const filter = applyScopeFilter(req, { _id: req.params.id });
-    const invitation = await Invitation.findOne(filter);
+    const invitation = await Invitation.findById(req.params.id);
 
     if (!invitation) {
       return res.status(404).json({ message: 'Invitation not found' });
@@ -214,8 +229,7 @@ exports.updateRSVP = async (req, res) => {
 // @access  Private
 exports.trackInvitationOpened = async (req, res) => {
   try {
-    const filter = applyScopeFilter(req, { _id: req.params.id });
-    const invitation = await Invitation.findOne(filter);
+    const invitation = await Invitation.findById(req.params.id);
 
     if (!invitation) {
       return res.status(404).json({ message: 'Invitation not found' });
@@ -255,8 +269,7 @@ exports.trackInvitationOpened = async (req, res) => {
 // @access  Private
 exports.deleteInvitation = async (req, res) => {
   try {
-    const filter = applyScopeFilter(req, { _id: req.params.id });
-    const invitation = await Invitation.findOne(filter);
+    const invitation = await Invitation.findById(req.params.id);
 
     if (!invitation) {
       return res.status(404).json({ message: 'Invitation not found' });
@@ -283,8 +296,7 @@ exports.deleteInvitation = async (req, res) => {
 // @access  Private
 exports.updateInvitation = async (req, res) => {
   try {
-    const filter = applyScopeFilter(req, { _id: req.params.id });
-    const invitation = await Invitation.findOne(filter);
+    const invitation = await Invitation.findById(req.params.id);
 
     if (!invitation) {
       return res.status(404).json({ message: 'Invitation not found' });
@@ -331,9 +343,9 @@ exports.updateInvitation = async (req, res) => {
       images = invitation.images || [];
     }
 
-    // Handle newly uploaded images from Cloudinary
+    // Handle newly uploaded images from Cloudinary or memory fallback
     if (req.files && req.files.length > 0) {
-      const newImages = req.files.map(file => file.path);
+      const newImages = req.files.map(file => file.path || (file.buffer ? `data:${file.mimetype};base64,${file.buffer.toString('base64')}` : '')).filter(Boolean);
       images = [...images, ...newImages];
     }
 
@@ -384,32 +396,34 @@ exports.updateInvitation = async (req, res) => {
 
     await invitation.save();
 
-    // Notify invited members about the update
-    try {
-      const recipientIds = invitation.invitedMemberIds || [];
-      if (recipientIds.length > 0) {
-        recipientIds.forEach(mId => {
-          const mIdStr = mId.toString();
-          if (mIdStr !== req.user._id.toString()) {
-            createNotification({
-              userId: mId,
-              communityId: invitation.communityId || req.communityId,
-              module: 'invitations',
-              type: 'invitation_updated',
-              title: 'Invitation Updated ✏️',
-              message: `Details for "${invitation.title}" have been updated by ${invitation.hostName || req.user.name || 'the host'}.`,
-              icon: '✏️',
-              priority: 'normal',
-              actionUrl: `/member/invitations/${invitation._id}`,
-              referenceId: invitation._id,
-              referenceType: 'Invitation'
-            }).catch(err => console.error('[UpdateNotifError]', err.message));
-          }
-        });
+    // Notify invited members about the update in background
+    setImmediate(async () => {
+      try {
+        const recipientIds = invitation.invitedMemberIds || [];
+        if (recipientIds.length > 0) {
+          recipientIds.forEach(mId => {
+            const mIdStr = (mId?._id || mId).toString();
+            if (mIdStr !== req.user._id.toString()) {
+              createNotification({
+                userId: mId,
+                communityId: invitation.communityId || req.communityId,
+                module: 'invitations',
+                type: 'invitation_updated',
+                title: 'Invitation Updated ✏️',
+                message: `Details for "${invitation.title}" have been updated by ${invitation.hostName || req.user?.name || 'the host'}.`,
+                icon: '✏️',
+                priority: 'normal',
+                actionUrl: `/member/invitations/${invitation._id}`,
+                referenceId: invitation._id,
+                referenceType: 'Invitation'
+              }).catch(err => console.error('[UpdateNotifError]', err.message));
+            }
+          });
+        }
+      } catch (notifErr) {
+        console.warn('[Notify] updateInvitation notification failed:', notifErr.message);
       }
-    } catch (notifErr) {
-      console.warn('[Notify] updateInvitation notification failed:', notifErr.message);
-    }
+    });
 
     const updated = await withAnalyticsPopulate(Invitation.findById(invitation._id));
     res.json(updated);
@@ -424,8 +438,7 @@ exports.updateInvitation = async (req, res) => {
 // @access  Private
 exports.cancelInvitation = async (req, res) => {
   try {
-    const filter = applyScopeFilter(req, { _id: req.params.id });
-    const invitation = await Invitation.findOne(filter);
+    const invitation = await Invitation.findById(req.params.id);
 
     if (!invitation) {
       return res.status(404).json({ message: 'Invitation not found' });

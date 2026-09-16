@@ -8,6 +8,7 @@
  *  - Find or create a Conversation{type:'member'} automatically
  *  - Real-time messages via chatSocketService (chat:* events)
  */
+const mongoose = require('mongoose');
 const User    = require('../../models/User');
 const Conversation = require('../../models/Conversation');
 const { findOrCreateConversation, getUserConversations } = require('../../services/conversationService');
@@ -18,8 +19,8 @@ const { notifyNewMessage } = require('../../services/notificationService');
 exports.openConversation = async (req, res) => {
   try {
     const { targetUserId } = req.body;
-    if (!targetUserId) {
-      return res.status(400).json({ status: 'error', message: 'targetUserId is required.' });
+    if (!targetUserId || targetUserId === 'undefined' || targetUserId === 'null' || !mongoose.Types.ObjectId.isValid(targetUserId)) {
+      return res.status(400).json({ status: 'error', message: 'Valid member user ID is required.' });
     }
 
     const myId = req.user._id;

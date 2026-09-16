@@ -876,7 +876,14 @@ const MyProfilePage = () => {
                     Following
                   </button>
                   <button
-                    onClick={() => navigate(`/member/chat/${profileUser.id || profileUser._id}`)}
+                    onClick={() => {
+                      const targetId = profileUser?._id || profileUser?.id;
+                      if (targetId && /^[0-9a-fA-F]{24}$/.test(targetId.toString())) {
+                        navigate(`/member/chat/member/${targetId}`);
+                      } else {
+                        navigate('/member/chat');
+                      }
+                    }}
                     className="flex-1 py-2 bg-purple-50 hover:bg-purple-100/60 text-brand-primary rounded-xl text-[13px] font-black border border-purple-100/35 shadow-sm press-scale transition-all"
                   >
                     Message

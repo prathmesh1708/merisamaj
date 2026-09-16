@@ -900,14 +900,14 @@ export const DataProvider = ({ children }) => {
   // Invitation ids whose "opened" record has already been sent this session
   const trackedInvitationOpensRef = useRef(new Set());
 
-  const loadInvitations = async () => {
+  const loadInvitations = useCallback(async () => {
     try {
       const data = await invitationService.getInvitations();
-      setInvitations(data);
+      setInvitations(Array.isArray(data) ? data : (data?.data || []));
     } catch (error) {
       console.error('Failed to load invitations', error);
     }
-  };
+  }, []);
 
   useEffect(() => {
     const isInvitationsRoute = typeof window !== 'undefined' && (
@@ -1021,6 +1021,7 @@ export const DataProvider = ({ children }) => {
 
   // Follow System Methods
   const sendFollowRequest = async (targetUserId) => {
+    if (!targetUserId || targetUserId === 'undefined' || targetUserId === 'null') return;
     const myId = currentUser?.id || currentUser?._id || 'u1';
     setFollowRelations(prev => {
       const exists = prev.some(r => r.followerId === myId && r.followingId === targetUserId);
@@ -1039,11 +1040,13 @@ export const DataProvider = ({ children }) => {
   };
 
   const cancelFollowRequest = (targetUserId) => {
+    if (!targetUserId || targetUserId === 'undefined' || targetUserId === 'null') return;
     const myId = currentUser?.id || currentUser?._id || 'u1';
     setFollowRelations(prev => prev.filter(r => !(r.followerId === myId && r.followingId === targetUserId && r.status === 'pending')));
   };
 
   const acceptFollowRequest = (senderUserId) => {
+    if (!senderUserId || senderUserId === 'undefined' || senderUserId === 'null') return;
     const myId = currentUser?.id || currentUser?._id || 'u1';
     setFollowRelations(prev => prev.map(r => {
       if (r.followerId === senderUserId && r.followingId === myId && r.status === 'pending') {
@@ -1066,11 +1069,13 @@ export const DataProvider = ({ children }) => {
   };
 
   const rejectFollowRequest = (senderUserId) => {
+    if (!senderUserId || senderUserId === 'undefined' || senderUserId === 'null') return;
     const myId = currentUser?.id || currentUser?._id || 'u1';
     setFollowRelations(prev => prev.filter(r => !(r.followerId === senderUserId && r.followingId === myId && r.status === 'pending')));
   };
 
   const unfollowUser = async (targetUserId) => {
+    if (!targetUserId || targetUserId === 'undefined' || targetUserId === 'null') return;
     const myId = currentUser?.id || currentUser?._id || 'u1';
     setFollowRelations(prev => prev.filter(r => !(r.followerId === myId && r.followingId === targetUserId)));
 

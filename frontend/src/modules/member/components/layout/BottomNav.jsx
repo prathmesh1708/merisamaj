@@ -70,7 +70,6 @@ export const BottomNav = ({ isVisible = true }) => {
               <NavLink 
                 key={item.name}
                 to={item.path}
-                replace
                 onClick={(e) => handleNavClick(e, item)}
                 className="flex flex-col items-center justify-center flex-1 h-full relative cursor-pointer select-none"
               >

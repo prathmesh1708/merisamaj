@@ -1,5 +1,6 @@
 const AppContent = require('../../models/AppContent');
 const Community = require('../../models/Community');
+const User = require('../../models/User');
 const mongoose = require('mongoose');
 const cacheService = require('../../utils/cacheService');
 
@@ -236,6 +237,36 @@ exports.getMemberAppContent = async (req, res) => {
       .filter(b => b.enabled !== false)
       .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
 
+    // Dynamically look up real community head user if available
+    let dynamicHead = doc.coreMembers?.communityHead || null;
+    try {
+      const realHeadUser = await User.findOne({
+        role: 'head',
+        accountStatus: 'active',
+        $or: [
+          { communityId: targetCommunityId },
+          { assignedCommunityIds: targetCommunityId }
+        ]
+      }).select('_id name phone avatar cover designation city state').lean();
+
+      if (realHeadUser) {
+        dynamicHead = {
+          _id: realHeadUser._id,
+          id: realHeadUser._id,
+          name: realHeadUser.name,
+          role: realHeadUser.designation || 'Community Head (President)',
+          designation: realHeadUser.designation || 'Community Head (President)',
+          avatar: realHeadUser.avatar || realHeadUser.cover || dynamicHead?.avatar || '',
+          city: realHeadUser.city || '',
+          state: realHeadUser.state || '',
+          phone: realHeadUser.phone || '',
+          enabled: true
+        };
+      }
+    } catch (headErr) {
+      console.warn('[getMemberAppContent] Failed to query real head user:', headErr.message);
+    }
+
     const payload = {
       success: true,
       data: {
@@ -244,7 +275,7 @@ exports.getMemberAppContent = async (req, res) => {
         exclusiveFeatures: activeFeatures,
         successStories: activeStories,
         coreMembers: {
-          communityHead: doc.coreMembers?.communityHead || null,
+          communityHead: dynamicHead,
           committee: activeCommittee
         },
         censusBanner: doc.censusBanner || {

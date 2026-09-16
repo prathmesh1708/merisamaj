@@ -1342,7 +1342,7 @@ export const CensusPage = () => {
                     <motion.a whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} href={`tel:${member.phone}`} className="w-8 h-8 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 transition-colors hover:bg-blue-600 hover:text-white shadow-sm">
                       <Phone size={13} />
                     </motion.a>
-                    <motion.button onClick={(e) => { e.stopPropagation(); navigate(`/member/chat/member/${member.id}`); }} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} className="w-8 h-8 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 transition-colors hover:bg-emerald-600 hover:text-white shadow-sm">
+                    <motion.button onClick={(e) => { e.stopPropagation(); const mId = member._id || member.id; if (mId) navigate(`/member/chat/member/${mId}`); else navigate('/member/chat'); }} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} className="w-8 h-8 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 transition-colors hover:bg-emerald-600 hover:text-white shadow-sm">
                       <MessageCircle size={13} />
                     </motion.button>
                   </div>
@@ -2230,7 +2230,7 @@ export const CensusPage = () => {
                       <p className="text-[10px] font-bold text-gray-400 mt-0.5 uppercase tracking-wider">{member.city} • Registered {member.date}</p>
                     </div>
                     <div className="flex gap-1.5 shrink-0">
-                      <button onClick={() => navigate('/member/chat/me')} className="w-7 h-7 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-emerald-500 hover:scale-105 transition-transform active:scale-90">
+                      <button onClick={() => navigate(member._id ? `/member/chat/member/${member._id}` : '/member/chat')} className="w-7 h-7 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-emerald-500 hover:scale-105 transition-transform active:scale-90">
                         <MessageCircle size={12} />
                       </button>
                     </div>

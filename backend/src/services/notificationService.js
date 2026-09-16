@@ -1094,14 +1094,15 @@ const notifyPostActioned = (userId, action, postPreview, postId) =>
 
 // ─── Invitation Notification Helpers ──────────────────────────────────────────
 
-const notifyInvitationReceived = (memberIds, hostName, title, invitationId) => {
+const notifyInvitationReceived = (memberIds, hostName, eventTitle, invitationId, communityId) => {
   const promises = (memberIds || []).map(memberId =>
     createNotification({
       userId:        memberId,
+      communityId:   communityId || undefined,
       module:        'invitations',
       type:          'invitation_received',
-      title:         `You're Invited! 🎉`,
-      message:       `${hostName} has invited you to "${title}".`,
+      title:         "You're Invited! 🎉",
+      message:       `${hostName || 'A member'} has invited you to "${eventTitle}".`,
       icon:          '🎉',
       priority:      'high',
       actionUrl:     `/member/invitations/${invitationId}`,
@@ -1112,26 +1113,31 @@ const notifyInvitationReceived = (memberIds, hostName, title, invitationId) => {
   return Promise.allSettled(promises);
 };
 
-const notifyInvitationAccepted = (inviterId, inviteeName) =>
+const notifyInvitationAccepted = (creatorId, memberName, eventTitle, invitationId, communityId) =>
   createNotification({
-    userId:        inviterId,
-    module:        'referral',
+    userId:        creatorId,
+    communityId:   communityId || undefined,
+    module:        'invitations',
     type:          'invitation_accepted',
-    title:         'Invitation Accepted 🎉',
-    message:       `${inviteeName} accepted your invitation!`,
-    icon:          '🎉',
-    priority:      'normal'
+    title:         'RSVP Response 💌',
+    message:       `${memberName || 'A member'} responded to your invitation "${eventTitle}".`,
+    icon:          '💌',
+    priority:      'normal',
+    actionUrl:     `/member/invitations/${invitationId}`,
+    referenceId:   invitationId,
+    referenceType: 'Invitation'
   });
 
-const notifyReferralBonusEarned = (memberId, bonusAmount) =>
+const notifyReferralBonusEarned = (userId, refereeName, amount) =>
   createNotification({
-    userId:        memberId,
+    userId,
     module:        'referral',
     type:          'referral_bonus_earned',
-    title:         'Referral Bonus Earned 💰',
-    message:       `You earned a referral bonus of ₹${bonusAmount}!`,
-    icon:          '💰',
-    priority:      'high'
+    title:         'Referral Reward Earned! 🎁',
+    message:       `You earned ₹${amount} because ${refereeName} joined using your invite code.`,
+    icon:          '🎁',
+    priority:      'normal',
+    actionUrl:     '/member/referral'
   });
 
 // ─── Marriage Lifecycle Notification Helpers ─────────────────────────────────────────
