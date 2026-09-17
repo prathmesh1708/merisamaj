@@ -199,20 +199,25 @@ const MatrimonialChatPage = () => {
   }, [conversationId, fetchMessages, loadConversation]);
 
   // Mark messages as seen
+  const lastMarkedIdsRef = useRef(new Set());
   useEffect(() => {
-    if (messages.length > 0) {
-      const myId = currentUserId?.toString();
-      const unseenIds = messages
-        .filter(m => {
-          const senderId = (m.senderId?._id || m.senderId)?.toString();
-          return senderId && senderId !== myId && !m.seenBy?.some(s => (s.userId?._id || s.userId || s)?.toString() === myId);
-        })
-        .map(m => m._id);
-      if (unseenIds.length > 0) markSeen(conversationId, unseenIds);
-      matrimonialChatService.markSeen(conversationId).catch(() => {});
-      window.dispatchEvent(new Event('app:refresh_unread_counts'));
+    if (!conversationId || messages.length === 0) return;
+    const myId = currentUserId?.toString();
+    const unseenIds = messages
+      .filter(m => {
+        if (!m._id || lastMarkedIdsRef.current.has(m._id.toString())) return false;
+        const senderId = (m.senderId?._id || m.senderId)?.toString();
+        const alreadySeen = m.seenBy?.some(s => (s.userId?._id || s.userId || s)?.toString() === myId);
+        return senderId && senderId !== myId && !alreadySeen;
+      })
+      .map(m => m._id);
+
+    if (unseenIds.length > 0) {
+      unseenIds.forEach(id => lastMarkedIdsRef.current.add(id.toString()));
+      markSeen(conversationId, unseenIds);
     }
   }, [messages, conversationId, currentUserId, markSeen]);
+
 
   // Scroll to bottom on new message
   useEffect(() => {
