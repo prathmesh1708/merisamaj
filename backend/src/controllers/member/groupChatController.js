@@ -20,6 +20,10 @@ const {
 } = require('../../services/messageService');
 const { notifyGroupMessage } = require('../../services/notificationService');
 const { isOnline } = require('../../services/chatSocketService');
+const { getIO } = require('../../services/socketRegistry');
+
+const getSocketIO = (req) => req?.app?.get('io') || getIO();
+
 
 // ─── Get Group Conversation (creates it if missing) ───────────────────────────
 exports.getGroupConversation = async (req, res) => {
@@ -88,7 +92,7 @@ exports.getGroupMessages = async (req, res) => {
     await markConversationSeen(conversationId, userId);
 
     // Emit seen event via socket to conv room and user room
-    const io = req.app.get('io');
+    const io = getSocketIO(req);
     if (io) {
       io.to(`conv:${conversationId}`).emit('chat:messages_seen', {
         conversationId,
@@ -153,7 +157,7 @@ exports.sendGroupMessage = async (req, res) => {
     });
 
     // Emit to room and members
-    const io = req.app.get('io');
+    const io = getSocketIO(req);
     if (io) {
       io.to(`conv:${conversationId}`).emit('chat:new_message', populatedMsg);
       if (group && group.members) {
@@ -213,7 +217,7 @@ exports.deleteGroupMessage = async (req, res) => {
 
       await deleteMessageForEveryone(messageId, msg.senderId); // bypass senderId check
 
-      const io = req.app.get('io');
+      const io = getSocketIO(req);
       if (io) {
         io.to(`conv:${msg.conversationId}`).emit('chat:message_deleted', {
           messageId,
@@ -257,7 +261,7 @@ exports.pinMessage = async (req, res) => {
       await group.save();
     }
 
-    const io = req.app.get('io');
+    const io = getSocketIO(req);
     if (io) {
       io.to(`conv:${msg.conversationId}`).emit('chat:message_pinned', { messageId, conversationId: msg.conversationId });
     }
@@ -291,7 +295,7 @@ exports.unpinMessage = async (req, res) => {
       await group.save();
     }
 
-    const io = req.app.get('io');
+    const io = getSocketIO(req);
     if (io) {
       io.to(`conv:${msg.conversationId}`).emit('chat:message_unpinned', { messageId, conversationId: msg.conversationId });
     }
@@ -339,7 +343,7 @@ exports.markGroupSeen = async (req, res) => {
       await markConversationSeen(conversationId, userId);
     }
 
-    const io = req.app.get('io');
+    const io = getSocketIO(req);
     if (io) {
       io.to(`conv:${conversationId}`).emit('chat:messages_seen', {
         conversationId,

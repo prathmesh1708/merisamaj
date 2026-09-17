@@ -791,7 +791,7 @@ const getPublicCommunities = async (req, res) => {
   try {
     const Community = require('../models/Community');
     const communities = await Community.find({ isActive: true })
-      .select('name cityIds')
+      .select('name cityIds subCommunities')
       .sort({ name: 1 })
       .lean();
     res.json({ success: true, data: communities });

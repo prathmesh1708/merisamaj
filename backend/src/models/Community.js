@@ -45,6 +45,14 @@ const communitySchema = new mongoose.Schema(
       }
     ],
 
+    // Sub-Communities / Gotras / Categories
+    subCommunities: [
+      {
+        type: String,
+        trim: true
+      }
+    ],
+
     // Assigned Community Head (single head per community)
     headId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -92,7 +100,7 @@ const communitySchema = new mongoose.Schema(
        */
       groupCreationPolicy: {
         type: String,
-        enum: ['head_only', 'head_admin', 'verified_with_approval', 'verified_instant'],
+        enum: ['head_only', 'head_admin', 'verified_with_approval', 'verified_instant', 'verified_members_approval', 'verified_members_instant'],
         default: 'head_admin'
       }
     },

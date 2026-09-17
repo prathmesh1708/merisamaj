@@ -896,7 +896,7 @@ exports.sharePostToUser = async (req, res) => {
     });
 
     // 4. Emit real-time Socket.IO events if available
-    const io = req.app.get('io');
+    const io = req.app.get('io') || require('../../services/socketRegistry').getIO();
     if (io) {
       io.to(`conv:${conversation._id}`).emit('chat:new_message', populatedMsg);
       io.to(`user:${recipientId.toString()}`).emit('chat:new_message', populatedMsg);

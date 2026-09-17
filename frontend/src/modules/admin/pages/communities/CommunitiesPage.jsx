@@ -47,12 +47,32 @@ const CreateCommunityModal = ({ onClose, onCreated }) => {
     name: '',
     description: '',
     cityIds: [],
+    subCommunities: [],
     logoUrl: '',
     bannerUrl: '',
     status: 'Active'
   });
+  const [newSubCommunity, setNewSubCommunity] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const handleAddSubCommunity = () => {
+    const trimmed = newSubCommunity.trim();
+    if (!trimmed) return;
+    if (form.subCommunities.some(s => s.toLowerCase() === trimmed.toLowerCase())) {
+      setNewSubCommunity('');
+      return;
+    }
+    setForm(f => ({ ...f, subCommunities: [...f.subCommunities, trimmed] }));
+    setNewSubCommunity('');
+  };
+
+  const handleRemoveSubCommunity = (indexToRemove) => {
+    setForm(f => ({
+      ...f,
+      subCommunities: f.subCommunities.filter((_, idx) => idx !== indexToRemove)
+    }));
+  };
 
   const toggleCity = (cityId) => {
     setForm(f => ({
@@ -221,6 +241,85 @@ const CreateCommunityModal = ({ onClose, onCreated }) => {
                 </div>
               </div>
             </div>
+
+            {/* Sub-Communities / Categories Section */}
+            <div className="community-form-group" style={{ marginTop: '16px', padding: '14px', background: '#f8fafc', borderRadius: '12px', border: '1.5px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <div>
+                  <label style={{ margin: 0, fontWeight: 700, color: '#1e293b' }}>Sub-Communities / Gotras / Categories</label>
+                  <p className="text-xs text-slate-500 mt-0.5">Users will see and select from these sub-communities during registration</p>
+                </div>
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#6d28d9', background: '#f3e8ff', padding: '2px 8px', borderRadius: '12px' }}>
+                  {form.subCommunities.length} Sub-Communities
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+                <input
+                  type="text"
+                  placeholder="e.g. Digambar, Shwetambar, Bisa Agrawal, etc. (Press Enter or + Add)"
+                  value={newSubCommunity}
+                  onChange={e => setNewSubCommunity(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddSubCommunity();
+                    }
+                  }}
+                  className="community-input"
+                  style={{ flex: 1 }}
+                />
+                <button
+                  type="button"
+                  onClick={handleAddSubCommunity}
+                  className="community-btn-secondary"
+                  style={{ padding: '0 16px', fontWeight: 600, color: '#6d28d9', borderColor: '#c4b5fd', background: '#faf5ff' }}
+                >
+                  + Add
+                </button>
+              </div>
+              {form.subCommunities.length > 0 ? (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', maxHeight: '110px', overflowY: 'auto' }}>
+                  {form.subCommunities.map((sub, idx) => (
+                    <span
+                      key={idx}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        background: '#ede9fe',
+                        color: '#6d28d9',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        padding: '4px 10px',
+                        borderRadius: '16px',
+                        border: '1px solid #ddd6fe'
+                      }}
+                    >
+                      {sub}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveSubCommunity(idx)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#6d28d9',
+                          cursor: 'pointer',
+                          fontWeight: 700,
+                          fontSize: '1rem',
+                          lineHeight: 1,
+                          padding: 0
+                        }}
+                        title="Remove"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <small className="community-hint">No sub-communities added yet. Type a name above and press Enter or click "+ Add".</small>
+              )}
+            </div>
           </div>
 
           <div className="community-modal-actions">
@@ -266,13 +365,33 @@ const EditCommunityModal = ({ community, onClose, onUpdated }) => {
     description: community.description || '',
     city: community.city || '',
     cityIds: community.cityIds || [],
+    subCommunities: community.subCommunities || [],
     logoUrl: community.logoUrl || '',
     bannerUrl: community.bannerUrl || '',
     isActive: community.isActive !== undefined ? community.isActive : true,
     headId: community.headId?._id || community.headId || ''
   });
+  const [newSubCommunity, setNewSubCommunity] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const handleAddSubCommunity = () => {
+    const trimmed = newSubCommunity.trim();
+    if (!trimmed) return;
+    if (form.subCommunities.some(s => s.toLowerCase() === trimmed.toLowerCase())) {
+      setNewSubCommunity('');
+      return;
+    }
+    setForm(f => ({ ...f, subCommunities: [...f.subCommunities, trimmed] }));
+    setNewSubCommunity('');
+  };
+
+  const handleRemoveSubCommunity = (indexToRemove) => {
+    setForm(f => ({
+      ...f,
+      subCommunities: f.subCommunities.filter((_, idx) => idx !== indexToRemove)
+    }));
+  };
 
   const toggleCity = (cityId) => {
     setForm(f => ({
@@ -465,6 +584,85 @@ const EditCommunityModal = ({ community, onClose, onUpdated }) => {
                 </div>
               </div>
             </div>
+
+            {/* Sub-Communities / Categories Section */}
+            <div className="community-form-group" style={{ marginTop: '16px', padding: '14px', background: '#f8fafc', borderRadius: '12px', border: '1.5px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <div>
+                  <label style={{ margin: 0, fontWeight: 700, color: '#1e293b' }}>Sub-Communities / Gotras / Categories</label>
+                  <p className="text-xs text-slate-500 mt-0.5">Users will see and select from these sub-communities during registration</p>
+                </div>
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#6d28d9', background: '#f3e8ff', padding: '2px 8px', borderRadius: '12px' }}>
+                  {form.subCommunities.length} Sub-Communities
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+                <input
+                  type="text"
+                  placeholder="e.g. Digambar, Shwetambar, Bisa Agrawal, etc. (Press Enter or + Add)"
+                  value={newSubCommunity}
+                  onChange={e => setNewSubCommunity(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddSubCommunity();
+                    }
+                  }}
+                  className="community-input"
+                  style={{ flex: 1 }}
+                />
+                <button
+                  type="button"
+                  onClick={handleAddSubCommunity}
+                  className="community-btn-secondary"
+                  style={{ padding: '0 16px', fontWeight: 600, color: '#6d28d9', borderColor: '#c4b5fd', background: '#faf5ff' }}
+                >
+                  + Add
+                </button>
+              </div>
+              {form.subCommunities.length > 0 ? (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', maxHeight: '110px', overflowY: 'auto' }}>
+                  {form.subCommunities.map((sub, idx) => (
+                    <span
+                      key={idx}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        background: '#ede9fe',
+                        color: '#6d28d9',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        padding: '4px 10px',
+                        borderRadius: '16px',
+                        border: '1px solid #ddd6fe'
+                      }}
+                    >
+                      {sub}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveSubCommunity(idx)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#6d28d9',
+                          cursor: 'pointer',
+                          fontWeight: 700,
+                          fontSize: '1rem',
+                          lineHeight: 1,
+                          padding: 0
+                        }}
+                        title="Remove"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <small className="community-hint">No sub-communities added yet. Type a name above and press Enter or click "+ Add".</small>
+              )}
+            </div>
           </div>
 
           <div className="community-modal-actions">
@@ -622,6 +820,29 @@ const CommunityCard = ({ community, onEdit, onModules, onDelete }) => {
           <p className="community-no-head">⚠️ No Head assigned</p>
         )}
       </div>
+
+      {/* Sub-Communities Preview */}
+      {community.subCommunities && community.subCommunities.length > 0 && (
+        <div style={{ marginTop: '10px', padding: '10px 12px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #f1f5f9' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              🏷️ Sub-Communities ({community.subCommunities.length})
+            </span>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+            {community.subCommunities.slice(0, 4).map((sub, i) => (
+              <span key={i} style={{ fontSize: '0.72rem', background: '#ede9fe', color: '#6d28d9', fontWeight: 600, padding: '2px 8px', borderRadius: '10px' }}>
+                {sub}
+              </span>
+            ))}
+            {community.subCommunities.length > 4 && (
+              <span style={{ fontSize: '0.72rem', background: '#e2e8f0', color: '#475569', fontWeight: 600, padding: '2px 6px', borderRadius: '10px' }}>
+                +{community.subCommunities.length - 4} more
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Active Modules */}
       {enabledModules.length > 0 && (

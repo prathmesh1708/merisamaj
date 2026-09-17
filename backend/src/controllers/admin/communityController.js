@@ -74,7 +74,7 @@ exports.createCommunity = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const { name, description, logoUrl, bannerUrl, settings, city, cityIds, status, headName, headEmail, headPhone, headPassword } = req.body;
+    const { name, description, logoUrl, bannerUrl, settings, city, cityIds, subCommunities, status, headName, headEmail, headPhone, headPassword } = req.body;
 
     if (!name || !name.trim()) {
       await session.abortTransaction();
@@ -132,6 +132,9 @@ exports.createCommunity = async (req, res) => {
 
     const communityId = new mongoose.Types.ObjectId();
     const isActVal = status !== undefined ? status === 'Active' : true;
+    const sanitizedSubCommunities = Array.isArray(subCommunities)
+      ? Array.from(new Set(subCommunities.map(s => String(s || '').trim()).filter(Boolean)))
+      : [];
 
     // Create Community
     const community = new Community({
@@ -142,6 +145,7 @@ exports.createCommunity = async (req, res) => {
       bannerUrl: bannerUrl || '',
       city: city ? city.trim() : '',
       cityIds: Array.isArray(cityIds) ? cityIds : [],
+      subCommunities: sanitizedSubCommunities,
       settings,
       createdBy: req.user._id,
       isActive: isActVal,
@@ -225,7 +229,7 @@ exports.updateCommunity = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const { name, description, logoUrl, bannerUrl, isActive, settings, city, cityIds, headId } = req.body;
+    const { name, description, logoUrl, bannerUrl, isActive, settings, city, cityIds, subCommunities, headId } = req.body;
 
     const community = await Community.findById(req.params.id).session(session);
     if (!community) {
@@ -240,6 +244,9 @@ exports.updateCommunity = async (req, res) => {
     if (bannerUrl !== undefined) community.bannerUrl = bannerUrl;
     if (city !== undefined) community.city = city.trim();
     if (cityIds !== undefined && Array.isArray(cityIds)) community.cityIds = cityIds;
+    if (subCommunities !== undefined && Array.isArray(subCommunities)) {
+      community.subCommunities = Array.from(new Set(subCommunities.map(s => String(s || '').trim()).filter(Boolean)));
+    }
     if (isActive !== undefined) community.isActive = isActive;
     if (settings && typeof settings === 'object') {
       community.settings = { ...community.settings.toObject(), ...settings };

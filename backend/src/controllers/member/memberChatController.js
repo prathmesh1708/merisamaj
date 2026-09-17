@@ -14,6 +14,10 @@ const Conversation = require('../../models/Conversation');
 const { findOrCreateConversation, getUserConversations } = require('../../services/conversationService');
 const { createMessage, getMessages, markMessagesSeen, markConversationSeen, deleteMessageForMe, deleteMessageForEveryone, editMessage: editMessageService, clearConversationMessages } = require('../../services/messageService');
 const { notifyNewMessage } = require('../../services/notificationService');
+const { getIO } = require('../../services/socketRegistry');
+
+const getSocketIO = (req) => req?.app?.get('io') || getIO();
+
 
 // ─── Open or Find Conversation ────────────────────────────────────────────────
 exports.openConversation = async (req, res) => {
@@ -129,7 +133,7 @@ exports.getMessages = async (req, res) => {
     await markConversationSeen(conversationId, userId);
 
     // Emit seen event via socket to both conversation room & user personal rooms
-    const io = req.app.get('io');
+    const io = getSocketIO(req);
     if (io) {
       io.to(`conv:${conversationId}`).emit('chat:messages_seen', {
         conversationId,
@@ -187,7 +191,7 @@ exports.sendMessage = async (req, res) => {
     });
 
     // Emit via socket
-    const io = req.app.get('io');
+    const io = getSocketIO(req);
     const otherParticipants = conv.participants.filter(p => p.toString() !== userId.toString());
     if (io) {
       io.to(`conv:${conversationId}`).emit('chat:new_message', populatedMsg);
@@ -228,7 +232,7 @@ exports.markSeen = async (req, res) => {
     }
 
     // Emit seen event via socket to conv room and all participant user rooms
-    const io = req.app.get('io');
+    const io = getSocketIO(req);
     if (io) {
       io.to(`conv:${conversationId}`).emit('chat:messages_seen', {
         conversationId,
@@ -267,7 +271,7 @@ exports.deleteMessage = async (req, res) => {
     if (deleteFor === 'everyone') {
       await deleteMessageForEveryone(messageId, userId);
 
-      const io = req.app.get('io');
+      const io = getSocketIO(req);
       if (io) {
         io.to(`conv:${msg.conversationId}`).emit('chat:message_deleted', {
           messageId,
@@ -301,7 +305,7 @@ exports.editMessage = async (req, res) => {
     const updatedMsg = await editMessageService(messageId, userId, message.trim());
 
     // Emit via socket
-    const io = req.app.get('io');
+    const io = getSocketIO(req);
     if (io) {
       io.to(`conv:${updatedMsg.conversationId}`).emit('chat:message_edited', updatedMsg);
     }

@@ -15,27 +15,51 @@ import { useAuth } from '../../../core/auth/useAuth';
 
 // ─── Singleton socket instance (shared across components in same session) ──────
 let socketInstance = null;
+let currentSocketUserId = null;
 
 export const getSocket = (userId) => {
-  if (!socketInstance || !socketInstance.connected) {
-    const apiEnvUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || '';
-    const backendUrl = import.meta.env.VITE_SOCKET_URL
-      || (apiEnvUrl ? apiEnvUrl.replace(/\/api\/v1\/?$/, '') : '')
-      || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5001');
+  if (!userId) return null;
+  const targetUserId = userId.toString();
 
-    const token = typeof localStorage !== 'undefined'
-      ? (localStorage.getItem('merisamaj_token') || localStorage.getItem('admin_auth_token') || localStorage.getItem('head_auth_token'))
-      : null;
-
-    socketInstance = io(backendUrl, {
-      auth: { userId, token },
-      withCredentials: true,
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionAttempts: 5
-    });
+  // Reuse existing socket instance if already assigned to this user
+  if (socketInstance && currentSocketUserId === targetUserId) {
+    if (socketInstance.disconnected && !socketInstance.connecting) {
+      socketInstance.connect();
+    }
+    return socketInstance;
   }
+
+  // If user changed or socket doesn't exist, cleanup previous instance
+  if (socketInstance) {
+    try {
+      socketInstance.removeAllListeners();
+      socketInstance.disconnect();
+    } catch (e) {
+      console.warn('[ChatSocket] Error cleaning up previous socket instance:', e);
+    }
+    socketInstance = null;
+  }
+
+  currentSocketUserId = targetUserId;
+
+  const apiEnvUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || '';
+  const backendUrl = import.meta.env.VITE_SOCKET_URL
+    || (apiEnvUrl ? apiEnvUrl.replace(/\/api\/v1\/?$/, '') : '')
+    || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5001');
+
+  const token = typeof localStorage !== 'undefined'
+    ? (localStorage.getItem('merisamaj_token') || localStorage.getItem('admin_auth_token') || localStorage.getItem('head_auth_token'))
+    : null;
+
+  socketInstance = io(backendUrl, {
+    auth: { userId: targetUserId, token },
+    withCredentials: true,
+    transports: ['websocket', 'polling'],
+    reconnection: true,
+    reconnectionDelay: 1000,
+    reconnectionAttempts: 10
+  });
+
   return socketInstance;
 };
 
@@ -77,27 +101,81 @@ export const useChatSocket = ({
   const typingTimeoutRef = useRef(null);
   const socketRef        = useRef(null);
 
+  // Store active callbacks in ref so listeners always call the latest functions without stale closures
+  const callbacksRef = useRef({});
+  callbacksRef.current = {
+    onNewMessage,
+    onUserTyping,
+    onUserStoppedTyping,
+    onMessageDeleted,
+    onMessageEdited,
+    onMessagesSeen,
+    onMessagesDelivered,
+    onMemberJoined,
+    onMemberLeft,
+    onMemberAdded,
+    onMemberRemoved,
+    onMemberPromoted,
+    onMemberDemoted
+  };
+
+  const convIdRef = useRef(conversationId);
+  convIdRef.current = conversationId;
+
   useEffect(() => {
     const userId = user?.id || user?._id;
     if (!userId) return;
 
     const socket = getSocket(userId);
+    if (!socket) return;
     socketRef.current = socket;
+
+    setIsConnected(socket.connected);
 
     // ── Connection events ──────────────────────────────────────────────────
     const onConnect = () => {
       setIsConnected(true);
-      // Join conversation room if provided
-      if (conversationId) {
-        socket.emit('chat:join_conversation', { conversationId });
+      const activeConvId = convIdRef.current;
+      if (activeConvId) {
+        socket.emit('chat:join_conversation', { conversationId: activeConvId });
       }
     };
 
     const onDisconnect = () => setIsConnected(false);
 
+    // Dynamic callback wrappers
+    const handleNewMessage        = (msg) => callbacksRef.current.onNewMessage?.(msg);
+    const handleUserTyping        = (data) => callbacksRef.current.onUserTyping?.(data);
+    const handleUserStoppedTyping = (data) => callbacksRef.current.onUserStoppedTyping?.(data);
+    const handleMessageDeleted    = (data) => callbacksRef.current.onMessageDeleted?.(data);
+    const handleMessageEdited     = (data) => callbacksRef.current.onMessageEdited?.(data);
+    const handleMessagesSeen      = (data) => callbacksRef.current.onMessagesSeen?.(data);
+    const handleMessagesDelivered = (data) => callbacksRef.current.onMessagesDelivered?.(data);
+    const handleMemberJoined      = (data) => callbacksRef.current.onMemberJoined?.(data);
+    const handleMemberLeft        = (data) => callbacksRef.current.onMemberLeft?.(data);
+    const handleMemberAdded       = (data) => callbacksRef.current.onMemberAdded?.(data);
+    const handleMemberRemoved     = (data) => callbacksRef.current.onMemberRemoved?.(data);
+    const handleMemberPromoted    = (data) => callbacksRef.current.onMemberPromoted?.(data);
+    const handleMemberDemoted     = (data) => callbacksRef.current.onMemberDemoted?.(data);
+    const handleOnlineUsers       = (users) => setOnlineUsers(users || []);
+
     // ── Register listeners ─────────────────────────────────────────────────
-    socket.on('connect',    onConnect);
-    socket.on('disconnect', onDisconnect);
+    socket.on('connect',                  onConnect);
+    socket.on('disconnect',               onDisconnect);
+    socket.on('chat:new_message',          handleNewMessage);
+    socket.on('chat:user_typing',          handleUserTyping);
+    socket.on('chat:user_stopped_typing',  handleUserStoppedTyping);
+    socket.on('chat:message_deleted',      handleMessageDeleted);
+    socket.on('chat:message_edited',       handleMessageEdited);
+    socket.on('chat:messages_seen',        handleMessagesSeen);
+    socket.on('chat:messages_delivered',   handleMessagesDelivered);
+    socket.on('chat:member_joined',        handleMemberJoined);
+    socket.on('chat:member_left',          handleMemberLeft);
+    socket.on('chat:member_added',         handleMemberAdded);
+    socket.on('chat:member_removed',       handleMemberRemoved);
+    socket.on('chat:member_promoted',      handleMemberPromoted);
+    socket.on('chat:member_demoted',       handleMemberDemoted);
+    socket.on('chat:online_users',         handleOnlineUsers);
 
     if (socket.connected) {
       setIsConnected(true);
@@ -106,45 +184,34 @@ export const useChatSocket = ({
       }
     }
 
-    // Chat events
-    if (onNewMessage)        socket.on('chat:new_message',          onNewMessage);
-    if (onUserTyping)        socket.on('chat:user_typing',          onUserTyping);
-    if (onUserStoppedTyping) socket.on('chat:user_stopped_typing',  onUserStoppedTyping);
-    if (onMessageDeleted)    socket.on('chat:message_deleted',      onMessageDeleted);
-    if (onMessageEdited)     socket.on('chat:message_edited',       onMessageEdited);
-    if (onMessagesSeen)      socket.on('chat:messages_seen',        onMessagesSeen);
-    if (onMessagesDelivered) socket.on('chat:messages_delivered',   onMessagesDelivered);
-
-    // Group events
-    if (onMemberJoined)   socket.on('chat:member_joined',   onMemberJoined);
-    if (onMemberLeft)     socket.on('chat:member_left',     onMemberLeft);
-    if (onMemberAdded)    socket.on('chat:member_added',    onMemberAdded);
-    if (onMemberRemoved)  socket.on('chat:member_removed',  onMemberRemoved);
-    if (onMemberPromoted) socket.on('chat:member_promoted', onMemberPromoted);
-    if (onMemberDemoted)  socket.on('chat:member_demoted',  onMemberDemoted);
-
-    // Online presence
-    socket.on('chat:online_users', (users) => setOnlineUsers(users || []));
-
     return () => {
-      socket.off('connect',    onConnect);
-      socket.off('disconnect', onDisconnect);
-      socket.off('chat:new_message',          onNewMessage);
-      socket.off('chat:user_typing',          onUserTyping);
-      socket.off('chat:user_stopped_typing',  onUserStoppedTyping);
-      socket.off('chat:message_deleted',      onMessageDeleted);
-      socket.off('chat:message_edited',       onMessageEdited);
-      socket.off('chat:messages_seen',        onMessagesSeen);
-      socket.off('chat:messages_delivered',   onMessagesDelivered);
-      socket.off('chat:member_joined',        onMemberJoined);
-      socket.off('chat:member_left',          onMemberLeft);
-      socket.off('chat:member_added',         onMemberAdded);
-      socket.off('chat:member_removed',       onMemberRemoved);
-      socket.off('chat:member_promoted',      onMemberPromoted);
-      socket.off('chat:member_demoted',       onMemberDemoted);
-      socket.off('chat:online_users');
+      socket.off('connect',                  onConnect);
+      socket.off('disconnect',               onDisconnect);
+      socket.off('chat:new_message',          handleNewMessage);
+      socket.off('chat:user_typing',          handleUserTyping);
+      socket.off('chat:user_stopped_typing',  handleUserStoppedTyping);
+      socket.off('chat:message_deleted',      handleMessageDeleted);
+      socket.off('chat:message_edited',       handleMessageEdited);
+      socket.off('chat:messages_seen',        handleMessagesSeen);
+      socket.off('chat:messages_delivered',   handleMessagesDelivered);
+      socket.off('chat:member_joined',        handleMemberJoined);
+      socket.off('chat:member_left',          handleMemberLeft);
+      socket.off('chat:member_added',         handleMemberAdded);
+      socket.off('chat:member_removed',       handleMemberRemoved);
+      socket.off('chat:member_promoted',      handleMemberPromoted);
+      socket.off('chat:member_demoted',       handleMemberDemoted);
+      socket.off('chat:online_users',         handleOnlineUsers);
     };
-  }, [user?.id, user?._id, conversationId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.id, user?._id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Dynamically join room whenever conversationId updates ────────────────
+  useEffect(() => {
+    if (!conversationId) return;
+    const socket = socketRef.current || (user && getSocket(user.id || user._id));
+    if (socket && socket.connected) {
+      socket.emit('chat:join_conversation', { conversationId });
+    }
+  }, [conversationId, user]);
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
@@ -182,7 +249,7 @@ export const useChatSocket = ({
 
   /** Join a new conversation room (if changed dynamically) */
   const joinConversation = useCallback((convId) => {
-    if (socketRef.current?.connected) {
+    if (socketRef.current?.connected && convId) {
       socketRef.current.emit('chat:join_conversation', { conversationId: convId });
     }
   }, []);
@@ -204,3 +271,4 @@ export const useChatSocket = ({
 };
 
 export default useChatSocket;
+

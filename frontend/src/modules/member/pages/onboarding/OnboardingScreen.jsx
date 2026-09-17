@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -260,7 +260,11 @@ const OnboardingScreen = () => {
       try {
         const res = await axiosPublic.get('/auth/communities');
         if (res.data.success && res.data.data.length > 0) {
-          const fetched = res.data.data.map(c => ({ label: c.name, value: c._id }));
+          const fetched = res.data.data.map(c => ({
+            label: c.name,
+            value: c._id,
+            subCommunities: Array.isArray(c.subCommunities) ? c.subCommunities : []
+          }));
           const mergedMap = new Map();
           fetched.forEach(item => {
             if (item.label.toLowerCase() !== 'other') {
@@ -273,7 +277,7 @@ const OnboardingScreen = () => {
             }
           });
           const list = Array.from(mergedMap.values());
-          list.push({ label: 'Other', value: 'other' });
+          list.push({ label: 'Other', value: 'other', subCommunities: [] });
           setApiCommunities(list);
         } else {
           setApiCommunities(DEFAULT_COMMUNITIES);
@@ -285,6 +289,17 @@ const OnboardingScreen = () => {
     };
     loadCommunities();
   }, []);
+
+  // Compute available sub-communities dynamically for the selected community
+  const availableSubCommunities = useMemo(() => {
+    if (!selectedCommunity) return [];
+    if (selectedCommunity === 'other') return ['General'];
+    const matched = apiCommunities.find(c => c.value === selectedCommunity || c.label === selectedCommunity);
+    if (matched && Array.isArray(matched.subCommunities) && matched.subCommunities.length > 0) {
+      return matched.subCommunities;
+    }
+    return ['General'];
+  }, [selectedCommunity, apiCommunities]);
 
   const DEFAULT_INDIAN_CITIES = [
     { label: 'Indore', value: 'Indore' },
@@ -942,14 +957,28 @@ const OnboardingScreen = () => {
                 )}
 
                 <div>
-                  <label className="text-[11px] font-bold text-text-secondary uppercase tracking-wider block mb-1.5">Sub-Community / Category</label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <label className="text-[11px] font-bold text-text-secondary uppercase tracking-wider block">
+                      Sub-Community / Category
+                    </label>
+                    {availableSubCommunities.length > 1 && (
+                      <span className="text-[10px] text-purple-600 font-bold bg-purple-50 px-2 py-0.5 rounded-full">
+                        {availableSubCommunities.length} Options
+                      </span>
+                    )}
+                  </div>
                   <CustomSelect
                     value={selectedSubCommunity}
                     onChange={setSelectedSubCommunity}
-                    options={selectedCommunity ? ['General'] : []}
+                    options={availableSubCommunities}
                     placeholder="Select sub-community"
                     disabled={!selectedCommunity || (selectedCommunity === 'other' && !customCommunity.trim())}
                   />
+                  {availableSubCommunities.length > 0 && availableSubCommunities[0] !== 'General' && (
+                    <p className="text-[10px] text-slate-400 font-semibold mt-1">
+                      Choose from registered sub-communities for this Samaj.
+                    </p>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
