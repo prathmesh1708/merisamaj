@@ -25,6 +25,9 @@ export const NotificationProvider = ({ children }) => {
   const [toastNotif, setToastNotif]                 = useState(null);
   const toastTimeoutRef = useRef(null);
 
+  const isFetchingRef = useRef(false);
+  const debounceTimerRef = useRef(null);
+
   // ── Fetch initial unread counts on mount / when user changes ───────────────
   const fetchUnreadCounts = useCallback(async () => {
     const userId = activeUser?._id || activeUser?.id;
@@ -36,19 +39,27 @@ export const NotificationProvider = ({ children }) => {
       return;
     }
 
-    // 1. System Notifications Unread
-    notificationService.getUnread()
-      .then(res => setUnreadCount(res.data?.data?.count || res.data?.data?.unreadCount || 0))
-      .catch(() => {});
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
 
-    // 2. Chat Messages Unread across member, group, and matrimonial conversations
     try {
-      const [memberRes, groupRes, matRes] = await Promise.allSettled([
+      // 1. System Notifications Unread
+      const notifPromise = notificationService.getUnread().catch(() => null);
+
+      // 2. Chat Messages Unread across member, group, and matrimonial conversations
+      const chatPromises = Promise.allSettled([
         memberChatService.getConversations(),
         groupService.getMyGroups(),
         matrimonialChatService.getConversations()
       ]);
 
+      const [notifRes, chatSettled] = await Promise.all([notifPromise, chatPromises]);
+
+      if (notifRes?.data?.data) {
+        setUnreadCount(notifRes.data.data.count || notifRes.data.data.unreadCount || 0);
+      }
+
+      const [memberRes, groupRes, matRes] = chatSettled;
       let totalChatUnread = 0;
       if (memberRes.status === 'fulfilled') {
         const memberConvs = memberRes.value.data?.data?.conversations || [];
@@ -65,20 +76,30 @@ export const NotificationProvider = ({ children }) => {
       setUnreadChatCount(totalChatUnread);
     } catch {
       // Non-critical background fetch
+    } finally {
+      isFetchingRef.current = false;
     }
   }, [activeUser?._id, activeUser?.id]);
 
+  const debouncedFetchUnreadCounts = useCallback(() => {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      fetchUnreadCounts();
+    }, 1500);
+  }, [fetchUnreadCounts]);
+
   useEffect(() => {
     fetchUnreadCounts();
-    const handleFocus = () => fetchUnreadCounts();
-    const handleCustomRefresh = () => fetchUnreadCounts();
+    const handleFocus = () => debouncedFetchUnreadCounts();
+    const handleCustomRefresh = () => debouncedFetchUnreadCounts();
     window.addEventListener('focus', handleFocus);
     window.addEventListener('app:refresh_unread_counts', handleCustomRefresh);
     return () => {
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('app:refresh_unread_counts', handleCustomRefresh);
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     };
-  }, [fetchUnreadCounts]);
+  }, [fetchUnreadCounts, debouncedFetchUnreadCounts]);
 
   // ── Socket listener for real-time notifications & incoming messages ─────────
   useEffect(() => {
@@ -86,6 +107,7 @@ export const NotificationProvider = ({ children }) => {
     if (!userId) return;
 
     const socket = getSocket(userId);
+    if (!socket) return;
 
     // Standard notifications
     const newHandler = (notification) => {
@@ -116,7 +138,7 @@ export const NotificationProvider = ({ children }) => {
 
       // Only count and alert if the message was sent by someone else
       if (senderId && senderId !== myId) {
-        fetchUnreadCounts();
+        debouncedFetchUnreadCounts();
 
         const senderName = msg.senderId?.name || 'Community Member';
         const preview = msg.message || (msg.type === 'image' ? '📷 Sent a photo' : '💬 Sent a message');
@@ -138,7 +160,7 @@ export const NotificationProvider = ({ children }) => {
     };
 
     const messagesSeenHandler = () => {
-      fetchUnreadCounts();
+      debouncedFetchUnreadCounts();
     };
 
     socket.on('notification:new', newHandler);
@@ -157,7 +179,8 @@ export const NotificationProvider = ({ children }) => {
       socket.off('matrimonial:messages_seen', messagesSeenHandler);
       if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     };
-  }, [activeUser?._id, activeUser?.id, fetchUnreadCounts]);
+  }, [activeUser?._id, activeUser?.id, debouncedFetchUnreadCounts]);
+
 
   // ── Actions ────────────────────────────────────────────────────────────────
   const resetUnreadCount        = useCallback(() => setUnreadCount(0), []);

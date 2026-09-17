@@ -140,30 +140,32 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
     hasMountedRef.current = true;
   }, [messages, typingUsers]);
 
-  // Immediately mark conversation as seen when conversationId is active
+  // Immediately mark conversation as seen when conversationId is active (once per conversationId)
   useEffect(() => {
     if (!conversationId) return;
     memberChatService.markSeen(conversationId).catch(() => {});
-    window.dispatchEvent(new Event('app:refresh_unread_counts'));
   }, [conversationId]);
 
-  // Mark messages as seen when page is focused or messages load
+  // Mark messages as seen when new unseen messages arrive from the other user
+  const lastMarkedIdsRef = useRef(new Set());
   useEffect(() => {
-    if (!conversationId) return;
+    if (!conversationId || messages.length === 0) return;
     const myId = (user?.id || user?._id)?.toString();
     const unseenIds = messages
       .filter(m => {
+        if (!m._id || lastMarkedIdsRef.current.has(m._id.toString())) return false;
         const senderId = (m.senderId?._id || m.senderId)?.toString();
-        return senderId && senderId !== myId && !m.seenBy?.some(s => (s.userId?._id || s.userId || s)?.toString() === myId);
+        const alreadySeen = m.seenBy?.some(s => (s.userId?._id || s.userId || s)?.toString() === myId);
+        return senderId && senderId !== myId && !alreadySeen;
       })
       .map(m => m._id);
 
     if (unseenIds.length > 0) {
+      unseenIds.forEach(id => lastMarkedIdsRef.current.add(id.toString()));
       markSeen(unseenIds);
     }
-    memberChatService.markSeen(conversationId).catch(() => {});
-    window.dispatchEvent(new Event('app:refresh_unread_counts'));
   }, [messages, conversationId, user, markSeen]);
+
 
   // Derive display info for the other user
   const myId = (user?.id || user?._id)?.toString();
