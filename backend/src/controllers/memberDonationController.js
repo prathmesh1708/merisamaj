@@ -40,16 +40,43 @@ exports.getActiveDonations = async (req, res) => {
     // Use .lean() to bypass Mongoose hydration overhead
     const donations = await Donation.find(filter)
       .select('-recentDonations -description')
+      .populate('createdBy', 'name role accountType city phone accountDetails')
+      .populate('communityId', 'name accountDetails')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limitNum)
       .lean();
 
+    const formattedDonations = donations.map(d => {
+      const effectiveAccountDetails = (d.accountDetails?.accountNumber || d.accountDetails?.upiId)
+        ? d.accountDetails
+        : (d.createdBy?.accountDetails?.accountNumber || d.createdBy?.accountDetails?.upiId)
+        ? d.createdBy.accountDetails
+        : (d.communityId?.accountDetails || {});
+
+      const receiverRole = d.createdBy?.role === 'head' 
+        ? 'Community Head' 
+        : d.createdBy?.role === 'sub_head' || d.createdBy?.accountType === 'local_head'
+        ? 'Local Head'
+        : (d.createdBy?.role || 'Community Head');
+
+      return {
+        ...d,
+        accountDetails: effectiveAccountDetails,
+        receiverInfo: {
+          name: d.createdBy?.name || 'Community Leadership',
+          role: receiverRole,
+          city: d.createdBy?.city || d.city || '',
+          phone: d.createdBy?.phone || ''
+        }
+      };
+    });
+
     const totalCount = await Donation.countDocuments(filter);
 
     res.status(200).json({
       success: true,
-      data: donations,
+      data: formattedDonations,
       pagination: {
         page: pageNum,
         limit: limitNum,
@@ -66,15 +93,41 @@ exports.getActiveDonations = async (req, res) => {
 exports.getDonationById = async (req, res) => {
   try {
     const filter = applyScopeFilter(req, { _id: req.params.id, isDeleted: false });
-    const donation = await Donation.findOne(filter).lean();
+    const donation = await Donation.findOne(filter)
+      .populate('createdBy', 'name role accountType city phone accountDetails')
+      .populate('communityId', 'name accountDetails')
+      .lean();
 
     if (!donation) {
       return res.status(404).json({ success: false, message: 'Donation campaign not found or access denied' });
     }
 
+    const effectiveAccountDetails = (donation.accountDetails?.accountNumber || donation.accountDetails?.upiId)
+      ? donation.accountDetails
+      : (donation.createdBy?.accountDetails?.accountNumber || donation.createdBy?.accountDetails?.upiId)
+      ? donation.createdBy.accountDetails
+      : (donation.communityId?.accountDetails || {});
+
+    const receiverRole = donation.createdBy?.role === 'head' 
+      ? 'Community Head' 
+      : donation.createdBy?.role === 'sub_head' || donation.createdBy?.accountType === 'local_head'
+      ? 'Local Head'
+      : (donation.createdBy?.role || 'Community Head');
+
+    const formattedDonation = {
+      ...donation,
+      accountDetails: effectiveAccountDetails,
+      receiverInfo: {
+        name: donation.createdBy?.name || 'Community Leadership',
+        role: receiverRole,
+        city: donation.createdBy?.city || donation.city || '',
+        phone: donation.createdBy?.phone || ''
+      }
+    };
+
     res.status(200).json({
       success: true,
-      data: donation
+      data: formattedDonation
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

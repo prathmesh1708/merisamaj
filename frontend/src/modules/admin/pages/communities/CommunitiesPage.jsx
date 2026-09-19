@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { cityService } from '../../services/cityService';
+import { communityHeadService } from '../../services/communityHeadService';
 import {
   getAllCommunities,
   createCommunity,
   updateCommunity,
   deleteCommunity,
+  toggleCommunityStatus,
   assignHeadToCommunity,
   removeHeadFromCommunity,
   updateCommunitySettings,
@@ -29,18 +31,23 @@ const MODULE_FLAGS = [
 // ─────────────────────────────────────────────
 const CreateCommunityModal = ({ onClose, onCreated }) => {
   const [availableCities, setAvailableCities] = useState([]);
+  const [availableHeads, setAvailableHeads] = useState([]);
 
   useEffect(() => {
-    // Fetch available cities when modal opens
-    const fetchCities = async () => {
+    // Fetch available cities & heads when modal opens
+    const fetchModalData = async () => {
       try {
-        const cities = await cityService.fetchCities();
+        const [cities, heads] = await Promise.all([
+          cityService.fetchCities().catch(() => []),
+          communityHeadService.getHeads().catch(() => [])
+        ]);
         setAvailableCities(cities.filter(c => c.status === 'Active'));
+        setAvailableHeads(heads);
       } catch (err) {
-        console.error('Failed to load cities for community assignment', err);
+        console.error('Failed to load cities/heads for community creation', err);
       }
     };
-    fetchCities();
+    fetchModalData();
   }, []);
 
   const [form, setForm] = useState({
@@ -50,7 +57,8 @@ const CreateCommunityModal = ({ onClose, onCreated }) => {
     subCommunities: [],
     logoUrl: '',
     bannerUrl: '',
-    status: 'Active'
+    status: 'Active',
+    headId: ''
   });
   const [newSubCommunity, setNewSubCommunity] = useState('');
   const [loading, setLoading] = useState(false);
@@ -171,6 +179,24 @@ const CreateCommunityModal = ({ onClose, onCreated }) => {
                     )}
                   </div>
                   <small className="community-hint">Select one or more cities where this community operates.</small>
+                </div>
+
+                <div className="community-form-group">
+                  <label>Assigned Community Head</label>
+                  <select
+                    value={form.headId}
+                    onChange={e => setForm(f => ({ ...f, headId: e.target.value }))}
+                    className="community-input"
+                    style={{ height: '42px' }}
+                  >
+                    <option value="">-- No Head Assigned --</option>
+                    {availableHeads.map(head => (
+                      <option key={head.id || head._id} value={head.id || head._id}>
+                        {head.name} ({head.phone || head.email || head.loginId || 'Head'})
+                      </option>
+                    ))}
+                  </select>
+                  <small className="community-hint">Select an eligible user to assign as the Community Head.</small>
                 </div>
               </div>
 
@@ -346,18 +372,23 @@ const CreateCommunityModal = ({ onClose, onCreated }) => {
 // ─────────────────────────────────────────────
 const EditCommunityModal = ({ community, onClose, onUpdated }) => {
   const [availableCities, setAvailableCities] = useState([]);
+  const [availableHeads, setAvailableHeads] = useState([]);
 
   useEffect(() => {
-    // Fetch available cities when modal opens
-    const fetchCities = async () => {
+    // Fetch available cities & heads when modal opens
+    const fetchModalData = async () => {
       try {
-        const cities = await cityService.fetchCities();
+        const [cities, heads] = await Promise.all([
+          cityService.fetchCities().catch(() => []),
+          communityHeadService.getHeads().catch(() => [])
+        ]);
         setAvailableCities(cities.filter(c => c.status === 'Active'));
+        setAvailableHeads(heads);
       } catch (err) {
-        console.error('Failed to load cities for community assignment', err);
+        console.error('Failed to load cities/heads for community assignment', err);
       }
     };
-    fetchCities();
+    fetchModalData();
   }, []);
 
   const [form, setForm] = useState({
@@ -500,11 +531,11 @@ const EditCommunityModal = ({ community, onClose, onUpdated }) => {
                     style={{ height: '42px' }}
                   >
                     <option value="">-- No Head Assigned --</option>
-                    {community.headId && (
-                      <option value={community.headId._id || community.headId}>
-                        Current: {community.headId.name || community.headId}
+                    {availableHeads.map(head => (
+                      <option key={head.id || head._id} value={head.id || head._id}>
+                        {head.name} ({head.phone || head.email || head.loginId || 'Head'})
                       </option>
-                    )}
+                    ))}
                   </select>
                   <small className="community-hint">
                     ℹ️ Select an eligible user to assign as the Community Head.
@@ -666,12 +697,25 @@ const EditCommunityModal = ({ community, onClose, onUpdated }) => {
           </div>
 
           <div className="community-modal-actions">
-            {error ? (
-              <p className="community-form-error">⚠️ {error}</p>
-            ) : (
-              <span className="community-hint" style={{ margin: 0 }}>* Required fields</span>
-            )}
-            <div style={{ display: 'flex', gap: '10px' }}>
+            <div>
+              <button 
+                type="button" 
+                className="community-btn-danger-sm" 
+                onClick={() => {
+                  if (window.confirm(`Are you sure you want to PERMANENTLY DELETE "${community.name}"?\n\nThis will remove the community from the platform. This action cannot be undone.`)) {
+                    deleteCommunity(community._id || community.id)
+                      .then(() => {
+                        onUpdated();
+                        onClose();
+                      })
+                      .catch(err => alert(err.response?.data?.message || 'Delete failed'));
+                  }
+                }}
+              >
+                🗑️ Delete Community
+              </button>
+            </div>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
               <button type="button" className="community-btn-secondary" onClick={onClose}>Cancel</button>
               <button type="submit" className="community-btn-primary" disabled={loading}>
                 {loading ? 'Saving...' : 'Save Changes'}
@@ -755,17 +799,19 @@ const ModuleSettingsPanel = ({ community, onClose, onUpdated }) => {
 };
 
 // ─────────────────────────────────────────────
+// ─────────────────────────────────────────────
 // CommunityCard
 // ─────────────────────────────────────────────
-const CommunityCard = ({ community, onEdit, onModules, onDelete }) => {
+const CommunityCard = ({ community, onEdit, onModules, onToggleStatus, onDelete }) => {
   const head = community.headId;
   const enabledModules = MODULE_FLAGS.filter(m => community.settings?.[m.key]);
+  const isActive = community.isActive !== false && community.status !== 'Inactive';
 
   return (
-    <div className={`community-card ${!community.isActive ? 'community-card-inactive' : ''}`}>
+    <div className={`community-card ${!isActive ? 'community-card-inactive' : ''}`}>
       {/* Status badge */}
-      <div className={`community-status-badge ${community.isActive ? 'active' : 'inactive'}`}>
-        {community.isActive ? '● Active' : '○ Inactive'}
+      <div className={`community-status-badge ${isActive ? 'active' : 'inactive'}`}>
+        {isActive ? '● Active' : '○ Inactive'}
       </div>
 
       {/* Community Logo + Name */}
@@ -864,8 +910,19 @@ const CommunityCard = ({ community, onEdit, onModules, onDelete }) => {
         <button className="community-action-btn" onClick={() => onModules(community)} title="Module Settings">
           ⚙️ Modules
         </button>
-        <button className="community-action-btn community-action-danger" onClick={() => onDelete(community)} title="Deactivate">
-          🗑️ Deactivate
+        <button 
+          className={`community-action-btn ${isActive ? 'community-action-warning' : 'community-action-success'}`} 
+          onClick={() => onToggleStatus(community)} 
+          title={isActive ? 'Deactivate Community' : 'Activate Community'}
+        >
+          {isActive ? '⏸️ Deactivate' : '▶️ Activate'}
+        </button>
+        <button 
+          className="community-action-btn community-action-danger" 
+          onClick={() => onDelete(community)} 
+          title="Delete Community"
+        >
+          🗑️ Delete
         </button>
       </div>
     </div>
@@ -898,13 +955,25 @@ const CommunitiesPage = () => {
 
   useEffect(() => { fetchCommunities(); }, []);
 
+  const handleToggleStatus = async (community) => {
+    const isActive = community.isActive !== false && community.status !== 'Inactive';
+    const action = isActive ? 'deactivate' : 'activate';
+    if (!window.confirm(`Are you sure you want to ${action} "${community.name}"?`)) return;
+    try {
+      await toggleCommunityStatus(community._id);
+      fetchCommunities();
+    } catch (err) {
+      alert(err.response?.data?.message || `${action.toUpperCase()} failed`);
+    }
+  };
+
   const handleDelete = async (community) => {
-    if (!window.confirm(`Are you sure you want to deactivate "${community.name}"?`)) return;
+    if (!window.confirm(`Are you sure you want to PERMANENTLY DELETE "${community.name}"?\n\nThis will remove the community from the platform. This action cannot be undone.`)) return;
     try {
       await deleteCommunity(community._id);
       fetchCommunities();
     } catch (err) {
-      alert(err.response?.data?.message || 'Deactivation failed');
+      alert(err.response?.data?.message || 'Deletion failed');
     }
   };
 
@@ -988,6 +1057,7 @@ const CommunitiesPage = () => {
                 community={community}
                 onEdit={setEditTarget}
                 onModules={setModuleTarget}
+                onToggleStatus={handleToggleStatus}
                 onDelete={handleDelete}
               />
             ))}
@@ -1184,25 +1254,35 @@ const COMMUNITIES_PAGE_STYLES = `
     font-size: 0.7rem; padding: 3px 8px; border-radius: 20px;
   }
   .community-card-actions {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 8px;
     padding-top: 12px;
     border-top: 1px solid #f3f4f6;
   }
   .community-action-btn {
-    flex: 1;
-    padding: 8px 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 8px 6px;
     border: 1.5px solid #e5e7eb;
     border-radius: 8px;
     background: #fff;
-    font-size: 0.78rem;
+    font-size: 0.76rem;
     font-weight: 600;
     color: #374151;
     cursor: pointer;
     transition: all 0.15s;
+    white-space: nowrap;
   }
   .community-action-btn:hover { background: #f3f4f6; border-color: #667eea; color: #667eea; }
-  .community-action-danger:hover { background: #fef2f2; border-color: #ef4444; color: #ef4444; }
+  .community-action-warning { color: #b45309; }
+  .community-action-warning:hover { background: #fffbeb; border-color: #f59e0b; color: #d97706; }
+  .community-action-success { color: #047857; }
+  .community-action-success:hover { background: #f0fdf4; border-color: #10b981; color: #059669; }
+  .community-action-danger { color: #dc2626; border-color: #fecaca; }
+  .community-action-danger:hover { background: #fef2f2; border-color: #ef4444; color: #b91c1c; }
 
   /* Modal */
   .community-modal-overlay {

@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const config = require('../config/config');
@@ -791,40 +792,91 @@ const getPublicCommunities = async (req, res) => {
   try {
     const Community = require('../models/Community');
     const communities = await Community.find({ isActive: true })
-      .select('name cityIds subCommunities')
+      .select('name city cityIds subCommunities headId')
+      .populate('headId', 'name phone')
       .sort({ name: 1 })
       .lean();
-    res.json({ success: true, data: communities });
+
+    const formatted = communities.map(c => ({
+      _id: c._id,
+      name: c.name,
+      city: c.city || '',
+      cityIds: c.cityIds || [],
+      subCommunities: c.subCommunities || [],
+      hasHead: !!c.headId,
+      headName: c.headId?.name || null
+    }));
+
+    res.json({ success: true, data: formatted });
   } catch (error) {
+    console.error('getPublicCommunities error:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch communities' });
   }
 };
 
-// @desc    Get all active cities mapped to a community
+// @desc    Get all active cities with community & head coverage metadata (green/red dots)
 // @route   GET /api/v1/auth/cities?communityId=XYZ
 // @access  Public
 const getPublicCities = async (req, res) => {
   try {
     const { communityId } = req.query;
     const City = require('../models/City');
+    const Community = require('../models/Community');
     
-    let filter = { isActive: true };
-
-    if (communityId) {
-      const Community = require('../models/Community');
-      const community = await Community.findById(communityId);
-      if (community && community.cityIds && community.cityIds.length > 0) {
-        filter._id = { $in: community.cityIds };
-      }
-    }
-
-    const cities = await City.find(filter)
-      .select('name state')
+    // Fetch all active cities
+    const allCities = await City.find({ isActive: true })
+      .select('name state _id')
       .sort({ name: 1 })
       .lean();
-      
-    res.json({ success: true, data: cities });
+
+    let targetCommunity = null;
+    if (communityId && mongoose.Types.ObjectId.isValid(communityId)) {
+      targetCommunity = await Community.findById(communityId).populate('headId', 'name phone').lean();
+    }
+
+    const assignedCityIdsSet = new Set(
+      (targetCommunity?.cityIds || []).map(id => id.toString())
+    );
+    const assignedCityNamesSet = new Set(
+      [targetCommunity?.city].filter(Boolean).map(c => c.toLowerCase().trim())
+    );
+
+    const hasHead = !!targetCommunity?.headId;
+    const headInfo = targetCommunity?.headId ? {
+      id: targetCommunity.headId._id,
+      name: targetCommunity.headId.name,
+    } : null;
+
+    const enrichedCities = allCities.map(city => {
+      const cityIdStr = city._id.toString();
+      const isCommunityInCity = assignedCityIdsSet.has(cityIdStr) || assignedCityNamesSet.has(city.name.toLowerCase().trim());
+      const isCovered = Boolean(targetCommunity && isCommunityInCity && hasHead);
+
+      return {
+        _id: city._id,
+        name: city.name,
+        state: city.state || '',
+        hasCommunity: Boolean(targetCommunity && isCommunityInCity),
+        hasHead: Boolean(targetCommunity && hasHead),
+        headInfo: isCovered ? headInfo : null,
+        isCovered: isCovered,
+        dotColor: isCovered ? 'green' : 'red',
+        statusText: isCovered 
+          ? 'Head Assigned' 
+          : (targetCommunity && isCommunityInCity ? 'Head Pending' : 'No Samaj Head')
+      };
+    });
+
+    // Sort: Green dot (isCovered: true) first, then alphabetical by name
+    enrichedCities.sort((a, b) => {
+      if (a.isCovered && !b.isCovered) return -1;
+      if (!a.isCovered && b.isCovered) return 1;
+      return a.name.localeCompare(b.name);
+    });
+
+    res.json({ success: true, data: enrichedCities });
   } catch (error) {
+    console.error('getPublicCities error:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch cities' });
   }
 };

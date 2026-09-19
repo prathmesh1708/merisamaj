@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { axiosPublic } from '../../../../core/api/axiosConfig';
-import { ArrowLeft, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
+import { ArrowLeft, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Users, Building2, Sparkles } from 'lucide-react';
 import { useData } from '../../context/DataProvider';
 import { Avatar } from '../../components/common/Avatar';
 
@@ -27,6 +27,9 @@ const EditProfilePage = () => {
     email: currentUser?.email || '',
     gender: currentUser?.gender || '',
     dob: currentUser?.dob || '',
+    communityId: currentUser?.communityId?._id || currentUser?.communityId || '',
+    community: currentUser?.communityId?.name || currentUser?.community || '',
+    subCommunity: currentUser?.subCommunity || '',
     profession: currentUser?.profession || '',
     company: currentUser?.company || '',
     state: currentUser?.state || '',
@@ -37,12 +40,14 @@ const EditProfilePage = () => {
   const [showGenderDropdown, setShowGenderDropdown] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [dynamicStatesAndCities, setDynamicStatesAndCities] = useState(DEFAULT_INDIAN_STATES_AND_CITIES);
+  const [communities, setCommunities] = useState([]);
+  const [subCommunitySuggestions, setSubCommunitySuggestions] = useState([]);
 
   useEffect(() => {
     const loadCities = async () => {
       try {
         const res = await axiosPublic.get('/auth/cities');
-        if (res.data.success) {
+        if (res.data?.success) {
           const grouped = {};
           res.data.data.forEach(city => {
             const state = city.state || 'Madhya Pradesh';
@@ -55,8 +60,28 @@ const EditProfilePage = () => {
         console.error('Failed to load cities:', err);
       }
     };
+
+    const loadCommunities = async () => {
+      try {
+        const res = await axiosPublic.get('/auth/communities');
+        if (res.data?.success && Array.isArray(res.data?.data)) {
+          setCommunities(res.data.data);
+          const currentComm = res.data.data.find(c => 
+            (c._id || c.id) === (currentUser?.communityId?._id || currentUser?.communityId) || 
+            c.name?.toLowerCase() === currentUser?.community?.toLowerCase()
+          );
+          if (currentComm && Array.isArray(currentComm.subCommunities)) {
+            setSubCommunitySuggestions(currentComm.subCommunities);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load communities:', err);
+      }
+    };
+
     loadCities();
-  }, []);
+    loadCommunities();
+  }, [currentUser]);
 
   // Parse date string 'YYYY-MM-DD'
   const [pickerDate, setPickerDate] = useState(() => {
@@ -153,11 +178,34 @@ const EditProfilePage = () => {
     });
   };
 
+  const handleSelectCommunity = (comm) => {
+    setFormData(prev => ({
+      ...prev,
+      communityId: comm._id || comm.id,
+      community: comm.name,
+      subCommunity: ''
+    }));
+    setSubCommunitySuggestions(Array.isArray(comm.subCommunities) ? comm.subCommunities : []);
+  };
+
+  const handleCustomCommunityChange = (e) => {
+    const val = e.target.value;
+    const matched = communities.find(c => c.name.toLowerCase() === val.toLowerCase());
+    setFormData(prev => ({
+      ...prev,
+      community: val,
+      communityId: matched ? (matched._id || matched.id) : prev.communityId
+    }));
+    if (matched && Array.isArray(matched.subCommunities)) {
+      setSubCommunitySuggestions(matched.subCommunities);
+    }
+  };
+
   const handleSave = () => {
     // Basic validation
     if (!formData.name || !formData.phone) return;
     
-    // update the central store
+    // update the central store & backend
     updateProfile(formData);
     
     // Navigate back to profile
@@ -214,6 +262,48 @@ const EditProfilePage = () => {
 
         <div className="space-y-4">
           <InputField label="Full Name" name="name" value={formData.name} onChange={handleChange} />
+
+          {/* Samaj / Community Selection */}
+          <div className="p-4 bg-gradient-to-r from-purple-50/70 to-indigo-50/70 rounded-2xl border border-purple-100 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Building2 size={16} className="text-brand-primary" />
+                <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">
+                  Samaj / Community (समाज चयन)
+                </h3>
+              </div>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white text-purple-700 border border-purple-200">
+                {formData.community || 'Not Selected'}
+              </span>
+            </div>
+            
+            <AutocompleteField
+              label="Select or Change Samaj (समाज)"
+              name="community"
+              value={formData.community}
+              onChange={handleCustomCommunityChange}
+              suggestions={communities.map(c => c.name)}
+              placeholder="Search or enter your Samaj (e.g. Ahirwar Samaj, Agrawal Samaj)"
+              onSelect={(name) => {
+                const comm = communities.find(c => c.name.toLowerCase() === name.toLowerCase());
+                if (comm) {
+                  handleSelectCommunity(comm);
+                } else {
+                  setFormData(prev => ({ ...prev, community: name }));
+                }
+              }}
+            />
+
+            <AutocompleteField
+              label="Sub-Samaj / Gotra (उप-समाज / शाखा - ऐच्छिक)"
+              name="subCommunity"
+              value={formData.subCommunity}
+              onChange={handleChange}
+              suggestions={subCommunitySuggestions}
+              placeholder={subCommunitySuggestions.length > 0 ? "Select or enter sub-community" : "Enter your sub-samaj / branch"}
+              onSelect={(sub) => setFormData(prev => ({ ...prev, subCommunity: sub }))}
+            />
+          </div>
           
           <div className="grid grid-cols-2 gap-3">
             {/* Custom Gender Select */}

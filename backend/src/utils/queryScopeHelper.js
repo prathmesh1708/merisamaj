@@ -119,6 +119,11 @@ const applyScopeFilter = (req, baseFilter = {}, options = {}) => {
       const cityRegex = new RegExp(`^${activeCity.trim()}$`, 'i');
       const unassignedCondition = [
         { [cityField]: cityRegex },
+        { [cityField]: 'All Locations' },
+        { [cityField]: 'All' },
+        { [cityField]: 'all' },
+        { locationScope: 'ALL' },
+        { isAllLocations: true },
         { [cityField]: null },
         { [cityField]: '' },
         { [cityField]: { $exists: false } }

@@ -567,7 +567,7 @@ const HomePage = () => {
                   Account Under Community Head Review
                 </h3>
                 <p className="text-[11px] text-amber-100/90 font-medium mt-1 leading-relaxed">
-                  You can explore the Samaj Banner, Core Leaders, Success Stories, and Matrimony. Full access to Chat, Social Feed, and other features will be active once approved by the Community Head.
+                  You can call or message leaders, explore Samaj Banner, Core Leaders, Success Stories, and Matrimony. Full access to Social Feed, Directory, and other features will be active once approved by the Community Head.
                 </p>
                 <div className="mt-3 flex items-center gap-2">
                   <button
@@ -1408,10 +1408,6 @@ const HomePage = () => {
                       </a>
                       <button 
                         onClick={() => {
-                          if (!isApproved) {
-                            showApprovalRequiredNotice('Chat Messenger');
-                            return;
-                          }
                           const targetId = president.id || president._id;
                           if (targetId && /^[0-9a-fA-F]{24}$/.test(targetId.toString())) {
                             navigate(`/member/chat/member/${targetId}`);
@@ -1471,10 +1467,6 @@ const HomePage = () => {
                           </a>
                           <button 
                             onClick={() => {
-                              if (!isApproved) {
-                                showApprovalRequiredNotice('Chat Messenger');
-                                return;
-                              }
                               const targetId = member.id || member._id;
                               if (targetId && /^[0-9a-fA-F]{24}$/.test(targetId.toString())) {
                                 navigate(`/member/chat/member/${targetId}`);

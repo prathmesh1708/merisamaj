@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, MapPin, Clock, Users, CheckCircle, Share2, CalendarDays, Heart, Phone, MessageCircle, ExternalLink, ChevronRight, Star, Bookmark, BookmarkCheck, Bell, BellOff, X, Image, User, Ticket, ChevronDown } from 'lucide-react';
+import { ArrowLeft, MapPin, Clock, Users, CheckCircle, Share2, CalendarDays, Heart, Phone, MessageCircle, ExternalLink, ChevronRight, Star, Bookmark, BookmarkCheck, Bell, BellOff, X, Image, User, Ticket, ChevronDown, Globe } from 'lucide-react';
 import { Avatar } from '../../components/common/Avatar';
 import { useData } from '../../context/DataProvider';
 import { eventService } from '../../services/eventService';
@@ -334,6 +334,19 @@ const EventDetailPage = () => {
               </div>
               <div>
                 <p className="text-[13px] font-bold text-gray-800">{event.timeEn || event.time}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0">
+                <Globe size={15} className="text-indigo-600" />
+              </div>
+              <div>
+                <p className="text-[13px] font-bold text-gray-800">
+                  {event.locationScope === 'ALL' || event.isAllLocations || !event.city || event.city === 'ALL' || event.city === 'All Locations'
+                    ? 'All Locations (सभी स्थान)'
+                    : `City: ${event.city}`}
+                </p>
               </div>
             </div>
 

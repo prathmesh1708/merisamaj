@@ -129,6 +129,19 @@ const parseCampaignBody = (body, file) => {
   if (typeof data.targetAudiences === 'string') {
     try { data.targetAudiences = JSON.parse(data.targetAudiences); } catch (e) { data.targetAudiences = []; }
   }
+  if (typeof data.accountDetails === 'string') {
+    try { data.accountDetails = JSON.parse(data.accountDetails); } catch (e) { data.accountDetails = {}; }
+  }
+  if (data.bankName || data.accountNumber || data.ifscCode || data.upiId || data.accountHolderName) {
+    data.accountDetails = {
+      bankName: data.bankName || data.accountDetails?.bankName || '',
+      accountNumber: data.accountNumber || data.accountDetails?.accountNumber || '',
+      ifscCode: data.ifscCode || data.accountDetails?.ifscCode || '',
+      upiId: data.upiId || data.accountDetails?.upiId || '',
+      accountHolderName: data.accountHolderName || data.accountDetails?.accountHolderName || '',
+      qrCode: data.qrCode || data.accountDetails?.qrCode || ''
+    };
+  }
   if (data.visibility === 'All Members' || data.visibility === 'All Communities' || data.visibility === 'Global' || data.isGlobalCampaign === true || data.isGlobalCampaign === 'true') {
     data.isGlobalCampaign = true;
   }
@@ -145,6 +158,17 @@ exports.createCampaign = async (req, res) => {
       status: parsedData.status || 'Active',
       createdBy: req.user?._id
     });
+
+    // If campaign specific accountDetails not provided, auto inherit from Community or User
+    if (!campaignPayload.accountDetails || (!campaignPayload.accountDetails.accountNumber && !campaignPayload.accountDetails.upiId)) {
+      const Community = require('../../models/Community');
+      const comm = await Community.findById(req.communityId || req.user?.communityId);
+      if (comm && comm.accountDetails && (comm.accountDetails.accountNumber || comm.accountDetails.upiId)) {
+        campaignPayload.accountDetails = comm.accountDetails;
+      } else if (req.user?.accountDetails && (req.user.accountDetails.accountNumber || req.user.accountDetails.upiId)) {
+        campaignPayload.accountDetails = req.user.accountDetails;
+      }
+    }
 
     const newCampaign = new Donation(campaignPayload);
     await newCampaign.save();

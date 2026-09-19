@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Search, Filter, MapPin, Clock, Users as UsersIcon, CalendarDays, CheckCircle, ChevronRight, Star, Sparkles, X } from 'lucide-react';
+import { ArrowLeft, Search, Filter, MapPin, Clock, Users as UsersIcon, CalendarDays, CheckCircle, ChevronRight, Star, Sparkles, X, Globe } from 'lucide-react';
 import { Avatar } from '../../components/common/Avatar';
 import { useData } from '../../context/DataProvider';
 import { useDraggableScroll } from '../../../../hooks/useDraggableScroll';
@@ -121,6 +121,17 @@ const EventCard = ({ event, index, onNavigate }) => {
               <p className="text-[12px] text-gray-500 flex items-center gap-1.5 line-clamp-1">
                 <MapPin size={11} className="text-gray-400 shrink-0" /> {event.venueEn || event.venue}
               </p>
+              <div className="flex items-center gap-1 mt-0.5">
+                {event.locationScope === 'ALL' || event.isAllLocations || !event.city || event.city === 'ALL' || event.city === 'All Locations' ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">
+                    <Globe size={10} /> All Locations
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
+                    <MapPin size={10} /> {event.city}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </div>

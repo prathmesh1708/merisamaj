@@ -4,7 +4,6 @@ import {
   Award, Search, Filter, CheckCircle, XCircle, Eye, Download, Users, 
   MapPin, Calendar, Clock, Sparkles, X, ChevronDown, Trash2, Globe, Flame
 } from 'lucide-react';
-import { useData } from '../../../member/context/DataProvider';
 import { axiosPrivate } from '../../../../core/api/axiosPrivate';
 
 export const AdminObituaryManagement = () => {
@@ -187,7 +186,7 @@ export const AdminObituaryManagement = () => {
         </div>
 
         <button 
-          onClick={loadObituaries}
+          onClick={fetchAdminObituaries}
           className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all shrink-0 cursor-pointer"
         >
           Refresh Listing

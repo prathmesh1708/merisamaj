@@ -163,6 +163,7 @@ export const UserManagement = () => {
                   onBlock={handleBlockUser}
                   onActivate={handleActivateUser}
                   onDelete={handleDeleteUser}
+                  onRefresh={refreshData}
                 />
               </div>
             )}

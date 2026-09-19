@@ -54,24 +54,6 @@ exports.openConversation = async (req, res) => {
       return res.status(403).json({ status: 'error', message: 'You can only chat with members of your own community.' });
     }
 
-    const headRoles = ['head', 'sub_head', 'admin', 'super_admin', 'master_admin'];
-    const isHeadInteraction = headRoles.includes(targetUser?.role) ||
-                              headRoles.includes(req.user?.role) ||
-                              req.user?.accountType === 'local_head' ||
-                              targetUser?.accountType === 'local_head';
-
-    if (req.user.verificationStatus !== 'verified' && !isHeadInteraction) {
-      // Allow if conversation already exists (e.g. member received a message from another member or head)
-      const existing = await Conversation.findOne({
-        type: 'member',
-        participants: { $all: [myId, targetUserId], $size: 2 },
-        isDeleted: false
-      });
-      if (!existing) {
-        return res.status(403).json({ status: 'error', message: 'Direct member chat is available once approved by your Community Head or Local Head. You can chat with your Community leadership anytime.' });
-      }
-    }
-
     const { conversation, isNew } = await findOrCreateConversation(myId, targetUserId, 'member');
 
     res.json({

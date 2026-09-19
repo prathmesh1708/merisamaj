@@ -17,4 +17,7 @@ router.patch('/:id/suspend', ctrl.suspendUser);
 router.patch('/:id/block', ctrl.blockUser);
 router.patch('/:id/activate', ctrl.activateUser);
 
+// Head assignment action
+router.post('/:id/assign-head', ctrl.assignHeadToUserCommunity);
+
 module.exports = router;

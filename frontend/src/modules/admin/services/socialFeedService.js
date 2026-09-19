@@ -1,7 +1,7 @@
 import { axiosPrivate } from '../../../core/api/axiosPrivate';
-import { getApiUrl } from '../../../core/api/axiosConfig';
 
-const API_BASE = `${getApiUrl()}/admin/social`;
+const API_BASE = '/admin/social';
+
 
 const mapPost = (post) => ({
   id: post._id,

@@ -3,9 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Calendar, Search, Filter, Edit, Trash2, X, ChevronLeft, ChevronRight, 
   Clock, MapPin, Users, Heart, Plus, Eye, AlertTriangle, CheckCircle, 
-  XCircle, RefreshCw, Shield, Layers, Upload
+  XCircle, RefreshCw, Shield, Layers, Upload, Globe
 } from 'lucide-react';
 import { headEventService } from '../../../../core/api/headEventService';
+import { axiosPrivate } from '../../../../core/api/axiosPrivate';
 
 export const EventManagement = () => {
   // Data states
@@ -14,6 +15,7 @@ export const EventManagement = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [currentPage, setCurrentPage] = useState(1);
   const [analytics, setAnalytics] = useState(null);
+  const [availableCities, setAvailableCities] = useState([]);
 
   // Filter states
   const [search, setSearch] = useState('');
@@ -45,10 +47,26 @@ export const EventManagement = () => {
   // Form State
   const [formValues, setFormValues] = useState({
     title: '', description: '', category: 'Cultural', venue: '', address: '',
+    city: 'All Locations', cityId: '', locationScope: 'ALL',
     startDate: '', startTime: '', endTime: '', contact: '', entryFee: 'Free',
     capacity: 0, registrationRequired: false, isFeatured: false,
     status: 'Published', image: ''
   });
+
+  // Load available active cities
+  useEffect(() => {
+    const loadCities = async () => {
+      try {
+        const res = await axiosPrivate.get('/auth/cities');
+        if (res.data?.data && Array.isArray(res.data.data)) {
+          setAvailableCities(res.data.data);
+        }
+      } catch (err) {
+        console.warn('Failed to load cities for event location selection:', err);
+      }
+    };
+    loadCities();
+  }, []);
 
   const handleBannerFileChange = (e) => {
     const file = e.target.files?.[0];
@@ -131,6 +149,17 @@ export const EventManagement = () => {
     fetchEvents();
   };
 
+  const resetForm = () => {
+    setFormValues({
+      title: '', description: '', category: 'Cultural', venue: '', address: '',
+      city: 'All Locations', cityId: '', locationScope: 'ALL',
+      startDate: '', startTime: '', endTime: '', contact: '', entryFee: 'Free',
+      capacity: 0, registrationRequired: false, isFeatured: false,
+      status: 'Published', image: ''
+    });
+    setSelectedEventId(null);
+  };
+
   // Create Event Handler
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
@@ -156,12 +185,16 @@ export const EventManagement = () => {
   // Edit Event Handler
   const openEditModal = (event) => {
     setSelectedEventId(event._id || event.id);
+    const isAll = event.locationScope === 'ALL' || event.isAllLocations === true || !event.city || event.city === 'All Locations' || event.city === 'All';
     setFormValues({
       title: event.title || '',
       description: event.description || '',
       category: event.category || 'Cultural',
       venue: event.venue || '',
       address: event.address || '',
+      city: isAll ? 'All Locations' : (event.city || ''),
+      cityId: event.cityId?._id || event.cityId || '',
+      locationScope: isAll ? 'ALL' : 'SPECIFIC',
       startDate: event.startDate ? new Date(event.startDate).toISOString().split('T')[0] : (event.date || ''),
       startTime: event.startTime || event.time || '',
       endTime: event.endTime || '',
@@ -308,15 +341,6 @@ export const EventManagement = () => {
     }
   };
 
-  const resetForm = () => {
-    setFormValues({
-      title: '', description: '', category: 'Cultural', venue: '', address: '',
-      startDate: '', startTime: '', endTime: '', contact: '', entryFee: 'Free',
-      capacity: 0, registrationRequired: false, isFeatured: false,
-      status: 'Published', image: ''
-    });
-    setSelectedEventId(null);
-  };
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -459,7 +483,18 @@ export const EventManagement = () => {
                       </div>
                     </td>
                     <td className="py-3 px-4 font-bold text-slate-900">
-                      {ev.title}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span>{ev.title}</span>
+                        {ev.locationScope === 'ALL' || ev.isAllLocations || !ev.city || ev.city === 'ALL' || ev.city === 'All Locations' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            🌐 All Locations
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            📍 {ev.city}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-slate-600 font-semibold">{ev.venue}</p>
                     </td>
                     <td className="py-3 px-4">
@@ -551,6 +586,96 @@ export const EventManagement = () => {
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Venue *</label>
                     <input type="text" required value={formValues.venue} onChange={e => setFormValues({...formValues, venue: e.target.value})} className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl font-semibold text-slate-900 focus:outline-none focus:border-brand-primary" />
                   </div>
+                </div>
+
+                {/* Event Location Visibility Scope Selector */}
+                <div className="bg-slate-50/90 p-4 rounded-2xl border border-slate-200/80 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                      <Globe size={15} className="text-indigo-600" />
+                      <span>Event Visibility Location / स्थान दृश्यता *</span>
+                    </label>
+                    <span className="text-[11px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-200/60 px-2.5 py-0.5 rounded-full">
+                      {formValues.locationScope === 'ALL' ? '🌐 All Locations' : `📍 ${formValues.city || 'Specific'}`}
+                    </span>
+                  </div>
+
+                  {/* 2 Choice Options: All Locations vs Specific Location */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFormValues(prev => ({ ...prev, locationScope: 'ALL', city: 'All Locations', cityId: '' }))}
+                      className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-1.5 cursor-pointer ${
+                        formValues.locationScope === 'ALL'
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-500/20'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      <Globe size={14} />
+                      <span>All Locations (सभी स्थान)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const defaultCity = availableCities[0]?.name || 'Indore';
+                        const defaultCityId = availableCities[0]?._id || '';
+                        setFormValues(prev => ({ 
+                          ...prev, 
+                          locationScope: 'SPECIFIC', 
+                          city: prev.city && prev.city !== 'All Locations' ? prev.city : defaultCity,
+                          cityId: prev.cityId || defaultCityId
+                        }));
+                      }}
+                      className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-1.5 cursor-pointer ${
+                        formValues.locationScope === 'SPECIFIC'
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-500/20'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      <MapPin size={14} />
+                      <span>Specific Location (विशिष्ट शहर)</span>
+                    </button>
+                  </div>
+
+                  {/* Dropdown for specific location */}
+                  {formValues.locationScope === 'SPECIFIC' && (
+                    <div className="pt-1 animate-in fade-in duration-150">
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Select Target City / शहर चुनें *</label>
+                      <select
+                        required
+                        value={formValues.city}
+                        onChange={(e) => {
+                          const selectedCityName = e.target.value;
+                          const found = availableCities.find(c => c.name === selectedCityName);
+                          setFormValues(prev => ({
+                            ...prev,
+                            city: selectedCityName,
+                            cityId: found?._id || ''
+                          }));
+                        }}
+                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 h-[42px]"
+                      >
+                        {availableCities.length > 0 ? (
+                          availableCities.map(c => (
+                            <option key={c._id || c.name} value={c.name}>
+                              📍 {c.name} {c.state ? `(${c.state})` : ''}
+                            </option>
+                          ))
+                        ) : (
+                          <>
+                            <option value="Indore">📍 Indore</option>
+                            <option value="Bhopal">📍 Bhopal</option>
+                            <option value="Mumbai">📍 Mumbai</option>
+                            <option value="Jaipur">📍 Jaipur</option>
+                            <option value="Ahmedabad">📍 Ahmedabad</option>
+                          </>
+                        )}
+                      </select>
+                      <p className="text-[11px] text-slate-500 font-medium mt-1">
+                        Only members registered in this city will see this event in their feed.
+                      </p>
+                    </div>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -682,6 +807,10 @@ export const EventManagement = () => {
 
                   {/* Metadata Grid (Venue, Date, Time, Contact) */}
                   <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2.5 text-sm text-slate-800 font-medium">
+                    <div className="flex items-center gap-2.5">
+                      <Globe className="w-4 h-4 text-indigo-600 shrink-0" />
+                      <span><strong>Target Location:</strong> {selectedEventDetails.locationScope === 'ALL' || selectedEventDetails.isAllLocations || !selectedEventDetails.city || selectedEventDetails.city === 'ALL' || selectedEventDetails.city === 'All Locations' ? '🌐 All Locations (सभी स्थान)' : `📍 ${selectedEventDetails.city}`}</span>
+                    </div>
                     <div className="flex items-center gap-2.5">
                       <Calendar className="w-4 h-4 text-indigo-600 shrink-0" />
                       <span><strong>Date & Time:</strong> {selectedEventDetails.startDate || selectedEventDetails.date} {selectedEventDetails.startTime || selectedEventDetails.time ? `at ${selectedEventDetails.startTime || selectedEventDetails.time}` : ''}</span>

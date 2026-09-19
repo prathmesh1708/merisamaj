@@ -294,6 +294,15 @@ const userSchema = new mongoose.Schema({
     canManageCensus: { type: Boolean, default: false },
     canSendNotifications: { type: Boolean, default: false },
     canViewReports: { type: Boolean, default: true }
+  },
+
+  accountDetails: {
+    bankName: { type: String, default: '', trim: true },
+    accountNumber: { type: String, default: '', trim: true },
+    ifscCode: { type: String, default: '', trim: true },
+    upiId: { type: String, default: '', trim: true },
+    accountHolderName: { type: String, default: '', trim: true },
+    qrCode: { type: String, default: '', trim: true }
   }
 }, {
   timestamps: true

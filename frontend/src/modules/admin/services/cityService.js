@@ -1,7 +1,7 @@
 import { axiosPrivate } from '../../../core/api/axiosPrivate';
-import { getApiUrl } from '../../../core/api/axiosConfig';
 
-const API_BASE = `${getApiUrl()}/admin/cities`;
+const API_BASE = '/admin/cities';
+
 
 export const cityService = {
   fetchCities: async () => {

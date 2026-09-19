@@ -9,6 +9,7 @@ const {
   assignHead,
   removeHead,
   deleteCommunity,
+  toggleCommunityStatus,
 } = require('../../controllers/admin/communityController');
 
 // Secure all endpoints under /admin/communities with Admin Auth
@@ -26,6 +27,9 @@ router.get('/:id', getCommunityById);
 
 // PUT  /api/v1/admin/communities/:id
 router.put('/:id', updateCommunity);
+
+// PATCH /api/v1/admin/communities/:id/toggle-status
+router.patch('/:id/toggle-status', toggleCommunityStatus);
 
 // DELETE /api/v1/admin/communities/:id
 router.delete('/:id', deleteCommunity);

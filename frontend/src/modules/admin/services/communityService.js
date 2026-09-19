@@ -43,7 +43,15 @@ export const updateCommunity = async (id, data) => {
 };
 
 // ─────────────────────────────────────────────
-// DELETE /admin/communities/:id → Deactivate or delete community
+// PATCH /admin/communities/:id/toggle-status → Toggle active/inactive
+// ─────────────────────────────────────────────
+export const toggleCommunityStatus = async (id) => {
+  const response = await axiosPrivate.patch(`${API_BASE}/${id}/toggle-status`);
+  return response.data;
+};
+
+// ─────────────────────────────────────────────
+// DELETE /admin/communities/:id → Permanently delete community
 // ─────────────────────────────────────────────
 export const deleteCommunity = async (id) => {
   const response = await axiosPrivate.delete(`${API_BASE}/${id}`);

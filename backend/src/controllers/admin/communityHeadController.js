@@ -126,6 +126,14 @@ exports.createCommunityHead = async (req, res) => {
       createdBy: req.user.id
     });
 
+    // Bidirectional sync: assign this new head to the selected communities
+    if (assignedCommunityIds && assignedCommunityIds.length > 0) {
+      await Community.updateMany(
+        { _id: { $in: assignedCommunityIds } },
+        { $set: { headId: newHead._id } }
+      );
+    }
+
     // Remove password from response
     const headResponse = newHead.toObject();
     delete headResponse.password;
@@ -187,6 +195,21 @@ exports.updateCommunityHead = async (req, res) => {
     if (assignedCommunityIds !== undefined) {
       head.assignedCommunityIds = assignedCommunityIds;
       head.communityId = (assignedCommunityIds && assignedCommunityIds.length > 0) ? assignedCommunityIds[0] : null;
+
+      // Sync Community documents:
+      // 1. Remove headId from communities no longer assigned to this head
+      await Community.updateMany(
+        { headId: head._id, _id: { $nin: assignedCommunityIds || [] } },
+        { $set: { headId: null } }
+      );
+
+      // 2. Set headId on newly assigned communities
+      if (assignedCommunityIds && assignedCommunityIds.length > 0) {
+        await Community.updateMany(
+          { _id: { $in: assignedCommunityIds } },
+          { $set: { headId: head._id } }
+        );
+      }
     }
     
     // Merge new permissions with existing
@@ -217,6 +240,12 @@ exports.deleteCommunityHead = async (req, res) => {
     if (!head) {
       return res.status(404).json({ status: 'fail', message: 'Community head not found' });
     }
+
+    // Clear headId from any communities this head was managing
+    await Community.updateMany(
+      { headId: head._id },
+      { $set: { headId: null } }
+    );
 
     await User.findByIdAndDelete(req.params.id);
     

@@ -38,7 +38,7 @@ export const AdminNotificationsPage = () => {
       if (selectedCommunity) params.communityId = selectedCommunity;
       if (selectedModule) params.module = selectedModule;
 
-      const res = await axiosPrivate.get('/api/v1/admin/notifications/push-analytics', { params });
+      const res = await axiosPrivate.get('/admin/notifications/push-analytics', { params });
       setAnalytics(res.data?.data || null);
     } catch (err) {
       console.error('[AdminNotificationsPage] Analytics fetch error:', err.message);
@@ -50,7 +50,7 @@ export const AdminNotificationsPage = () => {
   const fetchHistory = async () => {
     setHistoryLoading(true);
     try {
-      const res = await axiosPrivate.get('/api/v1/admin/notifications/broadcast-history');
+      const res = await axiosPrivate.get('/admin/notifications/broadcast-history');
       setHistory(res.data?.data || []);
     } catch (err) {
       console.error('[AdminNotificationsPage] History fetch error:', err.message);
@@ -87,7 +87,8 @@ export const AdminNotificationsPage = () => {
         actionUrl
       };
 
-      const res = await axiosPrivate.post('/api/v1/admin/notifications/broadcast', payload);
+      const res = await axiosPrivate.post('/admin/notifications/broadcast', payload);
+
       setBroadcastSuccessMsg(res.data?.message || 'Broadcast message dispatched successfully!');
 
       // Reset form & generate new broadcastId

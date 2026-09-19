@@ -184,8 +184,8 @@ exports.getEvents = async (req, res) => {
       status: { $nin: ['Draft', 'Deleted', 'Archived'] }
     };
 
-    // Apply Centralized 2-Level Multi-Tenancy Scope (Community mandatory + City optional)
-    const query = applyScopeFilter(req, baseQuery);
+    // Apply Centralized 2-Level Multi-Tenancy Scope (Community mandatory + City optional with All Locations inclusion)
+    const query = applyScopeFilter(req, baseQuery, { cityField: 'city', includeUnassignedCity: true });
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.min(50, Math.max(1, parseInt(limit, 10) || 20));

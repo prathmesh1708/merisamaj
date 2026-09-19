@@ -3,10 +3,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, User, Users, Briefcase, FileText, Activity, Shield, Heart, MapPin,
   Building2, Calendar, Phone, Mail, ShieldCheck, ShieldAlert, ShieldBan,
-  Loader2, CheckCircle2, Clock
+  Loader2, CheckCircle2, Clock, Crown, AlertCircle
 } from 'lucide-react';
 import { Avatar } from '../../../../member/components/common/Avatar';
 import { userService } from '../../../services/userService';
+import { AssignHeadModal } from './AssignHeadModal';
+import { EditUserCommunityModal } from './EditUserCommunityModal';
 
 const Field = ({ label, value }) => (
   <div>
@@ -26,6 +28,8 @@ export const UserProfileDrawer = ({ userId, isOpen, onClose, onActionComplete })
   const [activeTab, setActiveTab] = useState('personal');
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [isAssignHeadOpen, setIsAssignHeadOpen] = useState(false);
+  const [isEditCommunityOpen, setIsEditCommunityOpen] = useState(false);
 
   useEffect(() => {
     if (!isOpen || !userId) return;
@@ -188,6 +192,24 @@ export const UserProfileDrawer = ({ userId, isOpen, onClose, onActionComplete })
                   {/* Community */}
                   {activeTab === 'community' && (
                     <div className="space-y-5">
+                      <div className="flex items-center justify-between p-4 bg-purple-50/60 border border-purple-100 rounded-2xl">
+                        <div>
+                          <p className="text-xs font-bold text-purple-900 flex items-center gap-1.5">
+                            <Building2 size={16} className="text-purple-600" /> Member Samaj / Community
+                          </p>
+                          <p className="text-sm font-black text-slate-800 mt-1">
+                            {user.community || 'Not Assigned'} {user.subCommunity ? `(${user.subCommunity})` : ''}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setIsEditCommunityOpen(true)}
+                          className="px-3.5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                        >
+                          ✏️ Edit Samaj
+                        </button>
+                      </div>
+
                       <div className="grid grid-cols-2 gap-x-8 gap-y-5">
                         <Field label="Community" value={user.community} />
                         <Field label="Sub-Community" value={user.subCommunity} />
@@ -196,6 +218,38 @@ export const UserProfileDrawer = ({ userId, isOpen, onClose, onActionComplete })
                         <Field label="State" value={user.state} />
                         <Field label="Registration Source" value={user.registrationSource} />
                       </div>
+
+                      {/* Head Status Banner */}
+                      {user.headStatus === 'unassigned' || !user.hasHead ? (
+                        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center justify-between gap-4">
+                          <div>
+                            <p className="text-xs font-bold text-rose-800 flex items-center gap-1.5">
+                              <span>🔴</span> No Community Head Assigned
+                            </p>
+                            <p className="text-[11px] text-rose-600 font-medium mt-0.5">
+                              This member registered in {user.city || 'unassigned city'}, where no Samaj Head is assigned yet.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setIsAssignHeadOpen(true)}
+                            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold shrink-0 shadow-sm flex items-center gap-1.5 transition-all"
+                          >
+                            <Crown size={14} className="text-amber-300" /> Assign Head
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between gap-4">
+                          <div>
+                            <p className="text-xs font-bold text-emerald-800 flex items-center gap-1.5">
+                              <span>🟢</span> Community Head Assigned
+                            </p>
+                            <p className="text-[11px] text-emerald-700 font-medium mt-0.5">
+                              Active Head: <strong>{user.headName || 'Assigned'}</strong> ({user.headPhone || 'Active'})
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -281,6 +335,34 @@ export const UserProfileDrawer = ({ userId, isOpen, onClose, onActionComplete })
                 </>
               )}
             </div>
+
+            {/* Assign Head Modal from Drawer */}
+            <AssignHeadModal
+              user={user}
+              isOpen={isAssignHeadOpen}
+              onClose={() => setIsAssignHeadOpen(false)}
+              onSuccess={() => {
+                setIsAssignHeadOpen(false);
+                if (onActionComplete) onActionComplete();
+              }}
+            />
+
+            {/* Edit Samaj / Community Modal from Drawer */}
+            <EditUserCommunityModal
+              user={user}
+              isOpen={isEditCommunityOpen}
+              onClose={() => setIsEditCommunityOpen(false)}
+              onSuccess={async () => {
+                setIsEditCommunityOpen(false);
+                if (userId) {
+                  try {
+                    const data = await userService.getUserById(userId);
+                    setUser(data);
+                  } catch (e) {}
+                }
+                if (onActionComplete) onActionComplete();
+              }}
+            />
           </motion.div>
         </>
       )}

@@ -1,7 +1,7 @@
 import { axiosPrivate } from '../../../core/api/axiosPrivate';
-import { getApiUrl } from '../../../core/api/axiosConfig';
 
-const API_BASE = `${getApiUrl()}/admin/community-heads`;
+const API_BASE = '/admin/community-heads';
+
 
 export const communityHeadService = {
   getHeads: async () => {
@@ -72,19 +72,6 @@ export const communityHeadService = {
     }
   },
 
-  updateHead: async (id, data) => {
-    try {
-      const response = await axiosPrivate.put(`${API_BASE}/${id}`, data);
-      const head = response.data.data;
-      return {
-        ...head,
-        id: head._id,
-        status: head.accountStatus === 'active' ? 'Active' : (head.accountStatus === 'inactive' ? 'Suspended' : head.accountStatus),
-      };
-    } catch (error) {
-      throw new Error(error.response?.data?.message || 'Failed to update community head');
-    }
-  },
 
   updateStatus: async (id, status) => {
     try {

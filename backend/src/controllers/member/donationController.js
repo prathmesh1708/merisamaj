@@ -48,6 +48,8 @@ exports.getCampaigns = async (req, res) => {
     const filter = applyScopeFilter(req, baseFilter, { includeCampaignTargeting: true });
 
     const donationDocs = await Donation.find({ ...filter, title: { $exists: true, $ne: '' } })
+      .populate('createdBy', 'name avatar role accountType city phone accountDetails')
+      .populate('communityId', 'name accountDetails')
       .sort({ createdAt: -1 })
       .lean();
 
@@ -55,6 +57,18 @@ exports.getCampaigns = async (req, res) => {
       const rAmount = d.raisedAmount || 0;
       const tAmount = d.targetAmount || 0;
       const dCount = d.donorCount || (Array.isArray(d.recentDonations) ? d.recentDonations.length : 0);
+      const effectiveAccountDetails = (d.accountDetails?.accountNumber || d.accountDetails?.upiId)
+        ? d.accountDetails
+        : (d.createdBy?.accountDetails?.accountNumber || d.createdBy?.accountDetails?.upiId)
+        ? d.createdBy.accountDetails
+        : (d.communityId?.accountDetails || {});
+
+      const receiverRole = d.createdBy?.role === 'head' 
+        ? 'Community Head' 
+        : d.createdBy?.role === 'sub_head' || d.createdBy?.accountType === 'local_head'
+        ? 'Local Head'
+        : (d.createdBy?.role || 'Community Head');
+
       return {
         id: d._id,
         _id: d._id,
@@ -79,7 +93,16 @@ exports.getCampaigns = async (req, res) => {
         bannerImage: d.coverImage || null,
         coverImage: d.coverImage || null,
         startDate: d.startDate || d.createdAt,
-        endDate: d.endDate || null
+        endDate: d.endDate || null,
+        accountDetails: effectiveAccountDetails,
+        receiverInfo: {
+          name: d.createdBy?.name || 'Community Leadership',
+          role: receiverRole,
+          city: d.createdBy?.city || d.city || '',
+          phone: d.createdBy?.phone || ''
+        },
+        createdBy: d.createdBy || null,
+        communityId: d.communityId || null
       };
     });
 
@@ -94,8 +117,8 @@ exports.getCampaigns = async (req, res) => {
 exports.getCampaignById = async (req, res) => {
   try {
     const campaign = await Donation.findById(req.params.id)
-      .populate('createdBy', 'name avatar role')
-      .populate('communityId');
+      .populate('createdBy', 'name avatar role accountType city phone accountDetails')
+      .populate('communityId', 'name accountDetails');
     if (!campaign) {
       return res.status(404).json({ success: false, status: 'error', message: 'Campaign not found' });
     }
@@ -143,6 +166,18 @@ exports.getCampaignById = async (req, res) => {
     const combinedRecentDonations = formattedRealDonors.length > 0 ? formattedRealDonors : existingRecent;
     const donorCount = Math.max(campaign.donorCount || 0, combinedRecentDonations.length);
 
+    const effectiveAccountDetails = (campaign.accountDetails?.accountNumber || campaign.accountDetails?.upiId)
+      ? campaign.accountDetails
+      : (campaign.createdBy?.accountDetails?.accountNumber || campaign.createdBy?.accountDetails?.upiId)
+      ? campaign.createdBy.accountDetails
+      : (campaign.communityId?.accountDetails || {});
+
+    const receiverRole = campaign.createdBy?.role === 'head' 
+      ? 'Community Head' 
+      : campaign.createdBy?.role === 'sub_head' || campaign.createdBy?.accountType === 'local_head'
+      ? 'Local Head'
+      : (campaign.createdBy?.role || 'Community Head');
+
     const formattedCampaign = {
       id: campaign._id,
       _id: campaign._id,
@@ -171,6 +206,13 @@ exports.getCampaignById = async (req, res) => {
       bannerImage: campaign.coverImage || null,
       coverImage: campaign.coverImage || null,
       documents: campaign.documents || [],
+      accountDetails: effectiveAccountDetails,
+      receiverInfo: {
+        name: campaign.createdBy?.name || 'Community Leadership',
+        role: receiverRole,
+        city: campaign.createdBy?.city || campaign.city || '',
+        phone: campaign.createdBy?.phone || ''
+      },
       createdBy: campaign.createdBy ? (typeof campaign.createdBy === 'object' ? campaign.createdBy : { name: 'Community Admin' }) : null,
       communityId: campaign.communityId || null,
       donorCount,

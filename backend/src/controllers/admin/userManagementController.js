@@ -16,31 +16,44 @@ const statusMap = {
 };
 
 // ─── Helper: map DB user to a consistent frontend-friendly shape ───
-const formatUser = (user) => ({
-  id: user._id,
-  name: user.name || 'N/A',
-  email: user.email || null,
-  phone: user.phone || 'N/A',
-  avatar: user.avatar || null,
-  gender: user.gender || null,
-  dob: user.dob || null,
-  city: user.city || null,
-  state: user.state || null,
-  district: user.district || null,
-  community: user.communityId?.name || user.community || null,
-  communityId: user.communityId?._id || user.communityId || null,
-  subCommunity: user.subCommunity || null,
-  role: user.role,
-  accountStatus: user.accountStatus,
-  verificationStatus: user.verificationStatus,
-  isVerified: user.verificationStatus === 'verified',
-  registrationSource: user.registrationSource,
-  profession: user.profession || null,
-  qualification: user.qualification || null,
-  createdAt: user.createdAt,
-  updatedAt: user.updatedAt,
-  familyMembers: user.familyMembers || [],
-});
+const formatUser = (user) => {
+  const comm = user.communityId;
+  const hasHead = Boolean(comm && comm.headId);
+  const headName = comm?.headId?.name || null;
+  const headPhone = comm?.headId?.phone || null;
+
+  const headStatus = !comm ? 'no_community' : (hasHead ? 'assigned' : 'unassigned');
+
+  return {
+    id: user._id,
+    name: user.name || 'N/A',
+    email: user.email || null,
+    phone: user.phone || 'N/A',
+    avatar: user.avatar || null,
+    gender: user.gender || null,
+    dob: user.dob || null,
+    city: user.city || null,
+    state: user.state || null,
+    district: user.district || null,
+    community: comm?.name || user.community || null,
+    communityId: comm?._id || user.communityId || null,
+    hasHead: hasHead,
+    headStatus: headStatus,
+    headName: headName,
+    headPhone: headPhone,
+    subCommunity: user.subCommunity || null,
+    role: user.role,
+    accountStatus: user.accountStatus,
+    verificationStatus: user.verificationStatus,
+    isVerified: user.verificationStatus === 'verified',
+    registrationSource: user.registrationSource,
+    profession: user.profession || null,
+    qualification: user.qualification || null,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+    familyMembers: user.familyMembers || [],
+  };
+};
 
 // @desc    Get paginated + filtered list of users
 // @route   GET /api/v1/admin/users
@@ -55,6 +68,7 @@ exports.getUsers = async (req, res) => {
       verificationStatus = '',
       communityId = '',
       city = '',
+      headStatus = '',
       sortBy = 'createdAt',
       sortOrder = 'desc',
     } = req.query;
@@ -99,20 +113,33 @@ exports.getUsers = async (req, res) => {
     const sortObj = {};
     sortObj[sortBy] = sortOrder === 'asc' ? 1 : -1;
 
-    const [users, totalCount] = await Promise.all([
-      User.find(query)
-        .select('-password -plainPassword -deviceTokens')
-        .populate('communityId', 'name _id')
-        .sort(sortObj)
-        .skip((pageNum - 1) * limitNum)
-        .limit(limitNum)
-        .lean(),
-      User.countDocuments(query),
-    ]);
+    let users = await User.find(query)
+      .select('-password -plainPassword -deviceTokens')
+      .populate({
+        path: 'communityId',
+        select: 'name _id headId city cityIds',
+        populate: { path: 'headId', select: 'name phone email' }
+      })
+      .sort(sortObj)
+      .lean();
+
+    let totalCount = users.length;
+
+    // In-memory filter for headStatus if requested
+    if (headStatus && headStatus !== 'all') {
+      if (headStatus === 'unassigned') {
+        users = users.filter(u => !u.communityId || !u.communityId.headId);
+      } else if (headStatus === 'assigned') {
+        users = users.filter(u => u.communityId && u.communityId.headId);
+      }
+      totalCount = users.length;
+    }
+
+    const paginatedUsers = users.slice((pageNum - 1) * limitNum, pageNum * limitNum);
 
     res.status(200).json({
       status: 'success',
-      data: users.map(formatUser),
+      data: paginatedUsers.map(formatUser),
       pagination: {
         page: pageNum,
         limit: limitNum,
@@ -125,6 +152,112 @@ exports.getUsers = async (req, res) => {
   } catch (error) {
     console.error('Get Users Error:', error);
     res.status(500).json({ status: 'error', message: 'Failed to fetch users' });
+  }
+};
+
+// @desc    Assign or promote a head for user's community & city
+// @route   POST /api/v1/admin/users/:id/assign-head
+// @access  Admin
+exports.assignHeadToUserCommunity = async (req, res) => {
+  const mongoose = require('mongoose');
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const { action, targetHeadId, headPermissions } = req.body;
+    const targetUserId = req.params.id;
+
+    const user = await User.findById(targetUserId).session(session);
+    if (!user) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ status: 'error', message: 'User not found' });
+    }
+
+    let community = null;
+    if (user.communityId) {
+      community = await Community.findById(user.communityId).session(session);
+    }
+    if (!community && user.community) {
+      community = await Community.findOne({ name: user.community }).session(session);
+    }
+
+    // If community doesn't exist, create it automatically
+    if (!community) {
+      const commName = user.community || `${user.name}'s Community`;
+      community = new Community({
+        name: commName,
+        city: user.city || '',
+        cityIds: [],
+        isActive: true,
+        createdBy: req.user._id
+      });
+    }
+
+    // Ensure user's city is included in community.cityIds if applicable
+    if (user.city) {
+      const City = require('../../models/City');
+      const cityDoc = await City.findOne({ name: new RegExp(`^${user.city.trim()}$`, 'i') }).session(session);
+      if (cityDoc && !community.cityIds.some(id => String(id) === String(cityDoc._id))) {
+        community.cityIds.push(cityDoc._id);
+      }
+    }
+
+    if (action === 'promote_user') {
+      // Promote this user to head
+      user.role = 'head';
+      user.communityId = community._id;
+      user.assignedCommunityId = community._id;
+      user.assignedCommunityIds = [community._id];
+      if (headPermissions) {
+        user.headPermissions = { ...user.headPermissions, ...headPermissions };
+      }
+      await user.save({ session });
+
+      community.headId = user._id;
+      await community.save({ session });
+    } else if (action === 'assign_existing_head' && targetHeadId) {
+      const existingHead = await User.findById(targetHeadId).session(session);
+      if (!existingHead) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(404).json({ status: 'error', message: 'Selected head user not found' });
+      }
+
+      community.headId = existingHead._id;
+      await community.save({ session });
+
+      if (!Array.isArray(existingHead.assignedCommunityIds)) existingHead.assignedCommunityIds = [];
+      if (!existingHead.assignedCommunityIds.some(id => String(id) === String(community._id))) {
+        existingHead.assignedCommunityIds.push(community._id);
+      }
+      existingHead.communityId = community._id;
+      await existingHead.save({ session });
+
+      user.communityId = community._id;
+      await user.save({ session });
+    } else {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ status: 'error', message: 'Invalid action or missing targetHeadId' });
+    }
+
+    await session.commitTransaction();
+    session.endSession();
+
+    res.status(200).json({
+      status: 'success',
+      message: action === 'promote_user' ? `${user.name} was promoted to Community Head` : 'Community Head assigned successfully',
+      data: {
+        userId: user._id,
+        communityId: community._id,
+        headId: community.headId
+      }
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    console.error('assignHeadToUserCommunity error:', error);
+    res.status(500).json({ status: 'error', message: error.message || 'Server error' });
   }
 };
 
@@ -252,17 +385,38 @@ exports.updateUser = async (req, res) => {
       if (req.body[field] !== undefined) updates[field] = req.body[field];
     });
 
+    const Community = require('../../models/Community');
+    const mongoose = require('mongoose');
+
+    if (updates.communityId && mongoose.isValidObjectId(updates.communityId)) {
+      const commDoc = await Community.findById(updates.communityId);
+      if (commDoc) {
+        updates.communityId = commDoc._id;
+        updates.community = commDoc.name;
+      }
+    } else if (updates.community && typeof updates.community === 'string') {
+      const rawComm = updates.community.trim();
+      const commDoc = await Community.findOne({ name: new RegExp(`^${rawComm}$`, 'i') });
+      if (commDoc) {
+        updates.communityId = commDoc._id;
+        updates.community = commDoc.name;
+      }
+    }
+
     const user = await User.findByIdAndUpdate(
       req.params.id,
       { $set: updates },
       { new: true, runValidators: true }
     )
       .select('-password -plainPassword -deviceTokens')
-      .populate('communityId', 'name _id');
+      .populate('communityId', 'name _id headId city cityIds');
 
     if (!user) {
       return res.status(404).json({ status: 'fail', message: 'User not found' });
     }
+
+    const cacheService = require('../../utils/cacheService');
+    cacheService.del(`auth_user_${user._id}`);
 
     res.status(200).json({ status: 'success', data: formatUser(user) });
   } catch (error) {

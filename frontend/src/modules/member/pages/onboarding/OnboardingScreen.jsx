@@ -135,12 +135,12 @@ const CustomSelect = ({ value, onChange, options, placeholder = 'Select', disabl
     if (!open && btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom;
-      const dropHeight = Math.min(options.length * 44 + 8, 220);
+      const dropHeight = Math.min(options.length * 48 + 20, 260);
       const showAbove = spaceBelow < dropHeight + 8;
       setDropdownStyle({
         position: 'fixed',
         left: rect.left,
-        width: rect.width,
+        width: Math.max(rect.width, 240),
         zIndex: 9999,
         ...(showAbove
           ? { bottom: window.innerHeight - rect.top + 4 }
@@ -152,33 +152,73 @@ const CustomSelect = ({ value, onChange, options, placeholder = 'Select', disabl
 
   const selected = options.find(o => (typeof o === 'string' ? o : o.value) === value);
   const selectedLabel = selected ? (typeof selected === 'string' ? selected : selected.label) : null;
+  const selectedDotColor = selected && typeof selected === 'object' ? selected.dotColor : null;
+
+  const hasDotColors = options.some(o => typeof o === 'object' && o.dotColor);
 
   const dropdownList = open && (
     <div
       ref={listRef}
       style={dropdownStyle}
-      className="bg-white border border-purple-100 rounded-2xl shadow-2xl shadow-purple-500/15 overflow-hidden"
+      className="bg-white border border-purple-100 rounded-2xl shadow-2xl shadow-purple-500/20 overflow-hidden animate-fade-in"
     >
-      <div className="max-h-52 overflow-y-auto py-1">
+      <div className="max-h-64 overflow-y-auto py-1 divide-y divide-slate-100">
         {options.map((opt, i) => {
           const val = typeof opt === 'string' ? opt : opt.value;
           const label = typeof opt === 'string' ? opt : opt.label;
           const isSelected = val === value;
+          const dotColor = typeof opt === 'object' ? opt.dotColor : null;
+          const isCovered = typeof opt === 'object' ? opt.isCovered : false;
+
+          // Section headers
+          const prevOpt = i > 0 ? options[i - 1] : null;
+          const isFirstRed = hasDotColors && dotColor === 'red' && (!prevOpt || prevOpt.dotColor === 'green');
+          const isFirstGreen = hasDotColors && dotColor === 'green' && i === 0;
+
           return (
-            <button
-              key={i}
-              type="button"
-              onMouseDown={(e) => { e.preventDefault(); onChange(val); setOpen(false); }}
-              onTouchEnd={(e) => { e.preventDefault(); onChange(val); setOpen(false); }}
-              className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors flex items-center justify-between gap-2 ${
-                isSelected
-                  ? 'bg-[#7C3AED] text-white font-semibold'
-                  : 'text-text-primary hover:bg-purple-50 hover:text-[#7C3AED]'
-              }`}
-            >
-              {label}
-              {isSelected && <Check size={14} className="shrink-0" />}
-            </button>
+            <React.Fragment key={i}>
+              {isFirstGreen && (
+                <div className="bg-emerald-50/90 px-3.5 py-1.5 text-[10px] font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1.5 border-b border-emerald-100 sticky top-0 z-10">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  Head Assigned Cities
+                </div>
+              )}
+              {isFirstRed && (
+                <div className="bg-slate-50 px-3.5 py-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-100 sticky top-0 z-10">
+                  <span className="w-2 h-2 rounded-full bg-rose-500" />
+                  Other Cities
+                </div>
+              )}
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); onChange(val); setOpen(false); }}
+                onTouchEnd={(e) => { e.preventDefault(); onChange(val); setOpen(false); }}
+                className={`w-full text-left px-4 py-3 text-sm font-semibold transition-all flex items-center justify-between gap-3 ${
+                  isSelected
+                    ? 'bg-[#7C3AED] text-white'
+                    : isCovered
+                    ? 'text-slate-900 hover:bg-emerald-50/70 hover:text-emerald-900'
+                    : 'text-slate-700 hover:bg-purple-50 hover:text-[#7C3AED]'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  {dotColor === 'green' && (
+                    <span className="relative flex h-2.5 w-2.5 shrink-0">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                    </span>
+                  )}
+                  {dotColor === 'red' && (
+                    <span className="relative flex h-2.5 w-2.5 shrink-0">
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+                    </span>
+                  )}
+                  <span className="text-sm font-bold tracking-normal">{label}</span>
+                </div>
+
+                {isSelected && <Check size={16} className="shrink-0 text-white" />}
+              </button>
+            </React.Fragment>
           );
         })}
       </div>
@@ -196,13 +236,26 @@ const CustomSelect = ({ value, onChange, options, placeholder = 'Select', disabl
           disabled
             ? 'bg-gray-50 border-gray-250 text-gray-400 cursor-not-allowed'
             : open
-            ? 'bg-white border-[#7C3AED] ring-4 ring-[#7C3AED]/5'
+            ? 'bg-white border-[#7C3AED] ring-4 ring-[#7C3AED]/5 shadow-sm'
             : 'bg-white/95 border-purple-200 text-text-primary cursor-pointer hover:bg-white hover:border-purple-300'
         }`}
       >
-        <span className={selectedLabel ? 'text-text-primary' : 'text-gray-450'}>
-          {selectedLabel || placeholder}
-        </span>
+        <div className="flex items-center gap-2 truncate">
+          {selectedDotColor === 'green' && (
+            <span className="relative flex h-2.5 w-2.5 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+            </span>
+          )}
+          {selectedDotColor === 'red' && (
+            <span className="relative flex h-2.5 w-2.5 shrink-0">
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-400"></span>
+            </span>
+          )}
+          <span className={selectedLabel ? 'text-text-primary font-semibold' : 'text-gray-450'}>
+            {selectedLabel || placeholder}
+          </span>
+        </div>
         <ChevronDown size={15} className={`shrink-0 text-text-secondary transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
       </button>
 
@@ -319,27 +372,44 @@ const OnboardingScreen = () => {
 
   useEffect(() => {
     const loadCities = async () => {
-      if (!selectedCommunity || selectedCommunity === 'other') {
-        setApiCities(DEFAULT_INDIAN_CITIES);
-        return;
-      }
       try {
-        const res = await axiosPublic.get(`/auth/cities?communityId=${selectedCommunity}`);
+        const url = selectedCommunity && selectedCommunity !== 'other'
+          ? `/auth/cities?communityId=${selectedCommunity}`
+          : '/auth/cities';
+        const res = await axiosPublic.get(url);
         if (res.data.success && res.data.data.length > 0) {
-          const fetched = res.data.data.map(c => ({ label: c.name, value: c.name }));
-          const mergedMap = new Map();
-          [...fetched, ...DEFAULT_INDIAN_CITIES].forEach(item => {
-            if (!mergedMap.has(item.value.toLowerCase())) {
-              mergedMap.set(item.value.toLowerCase(), item);
-            }
-          });
-          setApiCities(Array.from(mergedMap.values()));
+          const fetched = res.data.data.map(c => ({
+            label: c.name,
+            value: c.name,
+            state: c.state || '',
+            dotColor: c.dotColor || 'red',
+            isCovered: Boolean(c.isCovered),
+            hasHead: Boolean(c.hasHead),
+            hasCommunity: Boolean(c.hasCommunity),
+            headInfo: c.headInfo || null,
+            statusText: c.statusText || (c.isCovered ? 'Head Assigned' : 'Head Pending')
+          }));
+          setApiCities(fetched);
         } else {
-          setApiCities(DEFAULT_INDIAN_CITIES);
+          setApiCities(DEFAULT_INDIAN_CITIES.map(c => ({
+            ...c,
+            dotColor: 'red',
+            isCovered: false,
+            hasHead: false,
+            hasCommunity: false,
+            statusText: 'Head Pending'
+          })));
         }
       } catch (err) {
         console.error('Failed to load public cities:', err);
-        setApiCities(DEFAULT_INDIAN_CITIES);
+        setApiCities(DEFAULT_INDIAN_CITIES.map(c => ({
+          ...c,
+          dotColor: 'red',
+          isCovered: false,
+          hasHead: false,
+          hasCommunity: false,
+          statusText: 'Head Pending'
+        })));
       }
     };
     loadCities();
@@ -503,18 +573,18 @@ const OnboardingScreen = () => {
     }
   }, [pincode]);
 
+  const ONBOARDING_FLOW = [1, 2, 3, 8, 11];
+
   const calculateCompletion = () => {
+    const sNum = parseInt(step.split('-')[1]);
+    if (sNum === 11) return 100;
     let pct = 0;
-    pct += 15; // Prefilled mobile verification
+    pct += 25; // Step 1: Mobile verification
     const isCommValid = selectedCommunity && (selectedCommunity !== 'other' || customCommunity.trim().length > 0);
-    if (isCommValid && selectedSubCommunity && pincode) pct += 15;
-    if (name && gender) pct += 20;
-    if (qualification || school) pct += 10;
-    if (profession || company) pct += 10;
-    if (houseNumber || detailedAddress || alternatePhone) pct += 10;
-    if (familyMembers.length > 0) pct += 10;
-    if (isAadharVerified || isFaceVerified || prefEducation || prefAge) pct += 10;
-    return Math.min(pct, 100);
+    if (isCommValid && selectedCity) pct += 25; // Step 2: Community & City
+    if (name && gender) pct += 30; // Step 3: Personal Information
+    if (isAadharVerified || isFaceVerified) pct += 20; // Step 8: Verification
+    return Math.min(pct, 95);
   };
 
   const handleAddFamilyMember = () => {
@@ -743,22 +813,33 @@ const OnboardingScreen = () => {
 
   const renderOnboardingHeader = (current) => {
     const compPct = calculateCompletion();
+    const flowIdx = ONBOARDING_FLOW.indexOf(current);
+    const displayStep = flowIdx !== -1 ? flowIdx + 1 : current;
+    const totalDisplaySteps = flowIdx !== -1 ? ONBOARDING_FLOW.length : 11;
+
+    const handleBack = () => {
+      setSlideDir('left');
+      if (flowIdx > 0) {
+        setStep(`onboarding-${ONBOARDING_FLOW[flowIdx - 1]}`);
+      } else if (flowIdx === 0 || current === 1) {
+        navigate('/member/register');
+      } else {
+        setStep(`onboarding-${current - 1}`);
+      }
+    };
+
     return (
       <div className="bg-white/40 backdrop-blur-md border-b border-purple-100/30 shrink-0 z-10">
         <div className="p-4 flex items-center justify-between">
           <button 
-            onClick={() => {
-              setSlideDir('left');
-              if (current === 1) navigate('/member/register');
-              else setStep(`onboarding-${current - 1}`);
-            }} 
+            onClick={handleBack} 
             className="w-9 h-9 rounded-xl bg-white/80 border border-purple-100/30 flex items-center justify-center text-text-primary hover:bg-purple-50 transition-colors press-scale"
           >
             <ArrowLeft size={18} strokeWidth={2.5} />
           </button>
           
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-brand-primary">Step {current} of 11</span>
+            <span className="text-xs font-bold text-brand-primary">Step {displayStep} of {totalDisplaySteps}</span>
             <div className="flex items-center gap-1 bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-100 shadow-xs select-none">
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               <span className="text-[9.5px] font-black tracking-tight leading-none">{compPct}% done</span>
@@ -770,8 +851,11 @@ const OnboardingScreen = () => {
   };
 
   const renderProgressCard = (current, pct) => {
-    const totalSteps = 11;
-    const remaining = totalSteps - current;
+    const flowIdx = ONBOARDING_FLOW.indexOf(current);
+    const totalSteps = flowIdx !== -1 ? ONBOARDING_FLOW.length : 11;
+    const currentStepNum = flowIdx !== -1 ? flowIdx + 1 : current;
+    const remaining = totalSteps - currentStepNum;
+    const stepList = flowIdx !== -1 ? ONBOARDING_FLOW : Array.from({ length: 11 }, (_, i) => i + 1);
 
     return (
       <div className="bg-white rounded-[20px] border border-purple-100 p-3.5 shadow-[0_4px_20px_rgba(124,58,237,0.04)] space-y-3 select-none animate-fade-in text-left shrink-0">
@@ -803,7 +887,7 @@ const OnboardingScreen = () => {
             <div className="w-4.5 h-4.5 rounded-full bg-emerald-500 flex items-center justify-center text-white shrink-0">
               <Check size={10} strokeWidth={3} />
             </div>
-            <span className="text-[11px] font-black text-slate-700">Step {current} of {totalSteps}</span>
+            <span className="text-[11px] font-black text-slate-700">Step {currentStepNum} of {totalSteps}</span>
           </div>
 
           <div className="w-[1px] h-4 bg-slate-200" />
@@ -811,7 +895,7 @@ const OnboardingScreen = () => {
           <div className="flex items-center gap-1.5">
             <FileText size={14} className="text-[#7C3AED]" />
             <span className="text-[11px] font-black text-slate-700">
-              {remaining === 0 ? 'Last Step' : `${remaining} Page${remaining !== 1 ? 's' : ''} Remaining`}
+              {remaining === 0 ? 'Last Step' : `${remaining} Step${remaining !== 1 ? 's' : ''} Remaining`}
             </span>
           </div>
         </div>
@@ -819,18 +903,18 @@ const OnboardingScreen = () => {
         <div className="border-t border-slate-100/80" />
 
         <div className="overflow-x-auto no-scrollbar scroll-smooth py-0.5 -mx-1 px-1">
-          <div className="flex items-center min-w-[350px] relative justify-between">
+          <div className="flex items-center min-w-[260px] relative justify-between">
             <div className="absolute top-3 left-3 right-3 h-[1.5px] bg-slate-150 -z-1" />
             
             <div 
               className="absolute top-3 left-3 h-[1.5px] bg-[#7C3AED] transition-all duration-500 -z-1"
-              style={{ width: `${((current - 1) / (totalSteps - 1)) * 93}%` }}
+              style={{ width: `${((currentStepNum - 1) / Math.max(totalSteps - 1, 1)) * 92}%` }}
             />
 
-            {Array.from({ length: totalSteps }).map((_, idx) => {
-              const stepNum = idx + 1;
-              const isCompleted = stepNum < current;
-              const isActive = stepNum === current;
+            {stepList.map((stNum, idx) => {
+              const itemStepNum = idx + 1;
+              const isCompleted = itemStepNum < currentStepNum;
+              const isActive = itemStepNum === currentStepNum;
 
               return (
                 <div key={idx} className="flex flex-col items-center relative z-10 shrink-0">
@@ -846,7 +930,7 @@ const OnboardingScreen = () => {
                     {isCompleted ? (
                       <Check size={9} strokeWidth={3} />
                     ) : (
-                      stepNum
+                      itemStepNum
                     )}
                   </div>
                 </div>
@@ -993,15 +1077,43 @@ const OnboardingScreen = () => {
                     />
                   </div>
                   <div>
-                    <label className="text-[11px] font-bold text-text-secondary uppercase tracking-wider block mb-1.5">Select City</label>
+                    <label className="text-[11px] font-bold text-text-secondary uppercase tracking-wider block mb-1.5">
+                      Select City
+                    </label>
                     <CustomSelect
                       value={selectedCity}
                       onChange={(val) => { setSelectedCity(val); setStepErrors(prev => ({ ...prev, city: '' })); }}
-                      options={selectedCity ? [{ label: selectedCity, value: selectedCity }, ...apiCities.filter(c => c.value !== selectedCity)] : apiCities}
+                      options={apiCities}
                       placeholder="Select city"
                       disabled={!selectedCommunity || (selectedCommunity === 'other' && !customCommunity.trim())}
                     />
                     {stepErrors.city && <p role="alert" className="text-[10px] text-red-500 font-semibold mt-1">{stepErrors.city}</p>}
+                    
+                    {/* Visual Status Indicator for Selected City */}
+                    {selectedCity && (
+                      (() => {
+                        const matchedCity = apiCities.find(c => (c.value || c.name || c.label) === selectedCity);
+                        if (matchedCity?.isCovered) {
+                          return (
+                            <div className="mt-2 flex items-center gap-1.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-xl border border-emerald-200 animate-fade-in">
+                              <span className="relative flex h-2 w-2 shrink-0">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                              </span>
+                              <span>Active Community Head: {matchedCity.headInfo?.name || 'Assigned'}</span>
+                            </div>
+                          );
+                        } else if (selectedCity) {
+                          return (
+                            <div className="mt-2 flex items-start gap-1.5 text-[10px] font-semibold text-amber-800 bg-amber-50/80 px-2.5 py-1.5 rounded-xl border border-amber-200 animate-fade-in">
+                              <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0 mt-0.5"></span>
+                              <span>Head pending for {selectedCity}. You can register now; Admin will assign a Samaj Head.</span>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()
+                    )}
                   </div>
                 </div>
 
@@ -1598,9 +1710,18 @@ const OnboardingScreen = () => {
             {[4, 5, 6, 8, 9].includes(onboardingStepNum) && (
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   setSlideDir('right');
-                  setStep(`onboarding-${onboardingStepNum + 1}`);
+                  if (onboardingStepNum === 8) {
+                    await handleSaveProfile();
+                  } else {
+                    const currentIdx = ONBOARDING_FLOW.indexOf(onboardingStepNum);
+                    if (currentIdx !== -1 && currentIdx < ONBOARDING_FLOW.length - 1) {
+                      setStep(`onboarding-${ONBOARDING_FLOW[currentIdx + 1]}`);
+                    } else {
+                      setStep(`onboarding-${onboardingStepNum + 1}`);
+                    }
+                  }
                 }}
                 className="w-full py-2 bg-slate-50 hover:bg-slate-100 text-slate-550 text-xs font-bold rounded-xl border border-slate-200 transition-all flex flex-col items-center justify-center"
               >
@@ -1611,27 +1732,61 @@ const OnboardingScreen = () => {
 
             <button
               type="button"
-              onClick={() => {
-                // Use validateStep gate for steps 2 and 3
-                if (onboardingStepNum === 2 || onboardingStepNum === 3 || onboardingStepNum === 4) {
-                  const isValid = validateStep(onboardingStepNum);
+              onClick={async () => {
+                // Step 1 -> Next goes to Step 2
+                if (onboardingStepNum === 1) {
+                  setSlideDir('right');
+                  setStep('onboarding-2');
+                  return;
+                }
+
+                // Step 2 -> Validate -> Next goes to Step 3
+                if (onboardingStepNum === 2) {
+                  const isValid = validateStep(2);
                   if (!isValid) {
                     setToastMessage('Please fix the validation errors to proceed.');
                     setTimeout(() => setToastMessage(''), 3000);
                     return;
                   }
-                }
-                // Family member required check (soft warning only)
-                if (onboardingStepNum === 7 && familyMembers.length === 0) {
-                  setToastMessage('Please add at least one family member');
-                  setTimeout(() => setToastMessage(''), 2000);
+                  setSlideDir('right');
+                  setStep('onboarding-3');
                   return;
                 }
 
-                setSlideDir('right');
+                // Step 3 -> Validate -> Next directly jumps to Step 8 (Verification)
+                if (onboardingStepNum === 3) {
+                  const isValid = validateStep(3);
+                  if (!isValid) {
+                    setToastMessage('Please fix the validation errors to proceed.');
+                    setTimeout(() => setToastMessage(''), 3000);
+                    return;
+                  }
+                  setSlideDir('right');
+                  setStep('onboarding-8');
+                  return;
+                }
+
+                // Step 8 -> Complete & Save Profile -> directly transitions to Step 11 (Congratulations)
+                if (onboardingStepNum === 8) {
+                  setSlideDir('right');
+                  await handleSaveProfile();
+                  return;
+                }
+
+                // Fallback for Step 10
                 if (onboardingStepNum === 10) {
-                  handleSaveProfile();
+                  setSlideDir('right');
+                  await handleSaveProfile();
+                  return;
+                }
+
+                // Fallback if navigating intermediate step directly
+                const currentIdx = ONBOARDING_FLOW.indexOf(onboardingStepNum);
+                if (currentIdx !== -1 && currentIdx < ONBOARDING_FLOW.length - 1) {
+                  setSlideDir('right');
+                  setStep(`onboarding-${ONBOARDING_FLOW[currentIdx + 1]}`);
                 } else {
+                  setSlideDir('right');
                   setStep(`onboarding-${onboardingStepNum + 1}`);
                 }
               }}

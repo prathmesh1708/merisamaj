@@ -169,7 +169,10 @@ exports.createEvent = async (req, res) => {
       venue,
       venueEn,
       address,
+      city,
       cityId,
+      locationScope,
+      isAllLocations,
       startDate,
       endDate,
       startTime,
@@ -213,7 +216,10 @@ exports.createEvent = async (req, res) => {
       }
     }
 
-    const validCityId = (cityId && mongoose.Types.ObjectId.isValid(cityId)) ? cityId : undefined;
+    const isAllLoc = locationScope === 'ALL' || isAllLocations === true || !city || city === 'All Locations' || city === 'all' || city === 'All';
+    const finalLocationScope = isAllLoc ? 'ALL' : 'SPECIFIC';
+    const finalCity = isAllLoc ? 'All Locations' : (city ? String(city).trim() : 'All Locations');
+    const validCityId = (!isAllLoc && cityId && mongoose.Types.ObjectId.isValid(cityId)) ? cityId : undefined;
     const userId = req.user?._id || req.user?.id;
 
     const event = new Event({
@@ -233,7 +239,10 @@ exports.createEvent = async (req, res) => {
       venue: venue || address || 'TBA',
       venueEn: venueEn || address || 'TBA',
       address,
+      city: finalCity,
       cityId: validCityId,
+      locationScope: finalLocationScope,
+      isAllLocations: isAllLoc,
       description,
       descriptionEn: descriptionEn || description,
       category: category || 'Cultural',
@@ -313,7 +322,17 @@ exports.updateEvent = async (req, res) => {
     const updates = req.body;
     updates.updatedBy = req.user?._id || req.user?.id;
 
-    if (updates.cityId && !mongoose.Types.ObjectId.isValid(updates.cityId)) {
+    if (updates.locationScope !== undefined || updates.isAllLocations !== undefined || updates.city !== undefined) {
+      const isAllLoc = updates.locationScope === 'ALL' || updates.isAllLocations === true || !updates.city || updates.city === 'All Locations' || updates.city === 'all' || updates.city === 'All';
+      updates.locationScope = isAllLoc ? 'ALL' : 'SPECIFIC';
+      updates.isAllLocations = isAllLoc;
+      updates.city = isAllLoc ? 'All Locations' : (updates.city ? String(updates.city).trim() : 'All Locations');
+      if (isAllLoc) {
+        updates.cityId = undefined;
+      } else if (updates.cityId && !mongoose.Types.ObjectId.isValid(updates.cityId)) {
+        updates.cityId = undefined;
+      }
+    } else if (updates.cityId && !mongoose.Types.ObjectId.isValid(updates.cityId)) {
       updates.cityId = undefined;
     }
 

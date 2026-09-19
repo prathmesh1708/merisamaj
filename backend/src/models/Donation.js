@@ -64,6 +64,15 @@ const donationSchema = new mongoose.Schema({
     isFeatured: { type: Boolean, default: false }
   },
 
+  accountDetails: {
+    bankName: { type: String, default: '', trim: true },
+    accountNumber: { type: String, default: '', trim: true },
+    ifscCode: { type: String, default: '', trim: true },
+    upiId: { type: String, default: '', trim: true },
+    accountHolderName: { type: String, default: '', trim: true },
+    qrCode: { type: String, default: '', trim: true }
+  },
+
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   isDeleted: { type: Boolean, default: false, index: true },
   deletedAt: { type: Date, default: null },

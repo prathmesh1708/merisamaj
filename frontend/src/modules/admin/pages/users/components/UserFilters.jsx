@@ -75,6 +75,23 @@ export const UserFilters = ({ filters, setFilters }) => {
           ))}
         </select>
 
+        {/* Head Assignment Status */}
+        <select
+          value={filters.headStatus || 'all'}
+          onChange={e => setFilters(prev => ({ ...prev, headStatus: e.target.value }))}
+          className={`px-3 py-2 border rounded-xl text-xs font-bold outline-none cursor-pointer transition-all ${
+            filters.headStatus === 'unassigned'
+              ? 'bg-rose-50 border-rose-300 text-rose-700'
+              : filters.headStatus === 'assigned'
+              ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+              : 'bg-gray-50 border-gray-200 text-gray-700 focus:border-brand-primary'
+          }`}
+        >
+          <option value="all">All Head Status</option>
+          <option value="unassigned">🔴 Head Pending (Action Needed)</option>
+          <option value="assigned">🟢 Head Assigned</option>
+        </select>
+
         {/* City */}
         <input
           type="text"

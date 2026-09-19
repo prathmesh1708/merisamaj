@@ -74,7 +74,7 @@ exports.createCommunity = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const { name, description, logoUrl, bannerUrl, settings, city, cityIds, subCommunities, status, headName, headEmail, headPhone, headPassword } = req.body;
+    const { name, description, logoUrl, bannerUrl, settings, city, cityIds, subCommunities, status, headName, headEmail, headPhone, headPassword, headId } = req.body;
 
     if (!name || !name.trim()) {
       await session.abortTransaction();
@@ -151,7 +151,22 @@ exports.createCommunity = async (req, res) => {
       isActive: isActVal,
     });
 
-    if (headEmail) {
+    if (headId) {
+      // Assign existing selected head
+      const existingHead = await User.findById(headId).session(session);
+      if (existingHead) {
+        community.headId = existingHead._id;
+        if (!Array.isArray(existingHead.assignedCommunityIds)) {
+          existingHead.assignedCommunityIds = [];
+        }
+        if (!existingHead.assignedCommunityIds.some(id => String(id) === String(communityId))) {
+          existingHead.assignedCommunityIds.push(communityId);
+        }
+        existingHead.communityId = communityId;
+        existingHead.assignedCommunityId = communityId;
+        await existingHead.save({ session });
+      }
+    } else if (headEmail) {
       // Create Community Head User
       headUser = new User({
         name: headName.trim(),
@@ -161,6 +176,7 @@ exports.createCommunity = async (req, res) => {
         role: 'head',
         communityId: communityId,
         assignedCommunityId: communityId,
+        assignedCommunityIds: [communityId],
         city: city || '',
         accountStatus: 'active',
         verificationStatus: 'verified',
@@ -283,6 +299,12 @@ exports.updateCommunity = async (req, res) => {
         // STEP 3: Update new head user's community IDs
         newHeadUser.communityId = community._id;
         newHeadUser.assignedCommunityId = community._id;
+        if (!Array.isArray(newHeadUser.assignedCommunityIds)) {
+          newHeadUser.assignedCommunityIds = [];
+        }
+        if (!newHeadUser.assignedCommunityIds.some(id => String(id) === String(community._id))) {
+          newHeadUser.assignedCommunityIds.push(community._id);
+        }
         await newHeadUser.save({ session });
       } else {
         // Clearing the head
@@ -291,11 +313,16 @@ exports.updateCommunity = async (req, res) => {
 
       // STEP 4: Remove old head's assignedCommunityId link
       if (oldHeadId) {
-        await User.findByIdAndUpdate(
-          oldHeadId,
-          { $set: { assignedCommunityId: null } },
-          { session }
-        );
+        const oldHeadUser = await User.findById(oldHeadId).session(session);
+        if (oldHeadUser) {
+          if (String(oldHeadUser.assignedCommunityId) === String(community._id)) {
+            oldHeadUser.assignedCommunityId = null;
+          }
+          if (Array.isArray(oldHeadUser.assignedCommunityIds)) {
+            oldHeadUser.assignedCommunityIds = oldHeadUser.assignedCommunityIds.filter(id => String(id) !== String(community._id));
+          }
+          await oldHeadUser.save({ session });
+        }
       }
     }
 
@@ -372,10 +399,13 @@ exports.assignHead = async (req, res) => {
     community.headId = userId;
     await community.save({ session });
 
-    // STEP 3: Update the user's communityId to the target community
+    // STEP 3: Update the user's communityId and assignedCommunityIds
     await User.findByIdAndUpdate(
       userId,
-      { $set: { communityId: communityId, assignedCommunityId: communityId } },
+      { 
+        $set: { communityId: communityId, assignedCommunityId: communityId },
+        $addToSet: { assignedCommunityIds: communityId }
+      },
       { session }
     );
 
@@ -426,11 +456,14 @@ exports.removeHead = async (req, res) => {
     community.headId = null;
     await community.save({ session });
 
-    // Optionally clear the user's assignedCommunityId (but keep communityId)
+    // Optionally clear the user's assignedCommunityId and pull from assignedCommunityIds
     if (previousHeadId) {
       await User.findByIdAndUpdate(
         previousHeadId,
-        { $set: { assignedCommunityId: null } },
+        { 
+          $set: { assignedCommunityId: null },
+          $pull: { assignedCommunityIds: communityId }
+        },
         { session }
       );
     }
@@ -447,28 +480,107 @@ exports.removeHead = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────
-// @desc    Delete (deactivate) a community
-// @route   DELETE /api/v1/admin/communities/:id
+// @desc    Toggle active/inactive status of a community
+// @route   PATCH /api/v1/admin/communities/:id/toggle-status
 // @access  Admin
 // ─────────────────────────────────────────────
-exports.deleteCommunity = async (req, res) => {
+exports.toggleCommunityStatus = async (req, res) => {
   try {
     const community = await Community.findById(req.params.id);
     if (!community) {
       return res.status(404).json({ status: 'error', message: 'Community not found' });
     }
 
-    // Soft delete only — deactivate instead of hard delete (preserves existing data)
-    community.isActive = false;
+    community.isActive = !community.isActive;
     await community.save();
 
     res.json({
       success: true,
-      message: 'Community deactivated successfully.',
+      message: `Community "${community.name}" ${community.isActive ? 'activated' : 'deactivated'} successfully.`,
       data: community,
     });
   } catch (error) {
-    console.error('deleteCommunity error:', error);
+    console.error('toggleCommunityStatus error:', error);
     res.status(500).json({ status: 'error', message: 'Server error' });
   }
 };
+
+// ─────────────────────────────────────────────
+// @desc    Delete a community (permanently or soft delete)
+// @route   DELETE /api/v1/admin/communities/:id
+// @access  Admin
+// ─────────────────────────────────────────────
+exports.deleteCommunity = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const community = await Community.findById(req.params.id).session(session);
+    if (!community) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ status: 'error', message: 'Community not found' });
+    }
+
+    const isSoftDeactivate = req.query.action === 'deactivate';
+
+    if (isSoftDeactivate) {
+      community.isActive = false;
+      await community.save({ session });
+      await session.commitTransaction();
+      session.endSession();
+      return res.json({
+        success: true,
+        message: 'Community deactivated successfully.',
+        data: community,
+      });
+    }
+
+    // Permanent Hard Deletion:
+    // 1. Unset head assignments
+    if (community.headId) {
+      await User.findByIdAndUpdate(
+        community.headId,
+        { 
+          $set: { assignedCommunityId: null },
+          $pull: { assignedCommunityIds: community._id }
+        },
+        { session }
+      );
+    }
+
+    // 2. Clear user references for members
+    await User.updateMany(
+      { communityId: community._id },
+      { $set: { communityId: null } },
+      { session }
+    );
+    await User.updateMany(
+      { assignedCommunityId: community._id },
+      { $set: { assignedCommunityId: null } },
+      { session }
+    );
+    await User.updateMany(
+      { assignedCommunityIds: community._id },
+      { $pull: { assignedCommunityIds: community._id } },
+      { session }
+    );
+
+    // 3. Delete community document
+    await Community.findByIdAndDelete(req.params.id).session(session);
+
+    await session.commitTransaction();
+    session.endSession();
+
+    res.json({
+      success: true,
+      message: `Community "${community.name}" deleted permanently.`,
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    console.error('deleteCommunity error:', error);
+    res.status(500).json({ status: 'error', message: error.message || 'Server error' });
+  }
+};
+

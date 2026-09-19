@@ -16,6 +16,7 @@ export const userService = {
     }
     if (filters.communityId && filters.communityId !== 'all') params.set('communityId', filters.communityId);
     if (filters.city && filters.city !== 'All') params.set('city', filters.city);
+    if (filters.headStatus && filters.headStatus !== 'all') params.set('headStatus', filters.headStatus);
 
     const res = await axiosPrivate.get(`${API}?${params.toString()}`);
     return res.data; // { status, data, pagination }
@@ -62,6 +63,12 @@ export const userService = {
 
   deleteUser: async (id) => {
     const res = await axiosPrivate.delete(`${API}/${id}`);
+    return res.data;
+  },
+
+  // ─── Assign / Promote Head for Member's Community ──────────────────────────
+  assignHead: async (userId, data) => {
+    const res = await axiosPrivate.post(`${API}/${userId}/assign-head`, data);
     return res.data;
   },
 };

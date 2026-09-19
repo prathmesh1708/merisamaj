@@ -2,10 +2,12 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   MoreVertical, Eye, ShieldAlert, CheckCircle2, ShieldBan, Trash2, RotateCcw, Clock,
-  ChevronLeft, ChevronRight, User, ShieldCheck
+  ChevronLeft, ChevronRight, User, ShieldCheck, Crown, AlertCircle, Building2
 } from 'lucide-react';
 import { Avatar } from '../../../../member/components/common/Avatar';
 import { StatusChangeModal } from './StatusChangeModal';
+import { AssignHeadModal } from './AssignHeadModal';
+import { EditUserCommunityModal } from './EditUserCommunityModal';
 
 const statusColors = {
   active: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -33,6 +35,7 @@ export const UserTable = ({
   onBlock,
   onActivate,
   onDelete,
+  onRefresh,
 }) => {
   // ── Dropdown state ──────────────────────────────────────────────────────────
   const [openRow, setOpenRow] = useState(null);       // user object of open row
@@ -42,6 +45,8 @@ export const UserTable = ({
 
   // ── Modal state ─────────────────────────────────────────────────────────────
   const [modal, setModal] = useState({ open: false, type: null, userId: null, userName: '' });
+  const [assignHeadUser, setAssignHeadUser] = useState(null);
+  const [editCommunityUser, setEditCommunityUser] = useState(null);
 
   // ── Close dropdown on outside click ─────────────────────────────────────────
   useEffect(() => {
@@ -114,6 +119,20 @@ export const UserTable = ({
           className="w-full text-left px-4 py-2.5 text-xs font-semibold text-gray-700 hover:bg-brand-primary/5 hover:text-brand-primary flex items-center gap-2 transition-colors"
         >
           <Eye size={14} /> View Profile
+        </button>
+
+        <button
+          onClick={() => { setEditCommunityUser(openRow); setOpenRow(null); }}
+          className="w-full text-left px-4 py-2.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 flex items-center gap-2 transition-colors"
+        >
+          <Building2 size={14} /> Edit Samaj (समाज बदलें)
+        </button>
+
+        <button
+          onClick={() => { setAssignHeadUser(openRow); setOpenRow(null); }}
+          className="w-full text-left px-4 py-2.5 text-xs font-semibold text-purple-700 hover:bg-purple-50 flex items-center gap-2 transition-colors"
+        >
+          <Crown size={14} /> Assign / Promote Head
         </button>
 
         {openRow.verificationStatus !== 'verified' && (
@@ -221,10 +240,31 @@ export const UserTable = ({
 
                     {/* Community & Location */}
                     <td className="px-6 py-4">
-                      <p className="font-bold text-gray-700">{user.community || '—'}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">
+                      <p className="font-bold text-gray-800">{user.community || '—'}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">
                         {[user.city, user.state].filter(Boolean).join(', ') || '—'}
                       </p>
+                      {user.headStatus === 'unassigned' ? (
+                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
+                            🔴 Head Pending
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setAssignHeadUser(user); }}
+                            className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2 py-0.5 rounded-full transition-all shadow-xs"
+                            title="Assign a community head for this member's city"
+                          >
+                            <Crown size={11} className="text-amber-500" /> Assign
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="mt-1.5">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                            🟢 Head: {user.headName || 'Assigned'}
+                          </span>
+                        </div>
+                      )}
                     </td>
 
                     {/* Verification */}
@@ -306,6 +346,28 @@ export const UserTable = ({
         type={modal.type}
         userName={modal.userName}
         loading={actionLoading}
+      />
+
+      {/* Assign Head to User / Community Modal */}
+      <AssignHeadModal
+        user={assignHeadUser}
+        isOpen={Boolean(assignHeadUser)}
+        onClose={() => setAssignHeadUser(null)}
+        onSuccess={() => {
+          setAssignHeadUser(null);
+          if (onRefresh) onRefresh();
+        }}
+      />
+
+      {/* Edit User Community / Samaj Modal */}
+      <EditUserCommunityModal
+        user={editCommunityUser}
+        isOpen={Boolean(editCommunityUser)}
+        onClose={() => setEditCommunityUser(null)}
+        onSuccess={() => {
+          setEditCommunityUser(null);
+          if (onRefresh) onRefresh();
+        }}
       />
     </>
   );

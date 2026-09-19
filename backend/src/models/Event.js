@@ -16,9 +16,21 @@ const eventSchema = new mongoose.Schema({
   venue: { type: String, required: true },
   venueEn: { type: String },
   address: { type: String },
+  city: { type: String, trim: true },
   cityId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'City',
+    index: true
+  },
+  locationScope: {
+    type: String,
+    enum: ['ALL', 'SPECIFIC'],
+    default: 'ALL',
+    index: true
+  },
+  isAllLocations: {
+    type: Boolean,
+    default: true,
     index: true
   },
   

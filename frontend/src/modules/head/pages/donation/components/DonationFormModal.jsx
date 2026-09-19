@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, IndianRupee, Image, Info, Users, Settings, Search, ChevronDown, ChevronUp, Check, Upload, Trash2, Plus } from 'lucide-react';
+import { X, Save, IndianRupee, Image, Info, Users, Settings, Search, ChevronDown, ChevronUp, Check, Upload, Trash2, Plus, Landmark, CreditCard, Wallet } from 'lucide-react';
 import { useData } from '../../../../member/context/DataProvider';
 import headDonationService from '../../../../../core/api/headDonationService';
+import { axiosPrivate } from '../../../../../core/api/axiosPrivate';
 
 const DonationFormModal = ({ isOpen, onClose, onSubmit, initialData }) => {
   const [activeTab, setActiveTab] = useState('basic');
@@ -17,7 +18,12 @@ const DonationFormModal = ({ isOpen, onClose, onSubmit, initialData }) => {
     locations: [],
     targetedMembers: [],
     status: 'Published',
-    bannerImage: ''
+    bannerImage: '',
+    accountHolderName: '',
+    bankName: '',
+    accountNumber: '',
+    ifscCode: '',
+    upiId: ''
   });
 
   // Dynamic Categories state
@@ -78,8 +84,25 @@ const DonationFormModal = ({ isOpen, onClose, onSubmit, initialData }) => {
   useEffect(() => {
     if (isOpen) {
       fetchCategories();
+      if (!initialData) {
+        axiosPrivate.get('/head/dashboard/community/details')
+          .then(res => {
+            const acc = res.data?.data?.accountDetails || res.data?.accountDetails;
+            if (acc) {
+              setFormData(prev => ({
+                ...prev,
+                accountHolderName: prev.accountHolderName || acc.accountHolderName || '',
+                bankName: prev.bankName || acc.bankName || '',
+                accountNumber: prev.accountNumber || acc.accountNumber || '',
+                ifscCode: prev.ifscCode || acc.ifscCode || '',
+                upiId: prev.upiId || acc.upiId || ''
+              }));
+            }
+          })
+          .catch(() => {});
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, initialData]);
 
   useEffect(() => {
     if (initialData) {
@@ -94,7 +117,12 @@ const DonationFormModal = ({ isOpen, onClose, onSubmit, initialData }) => {
         locations: initialData.locations || [],
         targetedMembers: initialData.targetedMembers || [],
         status: initialData.status || 'Draft',
-        bannerImage: initialData.bannerImage || ''
+        bannerImage: initialData.bannerImage || '',
+        accountHolderName: initialData.accountDetails?.accountHolderName || initialData.accountHolderName || '',
+        bankName: initialData.accountDetails?.bankName || initialData.bankName || '',
+        accountNumber: initialData.accountDetails?.accountNumber || initialData.accountNumber || '',
+        ifscCode: initialData.accountDetails?.ifscCode || initialData.ifscCode || '',
+        upiId: initialData.accountDetails?.upiId || initialData.upiId || ''
       });
     }
   }, [initialData]);
@@ -236,6 +264,13 @@ const DonationFormModal = ({ isOpen, onClose, onSubmit, initialData }) => {
                   className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors whitespace-nowrap ${activeTab === 'financials' ? 'bg-brand-50 text-brand-primary' : 'text-gray-600 hover:bg-gray-100'}`}
                 >
                   <IndianRupee size={16} /> Financials
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('bank')}
+                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors whitespace-nowrap ${activeTab === 'bank' ? 'bg-brand-50 text-brand-primary' : 'text-gray-600 hover:bg-gray-100'}`}
+                >
+                  <Landmark size={16} /> Bank & UPI
                 </button>
                 <button
                   type="button"
@@ -489,6 +524,83 @@ const DonationFormModal = ({ isOpen, onClose, onSubmit, initialData }) => {
                         onChange={handleChange}
                         className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-brand-primary focus:ring-4 focus:ring-brand-primary/10 outline-none transition-all"
                         placeholder="1"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'bank' && (
+                  <div className="space-y-4 text-left">
+                    <div className="p-3.5 bg-purple-50/80 border border-purple-100 rounded-2xl flex items-start gap-2.5">
+                      <Landmark size={18} className="text-brand-primary shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-bold text-slate-800">
+                          Official Beneficiary / Receiver Bank Account
+                        </p>
+                        <p className="text-[11px] text-slate-500 font-medium mt-0.5 leading-relaxed">
+                          These details will be displayed to members when they open the Donation modal to send funds.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Account Holder Name</label>
+                      <input 
+                        type="text" 
+                        name="accountHolderName" 
+                        value={formData.accountHolderName} 
+                        onChange={handleChange}
+                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-brand-primary focus:ring-4 focus:ring-brand-primary/10 outline-none transition-all"
+                        placeholder="e.g. Shri Agrawal Samaj Trust"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Bank Name</label>
+                      <input 
+                        type="text" 
+                        name="bankName" 
+                        value={formData.bankName} 
+                        onChange={handleChange}
+                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-brand-primary focus:ring-4 focus:ring-brand-primary/10 outline-none transition-all"
+                        placeholder="e.g. State Bank of India / HDFC Bank"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Account Number</label>
+                        <input 
+                          type="text" 
+                          name="accountNumber" 
+                          value={formData.accountNumber} 
+                          onChange={handleChange}
+                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-brand-primary focus:ring-4 focus:ring-brand-primary/10 outline-none transition-all font-mono"
+                          placeholder="e.g. 10002345678"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">IFSC Code</label>
+                        <input 
+                          type="text" 
+                          name="ifscCode" 
+                          value={formData.ifscCode} 
+                          onChange={(e) => setFormData(prev => ({ ...prev, ifscCode: e.target.value.toUpperCase() }))}
+                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-brand-primary focus:ring-4 focus:ring-brand-primary/10 outline-none transition-all font-mono"
+                          placeholder="e.g. SBIN0001234"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">UPI ID / VPA</label>
+                      <input 
+                        type="text" 
+                        name="upiId" 
+                        value={formData.upiId} 
+                        onChange={handleChange}
+                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-brand-primary focus:ring-4 focus:ring-brand-primary/10 outline-none transition-all"
+                        placeholder="e.g. agrawalsamaj@sbi"
                       />
                     </div>
                   </div>
