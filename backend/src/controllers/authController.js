@@ -140,13 +140,12 @@ const registerUser = async (req, res) => {
       isEmailVerified: true
     };
 
-    // Root Fix: Look up default community and assign it to new users
-    const Community = require('../models/Community');
-    const defaultComm = await Community.findOne({});
-    if (defaultComm) {
-      userData.communityId = defaultComm._id;
-      userData.community = defaultComm.name;
-    }
+    // Community & city are NOT known yet at this step — the user picks them in
+    // Onboarding Step 2, which then calls updateProfile() to save the real
+    // choice and fire the local-head/community-head approval notification.
+    // Do NOT auto-assign an arbitrary community here — that used to silently
+    // attach every new user to whatever community Mongo returned first,
+    // routing their approval request to the wrong head.
 
     if (email && email.trim() !== '') {
       email = email.trim().toLowerCase();
@@ -488,6 +487,7 @@ const updateProfile = async (req, res) => {
       user.bloodGroup = req.body.bloodGroup || user.bloodGroup;
       user.maritalStatus = req.body.maritalStatus || user.maritalStatus;
       user.gotra = req.body.gotra || user.gotra;
+      user.familyType = req.body.familyType || user.familyType;
       
       // Social Links
       user.facebook = req.body.facebook !== undefined ? req.body.facebook : user.facebook;
@@ -709,6 +709,60 @@ const updateProfile = async (req, res) => {
   }
 };
 
+// @desc    Send Aadhaar verification OTP (simulated - uses registered mobile)
+// @route   POST /api/auth/aadhaar/send-otp
+// @access  Public
+const sendAadhaarOtp = async (req, res) => {
+  try {
+    const { mobileNo } = req.body;
+    if (!mobileNo || !/^\d{10}$/.test(mobileNo.toString().trim())) {
+      return res.status(400).json({ success: false, message: 'Valid 10-digit mobile number is required.' });
+    }
+
+    // TODO: Integrate with UIDAI / DigiLocker API in production for real Aadhaar OTP
+    // Simulated: In dev, always succeed and return fixed OTP
+    const otp = process.env.NODE_ENV !== 'production' ? '123456' : null;
+
+    res.json({
+      success: true,
+      message: `OTP sent successfully to +91 ${mobileNo} (Aadhaar registered mobile).`,
+      // Only returned in dev/test for convenience — NEVER in production
+      ...(otp ? { otp } : {})
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Verify Aadhaar OTP (simulated)
+// @route   POST /api/auth/aadhaar/verify-otp
+// @access  Private (user must be logged in)
+const verifyAadhaarOtp = async (req, res) => {
+  try {
+    const { mobileNo, otp } = req.body;
+    if (!mobileNo || !otp) {
+      return res.status(400).json({ success: false, message: 'Mobile number and OTP are required.' });
+    }
+
+    // TODO: In production, validate against UIDAI OTP API response
+    const expectedOtp = process.env.NODE_ENV !== 'production' ? '123456' : null;
+
+    if (!expectedOtp || otp.toString().trim() !== expectedOtp) {
+      return res.status(400).json({ success: false, message: 'Invalid OTP. Please try again.' });
+    }
+
+    // If user is authenticated, mark Aadhaar as verified
+    if (req.user) {
+      const User = require('../models/User');
+      await User.findByIdAndUpdate(req.user._id, { isAadharVerified: true });
+    }
+
+    res.json({ success: true, message: 'Aadhaar verified successfully!' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // @desc    Simulated OTP sending (returns default OTP '123456' for development)
 // @route   POST /api/auth/send-otp
 // @access  Public
@@ -802,7 +856,11 @@ const getPublicCommunities = async (req, res) => {
       name: c.name,
       city: c.city || '',
       cityIds: c.cityIds || [],
-      subCommunities: c.subCommunities || [],
+      // subCommunities are stored as {name, isActive, ...} sub-documents now;
+      // public/registration consumers only ever need the active names as plain strings.
+      subCommunities: (c.subCommunities || [])
+        .filter(s => s && s.isActive !== false && s.name)
+        .map(s => s.name),
       hasHead: !!c.headId,
       headName: c.headId?.name || null
     }));
@@ -822,7 +880,7 @@ const getPublicCities = async (req, res) => {
     const { communityId } = req.query;
     const City = require('../models/City');
     const Community = require('../models/Community');
-    
+
     // Fetch all active cities
     const allCities = await City.find({ isActive: true })
       .select('name state _id')
@@ -830,8 +888,25 @@ const getPublicCities = async (req, res) => {
       .lean();
 
     let targetCommunity = null;
+    // Map of lowercased city name → Local Head user (for this community only)
+    const localHeadsByCity = new Map();
+
     if (communityId && mongoose.Types.ObjectId.isValid(communityId)) {
-      targetCommunity = await Community.findById(communityId).populate('headId', 'name phone').lean();
+      targetCommunity = await Community.findById(communityId).populate('headId', 'name phone avatar').lean();
+
+      // Local Heads are sub_head users scoped to this community + a specific city
+      const localHeads = await User.find({
+        communityId,
+        role: 'sub_head',
+        accountType: 'local_head',
+        accountStatus: 'active'
+      }).select('name avatar city').lean();
+
+      localHeads.forEach(lh => {
+        if (lh.city) {
+          localHeadsByCity.set(lh.city.trim().toLowerCase(), lh);
+        }
+      });
     }
 
     const assignedCityIdsSet = new Set(
@@ -841,29 +916,52 @@ const getPublicCities = async (req, res) => {
       [targetCommunity?.city].filter(Boolean).map(c => c.toLowerCase().trim())
     );
 
-    const hasHead = !!targetCommunity?.headId;
-    const headInfo = targetCommunity?.headId ? {
+    const mainHasHead = !!targetCommunity?.headId;
+    const mainHeadInfo = targetCommunity?.headId ? {
       id: targetCommunity.headId._id,
       name: targetCommunity.headId.name,
+      avatar: targetCommunity.headId.avatar || null,
+      type: 'community'
     } : null;
 
     const enrichedCities = allCities.map(city => {
       const cityIdStr = city._id.toString();
-      const isCommunityInCity = assignedCityIdsSet.has(cityIdStr) || assignedCityNamesSet.has(city.name.toLowerCase().trim());
-      const isCovered = Boolean(targetCommunity && isCommunityInCity && hasHead);
+      const cityNameKey = city.name.toLowerCase().trim();
+      const isCommunityInCity = assignedCityIdsSet.has(cityIdStr) || assignedCityNamesSet.has(cityNameKey);
+      const localHead = targetCommunity ? localHeadsByCity.get(cityNameKey) : null;
+
+      // Priority: a Local Head assigned specifically to this city beats the general Community Head
+      let headInfo = null;
+      let isCovered = false;
+      let statusText = 'No Samaj Head';
+
+      if (localHead) {
+        headInfo = {
+          id: localHead._id,
+          name: localHead.name,
+          avatar: localHead.avatar || null,
+          type: 'local'
+        };
+        isCovered = true;
+        statusText = 'Local Head Assigned';
+      } else if (targetCommunity && isCommunityInCity && mainHasHead) {
+        headInfo = mainHeadInfo;
+        isCovered = true;
+        statusText = 'Community Head Assigned';
+      } else if (targetCommunity && isCommunityInCity) {
+        statusText = 'Head Pending';
+      }
 
       return {
         _id: city._id,
         name: city.name,
         state: city.state || '',
         hasCommunity: Boolean(targetCommunity && isCommunityInCity),
-        hasHead: Boolean(targetCommunity && hasHead),
-        headInfo: isCovered ? headInfo : null,
-        isCovered: isCovered,
+        hasHead: isCovered,
+        headInfo,
+        isCovered,
         dotColor: isCovered ? 'green' : 'red',
-        statusText: isCovered 
-          ? 'Head Assigned' 
-          : (targetCommunity && isCommunityInCity ? 'Head Pending' : 'No Samaj Head')
+        statusText
       };
     });
 
@@ -943,5 +1041,7 @@ module.exports = {
   resetPassword,
   getPublicCommunities,
   getPublicCities,
-  changePassword
+  changePassword,
+  sendAadhaarOtp,
+  verifyAadhaarOtp
 };

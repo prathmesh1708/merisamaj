@@ -19,6 +19,7 @@ const userSchema = new mongoose.Schema({
   bloodGroup: { type: String },
   maritalStatus: { type: String },
   gotra: { type: String },
+  familyType: { type: String },
   
   // Social Links
   facebook: { type: String },

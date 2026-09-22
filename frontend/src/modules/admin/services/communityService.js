@@ -89,3 +89,37 @@ export const updateCommunitySettings = async (communityId, settings) => {
   );
   return response.data;
 };
+
+// ─────────────────────────────────────────────
+// Sub-Communities (drill-down under a Community)
+// ─────────────────────────────────────────────
+
+// GET /admin/communities/:id/sub-communities → list with real member/location stats
+export const getSubCommunityStats = async (communityId) => {
+  const response = await axiosPrivate.get(`${API_BASE}/${communityId}/sub-communities`);
+  return response.data;
+};
+
+// POST /admin/communities/:id/sub-communities → add one
+export const addSubCommunity = async (communityId, name) => {
+  const response = await axiosPrivate.post(`${API_BASE}/${communityId}/sub-communities`, { name });
+  return response.data;
+};
+
+// PATCH /admin/communities/:id/sub-communities/:subId → rename one
+export const renameSubCommunity = async (communityId, subId, name) => {
+  const response = await axiosPrivate.patch(`${API_BASE}/${communityId}/sub-communities/${subId}`, { name });
+  return response.data;
+};
+
+// PATCH /admin/communities/:id/sub-communities/:subId/toggle → activate/deactivate one
+export const toggleSubCommunityStatus = async (communityId, subId) => {
+  const response = await axiosPrivate.patch(`${API_BASE}/${communityId}/sub-communities/${subId}/toggle`);
+  return response.data;
+};
+
+// DELETE /admin/communities/:id/sub-communities/:subId → delete one
+export const deleteSubCommunity = async (communityId, subId) => {
+  const response = await axiosPrivate.delete(`${API_BASE}/${communityId}/sub-communities/${subId}`);
+  return response.data;
+};

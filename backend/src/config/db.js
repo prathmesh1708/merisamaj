@@ -240,7 +240,6 @@ const connectDB = async () => {
     
     const fundsCount = await Fund.countDocuments();
     if (fundsCount === 0) {
-      const Community = require('../models/Community');
       let community = await Community.findOne({ name: 'Meri Samaj' });
       if (!community) {
         community = await Community.create({
@@ -248,6 +247,46 @@ const connectDB = async () => {
           city: 'Indore',
           state: 'Madhya Pradesh',
           country: 'India'
+        });
+      }
+      
+      // Ensure Brahmin Samaj and Rajput Samaj exist with sub-communities
+      let brahminComm = await Community.findOne({ name: 'Brahmin Samaj' });
+      if (!brahminComm) {
+        await Community.create({
+          name: 'Brahmin Samaj',
+          description: 'Official representative body for Brahmin community members.',
+          city: 'Indore',
+          subCommunities: [
+            { name: 'Sharma', isActive: true },
+            { name: 'Dwivedi', isActive: true },
+            { name: 'Trivedi', isActive: true },
+            { name: 'Shukla', isActive: true },
+            { name: 'Mishra', isActive: true },
+            { name: 'Joshi', isActive: true },
+            { name: 'Pandey', isActive: true },
+            { name: 'Choubey', isActive: true }
+          ],
+          isActive: true
+        });
+      }
+
+      let rajputComm = await Community.findOne({ name: 'Rajput Samaj' });
+      if (!rajputComm) {
+        await Community.create({
+          name: 'Rajput Samaj',
+          description: 'Official representative body for Rajput community members.',
+          city: 'Jaipur',
+          subCommunities: [
+            { name: 'Rathore', isActive: true },
+            { name: 'Chauhan', isActive: true },
+            { name: 'Parmar', isActive: true },
+            { name: 'Singh', isActive: true },
+            { name: 'Solanki', isActive: true },
+            { name: 'Sisodia', isActive: true },
+            { name: 'Tomar', isActive: true }
+          ],
+          isActive: true
         });
       }
       

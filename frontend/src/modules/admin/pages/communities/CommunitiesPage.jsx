@@ -10,6 +10,11 @@ import {
   assignHeadToCommunity,
   removeHeadFromCommunity,
   updateCommunitySettings,
+  getSubCommunityStats,
+  addSubCommunity,
+  renameSubCommunity,
+  toggleSubCommunityStatus,
+  deleteSubCommunity,
 } from '../../services/communityService';
 
 // ─────────────────────────────────────────────
@@ -25,6 +30,30 @@ const MODULE_FLAGS = [
   { key: 'obituaryEnabled',     label: 'Obituary',        icon: '🕯️' },
   { key: 'dharmashalaEnabled',  label: 'Dharmashala',     icon: '🏛️' },
 ];
+
+// ─────────────────────────────────────────────
+// Gotra / Sub-Community Presets Dictionary
+// ─────────────────────────────────────────────
+const SUB_COMMUNITY_PRESETS = {
+  brahmin: ['Sharma', 'Dwivedi', 'Trivedi', 'Shukla', 'Mishra', 'Joshi', 'Pandey', 'Choubey', 'Kanyakubja', 'Gaur'],
+  braham: ['Sharma', 'Dwivedi', 'Trivedi', 'Shukla', 'Mishra', 'Joshi', 'Pandey', 'Choubey'],
+  rajput: ['Rathore', 'Chauhan', 'Parmar', 'Singh', 'Solanki', 'Sisodia', 'Tomar', 'Bhati'],
+  agrawal: ['Bisa Agrawal', 'Dasa Agrawal', 'Goyal', 'Bansal', 'Garg', 'Singhal', 'Kansal', 'Jindal'],
+  jain: ['Digambar', 'Shwetambar', 'Sthanakvasi', 'Terapanthi', 'Oswal', 'Porwal'],
+  gupta: ['Vaishya Gupta', 'Kayastha Gupta', 'Kshatriya Gupta'],
+  verma: ['Kayastha Verma', 'Kshatriya Verma', 'Kurmi Verma'],
+  patel: ['Kadava Patel', 'Leuva Patel', 'Anjana Patel', 'Bhavssar Patel'],
+  mali: ['Phul Mali', 'Kachhi Mali', 'Dhakad Mali', 'Teli Mali']
+};
+
+const getSuggestedSubCommunities = (name) => {
+  if (!name || typeof name !== 'string') return [];
+  const lower = name.toLowerCase();
+  for (const [key, list] of Object.entries(SUB_COMMUNITY_PRESETS)) {
+    if (lower.includes(key)) return list;
+  }
+  return [];
+};
 
 // ─────────────────────────────────────────────
 // CreateCommunityModal
@@ -63,6 +92,19 @@ const CreateCommunityModal = ({ onClose, onCreated }) => {
   const [newSubCommunity, setNewSubCommunity] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const suggestedSubs = getSuggestedSubCommunities(form.name);
+  const unaddedSuggestions = suggestedSubs.filter(
+    s => !form.subCommunities.some(existing => existing.toLowerCase() === s.toLowerCase())
+  );
+
+  const handleAddAllSuggestions = () => {
+    if (unaddedSuggestions.length === 0) return;
+    setForm(f => ({
+      ...f,
+      subCommunities: [...f.subCommunities, ...unaddedSuggestions]
+    }));
+  };
 
   const handleAddSubCommunity = () => {
     const trimmed = newSubCommunity.trim();
@@ -279,10 +321,57 @@ const CreateCommunityModal = ({ onClose, onCreated }) => {
                   {form.subCommunities.length} Sub-Communities
                 </span>
               </div>
+              {suggestedSubs.length > 0 && (
+                <div style={{ marginBottom: '12px', padding: '10px 12px', background: '#eef2ff', borderRadius: '10px', border: '1px solid #c7d2fe' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#3730a3' }}>
+                      💡 Suggested Gotras / Sub-Communities ({unaddedSuggestions.length} available):
+                    </span>
+                    {unaddedSuggestions.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleAddAllSuggestions}
+                        style={{ fontSize: '0.72rem', fontWeight: 700, background: '#4f46e5', color: '#ffffff', border: 'none', padding: '3px 10px', borderRadius: '6px', cursor: 'pointer' }}
+                      >
+                        + Add All Suggested
+                      </button>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                    {suggestedSubs.map((s, i) => {
+                      const added = form.subCommunities.some(existing => existing.toLowerCase() === s.toLowerCase());
+                      return (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => {
+                            if (!added) {
+                              setForm(f => ({ ...f, subCommunities: [...f.subCommunities, s] }));
+                            }
+                          }}
+                          disabled={added}
+                          style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 600,
+                            padding: '3px 9px',
+                            borderRadius: '12px',
+                            border: added ? '1px solid #cbd5e1' : '1px solid #818cf8',
+                            background: added ? '#f1f5f9' : '#ffffff',
+                            color: added ? '#94a3b8' : '#4338ca',
+                            cursor: added ? 'default' : 'pointer'
+                          }}
+                        >
+                          {added ? `✓ ${s}` : `+ ${s}`}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
                 <input
                   type="text"
-                  placeholder="e.g. Digambar, Shwetambar, Bisa Agrawal, etc. (Press Enter or + Add)"
+                  placeholder="e.g. Sharma, Dwivedi, Rathore, Chauhan... (Press Enter or + Add)"
                   value={newSubCommunity}
                   onChange={e => setNewSubCommunity(e.target.value)}
                   onKeyDown={e => {
@@ -396,7 +485,11 @@ const EditCommunityModal = ({ community, onClose, onUpdated }) => {
     description: community.description || '',
     city: community.city || '',
     cityIds: community.cityIds || [],
-    subCommunities: community.subCommunities || [],
+    // subCommunities are stored as {name, isActive, ...} on the backend now;
+    // this tag editor only edits names — active/inactive is managed from the
+    // Sub-Communities drill-down view, and the backend preserves each entry's
+    // isActive flag by matching name when this list is saved.
+    subCommunities: (community.subCommunities || []).map(s => (typeof s === 'string' ? s : s.name)),
     logoUrl: community.logoUrl || '',
     bannerUrl: community.bannerUrl || '',
     isActive: community.isActive !== undefined ? community.isActive : true,
@@ -405,6 +498,19 @@ const EditCommunityModal = ({ community, onClose, onUpdated }) => {
   const [newSubCommunity, setNewSubCommunity] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const suggestedSubs = getSuggestedSubCommunities(form.name);
+  const unaddedSuggestions = suggestedSubs.filter(
+    s => !form.subCommunities.some(existing => existing.toLowerCase() === s.toLowerCase())
+  );
+
+  const handleAddAllSuggestions = () => {
+    if (unaddedSuggestions.length === 0) return;
+    setForm(f => ({
+      ...f,
+      subCommunities: [...f.subCommunities, ...unaddedSuggestions]
+    }));
+  };
 
   const handleAddSubCommunity = () => {
     const trimmed = newSubCommunity.trim();
@@ -627,10 +733,57 @@ const EditCommunityModal = ({ community, onClose, onUpdated }) => {
                   {form.subCommunities.length} Sub-Communities
                 </span>
               </div>
+              {suggestedSubs.length > 0 && (
+                <div style={{ marginBottom: '12px', padding: '10px 12px', background: '#eef2ff', borderRadius: '10px', border: '1px solid #c7d2fe' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#3730a3' }}>
+                      💡 Suggested Gotras / Sub-Communities ({unaddedSuggestions.length} available):
+                    </span>
+                    {unaddedSuggestions.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleAddAllSuggestions}
+                        style={{ fontSize: '0.72rem', fontWeight: 700, background: '#4f46e5', color: '#ffffff', border: 'none', padding: '3px 10px', borderRadius: '6px', cursor: 'pointer' }}
+                      >
+                        + Add All Suggested
+                      </button>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                    {suggestedSubs.map((s, i) => {
+                      const added = form.subCommunities.some(existing => existing.toLowerCase() === s.toLowerCase());
+                      return (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => {
+                            if (!added) {
+                              setForm(f => ({ ...f, subCommunities: [...f.subCommunities, s] }));
+                            }
+                          }}
+                          disabled={added}
+                          style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 600,
+                            padding: '3px 9px',
+                            borderRadius: '12px',
+                            border: added ? '1px solid #cbd5e1' : '1px solid #818cf8',
+                            background: added ? '#f1f5f9' : '#ffffff',
+                            color: added ? '#94a3b8' : '#4338ca',
+                            cursor: added ? 'default' : 'pointer'
+                          }}
+                        >
+                          {added ? `✓ ${s}` : `+ ${s}`}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
                 <input
                   type="text"
-                  placeholder="e.g. Digambar, Shwetambar, Bisa Agrawal, etc. (Press Enter or + Add)"
+                  placeholder="e.g. Sharma, Dwivedi, Rathore, Chauhan... (Press Enter or + Add)"
                   value={newSubCommunity}
                   onChange={e => setNewSubCommunity(e.target.value)}
                   onKeyDown={e => {
@@ -802,7 +955,7 @@ const ModuleSettingsPanel = ({ community, onClose, onUpdated }) => {
 // ─────────────────────────────────────────────
 // CommunityCard
 // ─────────────────────────────────────────────
-const CommunityCard = ({ community, onEdit, onModules, onToggleStatus, onDelete }) => {
+const CommunityCard = ({ community, onEdit, onModules, onToggleStatus, onDelete, onViewSubCommunities }) => {
   const head = community.headId;
   const enabledModules = MODULE_FLAGS.filter(m => community.settings?.[m.key]);
   const isActive = community.isActive !== false && community.status !== 'Inactive';
@@ -814,8 +967,12 @@ const CommunityCard = ({ community, onEdit, onModules, onToggleStatus, onDelete 
         {isActive ? '● Active' : '○ Inactive'}
       </div>
 
-      {/* Community Logo + Name */}
-      <div className="community-card-header">
+      {/* Community Logo + Name — click to drill into Sub-Communities */}
+      <div
+        className="community-card-header community-card-header-clickable"
+        onClick={() => onViewSubCommunities(community)}
+        title="View Sub-Communities"
+      >
         <div className="community-logo">
           {community.logoUrl
             ? <img src={community.logoUrl} alt={community.name} />
@@ -876,11 +1033,24 @@ const CommunityCard = ({ community, onEdit, onModules, onToggleStatus, onDelete 
             </span>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-            {community.subCommunities.slice(0, 4).map((sub, i) => (
-              <span key={i} style={{ fontSize: '0.72rem', background: '#ede9fe', color: '#6d28d9', fontWeight: 600, padding: '2px 8px', borderRadius: '10px' }}>
-                {sub}
-              </span>
-            ))}
+            {community.subCommunities.slice(0, 4).map((sub, i) => {
+              const name = typeof sub === 'string' ? sub : sub.name;
+              const inactive = typeof sub === 'object' && sub.isActive === false;
+              return (
+                <span
+                  key={sub._id || i}
+                  style={{
+                    fontSize: '0.72rem',
+                    background: inactive ? '#f1f5f9' : '#ede9fe',
+                    color: inactive ? '#94a3b8' : '#6d28d9',
+                    fontWeight: 600, padding: '2px 8px', borderRadius: '10px',
+                    textDecoration: inactive ? 'line-through' : 'none'
+                  }}
+                >
+                  {name}
+                </span>
+              );
+            })}
             {community.subCommunities.length > 4 && (
               <span style={{ fontSize: '0.72rem', background: '#e2e8f0', color: '#475569', fontWeight: 600, padding: '2px 6px', borderRadius: '10px' }}>
                 +{community.subCommunities.length - 4} more
@@ -917,13 +1087,280 @@ const CommunityCard = ({ community, onEdit, onModules, onToggleStatus, onDelete 
         >
           {isActive ? '⏸️ Deactivate' : '▶️ Activate'}
         </button>
-        <button 
-          className="community-action-btn community-action-danger" 
-          onClick={() => onDelete(community)} 
+        <button
+          className="community-action-btn community-action-danger"
+          onClick={() => onDelete(community)}
           title="Delete Community"
         >
           🗑️ Delete
         </button>
+      </div>
+
+      {/* Drill-down into this community's sub-communities (gotras/categories) */}
+      <button
+        className="community-action-btn community-subcommunities-btn"
+        onClick={() => onViewSubCommunities(community)}
+        title="View Sub-Communities"
+      >
+        🏷️ View Sub-Communities ({community.subCommunities?.length || 0})
+      </button>
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────
+// SubCommunityCard — same visual language as CommunityCard, scoped to one
+// sub-community (gotra/category). Stats are real counts computed server-side
+// from actual members, not stored numbers.
+// ─────────────────────────────────────────────
+const SubCommunityCard = ({ sub, busy, onRename, onToggleStatus, onDelete }) => {
+  const [editing, setEditing] = useState(false);
+  const [nameInput, setNameInput] = useState(sub.name);
+  const isActive = sub.isActive !== false;
+
+  const submitRename = () => {
+    const trimmed = nameInput.trim();
+    if (!trimmed || trimmed === sub.name) { setEditing(false); setNameInput(sub.name); return; }
+    onRename(sub, trimmed);
+    setEditing(false);
+  };
+
+  return (
+    <div className={`community-card ${!isActive ? 'community-card-inactive' : ''}`}>
+      <div className={`community-status-badge ${isActive ? 'active' : 'inactive'}`}>
+        {isActive ? '● Active' : '○ Inactive'}
+      </div>
+
+      <div className="community-card-header">
+        <div className="community-logo">
+          <span>{sub.name.charAt(0).toUpperCase()}</span>
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {editing ? (
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <input
+                autoFocus
+                value={nameInput}
+                onChange={e => setNameInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') submitRename(); if (e.key === 'Escape') { setEditing(false); setNameInput(sub.name); } }}
+                className="community-input"
+                style={{ padding: '4px 8px', fontSize: '0.9rem' }}
+              />
+              <button type="button" onClick={submitRename} title="Save" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#059669', fontWeight: 700 }}>✓</button>
+              <button type="button" onClick={() => { setEditing(false); setNameInput(sub.name); }} title="Cancel" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontWeight: 700 }}>✕</button>
+            </div>
+          ) : (
+            <h3 className="community-card-name">{sub.name}</h3>
+          )}
+        </div>
+      </div>
+
+      <p style={{ fontSize: '0.72rem', color: '#9ca3af', margin: '-4px 0 12px' }}>
+        📅 Created: {sub.createdAt ? new Date(sub.createdAt).toLocaleDateString() : '—'}
+      </p>
+
+      <div className="community-card-stats">
+        <div className="community-stat">
+          <span className="community-stat-value">{sub.memberCount || 0}</span>
+          <span className="community-stat-label">Members</span>
+        </div>
+        <div className="community-stat">
+          <span className="community-stat-value">{sub.locationCount || 0}</span>
+          <span className="community-stat-label">Total Locations</span>
+        </div>
+      </div>
+
+      <div className="community-card-actions">
+        <button className="community-action-btn" onClick={() => setEditing(true)} disabled={busy} title="Rename">
+          ✏️ Rename
+        </button>
+        <button
+          className={`community-action-btn ${isActive ? 'community-action-warning' : 'community-action-success'}`}
+          onClick={() => onToggleStatus(sub)}
+          disabled={busy}
+          title={isActive ? 'Deactivate' : 'Activate'}
+        >
+          {isActive ? '⏸️ Deactivate' : '▶️ Activate'}
+        </button>
+        <button
+          className="community-action-btn community-action-danger"
+          onClick={() => onDelete(sub)}
+          disabled={busy}
+          title="Delete"
+          style={{ gridColumn: '1 / -1' }}
+        >
+          🗑️ Delete
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────
+// SubCommunityDrillDown — opened by clicking a Community card. Lists every
+// sub-community (gotra/category) the admin created for that community, each
+// as its own card with REAL member & location counts pulled live from Users.
+// ─────────────────────────────────────────────
+const SubCommunityDrillDown = ({ community, onClose }) => {
+  const [subCommunities, setSubCommunities] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [newName, setNewName] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [busyId, setBusyId] = useState(null);
+
+  const communityId = community._id || community.id;
+
+  const fetchStats = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await getSubCommunityStats(communityId);
+      setSubCommunities(res.data?.subCommunities || []);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to load sub-communities.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchStats(); }, [communityId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleAdd = async (e) => {
+    e.preventDefault();
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    setAdding(true);
+    try {
+      await addSubCommunity(communityId, trimmed);
+      setNewName('');
+      fetchStats();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to add sub-community.');
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const handleRename = async (sub, name) => {
+    setBusyId(sub._id);
+    try {
+      await renameSubCommunity(communityId, sub._id, name);
+      setSubCommunities(prev => prev.map(s => s._id === sub._id ? { ...s, name } : s));
+    } catch (err) {
+      alert(err.response?.data?.message || 'Rename failed.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleToggleStatus = async (sub) => {
+    setBusyId(sub._id);
+    try {
+      await toggleSubCommunityStatus(communityId, sub._id);
+      setSubCommunities(prev => prev.map(s => s._id === sub._id ? { ...s, isActive: !s.isActive } : s));
+    } catch (err) {
+      alert(err.response?.data?.message || 'Status update failed.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleDelete = async (sub) => {
+    if (!window.confirm(`Delete "${sub.name}"? Members already assigned to it keep their record, but it will no longer be selectable.`)) return;
+    setBusyId(sub._id);
+    try {
+      await deleteSubCommunity(communityId, sub._id);
+      setSubCommunities(prev => prev.filter(s => s._id !== sub._id));
+    } catch (err) {
+      alert(err.response?.data?.message || 'Delete failed.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const totalMembers = subCommunities.reduce((sum, s) => sum + (s.memberCount || 0), 0);
+  const activeCount = subCommunities.filter(s => s.isActive !== false).length;
+
+  return (
+    <div className="community-modal-overlay" onClick={onClose}>
+      <div className="community-modal community-modal-wide subcommunity-drilldown" onClick={e => e.stopPropagation()}>
+        <div className="community-modal-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button type="button" className="community-modal-close" onClick={onClose} title="Back" style={{ fontSize: '0.9rem' }}>←</button>
+            <div className="community-logo" style={{ width: '38px', height: '38px', fontSize: '1rem' }}>
+              {community.logoUrl ? <img src={community.logoUrl} alt={community.name} /> : <span>{community.name.charAt(0).toUpperCase()}</span>}
+            </div>
+            <div>
+              <h3 style={{ margin: 0 }}>🏷️ {community.name} — Sub-Communities</h3>
+              <p className="text-xs text-slate-500 mt-0.5">Gotras / categories created for this community</p>
+            </div>
+          </div>
+          <button type="button" className="community-modal-close" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="community-modal-body">
+          {/* Stats Bar */}
+          <div className="communities-stats-bar" style={{ marginBottom: '16px' }}>
+            <div className="communities-stat-item">
+              <span className="communities-stat-number">{subCommunities.length}</span>
+              <span className="communities-stat-label">Total Sub-Communities</span>
+            </div>
+            <div className="communities-stat-item">
+              <span className="communities-stat-number">{activeCount}</span>
+              <span className="communities-stat-label">Active</span>
+            </div>
+            <div className="communities-stat-item">
+              <span className="communities-stat-number">{totalMembers}</span>
+              <span className="communities-stat-label">Total Members</span>
+            </div>
+          </div>
+
+          {/* Add new sub-community */}
+          <form onSubmit={handleAdd} style={{ display: 'flex', gap: '8px', marginBottom: '18px' }}>
+            <input
+              type="text"
+              placeholder="e.g. Sharma, Dwivedi, Mishra... (new sub-community name)"
+              value={newName}
+              onChange={e => setNewName(e.target.value)}
+              className="community-input"
+              style={{ flex: 1 }}
+            />
+            <button type="submit" className="community-btn-primary" disabled={adding || !newName.trim()}>
+              {adding ? 'Adding...' : '+ Add Sub-Community'}
+            </button>
+          </form>
+
+          {loading ? (
+            <div className="communities-loading">
+              <div className="communities-spinner" />
+              <p>Loading sub-communities...</p>
+            </div>
+          ) : error ? (
+            <div className="communities-error">
+              <p>⚠️ {error}</p>
+              <button className="community-btn-secondary" onClick={fetchStats}>Retry</button>
+            </div>
+          ) : subCommunities.length === 0 ? (
+            <div className="communities-empty">
+              <p>🏷️ No sub-communities yet for {community.name}</p>
+              <p className="text-xs text-slate-400">Add one above — members will see it as a choice when they select "{community.name}" during registration.</p>
+            </div>
+          ) : (
+            <div className="communities-grid">
+              {subCommunities.map(sub => (
+                <SubCommunityCard
+                  key={sub._id}
+                  sub={sub}
+                  busy={busyId === sub._id}
+                  onRename={handleRename}
+                  onToggleStatus={handleToggleStatus}
+                  onDelete={handleDelete}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -939,6 +1376,7 @@ const CommunitiesPage = () => {
   const [showCreate, setShowCreate] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
   const [moduleTarget, setModuleTarget] = useState(null);
+  const [subCommunityTarget, setSubCommunityTarget] = useState(null);
   const [search, setSearch] = useState('');
 
   const fetchCommunities = async () => {
@@ -1031,6 +1469,61 @@ const CommunitiesPage = () => {
           />
         </div>
 
+        {/* Main Communities Tab Bar */}
+        {!loading && communities.length > 0 && (
+          <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '12px', marginBottom: '16px' }}>
+            <button
+              type="button"
+              onClick={() => setSubCommunityTarget(null)}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '12px',
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                border: !subCommunityTarget ? '1.5px solid #6366f1' : '1px solid #e2e8f0',
+                background: !subCommunityTarget ? '#4f46e5' : '#ffffff',
+                color: !subCommunityTarget ? '#ffffff' : '#475569',
+                boxShadow: !subCommunityTarget ? '0 2px 4px rgba(79, 70, 229, 0.2)' : 'none',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              🏛️ All Main Communities ({communities.length})
+            </button>
+            {communities.map(comm => (
+              <button
+                key={comm._id}
+                type="button"
+                onClick={() => setSubCommunityTarget(comm)}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: '12px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  border: subCommunityTarget?._id === comm._id ? '1.5px solid #6366f1' : '1px solid #e2e8f0',
+                  background: subCommunityTarget?._id === comm._id ? '#eef2ff' : '#ffffff',
+                  color: subCommunityTarget?._id === comm._id ? '#4338ca' : '#475569',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <span>{comm.name}</span>
+                <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '10px', background: '#ede9fe', color: '#6d28d9', fontWeight: 700 }}>
+                  👥 {comm.memberCount || 0}
+                </span>
+                {comm.subCommunities && comm.subCommunities.length > 0 && (
+                  <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '10px', background: '#fef3c7', color: '#92400e', fontWeight: 700 }}>
+                    🏷️ {comm.subCommunities.length}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Content */}
         {loading ? (
           <div className="communities-loading">
@@ -1059,6 +1552,7 @@ const CommunitiesPage = () => {
                 onModules={setModuleTarget}
                 onToggleStatus={handleToggleStatus}
                 onDelete={handleDelete}
+                onViewSubCommunities={setSubCommunityTarget}
               />
             ))}
           </div>
@@ -1084,6 +1578,12 @@ const CommunitiesPage = () => {
           community={moduleTarget}
           onClose={() => setModuleTarget(null)}
           onUpdated={fetchCommunities}
+        />
+      )}
+      {subCommunityTarget && (
+        <SubCommunityDrillDown
+          community={subCommunityTarget}
+          onClose={() => { setSubCommunityTarget(null); fetchCommunities(); }}
         />
       )}
     </>
@@ -1260,6 +1760,18 @@ const COMMUNITIES_PAGE_STYLES = `
     padding-top: 12px;
     border-top: 1px solid #f3f4f6;
   }
+  .community-card-header-clickable { cursor: pointer; border-radius: 10px; transition: background 0.15s; margin: -6px; padding: 6px; }
+  .community-card-header-clickable:hover { background: #f5f3ff; }
+  .community-subcommunities-btn {
+    width: 100%;
+    margin-top: 8px;
+    grid-column: 1 / -1;
+    color: #6d28d9;
+    border-color: #ddd6fe;
+    background: #faf5ff;
+  }
+  .community-subcommunities-btn:hover { background: #f3e8ff; border-color: #a78bfa; color: #5b21b6; }
+  .subcommunity-drilldown .communities-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
   .community-action-btn {
     display: flex;
     align-items: center;

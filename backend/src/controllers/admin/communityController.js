@@ -4,6 +4,42 @@ const User = require('../../models/User');
 const { notifyHeadAssigned } = require('../../services/notificationService');
 
 // ─────────────────────────────────────────────
+// Normalize a create/update payload's subCommunities into the sub-document shape.
+// Accepts plain strings (from the tag-editor UI) or already-shaped {name, isActive}
+// objects. When `existing` (the community's current subCommunities) is passed, an
+// entry whose name matches an existing one (case-insensitive) keeps that entry's
+// isActive flag and _id instead of resetting it — so editing the tag list doesn't
+// silently re-activate something the admin had deactivated from the drill-down view.
+// ─────────────────────────────────────────────
+const sanitizeSubCommunitiesInput = (subCommunities, existing = []) => {
+  if (!Array.isArray(subCommunities)) return [];
+
+  const existingByName = new Map(
+    (existing || [])
+      .filter(s => s && s.name)
+      .map(s => [String(s.name).trim().toLowerCase(), s])
+  );
+
+  const seen = new Set();
+  const result = [];
+  for (const raw of subCommunities) {
+    const name = typeof raw === 'string' ? raw.trim() : String(raw?.name || '').trim();
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const match = existingByName.get(key);
+    result.push({
+      _id: match?._id || new mongoose.Types.ObjectId(),
+      name,
+      isActive: match ? match.isActive !== false : (typeof raw === 'object' && raw.isActive !== undefined ? Boolean(raw.isActive) : true)
+    });
+  }
+  return result;
+};
+
+// ─────────────────────────────────────────────
 // @desc    Get all communities
 // @route   GET /api/v1/admin/communities
 // @access  Admin
@@ -132,9 +168,7 @@ exports.createCommunity = async (req, res) => {
 
     const communityId = new mongoose.Types.ObjectId();
     const isActVal = status !== undefined ? status === 'Active' : true;
-    const sanitizedSubCommunities = Array.isArray(subCommunities)
-      ? Array.from(new Set(subCommunities.map(s => String(s || '').trim()).filter(Boolean)))
-      : [];
+    const sanitizedSubCommunities = sanitizeSubCommunitiesInput(subCommunities);
 
     // Create Community
     const community = new Community({
@@ -261,7 +295,7 @@ exports.updateCommunity = async (req, res) => {
     if (city !== undefined) community.city = city.trim();
     if (cityIds !== undefined && Array.isArray(cityIds)) community.cityIds = cityIds;
     if (subCommunities !== undefined && Array.isArray(subCommunities)) {
-      community.subCommunities = Array.from(new Set(subCommunities.map(s => String(s || '').trim()).filter(Boolean)));
+      community.subCommunities = sanitizeSubCommunitiesInput(subCommunities, community.subCommunities);
     }
     if (isActive !== undefined) community.isActive = isActive;
     if (settings && typeof settings === 'object') {
@@ -581,6 +615,207 @@ exports.deleteCommunity = async (req, res) => {
     session.endSession();
     console.error('deleteCommunity error:', error);
     res.status(500).json({ status: 'error', message: error.message || 'Server error' });
+  }
+};
+
+// ─────────────────────────────────────────────
+// @desc    Get one community's sub-communities with REAL member/location stats
+//          — computed live from User documents, not stored on the Community.
+// @route   GET /api/v1/admin/communities/:id/sub-communities
+// @access  Admin
+// ─────────────────────────────────────────────
+exports.getSubCommunityStats = async (req, res) => {
+  try {
+    const community = await Community.findById(req.params.id).lean();
+    if (!community) {
+      return res.status(404).json({ status: 'error', message: 'Community not found' });
+    }
+
+    const subCommunities = Array.isArray(community.subCommunities) ? community.subCommunities : [];
+
+    // One aggregation for the whole community: group active (non-deleted) members
+    // by their subCommunity string, counting members and distinct cities.
+    const stats = await User.aggregate([
+      {
+        $match: {
+          communityId: community._id,
+          role: 'user',
+          accountStatus: { $ne: 'deleted' },
+          subCommunity: { $exists: true, $ne: '' }
+        }
+      },
+      {
+        $group: {
+          _id: { $toLower: '$subCommunity' },
+          memberCount: { $sum: 1 },
+          cities: { $addToSet: { $toLower: { $trim: { input: { $ifNull: ['$city', ''] } } } } }
+        }
+      }
+    ]);
+
+    const statsByName = new Map(
+      stats.map(s => [s._id, {
+        memberCount: s.memberCount,
+        locationCount: s.cities.filter(Boolean).length
+      }])
+    );
+
+    const enriched = subCommunities.map(sub => {
+      const key = String(sub.name || '').trim().toLowerCase();
+      const found = statsByName.get(key);
+      return {
+        _id: sub._id,
+        name: sub.name,
+        isActive: sub.isActive !== false,
+        createdAt: sub.createdAt || null,
+        memberCount: found?.memberCount || 0,
+        locationCount: found?.locationCount || 0
+      };
+    });
+
+    res.json({
+      success: true,
+      data: {
+        community: { _id: community._id, name: community.name, slug: community.slug },
+        subCommunities: enriched
+      }
+    });
+  } catch (error) {
+    console.error('getSubCommunityStats error:', error);
+    res.status(500).json({ status: 'error', message: 'Server error' });
+  }
+};
+
+// ─────────────────────────────────────────────
+// @desc    Toggle a single sub-community's active/inactive flag
+// @route   PATCH /api/v1/admin/communities/:id/sub-communities/:subId/toggle
+// @access  Admin
+// ─────────────────────────────────────────────
+exports.toggleSubCommunityStatus = async (req, res) => {
+  try {
+    const community = await Community.findById(req.params.id);
+    if (!community) {
+      return res.status(404).json({ status: 'error', message: 'Community not found' });
+    }
+
+    const sub = community.subCommunities.find(s => String(s._id) === req.params.subId);
+    if (!sub) {
+      return res.status(404).json({ status: 'error', message: 'Sub-community not found' });
+    }
+
+    sub.isActive = !sub.isActive;
+    await community.save();
+
+    res.json({
+      success: true,
+      message: `"${sub.name}" ${sub.isActive ? 'activated' : 'deactivated'} successfully.`,
+      data: { _id: sub._id, name: sub.name, isActive: sub.isActive }
+    });
+  } catch (error) {
+    console.error('toggleSubCommunityStatus error:', error);
+    res.status(500).json({ status: 'error', message: 'Server error' });
+  }
+};
+
+// ─────────────────────────────────────────────
+// @desc    Rename a single sub-community
+// @route   PATCH /api/v1/admin/communities/:id/sub-communities/:subId
+// @access  Admin
+// ─────────────────────────────────────────────
+exports.renameSubCommunity = async (req, res) => {
+  try {
+    const { name } = req.body;
+    const trimmed = String(name || '').trim();
+    if (!trimmed) {
+      return res.status(400).json({ status: 'error', message: 'Name is required' });
+    }
+
+    const community = await Community.findById(req.params.id);
+    if (!community) {
+      return res.status(404).json({ status: 'error', message: 'Community not found' });
+    }
+
+    const sub = community.subCommunities.find(s => String(s._id) === req.params.subId);
+    if (!sub) {
+      return res.status(404).json({ status: 'error', message: 'Sub-community not found' });
+    }
+
+    const duplicate = community.subCommunities.some(
+      s => String(s._id) !== req.params.subId && s.name.toLowerCase() === trimmed.toLowerCase()
+    );
+    if (duplicate) {
+      return res.status(400).json({ status: 'error', message: 'A sub-community with this name already exists.' });
+    }
+
+    sub.name = trimmed;
+    await community.save();
+
+    res.json({ success: true, message: 'Sub-community renamed successfully.', data: { _id: sub._id, name: sub.name, isActive: sub.isActive } });
+  } catch (error) {
+    console.error('renameSubCommunity error:', error);
+    res.status(500).json({ status: 'error', message: 'Server error' });
+  }
+};
+
+// ─────────────────────────────────────────────
+// @desc    Add a single sub-community to a community
+// @route   POST /api/v1/admin/communities/:id/sub-communities
+// @access  Admin
+// ─────────────────────────────────────────────
+exports.addSubCommunity = async (req, res) => {
+  try {
+    const { name } = req.body;
+    const trimmed = String(name || '').trim();
+    if (!trimmed) {
+      return res.status(400).json({ status: 'error', message: 'Name is required' });
+    }
+
+    const community = await Community.findById(req.params.id);
+    if (!community) {
+      return res.status(404).json({ status: 'error', message: 'Community not found' });
+    }
+
+    const duplicate = community.subCommunities.some(s => s.name.toLowerCase() === trimmed.toLowerCase());
+    if (duplicate) {
+      return res.status(400).json({ status: 'error', message: 'A sub-community with this name already exists.' });
+    }
+
+    community.subCommunities.push({ name: trimmed, isActive: true });
+    await community.save();
+
+    const added = community.subCommunities[community.subCommunities.length - 1];
+    res.status(201).json({ success: true, message: 'Sub-community added successfully.', data: { _id: added._id, name: added.name, isActive: added.isActive, memberCount: 0, locationCount: 0 } });
+  } catch (error) {
+    console.error('addSubCommunity error:', error);
+    res.status(500).json({ status: 'error', message: 'Server error' });
+  }
+};
+
+// ─────────────────────────────────────────────
+// @desc    Delete a single sub-community
+// @route   DELETE /api/v1/admin/communities/:id/sub-communities/:subId
+// @access  Admin
+// ─────────────────────────────────────────────
+exports.deleteSubCommunity = async (req, res) => {
+  try {
+    const community = await Community.findById(req.params.id);
+    if (!community) {
+      return res.status(404).json({ status: 'error', message: 'Community not found' });
+    }
+
+    const sub = community.subCommunities.find(s => String(s._id) === req.params.subId);
+    if (!sub) {
+      return res.status(404).json({ status: 'error', message: 'Sub-community not found' });
+    }
+
+    const name = sub.name;
+    community.subCommunities = community.subCommunities.filter(s => String(s._id) !== req.params.subId);
+    await community.save();
+
+    res.json({ success: true, message: `"${name}" deleted successfully.` });
+  } catch (error) {
+    console.error('deleteSubCommunity error:', error);
+    res.status(500).json({ status: 'error', message: 'Server error' });
   }
 };
 

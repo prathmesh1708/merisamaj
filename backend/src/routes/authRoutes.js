@@ -15,7 +15,9 @@ const {
   verifyOtp,
   resetPassword,
   getPublicCommunities,
-  getPublicCities
+  getPublicCities,
+  sendAadhaarOtp,
+  verifyAadhaarOtp
 } = require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
 const upload = require('../middleware/uploadMiddleware');
@@ -42,6 +44,10 @@ router.post('/reset-password', validateResetPassword, resetPassword);
 router.post('/refresh', refreshAuth);
 router.post('/refresh/admin', refreshAdmin);
 router.post('/refresh/head', refreshHead);
+
+// Aadhaar verification routes (public — no token required for OTP send; verify marks user)
+router.post('/aadhaar/send-otp', otpLimiter, sendAadhaarOtp);
+router.post('/aadhaar/verify-otp', verifyAadhaarOtp);
 
 // Private routes
 router.get('/me', protect, getMe);

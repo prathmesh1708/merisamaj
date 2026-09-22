@@ -1,5 +1,16 @@
 const mongoose = require('mongoose');
 
+// A Sub-Community (gotra/category) belonging to a Community — has its own
+// timestamps so the admin UI can show "Created" per sub-community, same as
+// the parent Community card.
+const subCommunitySchema = new mongoose.Schema(
+  {
+    name: { type: String, trim: true, required: true },
+    isActive: { type: Boolean, default: true }
+  },
+  { timestamps: true }
+);
+
 /**
  * Community Model — Core of Multi-Tenant Architecture
  *
@@ -46,12 +57,12 @@ const communitySchema = new mongoose.Schema(
     ],
 
     // Sub-Communities / Gotras / Categories
-    subCommunities: [
-      {
-        type: String,
-        trim: true
-      }
-    ],
+    // Each entry is its own lightweight record (stable _id, name, active flag,
+    // createdAt) so the admin can toggle/rename/delete one sub-community without
+    // touching the others. Member/location counts are NOT stored here — they're
+    // computed live from User documents (communityId + subCommunity match)
+    // whenever the admin views them.
+    subCommunities: [subCommunitySchema],
 
     // Assigned Community Head (single head per community)
     headId: {

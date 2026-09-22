@@ -5,7 +5,8 @@ import {
   Phone, ArrowRight, ArrowLeft, MapPin, Users, CheckCircle,
   User, Camera, Bell, Mail, Check, Clock, ShieldCheck, GraduationCap,
   Briefcase, FileText, Sparkles, ChevronDown, PlusCircle, CheckCircle2,
-  Lock, Eye, AlertCircle, ClipboardCheck, Globe, EyeOff, Trash2, Edit3, Heart
+  Lock, Eye, AlertCircle, ClipboardCheck, Globe, EyeOff, Trash2, Edit3, Heart,
+  Search
 } from 'lucide-react';
 import { useData } from '../../context/DataProvider';
 import { useAuth } from '../../../../core/auth/useAuth';
@@ -84,6 +85,14 @@ const communityData = {
     subCommunities: ['Phul Mali', 'Kachhi Mali', 'Dhakad Mali', 'Teli Mali'],
     cities: ['Ujjain', 'Dewas', 'Ratlam', 'Indore', 'Bhopal', 'Mandsaur']
   },
+  'Brahmin Samaj': {
+    subCommunities: ['Sharma', 'Dwivedi', 'Trivedi', 'Shukla', 'Mishra', 'Joshi', 'Pandey', 'Choubey'],
+    cities: ['Indore', 'Bhopal', 'Ujjain', 'Jaipur', 'Delhi', 'Kanpur', 'Varanasi']
+  },
+  'Rajput Samaj': {
+    subCommunities: ['Rathore', 'Chauhan', 'Parmar', 'Singh', 'Solanki', 'Sisodia', 'Tomar'],
+    cities: ['Jaipur', 'Udaipur', 'Jodhpur', 'Indore', 'Bhopal', 'Gwalior', 'Kota']
+  },
   'Verma Samaj': {
     subCommunities: ['Kayastha Verma', 'Kshatriya Verma', 'Kurmi Verma'],
     cities: ['Lucknow', 'Kanpur', 'Gorakhpur', 'Agra', 'Delhi', 'Bhopal']
@@ -91,6 +100,22 @@ const communityData = {
 };
 
 const COMMUNITY_KEYS = Object.keys(communityData);
+
+const INDIAN_STATES = [
+  'Madhya Pradesh', 'Rajasthan', 'Maharashtra', 'Gujarat', 'Delhi',
+  'Uttar Pradesh', 'Bihar', 'Karnataka', 'Punjab', 'Haryana',
+  'West Bengal', 'Tamil Nadu', 'Telangana', 'Andhra Pradesh', 'Kerala',
+  'Chhattisgarh', 'Jharkhand', 'Uttarakhand', 'Himachal Pradesh', 'Other'
+];
+
+const COMMON_DISTRICTS = [
+  'Indore', 'Bhopal', 'Ujjain', 'Ratlam', 'Gwalior', 'Jabalpur', 'Dewas', 'Khandwa',
+  'Jaipur', 'Udaipur', 'Jodhpur', 'Kota', 'Ajmer',
+  'Mumbai', 'Pune', 'Nagpur', 'Nashik',
+  'Ahmedabad', 'Surat', 'Vadodara', 'Rajkot',
+  'New Delhi', 'Lucknow', 'Kanpur', 'Agra', 'Varanasi',
+  'Bangalore', 'Hyderabad', 'Chennai', 'Kolkata', 'Other'
+];
 
 // ─── SLIDE WRAPPER ────────────────────────────────────────────────────────────
 const SlideIn = ({ children, dir = 'right' }) => {
@@ -108,11 +133,15 @@ const SlideIn = ({ children, dir = 'right' }) => {
 };
 
 // ─── CUSTOM SELECT DROPDOWN ───────────────────────────────────────────────────
-const CustomSelect = ({ value, onChange, options, placeholder = 'Select', disabled = false, className = '' }) => {
+// `searchable` adds a magnifying-glass icon on the closed field and a live
+// filter box at the top of the open list (used for Community / Sub-Community / City).
+const CustomSelect = ({ value, onChange, options, placeholder = 'Select', disabled = false, className = '', searchable = false }) => {
   const [open, setOpen] = useState(false);
   const [dropdownStyle, setDropdownStyle] = useState({});
+  const [searchQuery, setSearchQuery] = useState('');
   const btnRef = useRef(null);
   const listRef = useRef(null);
+  const searchInputRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
@@ -130,12 +159,21 @@ const CustomSelect = ({ value, onChange, options, placeholder = 'Select', disabl
     };
   }, [open]);
 
+  // Reset the filter text each time the dropdown closes, and focus it on open
+  useEffect(() => {
+    if (open && searchable) {
+      const t = setTimeout(() => searchInputRef.current?.focus(), 50);
+      return () => clearTimeout(t);
+    }
+    if (!open) setSearchQuery('');
+  }, [open, searchable]);
+
   const handleOpen = () => {
     if (disabled) return;
     if (!open && btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom;
-      const dropHeight = Math.min(options.length * 48 + 20, 260);
+      const dropHeight = Math.min(options.length * 48 + (searchable ? 66 : 20), 300);
       const showAbove = spaceBelow < dropHeight + 8;
       setDropdownStyle({
         position: 'fixed',
@@ -154,16 +192,40 @@ const CustomSelect = ({ value, onChange, options, placeholder = 'Select', disabl
   const selectedLabel = selected ? (typeof selected === 'string' ? selected : selected.label) : null;
   const selectedDotColor = selected && typeof selected === 'object' ? selected.dotColor : null;
 
-  const hasDotColors = options.some(o => typeof o === 'object' && o.dotColor);
+  const filteredOptions = searchable && searchQuery.trim()
+    ? options.filter(o => {
+        const label = (typeof o === 'string' ? o : o.label) || '';
+        return label.toLowerCase().includes(searchQuery.trim().toLowerCase());
+      })
+    : options;
+
+  const hasDotColors = filteredOptions.some(o => typeof o === 'object' && o.dotColor);
 
   const dropdownList = open && (
     <div
       ref={listRef}
       style={dropdownStyle}
-      className="bg-white border border-purple-100 rounded-2xl shadow-2xl shadow-purple-500/20 overflow-hidden animate-fade-in"
+      className="bg-white border border-purple-100 rounded-2xl shadow-2xl shadow-purple-500/20 overflow-hidden animate-fade-in flex flex-col"
     >
+      {searchable && (
+        <div className="flex items-center gap-2 px-3.5 py-2.5 border-b border-slate-100 bg-slate-50/60 shrink-0">
+          <Search size={15} className="text-slate-400 shrink-0" />
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onMouseDown={(e) => e.stopPropagation()}
+            placeholder="Search..."
+            className="flex-1 min-w-0 bg-transparent text-sm font-semibold text-slate-800 outline-none placeholder-slate-400"
+          />
+        </div>
+      )}
       <div className="max-h-64 overflow-y-auto py-1 divide-y divide-slate-100">
-        {options.map((opt, i) => {
+        {filteredOptions.length === 0 && (
+          <div className="px-4 py-6 text-center text-xs font-semibold text-slate-400">No matches found.</div>
+        )}
+        {filteredOptions.map((opt, i) => {
           const val = typeof opt === 'string' ? opt : opt.value;
           const label = typeof opt === 'string' ? opt : opt.label;
           const isSelected = val === value;
@@ -171,7 +233,7 @@ const CustomSelect = ({ value, onChange, options, placeholder = 'Select', disabl
           const isCovered = typeof opt === 'object' ? opt.isCovered : false;
 
           // Section headers
-          const prevOpt = i > 0 ? options[i - 1] : null;
+          const prevOpt = i > 0 ? filteredOptions[i - 1] : null;
           const isFirstRed = hasDotColors && dotColor === 'red' && (!prevOpt || prevOpt.dotColor === 'green');
           const isFirstGreen = hasDotColors && dotColor === 'green' && i === 0;
 
@@ -232,15 +294,16 @@ const CustomSelect = ({ value, onChange, options, placeholder = 'Select', disabl
         type="button"
         disabled={disabled}
         onClick={handleOpen}
-        className={`w-full flex items-center justify-between border rounded-xl px-3.5 py-2.5 text-sm font-semibold outline-none transition-all ${
+        className={`w-full flex items-center justify-between border rounded-xl px-3.5 py-3 text-sm font-semibold outline-none transition-all ${
           disabled
-            ? 'bg-gray-50 border-gray-250 text-gray-400 cursor-not-allowed'
+            ? 'bg-gray-50 border-slate-200 text-slate-400 cursor-not-allowed'
             : open
             ? 'bg-white border-[#7C3AED] ring-4 ring-[#7C3AED]/5 shadow-sm'
-            : 'bg-white/95 border-purple-200 text-text-primary cursor-pointer hover:bg-white hover:border-purple-300'
+            : 'bg-white border-slate-300/80 text-slate-900 cursor-pointer hover:bg-white hover:border-purple-300'
         }`}
       >
-        <div className="flex items-center gap-2 truncate">
+        <div className="flex items-center gap-2.5 truncate min-w-0">
+          {searchable && <Search size={16} className="text-slate-800 shrink-0 stroke-[2.2]" />}
           {selectedDotColor === 'green' && (
             <span className="relative flex h-2.5 w-2.5 shrink-0">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -252,14 +315,407 @@ const CustomSelect = ({ value, onChange, options, placeholder = 'Select', disabl
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-400"></span>
             </span>
           )}
-          <span className={selectedLabel ? 'text-text-primary font-semibold' : 'text-gray-450'}>
+          <span className={`truncate ${selectedLabel ? 'text-slate-900 font-bold text-sm' : 'text-slate-400 font-medium'}`}>
             {selectedLabel || placeholder}
           </span>
         </div>
-        <ChevronDown size={15} className={`shrink-0 text-text-secondary transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown size={17} className={`shrink-0 text-slate-700 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open ? createPortal(dropdownList, document.body) : null}
+    </div>
+  );
+};
+
+// ─── VERIFICATION STEP COMPONENT ─────────────────────────────────────────────
+const VerificationStep = ({ isFaceVerified, setIsFaceVerified, isAadharVerified, setIsAadharVerified, setToastMessage, auth, setAuth }) => {
+  // Aadhaar states
+  const [aadhaarStage, setAadhaarStage] = useState('idle'); // idle | input | otp | success | failed
+  const [aadhaarMobile, setAadhaarMobile] = useState('');
+  const [aadhaarOtp, setAadhaarOtp] = useState(['', '', '', '', '', '']);
+  const [aadhaarLoading, setAadhaarLoading] = useState(false);
+  const [aadhaarError, setAadhaarError] = useState('');
+  const aadhaarOtpRefs = [useRef(null), useRef(null), useRef(null), useRef(null), useRef(null), useRef(null)];
+
+  // Face states
+  const [faceStage, setFaceStage] = useState('idle'); // idle | camera | scanning | success | failed
+  const [faceGuide, setFaceGuide] = useState('Position your face in the circle');
+  const [faceGuideSeverity, setFaceGuideSeverity] = useState('neutral'); // neutral | warn | success
+  const [cameraDenied, setCameraDenied] = useState(false);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
+  const scanIntervalRef = useRef(null);
+
+  // ── Aadhaar helpers ──────────────────────────────────────────────────────
+  const handleSendAadhaarOtp = async () => {
+    const cleaned = aadhaarMobile.replace(/\D/g, '');
+    if (cleaned.length !== 10) { setAadhaarError('Please enter a valid 10-digit mobile number.'); return; }
+    setAadhaarLoading(true); setAadhaarError('');
+    try {
+      await axiosPublic.post('/auth/aadhaar/send-otp', { mobileNo: cleaned });
+      setAadhaarStage('otp');
+      setToastMessage('OTP sent to your Aadhaar-registered mobile!');
+      setTimeout(() => setToastMessage(''), 3000);
+    } catch (err) {
+      setAadhaarError(err?.response?.data?.message || 'Failed to send OTP. Try again.');
+    } finally { setAadhaarLoading(false); }
+  };
+
+  const handleVerifyAadhaarOtp = async () => {
+    const otpStr = aadhaarOtp.join('');
+    if (otpStr.length !== 6) { setAadhaarError('Please enter the 6-digit OTP.'); return; }
+    setAadhaarLoading(true); setAadhaarError('');
+    try {
+      await axiosPublic.post('/auth/aadhaar/verify-otp', { mobileNo: aadhaarMobile.replace(/\D/g, ''), otp: otpStr });
+      setIsAadharVerified(true);
+      setAadhaarStage('success');
+      setToastMessage('Aadhaar verified successfully! ✓');
+      setTimeout(() => setToastMessage(''), 3000);
+    } catch (err) {
+      setAadhaarError(err?.response?.data?.message || 'Invalid OTP. Please try again.');
+    } finally { setAadhaarLoading(false); }
+  };
+
+  const handleOtpInput = (idx, val) => {
+    if (!/^\d*$/.test(val)) return;
+    const next = [...aadhaarOtp];
+    next[idx] = val.slice(-1);
+    setAadhaarOtp(next);
+    setAadhaarError('');
+    if (val && idx < 5) aadhaarOtpRefs[idx + 1].current?.focus();
+  };
+
+  const handleOtpKeyDown = (idx, e) => {
+    if (e.key === 'Backspace' && !aadhaarOtp[idx] && idx > 0) aadhaarOtpRefs[idx - 1].current?.focus();
+  };
+
+  // ── Face Camera helpers ──────────────────────────────────────────────────
+  const startCamera = async () => {
+    setCameraDenied(false);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 }, audio: false });
+      streamRef.current = stream;
+      if (videoRef.current) videoRef.current.srcObject = stream;
+      setFaceStage('camera');
+      startFaceGuideLoop();
+    } catch (err) {
+      setCameraDenied(true);
+      setFaceStage('failed');
+    }
+  };
+
+  const stopCamera = () => {
+    if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
+    if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
+  };
+
+  // Simulated face detection loop — cycles through guidance messages then marks success
+  const startFaceGuideLoop = () => {
+    const steps = [
+      { msg: 'Position your face in the circle', sev: 'neutral', ms: 1200 },
+      { msg: 'Move a bit closer...', sev: 'warn', ms: 1400 },
+      { msg: 'Perfect! Hold still...', sev: 'neutral', ms: 1200 },
+      { msg: 'Looking good! Scanning...', sev: 'neutral', ms: 1500 },
+      { msg: 'Move slightly to the right', sev: 'warn', ms: 1200 },
+      { msg: 'Keep face inside the oval', sev: 'warn', ms: 1000 },
+      { msg: 'Almost done — hold still!', sev: 'neutral', ms: 1200 },
+      { msg: 'Face matched! Verifying...', sev: 'success', ms: 1000 },
+    ];
+    let i = 0;
+    setFaceGuide(steps[0].msg); setFaceGuideSeverity(steps[0].sev);
+    setFaceStage('scanning');
+    const run = () => {
+      i++;
+      if (i >= steps.length) {
+        stopCamera();
+        setIsFaceVerified(true);
+        setFaceStage('success');
+        setToastMessage('Face verified successfully! ✓');
+        setTimeout(() => setToastMessage(''), 3000);
+        return;
+      }
+      setFaceGuide(steps[i].msg); setFaceGuideSeverity(steps[i].sev);
+      scanIntervalRef.current = setTimeout(run, steps[i].ms);
+    };
+    scanIntervalRef.current = setTimeout(run, steps[0].ms);
+  };
+
+  useEffect(() => () => stopCamera(), []);
+
+  const guideBorderColor = faceGuideSeverity === 'success' ? '#10B981' : faceGuideSeverity === 'warn' ? '#F59E0B' : '#7C3AED';
+  const guideBg = faceGuideSeverity === 'success' ? 'bg-emerald-500/90' : faceGuideSeverity === 'warn' ? 'bg-amber-400/90' : 'bg-[#7C3AED]/90';
+
+  return (
+    <div className="space-y-4 text-left animate-fade-in">
+      {/* Header */}
+      <div>
+        <h1 className="text-xl sm:text-2xl font-black text-[#1E1E38] tracking-tight">Step 8: Verification (Optional)</h1>
+        <p className="text-xs text-slate-500 font-semibold mt-1">Verify your profile for more trust and matches</p>
+      </div>
+
+      {/* ── Face Verification Card ───────────────────────────────────────── */}
+      <div className="bg-white rounded-3xl border border-purple-100/50 shadow-[0_4px_20px_rgb(0,0,0,0.03)] overflow-hidden">
+        {/* Card Header */}
+        <div className="p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-[#F3E8FF] flex items-center justify-center shrink-0">
+              <Camera size={22} className="text-[#7C3AED]" strokeWidth={2} />
+            </div>
+            <div>
+              <p className="text-sm font-black text-slate-800">Face Verification</p>
+              <p className="text-[11px] text-slate-500 font-semibold">Verify using selfie check</p>
+              <div className="flex items-center gap-1 mt-1">
+                <CheckCircle2 size={11} className="text-[#7C3AED]" />
+                <span className="text-[10px] text-[#7C3AED] font-bold">Keep your profile safe</span>
+              </div>
+            </div>
+          </div>
+          {isFaceVerified ? (
+            <div className="flex flex-col items-center gap-1">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center">
+                <CheckCircle size={22} className="text-emerald-500" />
+              </div>
+              <span className="text-[10px] font-black text-emerald-600">Verified</span>
+            </div>
+          ) : faceStage === 'idle' ? (
+            <button
+              type="button"
+              onClick={startCamera}
+              className="flex items-center gap-1.5 bg-[#7C3AED] hover:bg-[#6D28D9] text-white text-[12px] font-extrabold px-4 py-2 rounded-xl shadow-md shadow-purple-500/20 transition-all press-scale"
+            >
+              Verify <ArrowRight size={14} strokeWidth={2.5} />
+            </button>
+          ) : null}
+        </div>
+
+        {/* Camera View */}
+        {(faceStage === 'camera' || faceStage === 'scanning') && (
+          <div className="px-4 pb-4 space-y-3">
+            <div className="relative bg-black rounded-2xl overflow-hidden aspect-[4/3] flex items-center justify-center">
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-cover"
+                onLoadedMetadata={() => videoRef.current?.play()}
+              />
+              {/* Oval overlay */}
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div
+                  className="w-[55%] aspect-[3/4] rounded-full transition-all duration-300"
+                  style={{
+                    border: `3px solid ${guideBorderColor}`,
+                    boxShadow: `0 0 0 2000px rgba(0,0,0,0.55)`,
+                    clipPath: 'none'
+                  }}
+                />
+              </div>
+              {/* Scan line animation */}
+              {faceStage === 'scanning' && (
+                <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl">
+                  <div
+                    className="absolute left-[22.5%] w-[55%] h-[2px] bg-gradient-to-r from-transparent via-[#7C3AED] to-transparent opacity-80"
+                    style={{ animation: 'scanLine 2s ease-in-out infinite', top: '20%' }}
+                  />
+                </div>
+              )}
+            </div>
+            <canvas ref={canvasRef} className="hidden" />
+
+            {/* Guidance message */}
+            <div className={`${guideBg} text-white text-center px-3 py-2 rounded-xl text-xs font-bold tracking-wide transition-all duration-300`}>
+              {faceGuide}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => { stopCamera(); setFaceStage('idle'); }}
+              className="w-full py-2 text-[11px] font-bold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+
+        {faceStage === 'failed' && (
+          <div className="px-4 pb-4">
+            <div className="bg-red-50 border border-red-100 rounded-2xl p-3 text-center space-y-2">
+              <p className="text-xs font-bold text-red-500">
+                {cameraDenied ? 'Camera access denied. Please allow camera access in your browser settings.' : 'Face verification failed. Please try again.'}
+              </p>
+              <button
+                type="button"
+                onClick={startCamera}
+                className="text-[11px] font-bold text-[#7C3AED] underline"
+              >
+                Try Again
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Aadhaar Verification Card ─────────────────────────────────────── */}
+      <div className="bg-white rounded-3xl border border-purple-100/50 shadow-[0_4px_20px_rgb(0,0,0,0.03)] overflow-hidden">
+        {/* Card Header */}
+        <div className="p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-[#FFF3E8] flex items-center justify-center shrink-0">
+              <svg width="28" height="28" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="28" cy="22" r="12" fill="#FF8C00" opacity="0.15" />
+                <path d="M28 10 C18 10 10 18 10 28 C10 38 18 46 28 46 C38 46 46 38 46 28 C46 18 38 10 28 10Z" fill="none" stroke="#FF8C00" strokeWidth="2.5" />
+                <path d="M20 28 Q28 18 36 28 Q28 38 20 28Z" fill="#FF8C00" opacity="0.7" />
+                <circle cx="28" cy="28" r="4" fill="#FF8C00" />
+                <line x1="28" y1="42" x2="28" y2="46" stroke="#FF8C00" strokeWidth="2.5" strokeLinecap="round" />
+                <line x1="18" y1="44" x2="22" y2="41" stroke="#FF8C00" strokeWidth="2" strokeLinecap="round" />
+                <line x1="38" y1="44" x2="34" y2="41" stroke="#FF8C00" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-black text-slate-800">Aadhaar Verification</p>
+              <p className="text-[11px] text-slate-500 font-semibold">Verify using UIDAI e-Aadhaar</p>
+              <div className="flex items-center gap-1 mt-1">
+                <ShieldCheck size={11} className="text-orange-500" />
+                <span className="text-[10px] text-orange-500 font-bold">100% Secure &amp; Private</span>
+              </div>
+            </div>
+          </div>
+
+          {isAadharVerified || aadhaarStage === 'success' ? (
+            <div className="flex flex-col items-center gap-1">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center">
+                <CheckCircle size={22} className="text-emerald-500" />
+              </div>
+              <span className="text-[10px] font-black text-emerald-600">Verified</span>
+            </div>
+          ) : aadhaarStage === 'idle' ? (
+            <button
+              type="button"
+              onClick={() => setAadhaarStage('input')}
+              className="flex items-center gap-1.5 bg-[#7C3AED] hover:bg-[#6D28D9] text-white text-[12px] font-extrabold px-4 py-2 rounded-xl shadow-md shadow-purple-500/20 transition-all press-scale"
+            >
+              Verify <ArrowRight size={14} strokeWidth={2.5} />
+            </button>
+          ) : null}
+        </div>
+
+        {/* Aadhaar — Mobile Input Stage */}
+        {aadhaarStage === 'input' && (
+          <div className="px-4 pb-4 space-y-3">
+            <div className="bg-[#FFF8F0] rounded-2xl p-3 border border-orange-100">
+              <p className="text-[11px] text-orange-700 font-semibold leading-relaxed">
+                Enter the <strong>mobile number registered with your Aadhaar</strong>. An OTP will be sent to verify your identity.
+              </p>
+            </div>
+            <div>
+              <label className="text-[10px] font-extrabold text-slate-800 uppercase tracking-wider block mb-1.5">
+                Aadhaar Registered Mobile <span className="text-red-500">*</span>
+              </label>
+              <div className="flex gap-2">
+                <div className="bg-slate-50 border border-slate-200 rounded-xl px-3 flex items-center shrink-0">
+                  <span className="text-xs font-bold text-slate-700">+91</span>
+                </div>
+                <input
+                  type="tel"
+                  maxLength={10}
+                  placeholder="98765 43210"
+                  value={aadhaarMobile}
+                  onChange={e => { setAadhaarMobile(e.target.value.replace(/\D/g, '')); setAadhaarError(''); }}
+                  className="flex-1 bg-white border border-slate-200 rounded-xl px-3.5 py-3 text-sm font-bold text-slate-800 outline-none focus:border-[#7C3AED]"
+                />
+              </div>
+              {aadhaarError && <p className="text-[10px] text-red-500 font-bold mt-1 ml-1">{aadhaarError}</p>}
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setAadhaarStage('idle')}
+                className="flex-1 py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSendAadhaarOtp}
+                disabled={aadhaarLoading}
+                className="flex-1 py-2.5 bg-[#7C3AED] hover:bg-[#6D28D9] text-white text-xs font-extrabold rounded-xl flex items-center justify-center gap-1.5 disabled:opacity-60"
+              >
+                {aadhaarLoading ? (
+                  <><div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /><span>Sending...</span></>
+                ) : 'Send OTP'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Aadhaar — OTP Input Stage */}
+        {aadhaarStage === 'otp' && (
+          <div className="px-4 pb-4 space-y-3">
+            <div className="bg-[#F0FFF4] rounded-2xl p-3 border border-emerald-100">
+              <p className="text-[11px] text-emerald-700 font-semibold leading-relaxed">
+                OTP sent to <strong>+91 {aadhaarMobile}</strong>. Enter the 6-digit code below.
+              </p>
+            </div>
+            <div>
+              <label className="text-[10px] font-extrabold text-slate-800 uppercase tracking-wider block mb-2">Enter OTP</label>
+              <div className="flex gap-2 justify-between">
+                {aadhaarOtp.map((digit, i) => (
+                  <input
+                    key={i}
+                    ref={aadhaarOtpRefs[i]}
+                    type="tel"
+                    maxLength={1}
+                    value={digit}
+                    onChange={e => handleOtpInput(i, e.target.value)}
+                    onKeyDown={e => handleOtpKeyDown(i, e)}
+                    className={`w-10 h-12 text-center text-base font-black rounded-xl border-2 outline-none transition-all ${
+                      digit ? 'border-[#7C3AED] bg-[#F3E8FF] text-[#7C3AED]' : 'border-slate-200 bg-white text-slate-800'
+                    } focus:border-[#7C3AED]`}
+                  />
+                ))}
+              </div>
+              {aadhaarError && <p className="text-[10px] text-red-500 font-bold mt-1.5 ml-1">{aadhaarError}</p>}
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => { setAadhaarStage('input'); setAadhaarOtp(['','','','','','']); setAadhaarError(''); }}
+                className="flex-1 py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50"
+              >
+                Change No.
+              </button>
+              <button
+                type="button"
+                onClick={handleVerifyAadhaarOtp}
+                disabled={aadhaarLoading || aadhaarOtp.join('').length < 6}
+                className="flex-1 py-2.5 bg-[#7C3AED] hover:bg-[#6D28D9] text-white text-xs font-extrabold rounded-xl flex items-center justify-center gap-1.5 disabled:opacity-60"
+              >
+                {aadhaarLoading ? (
+                  <><div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /><span>Verifying...</span></>
+                ) : 'Verify OTP'}
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={handleSendAadhaarOtp}
+              className="w-full text-[11px] font-bold text-[#7C3AED] text-center hover:underline"
+            >
+              Resend OTP
+            </button>
+          </div>
+        )}
+      </div>
+
+      <style>{`
+        @keyframes scanLine {
+          0%   { transform: translateY(0); opacity: 0.9; }
+          50%  { transform: translateY(200px); opacity: 0.5; }
+          100% { transform: translateY(0); opacity: 0.9; }
+        }
+      `}</style>
     </div>
   );
 };
@@ -294,6 +750,8 @@ const OnboardingScreen = () => {
   const [stateName, setStateName] = useState('');
   
   const DEFAULT_COMMUNITIES = [
+    { label: 'Brahmin Samaj', value: 'Brahmin Samaj' },
+    { label: 'Rajput Samaj', value: 'Rajput Samaj' },
     { label: 'Jain Samaj', value: 'Jain Samaj' },
     { label: 'Namdev Samaj', value: 'Namdev Samaj' },
     { label: 'Agrawal Samaj', value: 'Agrawal Samaj' },
@@ -424,6 +882,7 @@ const OnboardingScreen = () => {
   const [bloodGroup, setBloodGroup] = useState('');
   const [maritalStatus, setMaritalStatus] = useState('');
   const [gotra, setGotra] = useState('');
+  const [familyType, setFamilyType] = useState('');
 
   // Step 5 Education
   const [qualification, setQualification] = useState('');
@@ -516,6 +975,7 @@ const OnboardingScreen = () => {
       if (userToLoad.bloodGroup) setBloodGroup(userToLoad.bloodGroup);
       if (userToLoad.maritalStatus) setMaritalStatus(userToLoad.maritalStatus);
       if (userToLoad.gotra) setGotra(userToLoad.gotra);
+      if (userToLoad.familyType) setFamilyType(userToLoad.familyType);
       if (userToLoad.qualification) setQualification(userToLoad.qualification);
       if (userToLoad.school) setSchool(userToLoad.school);
       if (userToLoad.passingYear) setPassingYear(userToLoad.passingYear);
@@ -666,7 +1126,9 @@ const OnboardingScreen = () => {
       if (!gender) errors.gender = 'Please select your gender.';
       const genderResult = validateEnum(gender, ALLOWED_GENDERS, 'Gender');
       if (!genderResult.valid) errors.gender = genderResult.error;
-      if (dob) {
+      if (!dob) {
+        errors.dob = 'Date of birth is required.';
+      } else {
         const dobResult = validateDOB(dob);
         if (!dobResult.valid) errors.dob = dobResult.error;
       }
@@ -674,9 +1136,23 @@ const OnboardingScreen = () => {
         const bgResult = validateEnum(bloodGroup, ALLOWED_BLOOD_GROUPS, 'Blood group');
         if (!bgResult.valid) errors.bloodGroup = bgResult.error;
       }
-      if (maritalStatus) {
+      if (!maritalStatus) {
+        errors.maritalStatus = 'Marital status is required.';
+      } else {
         const msResult = validateEnum(maritalStatus, ALLOWED_MARITAL_STATUSES, 'Marital status');
         if (!msResult.valid) errors.maritalStatus = msResult.error;
+      }
+      if (!familyType) {
+        errors.familyType = 'Family type is required.';
+      }
+      if (!stateName) {
+        errors.stateName = 'State is required.';
+      }
+      if (!district) {
+        errors.district = 'District is required.';
+      }
+      if (!selectedCity || !selectedCity.trim()) {
+        errors.selectedCity = 'City / Village is required.';
       }
     }
     if (stepNum === 4) {
@@ -720,6 +1196,7 @@ const OnboardingScreen = () => {
       bloodGroup: String(bloodGroup || ''),
       maritalStatus: String(maritalStatus || ''),
       gotra: String(gotra || ''),
+      familyType: String(familyType || ''),
       qualification: String(qualification || ''),
       school: String(school || ''),
       profession: String(profession || ''),
@@ -754,6 +1231,7 @@ const OnboardingScreen = () => {
       formData.append('bloodGroup', completeUserObj.bloodGroup);
       formData.append('maritalStatus', completeUserObj.maritalStatus);
       formData.append('gotra', completeUserObj.gotra);
+      formData.append('familyType', completeUserObj.familyType);
       formData.append('community', completeUserObj.community);
       formData.append('communityId', completeUserObj.communityId);
       formData.append('subCommunity', completeUserObj.subCommunity);
@@ -858,57 +1336,34 @@ const OnboardingScreen = () => {
     const stepList = flowIdx !== -1 ? ONBOARDING_FLOW : Array.from({ length: 11 }, (_, i) => i + 1);
 
     return (
-      <div className="bg-white rounded-[20px] border border-purple-100 p-3.5 shadow-[0_4px_20px_rgba(124,58,237,0.04)] space-y-3 select-none animate-fade-in text-left shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-purple-50 rounded-full flex items-center justify-center shrink-0 border border-purple-100">
-            <ClipboardCheck size={20} className="text-[#6D28D9]" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-baseline gap-1">
-              <span className="text-lg font-black text-purple-950 leading-none">{pct}%</span>
-              <span className="text-[10px] font-bold text-slate-550">Completed</span>
+      <div className="bg-white rounded-[20px] border border-purple-100 p-3.5 shadow-xs space-y-3 select-none animate-fade-in text-left shrink-0">
+        <div className="flex items-center justify-between py-0.5 px-1">
+          <div className="flex items-center gap-2">
+            <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center text-white shrink-0 shadow-xs">
+              <Check size={11} strokeWidth={3} />
             </div>
-            <div className="flex items-center gap-2 mt-1">
-              <div className="h-1.5 flex-1 bg-slate-100 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-gradient-to-r from-[#7C3AED] via-[#6366F1] to-[#2DD4BF] rounded-full transition-all duration-700 ease-out" 
-                  style={{ width: `${pct}%` }} 
-                />
-              </div>
-              <span className="text-[9px] font-bold text-slate-400 shrink-0">{pct}%</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="border-t border-slate-100/80" />
-
-        <div className="flex items-center justify-between py-0">
-          <div className="flex items-center gap-1.5">
-            <div className="w-4.5 h-4.5 rounded-full bg-emerald-500 flex items-center justify-center text-white shrink-0">
-              <Check size={10} strokeWidth={3} />
-            </div>
-            <span className="text-[11px] font-black text-slate-700">Step {currentStepNum} of {totalSteps}</span>
+            <span className="text-xs font-extrabold text-slate-800">Step {currentStepNum} of {totalSteps}</span>
           </div>
 
           <div className="w-[1px] h-4 bg-slate-200" />
 
-          <div className="flex items-center gap-1.5">
-            <FileText size={14} className="text-[#7C3AED]" />
-            <span className="text-[11px] font-black text-slate-700">
+          <div className="flex items-center gap-2">
+            <FileText size={16} className="text-[#7C3AED]" />
+            <span className="text-xs font-extrabold text-slate-800">
               {remaining === 0 ? 'Last Step' : `${remaining} Step${remaining !== 1 ? 's' : ''} Remaining`}
             </span>
           </div>
         </div>
 
-        <div className="border-t border-slate-100/80" />
+        <div className="border-t border-slate-100" />
 
-        <div className="overflow-x-auto no-scrollbar scroll-smooth py-0.5 -mx-1 px-1">
-          <div className="flex items-center min-w-[260px] relative justify-between">
-            <div className="absolute top-3 left-3 right-3 h-[1.5px] bg-slate-150 -z-1" />
+        <div className="overflow-x-auto no-scrollbar scroll-smooth py-1 px-2">
+          <div className="flex items-center min-w-[240px] relative justify-between">
+            <div className="absolute top-3.5 left-3 right-3 h-[2px] bg-slate-200 -z-10" />
             
             <div 
-              className="absolute top-3 left-3 h-[1.5px] bg-[#7C3AED] transition-all duration-500 -z-1"
-              style={{ width: `${((currentStepNum - 1) / Math.max(totalSteps - 1, 1)) * 92}%` }}
+              className="absolute top-3.5 left-3 h-[2px] bg-[#7C3AED] transition-all duration-500 -z-10"
+              style={{ width: `${((currentStepNum - 1) / Math.max(totalSteps - 1, 1)) * 90}%` }}
             />
 
             {stepList.map((stNum, idx) => {
@@ -919,16 +1374,16 @@ const OnboardingScreen = () => {
               return (
                 <div key={idx} className="flex flex-col items-center relative z-10 shrink-0">
                   <div 
-                    className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black transition-all duration-300 ${
+                    className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-extrabold transition-all duration-300 ${
                       isCompleted 
-                        ? 'bg-[#7C3AED] text-white shadow-sm' 
+                        ? 'bg-[#7C3AED] text-white shadow-xs' 
                         : isActive 
-                        ? 'bg-white border-[1.5px] border-[#7C3AED] text-[#7C3AED] scale-105 shadow-md ring-2 ring-[#7C3AED]/10' 
-                        : 'bg-white border border-slate-250 text-slate-400'
+                        ? 'bg-white border-2 border-[#7C3AED] text-[#7C3AED] shadow-sm' 
+                        : 'bg-white border border-slate-300 text-slate-400'
                     }`}
                   >
                     {isCompleted ? (
-                      <Check size={9} strokeWidth={3} />
+                      <Check size={12} strokeWidth={3} />
                     ) : (
                       itemStepNum
                     )}
@@ -994,7 +1449,7 @@ const OnboardingScreen = () => {
               </div>
               <div className="space-y-4 pt-2">
                 <div>
-                  <label className="text-[11px] font-bold text-text-secondary uppercase tracking-wider block mb-1.5">Select Community</label>
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1.5">SELECT COMMUNITY</label>
                   <CustomSelect
                     value={selectedCommunity}
                     onChange={(val) => { 
@@ -1007,6 +1462,7 @@ const OnboardingScreen = () => {
                     options={apiCommunities}
                     placeholder="Select community"
                     disabled={isCommunityLocked}
+                    searchable
                   />
                   {isCommunityLocked && (
                     <p className="text-[10px] text-slate-400 font-semibold mt-1">Community assigned during registration (locked).</p>
@@ -1041,12 +1497,12 @@ const OnboardingScreen = () => {
                 )}
 
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                    <label className="text-[11px] font-bold text-text-secondary uppercase tracking-wider block">
-                      Sub-Community / Category
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
+                      SUB-COMMUNITY / CATEGORY
                     </label>
-                    {availableSubCommunities.length > 1 && (
-                      <span className="text-[10px] text-purple-600 font-bold bg-purple-50 px-2 py-0.5 rounded-full">
+                    {availableSubCommunities.length > 0 && (
+                      <span className="text-xs font-bold text-[#6D28D9]">
                         {availableSubCommunities.length} Options
                       </span>
                     )}
@@ -1057,6 +1513,7 @@ const OnboardingScreen = () => {
                     options={availableSubCommunities}
                     placeholder="Select sub-community"
                     disabled={!selectedCommunity || (selectedCommunity === 'other' && !customCommunity.trim())}
+                    searchable
                   />
                   {availableSubCommunities.length > 0 && availableSubCommunities[0] !== 'General' && (
                     <p className="text-[10px] text-slate-400 font-semibold mt-1">
@@ -1064,57 +1521,70 @@ const OnboardingScreen = () => {
                     </p>
                   )}
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-[11px] font-bold text-text-secondary uppercase tracking-wider block mb-1.5">Enter Pincode</label>
-                    <input
-                      type="tel"
-                      maxLength={6}
-                      placeholder="Enter pincode"
-                      value={pincode}
-                      onChange={(e) => setPincode(e.target.value.replace(/\D/g, ''))}
-                      className="w-full bg-white border border-purple-200 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-[#7C3AED] transition-all"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[11px] font-bold text-text-secondary uppercase tracking-wider block mb-1.5">
-                      Select City
-                    </label>
-                    <CustomSelect
-                      value={selectedCity}
-                      onChange={(val) => { setSelectedCity(val); setStepErrors(prev => ({ ...prev, city: '' })); }}
-                      options={apiCities}
-                      placeholder="Select city"
-                      disabled={!selectedCommunity || (selectedCommunity === 'other' && !customCommunity.trim())}
-                    />
-                    {stepErrors.city && <p role="alert" className="text-[10px] text-red-500 font-semibold mt-1">{stepErrors.city}</p>}
-                    
-                    {/* Visual Status Indicator for Selected City */}
-                    {selectedCity && (
-                      (() => {
-                        const matchedCity = apiCities.find(c => (c.value || c.name || c.label) === selectedCity);
-                        if (matchedCity?.isCovered) {
-                          return (
-                            <div className="mt-2 flex items-center gap-1.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-xl border border-emerald-200 animate-fade-in">
-                              <span className="relative flex h-2 w-2 shrink-0">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                              </span>
-                              <span>Active Community Head: {matchedCity.headInfo?.name || 'Assigned'}</span>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
+                    SELECT CITY (COMMUNITY LOCAL HEAD GROUP)
+                  </label>
+                  <CustomSelect
+                    value={selectedCity}
+                    onChange={(val) => { setSelectedCity(val); setStepErrors(prev => ({ ...prev, city: '' })); }}
+                    options={apiCities}
+                    placeholder="Select city"
+                    disabled={!selectedCommunity || (selectedCommunity === 'other' && !customCommunity.trim())}
+                    searchable
+                  />
+                  {stepErrors.city && <p role="alert" className="text-[10px] text-red-500 font-semibold mt-1">{stepErrors.city}</p>}
+
+                  {/* Visual Status Card for Selected City — shows the Local Head (or Community Head) who will approve this request */}
+                  {selectedCity && (
+                    (() => {
+                      const matchedCity = apiCities.find(c => (c.value || c.name || c.label) === selectedCity);
+                      const head = matchedCity?.headInfo;
+                      if (matchedCity?.isCovered && head) {
+                        const initials = (head.name || 'H')
+                          .split(' ')
+                          .filter(Boolean)
+                          .map(n => n[0])
+                          .join('')
+                          .substring(0, 2)
+                          .toUpperCase();
+                        const label = head.type === 'local' ? 'Active Local Head' : 'Active Community Head';
+                        return (
+                          <div className="mt-3 flex items-center gap-3.5 bg-[#ECFDF5] border border-emerald-300/80 rounded-2xl p-3 animate-fade-in shadow-xs">
+                            {head.avatar ? (
+                              <img
+                                src={head.avatar}
+                                alt={head.name}
+                                className="w-12 h-12 rounded-full object-cover border-2 border-emerald-400 shrink-0 shadow-xs"
+                              />
+                            ) : (
+                              <div className="w-12 h-12 rounded-full bg-emerald-100 border-2 border-emerald-400 flex items-center justify-center text-emerald-800 font-black text-sm shrink-0 shadow-xs">
+                                {initials}
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-emerald-700 flex items-center gap-1.5">
+                                <span className="relative flex h-2 w-2 shrink-0">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                </span>
+                                {label}
+                              </p>
+                              <p className="text-base font-black text-slate-900 truncate mt-0.5">{head.name}</p>
                             </div>
-                          );
-                        } else if (selectedCity) {
-                          return (
-                            <div className="mt-2 flex items-start gap-1.5 text-[10px] font-semibold text-amber-800 bg-amber-50/80 px-2.5 py-1.5 rounded-xl border border-amber-200 animate-fade-in">
-                              <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0 mt-0.5"></span>
-                              <span>Head pending for {selectedCity}. You can register now; Admin will assign a Samaj Head.</span>
-                            </div>
-                          );
-                        }
-                        return null;
-                      })()
-                    )}
-                  </div>
+                          </div>
+                        );
+                      } else if (selectedCity) {
+                        return (
+                          <div className="mt-2.5 flex items-start gap-1.5 text-[10px] font-semibold text-amber-800 bg-amber-50/80 px-3 py-2 rounded-xl border border-amber-200 animate-fade-in">
+                            <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0 mt-0.5"></span>
+                            <span>Head pending for {selectedCity}. You can register now; Admin will assign a Samaj Head.</span>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()
+                  )}
                 </div>
 
                 {pincode.length === 6 && (
@@ -1134,21 +1604,22 @@ const OnboardingScreen = () => {
           {onboardingStepNum === 3 && (
             <div className="space-y-4 text-left animate-fade-in">
               <div>
-                <h1 className="text-xl font-black text-slate-800">Step 3: Personal Information</h1>
+                <h1 className="text-xl sm:text-2xl font-black text-[#1E1E38] tracking-tight">Step 3: Personal Information</h1>
                 <p className="text-xs text-slate-500 font-semibold mt-1">Please provide accurate personal details</p>
               </div>
 
-              <div className="bg-white p-4 rounded-3xl border border-purple-100/30 shadow-[0_4px_20px_rgb(0,0,0,0.03)] flex items-center gap-4">
+              {/* Upload Profile Photo Card */}
+              <div className="bg-white p-4 rounded-3xl border border-purple-100/50 shadow-[0_4px_20px_rgb(0,0,0,0.03)] flex items-center gap-4">
                 <div className="relative shrink-0">
                   {avatar ? (
-                    <img src={avatar} alt="Avatar" className="w-[120px] h-[120px] rounded-[1.25rem] object-cover border-[3px] border-purple-100 shadow-sm" />
+                    <img src={avatar} alt="Avatar" className="w-[110px] h-[110px] sm:w-[120px] sm:h-[120px] rounded-3xl object-cover border-[3px] border-purple-100 shadow-sm" />
                   ) : (
-                    <div className="w-[120px] h-[120px] bg-slate-50 border-2 border-slate-200 border-dashed rounded-[1.25rem] flex flex-col items-center justify-center text-slate-400 gap-2">
-                      <User size={36} strokeWidth={1.5} />
-                      <span className="text-[10px] font-semibold text-slate-400 tracking-wide uppercase">Photo</span>
+                    <div className="w-[110px] h-[110px] sm:w-[120px] sm:h-[120px] bg-slate-50 border-2 border-slate-200 border-dashed rounded-3xl flex flex-col items-center justify-center text-slate-400 gap-1.5">
+                      <User size={34} strokeWidth={1.5} />
+                      <span className="text-[10px] font-bold text-slate-400 tracking-wide uppercase">Photo</span>
                     </div>
                   )}
-                  <label className="absolute -bottom-2 -right-2 w-10 h-10 bg-[#7C3AED] rounded-full flex items-center justify-center shadow-lg cursor-pointer border-[3px] border-white text-white hover:bg-[#5B21B6] transition-colors press-scale z-10">
+                  <label className="absolute -bottom-1.5 -right-1.5 w-9 h-9 sm:w-10 sm:h-10 bg-[#7C3AED] hover:bg-[#6D28D9] rounded-full flex items-center justify-center shadow-lg cursor-pointer border-[3px] border-white text-white transition-all press-scale z-10">
                     <Camera size={16} strokeWidth={2.5} />
                     <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp" className="hidden" onChange={(e) => {
                       const file = e.target.files[0];
@@ -1166,52 +1637,88 @@ const OnboardingScreen = () => {
                       reader.readAsDataURL(file);
                     }} />
                   </label>
-                  {stepErrors.avatar && <p role="alert" className="text-[10px] text-red-500 font-semibold mt-2 text-center">{stepErrors.avatar}</p>}
+                  {stepErrors.avatar && <p role="alert" className="text-[10px] text-red-500 font-semibold mt-1 text-center">{stepErrors.avatar}</p>}
                 </div>
                 
-                <div className="flex-1 min-w-0 py-1">
-                  <div className="flex items-center gap-2 mb-2">
+                <div className="flex-1 min-w-0 py-0.5">
+                  <div className="flex items-center gap-2 mb-1.5">
                     <div className="w-7 h-7 bg-[#F3E8FF] rounded-full flex items-center justify-center text-[#7C3AED] shrink-0">
                       <Camera size={13} strokeWidth={2.5} />
                     </div>
-                    <h3 className="text-sm font-extrabold text-slate-800 leading-tight">Upload Profile Photo</h3>
+                    <h3 className="text-sm sm:text-base font-black text-slate-800 leading-tight">Upload Profile Photo</h3>
                   </div>
-                  <p className="text-[11px] text-slate-500 font-medium leading-snug mb-3">
+                  <p className="text-[11px] text-slate-500 font-medium leading-snug mb-2.5">
                     A clear profile photo helps the admin approve your profile quickly.
                   </p>
                   
-                  <div className="bg-slate-50/80 rounded-[10px] p-2.5 flex gap-2 items-start border border-slate-100">
-                    <AlertCircle size={14} className="text-[#7C3AED] shrink-0 mt-0.5" />
-                    <p className="text-[9.5px] text-slate-500 font-medium leading-relaxed">
+                  <div className="bg-[#F8F5FF] rounded-xl p-2.5 flex items-start gap-2 border border-purple-100/80">
+                    <div className="w-4 h-4 rounded-full border-2 border-[#7C3AED] text-[#7C3AED] flex items-center justify-center text-[9px] font-black shrink-0 mt-0.5">!</div>
+                    <p className="text-[10px] sm:text-[10.5px] text-slate-600 font-semibold leading-tight">
                       Use a clear image of your face.
                     </p>
                   </div>
                 </div>
               </div>
 
+              {/* Form Input Fields */}
               <div className="space-y-3.5">
+                {/* Full Name */}
                 <div>
-                  <label className="text-[10px] font-bold text-slate-450 uppercase">Full Name <span className="text-red-500">*</span></label>
-                  <input type="text" placeholder="Enter your full name" value={name} onChange={(e) => { setName(e.target.value); setStepErrors(prev => ({ ...prev, name: '' })); }} className="w-full mt-1 bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 outline-none focus:border-[#7C3AED]" />
-                  {stepErrors.name && <p role="alert" className="text-[10px] text-red-500 font-semibold mt-1 ml-1">{stepErrors.name}</p>}
+                  <label className="text-[10px] sm:text-[11px] font-extrabold text-slate-800 uppercase tracking-wider block mb-1">
+                    FULL NAME <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Enter your full name"
+                    value={name}
+                    onChange={(e) => { setName(e.target.value); setStepErrors(prev => ({ ...prev, name: '' })); }}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs sm:text-sm font-bold text-slate-800 outline-none focus:border-[#7C3AED] focus:ring-4 focus:ring-[#7C3AED]/5 transition-all shadow-xs"
+                  />
+                  {stepErrors.name && <p role="alert" className="text-[10px] text-red-500 font-bold mt-1 ml-1">{stepErrors.name}</p>}
                 </div>
+
+                {/* Gender Selection */}
                 <div>
-                  <label className="text-[10px] font-bold text-slate-450 uppercase">Gender <span className="text-red-500">*</span></label>
-                  <div className="flex gap-2 mt-1">
+                  <label className="text-[10px] sm:text-[11px] font-extrabold text-slate-800 uppercase tracking-wider block mb-1">
+                    GENDER <span className="text-red-500">*</span>
+                  </label>
+                  <div className="flex gap-2.5 mt-1">
                     {['Male', 'Female', 'Other'].map(g => (
-                      <button key={g} type="button" onClick={() => { setGender(g); setStepErrors(prev => ({ ...prev, gender: '' })); }} className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all border-2 ${gender === g ? 'bg-purple-50 border-[#7C3AED] text-[#7C3AED]' : 'bg-white border-purple-100/30 text-text-primary hover:border-purple-200'}`}>{g}</button>
+                      <button
+                        key={g}
+                        type="button"
+                        onClick={() => { setGender(g); setStepErrors(prev => ({ ...prev, gender: '' })); }}
+                        className={`flex-1 py-3 rounded-xl text-xs sm:text-sm font-extrabold transition-all border-2 ${
+                          gender === g
+                            ? 'bg-[#F3E8FF] border-[#7C3AED] text-[#7C3AED] shadow-sm'
+                            : 'bg-white border-slate-200 text-slate-700 hover:border-purple-200'
+                        }`}
+                      >
+                        {g}
+                      </button>
                     ))}
                   </div>
-                  {stepErrors.gender && <p role="alert" className="text-[10px] text-red-500 font-semibold mt-1 ml-1">{stepErrors.gender}</p>}
+                  {stepErrors.gender && <p role="alert" className="text-[10px] text-red-500 font-bold mt-1 ml-1">{stepErrors.gender}</p>}
                 </div>
+
+                {/* Date of Birth & Blood Group */}
                 <div className="grid grid-cols-2 gap-3.5">
                   <div>
-                    <label className="text-[10px] font-bold text-slate-450 uppercase">Date of Birth</label>
-                    <input type="date" value={dob} onChange={(e) => { setDob(e.target.value); setStepErrors(prev => ({ ...prev, dob: '' })); }} className="w-full mt-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-[#7C3AED]" />
-                    {stepErrors.dob && <p role="alert" className="text-[10px] text-red-500 font-semibold mt-1 ml-1">{stepErrors.dob}</p>}
+                    <label className="text-[10px] sm:text-[11px] font-extrabold text-slate-800 uppercase tracking-wider block mb-1">
+                      DATE OF BIRTH <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={dob}
+                      onChange={(e) => { setDob(e.target.value); setStepErrors(prev => ({ ...prev, dob: '' })); }}
+                      className="w-full mt-1 bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-bold text-slate-800 outline-none focus:border-[#7C3AED]"
+                    />
+                    {stepErrors.dob && <p role="alert" className="text-[10px] text-red-500 font-bold mt-1 ml-1">{stepErrors.dob}</p>}
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold text-slate-450 uppercase">Blood Group</label>
+                    <label className="text-[10px] sm:text-[11px] font-extrabold text-slate-800 uppercase tracking-wider block mb-1">
+                      BLOOD GROUP
+                    </label>
                     <div className="mt-1">
                       <CustomSelect
                         value={bloodGroup}
@@ -1220,12 +1727,16 @@ const OnboardingScreen = () => {
                         placeholder="Select"
                       />
                     </div>
-                    {stepErrors.bloodGroup && <p role="alert" className="text-[10px] text-red-500 font-semibold mt-1 ml-1">{stepErrors.bloodGroup}</p>}
+                    {stepErrors.bloodGroup && <p role="alert" className="text-[10px] text-red-500 font-bold mt-1 ml-1">{stepErrors.bloodGroup}</p>}
                   </div>
                 </div>
+
+                {/* Marital Status & Gotra */}
                 <div className="grid grid-cols-2 gap-3.5">
                   <div>
-                    <label className="text-[10px] font-bold text-slate-450 uppercase">Marital Status</label>
+                    <label className="text-[10px] sm:text-[11px] font-extrabold text-slate-800 uppercase tracking-wider block mb-1">
+                      MARITAL STATUS <span className="text-red-500">*</span>
+                    </label>
                     <div className="mt-1">
                       <CustomSelect
                         value={maritalStatus}
@@ -1234,11 +1745,92 @@ const OnboardingScreen = () => {
                         placeholder="Select"
                       />
                     </div>
-                    {stepErrors.maritalStatus && <p role="alert" className="text-[10px] text-red-500 font-semibold mt-1 ml-1">{stepErrors.maritalStatus}</p>}
+                    {stepErrors.maritalStatus && <p role="alert" className="text-[10px] text-red-500 font-bold mt-1 ml-1">{stepErrors.maritalStatus}</p>}
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold text-slate-450 uppercase">Gotra</label>
-                    <input type="text" placeholder="Enter Gotra" value={gotra} onChange={(e) => setGotra(e.target.value)} className="w-full mt-1 bg-[#fff] border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 outline-none focus:border-[#7C3AED]" />
+                    <label className="text-[10px] sm:text-[11px] font-extrabold text-slate-800 uppercase tracking-wider block mb-1">
+                      GOTRA
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Enter Gotra"
+                      value={gotra}
+                      onChange={(e) => setGotra(e.target.value)}
+                      className="w-full mt-1 bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-bold text-slate-800 outline-none focus:border-[#7C3AED]"
+                    />
+                  </div>
+                </div>
+
+                {/* Family Type */}
+                <div>
+                  <label className="text-[10px] sm:text-[11px] font-extrabold text-slate-800 uppercase tracking-wider block mb-1">
+                    FAMILY TYPE <span className="text-red-500">*</span>
+                  </label>
+                  <div className="mt-1">
+                    <CustomSelect
+                      value={familyType}
+                      onChange={(val) => { setFamilyType(val); setStepErrors(prev => ({ ...prev, familyType: '' })); }}
+                      options={['Nuclear Family', 'Joint Family', 'Single Parent Family', 'Other']}
+                      placeholder="Select"
+                    />
+                  </div>
+                  {stepErrors.familyType && <p role="alert" className="text-[10px] text-red-500 font-bold mt-1 ml-1">{stepErrors.familyType}</p>}
+                </div>
+
+                {/* Current Address Card */}
+                <div className="bg-white/80 p-4 sm:p-5 rounded-3xl border border-purple-100/60 shadow-[0_4px_20px_rgba(124,58,237,0.03)] space-y-3.5 mt-2">
+                  <div className="flex items-center gap-3 mb-1">
+                    <div className="w-8 h-8 rounded-xl bg-[#F3E8FF] flex items-center justify-center text-[#7C3AED] shrink-0">
+                      <MapPin size={16} strokeWidth={2.5} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-black text-slate-800">Current Address</h3>
+                      <p className="text-[11px] text-slate-500 font-medium">Please enter your current address details.</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3.5 pt-1">
+                    <div>
+                      <label className="text-[10px] sm:text-[11px] font-extrabold text-slate-800 uppercase tracking-wider block mb-1">
+                        STATE <span className="text-red-500">*</span>
+                      </label>
+                      <CustomSelect
+                        value={stateName}
+                        onChange={(val) => { setStateName(val); setStepErrors(prev => ({ ...prev, stateName: '' })); }}
+                        options={INDIAN_STATES}
+                        placeholder="Select State"
+                        searchable={true}
+                      />
+                      {stepErrors.stateName && <p role="alert" className="text-[10px] text-red-500 font-bold mt-1 ml-1">{stepErrors.stateName}</p>}
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] sm:text-[11px] font-extrabold text-slate-800 uppercase tracking-wider block mb-1">
+                        DISTRICT <span className="text-red-500">*</span>
+                      </label>
+                      <CustomSelect
+                        value={district}
+                        onChange={(val) => { setDistrict(val); setStepErrors(prev => ({ ...prev, district: '' })); }}
+                        options={COMMON_DISTRICTS}
+                        placeholder="Select District"
+                        searchable={true}
+                      />
+                      {stepErrors.district && <p role="alert" className="text-[10px] text-red-500 font-bold mt-1 ml-1">{stepErrors.district}</p>}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] sm:text-[11px] font-extrabold text-slate-800 uppercase tracking-wider block mb-1">
+                      CITY / VILLAGE <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Enter your city or village"
+                      value={selectedCity}
+                      onChange={(e) => { setSelectedCity(e.target.value); setStepErrors(prev => ({ ...prev, selectedCity: '' })); }}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-bold text-slate-800 outline-none focus:border-[#7C3AED] shadow-xs"
+                    />
+                    {stepErrors.selectedCity && <p role="alert" className="text-[10px] text-red-500 font-bold mt-1 ml-1">{stepErrors.selectedCity}</p>}
                   </div>
                 </div>
               </div>
@@ -1485,68 +2077,15 @@ const OnboardingScreen = () => {
 
           {/* Step 8: Verification */}
           {onboardingStepNum === 8 && (
-            <div className="space-y-4 text-left animate-fade-in">
-              <div>
-                <h1 className="text-xl font-black text-slate-800">Step 8: Verification (Optional)</h1>
-                <p className="text-xs text-slate-500 font-semibold mt-1">Verify your profile for more trust and matches</p>
-              </div>
-              
-              <div className="space-y-3.5 pt-2">
-                <div className="bg-white p-4.5 rounded-3xl border border-purple-100/30 flex items-center justify-between shadow-xs">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-purple-55 flex items-center justify-center text-brand-primary shrink-0"><Camera size={18} /></div>
-                    <div>
-                      <p className="text-xs font-black text-slate-800">Face Verification</p>
-                      <p className="text-[10px] text-slate-400 font-semibold mt-0.5">Verify using selfie check</p>
-                    </div>
-                  </div>
-                  <button 
-                    type="button"
-                    onClick={() => {
-                      setVerifyingFace(true);
-                      setTimeout(() => {
-                        setVerifyingFace(false);
-                        setIsFaceVerified(true);
-                        setToastMessage('Face verification successful!');
-                        setTimeout(() => setToastMessage(''), 2000);
-                      }, 1500);
-                    }}
-                    className={`text-[11px] font-bold px-3 py-1.5 rounded-lg transition-all border ${
-                      isFaceVerified ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-[#7C3AED] text-white hover:bg-[#6D28D9]'
-                    }`}
-                  >
-                    {isFaceVerified ? 'Verified ✓' : verifyingFace ? 'Verifying...' : 'Verify'}
-                  </button>
-                </div>
-
-                <div className="bg-white p-4.5 rounded-3xl border border-purple-100/30 flex items-center justify-between shadow-xs">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-purple-55 flex items-center justify-center text-brand-primary shrink-0"><ShieldCheck size={18} /></div>
-                    <div>
-                      <p className="text-xs font-black text-slate-800">Aadhaar Verification</p>
-                      <p className="text-[10px] text-slate-400 font-semibold mt-0.5">Verify using UIDAI e-Aadhaar</p>
-                    </div>
-                  </div>
-                  <button 
-                    type="button"
-                    onClick={() => {
-                      setVerifyingAadhar(true);
-                      setTimeout(() => {
-                        setVerifyingAadhar(false);
-                        setIsAadharVerified(true);
-                        setToastMessage('Aadhaar verification successful!');
-                        setTimeout(() => setToastMessage(''), 2000);
-                      }, 1500);
-                    }}
-                    className={`text-[11px] font-bold px-3 py-1.5 rounded-lg transition-all border ${
-                      isAadharVerified ? 'bg-emerald-50 border-[#A7F3D0] text-emerald-600' : 'bg-[#7C3AED] text-white hover:bg-[#6D28D9]'
-                    }`}
-                  >
-                    {isAadharVerified ? 'Verified ✓' : verifyingAadhar ? 'Verifying...' : 'Verify'}
-                  </button>
-                </div>
-              </div>
-            </div>
+            <VerificationStep
+              isFaceVerified={isFaceVerified}
+              setIsFaceVerified={setIsFaceVerified}
+              isAadharVerified={isAadharVerified}
+              setIsAadharVerified={setIsAadharVerified}
+              setToastMessage={setToastMessage}
+              auth={auth}
+              setAuth={setAuth}
+            />
           )}
 
           {/* Step 9: Partner Preferences */}
@@ -1790,9 +2329,9 @@ const OnboardingScreen = () => {
                   setStep(`onboarding-${onboardingStepNum + 1}`);
                 }
               }}
-              className="w-full py-3.5 bg-[#7C3AED] hover:bg-[#6D28D9] text-white rounded-2xl text-sm font-semibold flex items-center justify-center gap-2 press-scale shadow-md"
+              className="w-full py-3.5 bg-[#7C3AED] hover:bg-[#6D28D9] text-white rounded-2xl text-base font-bold flex items-center justify-center gap-2 press-scale shadow-lg shadow-purple-500/20 active:scale-[0.98] transition-all"
             >
-              Continue <ArrowRight size={16} />
+              Continue <ArrowRight size={18} strokeWidth={2.5} />
             </button>
           </div>
         )}
