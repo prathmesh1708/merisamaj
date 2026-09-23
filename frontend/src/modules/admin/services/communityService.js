@@ -52,9 +52,12 @@ export const toggleCommunityStatus = async (id) => {
 
 // ─────────────────────────────────────────────
 // DELETE /admin/communities/:id → Permanently delete community
+// Optional transferTo: move all members into that community (pending approval)
 // ─────────────────────────────────────────────
-export const deleteCommunity = async (id) => {
-  const response = await axiosPrivate.delete(`${API_BASE}/${id}`);
+export const deleteCommunity = async (id, { transferTo } = {}) => {
+  const response = await axiosPrivate.delete(`${API_BASE}/${id}`, {
+    params: transferTo ? { transferTo } : undefined,
+  });
   return response.data;
 };
 

@@ -1,7 +1,9 @@
 const mongoose = require('mongoose');
 const Community = require('../../models/Community');
 const User = require('../../models/User');
-const { notifyHeadAssigned } = require('../../services/notificationService');
+const { notifyHeadAssigned, notifyLocalHeadNewMember } = require('../../services/notificationService');
+const cacheService = require('../../utils/cacheService');
+const { getIO } = require('../../services/socketRegistry');
 
 // ─────────────────────────────────────────────
 // @desc    Get all communities
@@ -536,28 +538,79 @@ exports.deleteCommunity = async (req, res) => {
       });
     }
 
-    // Permanent Hard Deletion:
-    // 1. Unset head assignments
-    if (community.headId) {
-      await User.findByIdAndUpdate(
-        community.headId,
-        { 
-          $set: { assignedCommunityId: null },
-          $pull: { assignedCommunityIds: community._id }
-        },
-        { session }
-      );
+    // Optional: Admin can move all members into another community on delete
+    let transferTarget = null;
+    const { transferTo } = req.query;
+    if (transferTo) {
+      if (!mongoose.Types.ObjectId.isValid(transferTo) || transferTo === String(community._id)) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ status: 'error', message: 'Invalid transfer community.' });
+      }
+      transferTarget = await Community.findById(transferTo).session(session);
+      if (!transferTarget) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(404).json({ status: 'error', message: 'Transfer community not found' });
+      }
     }
 
-    // 2. Clear user references for members
+    // Permanent Hard Deletion:
+    // 1. Regular members → force logout + back to pending approval.
+    //    Membership / premium fields are intentionally kept so access is restored on approval.
+    const memberFilter = {
+      role: { $in: ['user', 'member'] },
+      $or: [
+        { communityId: community._id },
+        { communityId: null, community: community.name },
+      ],
+    };
+    const affectedMembers = await User.find(memberFilter).select('_id').session(session).lean();
+    const affectedMemberIds = affectedMembers.map(m => m._id);
+
+    const memberUpdate = transferTarget
+      ? {
+          communityId: transferTarget._id,
+          community: transferTarget.name,
+          subCommunity: null,
+          verificationStatus: 'pending',
+          accountStatus: 'pending verification',
+          communityRemoved: false,
+          removedCommunityName: community.name,
+        }
+      : {
+          communityId: null,
+          community: null,
+          subCommunity: null,
+          verificationStatus: 'pending',
+          accountStatus: 'community removed',
+          communityRemoved: true,
+          removedCommunityName: community.name,
+        };
     await User.updateMany(
-      { communityId: community._id },
-      { $set: { communityId: null } },
+      { _id: { $in: affectedMemberIds } },
+      { $set: memberUpdate, $inc: { sessionVersion: 1 } },
       { session }
     );
+
+    // 2. Local Heads / Sub-Heads of this community lose their scope → deactivate + force logout
+    const affectedSubHeads = await User.find({ role: 'sub_head', communityId: community._id })
+      .select('_id').session(session).lean();
+    const affectedSubHeadIds = affectedSubHeads.map(u => u._id);
     await User.updateMany(
-      { assignedCommunityId: community._id },
-      { $set: { assignedCommunityId: null } },
+      { _id: { $in: affectedSubHeadIds } },
+      { $set: { communityId: null, community: null, accountStatus: 'inactive' }, $inc: { sessionVersion: 1 } },
+      { session }
+    );
+
+    // 3. Unset head assignments
+    const affectedHeads = await User.find({
+      $or: [{ _id: community.headId }, { assignedCommunityIds: community._id }, { communityId: community._id }],
+    }).select('_id').session(session).lean();
+
+    await User.updateMany(
+      { communityId: community._id },
+      { $set: { communityId: null, community: null } },
       { session }
     );
     await User.updateMany(
@@ -566,15 +619,45 @@ exports.deleteCommunity = async (req, res) => {
       { session }
     );
 
-    // 3. Delete community document
+    // 4. Delete community document
     await Community.findByIdAndDelete(req.params.id).session(session);
 
     await session.commitTransaction();
     session.endSession();
 
+    // ── Post-commit side effects (non-blocking) ──
+    const loggedOutIds = [...affectedMemberIds, ...affectedSubHeadIds];
+    [...loggedOutIds, ...affectedHeads.map(h => h._id)].forEach(id => cacheService.del(`auth_user_${id}`));
+
+    const io = getIO();
+    if (io) {
+      const payload = {
+        reason: 'community_deleted',
+        communityName: community.name,
+        transferredTo: transferTarget ? transferTarget.name : null,
+      };
+      loggedOutIds.forEach(id => io.to(`user:${id}`).emit('auth:force_logout', payload));
+      io.in(`community:${community._id}`).socketsLeave(`community:${community._id}`);
+    }
+
+    if (transferTarget && affectedMemberIds.length > 0) {
+      User.find({ _id: { $in: affectedMemberIds } })
+        .select('_id name city communityId')
+        .lean()
+        .then(async (members) => {
+          for (const m of members) {
+            await notifyLocalHeadNewMember(m, { previousCommunityName: community.name });
+          }
+        })
+        .catch(err => console.warn('[deleteCommunity notify transfer error]:', err.message));
+    }
+
     res.json({
       success: true,
-      message: `Community "${community.name}" deleted permanently.`,
+      message: transferTarget
+        ? `Community "${community.name}" deleted. ${affectedMemberIds.length} member(s) moved to "${transferTarget.name}" pending approval.`
+        : `Community "${community.name}" deleted permanently. ${affectedMemberIds.length} member(s) logged out and must re-select a community.`,
+      data: { affectedMembers: affectedMemberIds.length, transferredTo: transferTarget?._id || null },
     });
   } catch (error) {
     await session.abortTransaction();

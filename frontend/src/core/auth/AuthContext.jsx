@@ -1,5 +1,6 @@
 import React, { createContext, useState, useEffect } from 'react';
 import { authService, clearAllUserData } from './authService';
+import { saveLogoutReason } from './logoutReason';
 
 export const AuthContext = createContext({});
 
@@ -89,8 +90,11 @@ export const AuthProvider = ({ children }) => {
               isInitialized: true,
             });
           }
-        } catch {
+        } catch (refreshErr) {
           // Refresh token expired or invalid — clear the stale flag and proceed as guest
+          if (refreshErr?.response?.data?.code === 'SESSION_REVOKED') {
+            saveLogoutReason(refreshErr.response.data);
+          }
           try { localStorage.removeItem(SESSION_FLAG_KEY); } catch(e){}
           if (isMounted) {
             setAuth(prev => ({ ...prev, isInitialized: true }));

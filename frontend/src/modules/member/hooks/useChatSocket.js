@@ -12,6 +12,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from '../../../core/auth/useAuth';
+import { FORCE_LOGOUT_EVENT } from '../../../core/auth/logoutReason';
 
 // ─── Singleton socket instance (shared across components in same session) ──────
 let socketInstance = null;
@@ -58,6 +59,17 @@ export const getSocket = (userId) => {
     reconnection: true,
     reconnectionDelay: 1000,
     reconnectionAttempts: 10
+  });
+
+  // Server-forced logout (e.g. Admin deleted this user's community)
+  const forcedSocket = socketInstance;
+  forcedSocket.on('auth:force_logout', (payload) => {
+    window.dispatchEvent(new CustomEvent(FORCE_LOGOUT_EVENT, { detail: payload || {} }));
+    try { forcedSocket.disconnect(); } catch (e) { /* ignore */ }
+    if (socketInstance === forcedSocket) {
+      socketInstance = null;
+      currentSocketUserId = null;
+    }
   });
 
   return socketInstance;

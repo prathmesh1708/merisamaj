@@ -10,6 +10,27 @@ const EventResponse = require('../../models/EventResponse');
 const Contribution = require('../../models/Contribution');
 const Donation = require('../../models/Donation');
 const { applyScopeFilter } = require('../../utils/queryScopeHelper');
+const cacheService = require('../../utils/cacheService');
+const { createNotification } = require('../../services/notificationService');
+
+// Let member(s) know their membership is approved (non-blocking)
+const notifyMembershipApproved = (userIds, communityId, isRejoin) => {
+  Promise.all(userIds.map(id => createNotification({
+    userId: id,
+    communityId: communityId?._id || communityId,
+    module: 'members',
+    type: 'member_verification_approved',
+    title: 'Membership Approved ✅',
+    message: isRejoin
+      ? 'Your request to join your new community has been approved. You now have full access again.'
+      : 'Your membership has been approved by your community leadership. You now have full access.',
+    icon: '✅',
+    priority: 'high',
+    actionUrl: '/member/home',
+    referenceId: id,
+    referenceType: 'User'
+  }))).catch(err => console.warn('[notifyMembershipApproved error]:', err.message));
+};
 
 /**
  * @desc    Get consolidated Head Dashboard Stats
@@ -245,10 +266,14 @@ exports.approveMember = async (req, res) => {
       return res.status(404).json({ status: 'fail', message: 'Member not found or not in your community.' });
     }
 
+    const wasRejoining = !!user.removedCommunityName;
     user.verificationStatus = 'verified';
     user.accountStatus = 'active';
     user.isAadharVerified = true;
+    user.removedCommunityName = '';
     await user.save();
+    cacheService.del(`auth_user_${user._id}`);
+    notifyMembershipApproved([user._id], user.communityId, wasRejoining);
 
     res.status(200).json({ status: 'success', message: `Approved membership for ${user.name}` });
   } catch (error) {
@@ -445,7 +470,16 @@ exports.bulkMemberAction = async (req, res) => {
       updateFields = { verificationStatus: 'pending', accountStatus: 'pending verification' };
     }
 
+    let approvedIds = [];
+    if (action === 'verify') {
+      updateFields.removedCommunityName = '';
+      approvedIds = (await User.find({ ...filter, verificationStatus: { $ne: 'verified' } }).select('_id').lean()).map(u => u._id);
+    }
+
     const result = await User.updateMany(filter, { $set: updateFields });
+    const touched = await User.find(filter).select('_id').lean();
+    touched.forEach(u => cacheService.del(`auth_user_${u._id}`));
+    if (approvedIds.length > 0) notifyMembershipApproved(approvedIds, req.communityId, false);
 
     res.status(200).json({
       status: 'success',

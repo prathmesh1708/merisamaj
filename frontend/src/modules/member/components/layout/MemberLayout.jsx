@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Avatar } from '../common/Avatar';
 import { ApprovalRequiredModal } from '../common/ApprovalRequiredModal';
+import { RejoinPendingScreen } from '../common/RejoinPendingScreen';
 import { isMemberApproved } from '../../utils/approvalUtils';
 import { useNotifications } from '../../context/NotificationContext';
 
@@ -30,6 +31,12 @@ export const MemberLayout = () => {
   const effectiveRole = activeUser?.role;
   const isHeadUser = activeUser && ['head', 'sub_head', 'admin'].includes(effectiveRole);
   const isApproved = isMemberApproved(activeUser);
+
+  // Member re-joining after Admin deleted their previous community: lock the whole app
+  // (except profile / settings / notifications) until the new community approves them.
+  const isRejoinPending = !isHeadUser && !isApproved && !!activeUser?.removedCommunityName;
+  const rejoinAllowedPaths = ['/member/profile', '/member/settings', '/member/notifications'];
+  const showRejoinPending = isRejoinPending && !rejoinAllowedPaths.some(p => location.pathname.startsWith(p));
 
   const [isBottomNavVisible, setBottomNavVisible] = useState(true);
   const [approvalModalState, setApprovalModalState] = useState({ isOpen: false, featureName: '' });
@@ -108,7 +115,7 @@ export const MemberLayout = () => {
         className={`flex-1 w-full min-w-0 h-full overflow-y-auto ${shouldHideBottomNav || isFullHeightRoute ? 'pb-0' : 'pb-20'} md:pb-0 ${shouldHideSideNav ? '' : 'md:ml-[260px]'}`}
       >
         {/* pb-20 accounts for floating bottom nav with margin */}
-        <Outlet />
+        {showRejoinPending ? <RejoinPendingScreen user={activeUser} /> : <Outlet />}
       </div>
       <BottomNav isVisible={isBottomNavVisible} />
 

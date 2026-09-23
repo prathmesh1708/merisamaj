@@ -108,6 +108,17 @@ const protect = async (req, res, next) => {
       });
     }
 
+    // Session revoked (e.g. community deleted by Admin) → force re-login
+    if ((decoded.sv || 0) !== (user.sessionVersion || 0)) {
+      return res.status(401).json({
+        status: 'error',
+        code: 'SESSION_REVOKED',
+        reason: user.removedCommunityName ? 'community_deleted' : 'session_revoked',
+        communityName: user.removedCommunityName || '',
+        message: 'Your session has ended. Please log in again.'
+      });
+    }
+
     // Verify account status
     if (user.accountStatus === 'blocked') {
       return res.status(403).json({
@@ -163,20 +174,16 @@ const protect = async (req, res, next) => {
         });
       }
     } else if (user.community) {
-      // Dynamic Migration: Auto-migrate users with legacy community string to communityId reference
+      // Dynamic Migration: Link users with legacy community string to an EXISTING Community.
+      // Never auto-create — that would resurrect communities deleted by Admin.
       const Community = require('../models/Community');
-      let communityDoc = await Community.findOne({ name: user.community });
-      if (!communityDoc) {
-        communityDoc = await Community.create({
-          name: user.community,
-          city: user.city || 'Indore',
-          state: user.state || 'Madhya Pradesh',
-          country: 'India'
-        });
+      const communityDoc = await Community.findOne({ name: user.community }).select('_id').lean();
+      if (communityDoc) {
+        User.findByIdAndUpdate(user._id, { communityId: communityDoc._id }).catch(() => {});
+        req.communityId = communityDoc._id;
+      } else {
+        req.communityId = null;
       }
-      user.communityId = communityDoc._id;
-      await user.save();
-      req.communityId = communityDoc._id;
     } else {
       req.communityId = null;
     }

@@ -4,6 +4,7 @@ import { useAuth } from './useAuth';
 import { useHeadAuth } from '../../modules/head/auth/useHeadAuth';
 import { useAdminAuth } from '../../modules/admin/auth/useAdminAuth';
 import { authService } from './authService';
+import { FORCE_LOGOUT_EVENT, saveLogoutReason } from './logoutReason';
 
 export const useAxiosPrivate = () => {
   const { auth, setAuth } = useAuth();
@@ -11,6 +12,53 @@ export const useAxiosPrivate = () => {
   const { adminAuth, setAdminAuth } = useAdminAuth();
 
   useEffect(() => {
+    const clearPanelSession = (isHeadTarget, isAdminTarget, revokeInfo) => {
+      if (isHeadTarget) {
+        localStorage.removeItem('head_auth_user');
+        localStorage.removeItem('head_auth_token');
+        localStorage.removeItem('head_has_session');
+
+        setHeadAuth({
+          headUser: null,
+          isAuthenticated: false,
+          isInitialized: true,
+        });
+      } else if (isAdminTarget) {
+        localStorage.removeItem('admin_auth_user');
+        localStorage.removeItem('admin_auth_token');
+        localStorage.removeItem('admin_has_session');
+
+        setAdminAuth({
+          adminUser: null,
+          isAuthenticated: false,
+          isInitialized: true,
+        });
+      } else {
+        localStorage.removeItem('merisamaj_user');
+        localStorage.removeItem('merisamaj_token');
+        localStorage.removeItem('merisamaj_refresh_token');
+        localStorage.removeItem('merisamaj_has_session');
+
+        setAuth({
+          user: null,
+          accessToken: null,
+          isAuthenticated: false,
+          isInitialized: true,
+        });
+      }
+
+      if (revokeInfo?.code === 'SESSION_REVOKED' || revokeInfo?.reason === 'community_deleted') {
+        saveLogoutReason(revokeInfo);
+      }
+    };
+
+    // Server pushed a forced logout over socket (member app)
+    const handleForceLogout = (e) => {
+      const isHead = window.location.pathname.startsWith('/head');
+      clearPanelSession(isHead, false, e.detail || {});
+    };
+    window.addEventListener(FORCE_LOGOUT_EVENT, handleForceLogout);
+
     const requestIntercept = axiosPrivate.interceptors.request.use(
       config => {
         if (!config.headers['Authorization']) {
@@ -54,6 +102,12 @@ export const useAxiosPrivate = () => {
         const isHeadTarget = requestUrl.includes('/head/') || (!requestUrl.includes('/member/') && !requestUrl.includes('/admin/') && window.location.pathname.startsWith('/head'));
         const isAdminTarget = requestUrl.includes('/admin/') || (!requestUrl.includes('/member/') && !requestUrl.includes('/head/') && window.location.pathname.startsWith('/admin'));
 
+        // Session revoked server-side (e.g. community deleted by Admin) — do not refresh, log out
+        if (error?.response?.status === 401 && error?.response?.data?.code === 'SESSION_REVOKED') {
+          clearPanelSession(isHeadTarget, isAdminTarget, error.response.data);
+          return Promise.reject(error);
+        }
+
         if (error?.response?.status === 401 && !prevRequest?.sent) {
           prevRequest.sent = true;
           try {
@@ -95,40 +149,8 @@ export const useAxiosPrivate = () => {
               return axiosPrivate(prevRequest);
             }
           } catch (refreshError) {
-            // Refresh token expired or invalid, clear only the current panel's session
-            if (isHeadTarget) {
-              localStorage.removeItem('head_auth_user');
-              localStorage.removeItem('head_auth_token');
-              localStorage.removeItem('head_has_session');
-              
-              setHeadAuth({
-                headUser: null,
-                isAuthenticated: false,
-                isInitialized: true,
-              });
-            } else if (isAdminTarget) {
-              localStorage.removeItem('admin_auth_user');
-              localStorage.removeItem('admin_auth_token');
-              localStorage.removeItem('admin_has_session');
-              
-              setAdminAuth({
-                adminUser: null,
-                isAuthenticated: false,
-                isInitialized: true,
-              });
-            } else {
-              localStorage.removeItem('merisamaj_user');
-              localStorage.removeItem('merisamaj_token');
-              localStorage.removeItem('merisamaj_refresh_token');
-              localStorage.removeItem('merisamaj_has_session');
-              
-              setAuth({
-                user: null,
-                accessToken: null,
-                isAuthenticated: false,
-                isInitialized: true,
-              });
-            }
+            // Refresh token expired, invalid or revoked, clear only the current panel's session
+            clearPanelSession(isHeadTarget, isAdminTarget, refreshError?.response?.data);
             return Promise.reject(refreshError);
           }
         }
@@ -139,6 +161,7 @@ export const useAxiosPrivate = () => {
     return () => {
       axiosPrivate.interceptors.request.eject(requestIntercept);
       axiosPrivate.interceptors.response.eject(responseIntercept);
+      window.removeEventListener(FORCE_LOGOUT_EVENT, handleForceLogout);
     };
   }, [auth, setAuth, headAuth, setHeadAuth, adminAuth, setAdminAuth]);
 

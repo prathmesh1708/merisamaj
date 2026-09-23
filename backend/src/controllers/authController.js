@@ -22,13 +22,13 @@ const generateTokens = (user) => {
   const isPrivileged = ['admin', 'head', 'sub_head', 'admin_sub_head'].includes(user.role);
   
   const accessToken = jwt.sign(
-    { id: user._id, role: user.role, subHeadType: user.subHeadType },
+    { id: user._id, role: user.role, subHeadType: user.subHeadType, sv: user.sessionVersion || 0 },
     config.jwtSecret,
     { expiresIn: isPrivileged ? '1d' : config.jwtExpiresIn }
   );
 
   const refreshToken = jwt.sign(
-    { id: user._id },
+    { id: user._id, sv: user.sessionVersion || 0 },
     config.jwtRefreshSecret,
     { expiresIn: isPrivileged ? '1d' : config.jwtRefreshExpiresIn }
   );
@@ -96,6 +96,8 @@ const getUserResponsePayload = (user) => {
     isAadharVerified: user.isAadharVerified || false,
     isFaceVerified: user.isFaceVerified || false,
     accountStatus: user.accountStatus,
+    communityRemoved: user.communityRemoved || false,
+    removedCommunityName: user.removedCommunityName || '',
     verificationStatus: user.verificationStatus || 'pending',
     isVerified: user.verificationStatus === 'verified',
     isPremium: user.isPremium || false,
@@ -381,6 +383,10 @@ const refreshAuth = async (req, res) => {
       return res.status(401).json({ message: 'User not found' });
     }
 
+    if ((decoded.sv || 0) !== (user.sessionVersion || 0)) {
+      return res.status(401).json({ code: 'SESSION_REVOKED', reason: user.removedCommunityName ? 'community_deleted' : 'session_revoked', communityName: user.removedCommunityName || '', message: 'Your session has ended. Please log in again.' });
+    }
+
     // Verify account status
     if (user.accountStatus === 'blocked' || user.accountStatus === 'deleted') {
       return res.status(403).json({ message: 'Account status is not active' });
@@ -450,6 +456,10 @@ const refreshHead = async (req, res) => {
 
     if (!user || !['head', 'admin', 'sub_head'].includes(user.role)) {
       return res.status(401).json({ message: 'Head user not found' });
+    }
+
+    if ((decoded.sv || 0) !== (user.sessionVersion || 0)) {
+      return res.status(401).json({ code: 'SESSION_REVOKED', reason: user.removedCommunityName ? 'community_deleted' : 'session_revoked', communityName: user.removedCommunityName || '', message: 'Your session has ended. Please log in again.' });
     }
 
     if (user.accountStatus === 'inactive' || user.accountStatus === 'suspended') {
@@ -561,6 +571,16 @@ const updateProfile = async (req, res) => {
       const Community = require('../models/Community');
       const mongoose = require('mongoose');
 
+      // Re-joining after community deletion: only an existing, active community is allowed
+      // (no auto-created / free-text communities — they would have no Head to approve)
+      if (user.communityRemoved && req.body.communityId !== undefined) {
+        const validTarget = mongoose.isValidObjectId(req.body.communityId)
+          && await Community.exists({ _id: req.body.communityId, isActive: true });
+        if (!validTarget) {
+          return res.status(400).json({ message: 'Please select a valid community from the list.' });
+        }
+      }
+
       if (req.body.communityId && mongoose.isValidObjectId(req.body.communityId)) {
         const targetComm = await Community.findById(req.body.communityId);
         if (targetComm && targetComm.isActive) {
@@ -612,6 +632,16 @@ const updateProfile = async (req, res) => {
       user.state = req.body.state || user.state;
       user.pincode = req.body.pincode || user.pincode;
       user.country = req.body.country || user.country;
+
+      // Member whose community was deleted by Admin has now picked a new one →
+      // send a fresh approval request to that community's Head + Local Head
+      let isRejoiningAfterRemoval = false;
+      if (user.communityRemoved && user.communityId) {
+        user.communityRemoved = false;
+        user.verificationStatus = 'pending';
+        user.accountStatus = 'pending verification';
+        isRejoiningAfterRemoval = true;
+      }
 
       // Role and designation are strictly managed by system admin / role assignments and CANNOT be altered via profile updates
       delete req.body.role;
@@ -694,7 +724,7 @@ const updateProfile = async (req, res) => {
       await updatedUser.populate('assignedCommunityIds', 'name slug isActive settings logoUrl bannerUrl description city');
 
       if (updatedUser.verificationStatus === 'pending' || updatedUser.accountStatus === 'pending verification') {
-        notifyLocalHeadNewMember(updatedUser).catch(err => console.warn('[notifyLocalHeadNewMember error]:', err.message));
+        notifyLocalHeadNewMember(updatedUser, isRejoiningAfterRemoval ? { previousCommunityName: updatedUser.removedCommunityName } : {}).catch(err => console.warn('[notifyLocalHeadNewMember error]:', err.message));
       }
 
       res.json({

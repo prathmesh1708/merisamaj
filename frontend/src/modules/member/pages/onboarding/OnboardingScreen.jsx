@@ -270,7 +270,7 @@ const OnboardingScreen = () => {
   const { auth, setAuth } = useAuth();
 
   // Onboarding Wizard State
-  const [step, setStep] = useState('onboarding-1'); 
+  const [step, setStep] = useState(auth.user?.communityRemoved ? 'onboarding-2' : 'onboarding-1'); 
 
   // Step-level inline validation errors
   const [stepErrors, setStepErrors] = useState({});
@@ -278,7 +278,9 @@ const OnboardingScreen = () => {
   // Lock community selection when editing profile from Home/Profile, allow during new registration
   const isFromHome = localStorage.getItem('merisamaj_onboarding_from_home') === 'true';
   const isJustRegistered = localStorage.getItem('merisamaj_just_registered') === 'true';
-  const isCommunityLocked = isFromHome || (!!(auth.user?.communityId || auth.user?.community) && !isJustRegistered);
+  // Member whose previous community was deleted by Admin must pick a new (existing) community
+  const isRejoiningAfterRemoval = !!auth.user?.communityRemoved;
+  const isCommunityLocked = !isRejoiningAfterRemoval && (isFromHome || (!!(auth.user?.communityId || auth.user?.community) && !isJustRegistered));
 
   // Prefilled states from Registration flow
   const [phone, setPhone] = useState('');
@@ -772,6 +774,7 @@ const OnboardingScreen = () => {
       if (response && typeof response === 'object') {
         const mergedUser = { ...completeUserObj, ...response };
         safeSetLocalStorage('merisamaj_user', mergedUser);
+        safeSetLocalStorage('merisamaj_registered_user', mergedUser);
         if (typeof loginUser === 'function') loginUser(mergedUser);
         if (typeof setAuth === 'function') setAuth(prev => ({ ...prev, user: mergedUser }));
       }
@@ -1004,10 +1007,16 @@ const OnboardingScreen = () => {
                       setSelectedCity(''); 
                       setStepErrors(prev => ({ ...prev, community: '', customCommunity: '' })); 
                     }}
-                    options={apiCommunities}
+                    options={isRejoiningAfterRemoval ? apiCommunities.filter(c => /^[a-f0-9]{24}$/i.test(String(c.value))) : apiCommunities}
                     placeholder="Select community"
                     disabled={isCommunityLocked}
                   />
+                  {isRejoiningAfterRemoval && (
+                    <p className="text-[11px] text-amber-700 font-semibold mt-1.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                      {auth.user?.removedCommunityName ? `"${auth.user.removedCommunityName}" was removed by the Admin. ` : 'Your previous community was removed by the Admin. '}
+                      Select your community — your request will go to its Community Head and Local Head for approval.
+                    </p>
+                  )}
                   {isCommunityLocked && (
                     <p className="text-[10px] text-slate-400 font-semibold mt-1">Community assigned during registration (locked).</p>
                   )}

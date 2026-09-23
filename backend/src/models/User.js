@@ -100,9 +100,17 @@ const userSchema = new mongoose.Schema({
   // Centralized Status Fields
   accountStatus: { 
     type: String, 
-    enum: ['active', 'inactive', 'blocked', 'deleted', 'pending verification'], 
+    enum: ['active', 'inactive', 'blocked', 'deleted', 'pending verification', 'community removed'], 
     default: 'pending verification' 
   },
+
+  // Incremented to invalidate all issued JWTs (forced logout, e.g. on community deletion)
+  sessionVersion: { type: Number, default: 0 },
+
+  // Set when the user's community was deleted by Admin — user must pick a new community
+  // and get re-approved by that community's Head / Local Head
+  communityRemoved: { type: Boolean, default: false },
+  removedCommunityName: { type: String, default: '' },
   verificationStatus: { 
     type: String, 
     enum: ['pending', 'verified', 'rejected'], 

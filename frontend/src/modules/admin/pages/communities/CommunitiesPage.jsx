@@ -370,7 +370,7 @@ const CreateCommunityModal = ({ onClose, onCreated }) => {
 // ─────────────────────────────────────────────
 // EditCommunityModal
 // ─────────────────────────────────────────────
-const EditCommunityModal = ({ community, onClose, onUpdated }) => {
+const EditCommunityModal = ({ community, onClose, onUpdated, onDelete }) => {
   const [availableCities, setAvailableCities] = useState([]);
   const [availableHeads, setAvailableHeads] = useState([]);
 
@@ -701,16 +701,7 @@ const EditCommunityModal = ({ community, onClose, onUpdated }) => {
               <button 
                 type="button" 
                 className="community-btn-danger-sm" 
-                onClick={() => {
-                  if (window.confirm(`Are you sure you want to PERMANENTLY DELETE "${community.name}"?\n\nThis will remove the community from the platform. This action cannot be undone.`)) {
-                    deleteCommunity(community._id || community.id)
-                      .then(() => {
-                        onUpdated();
-                        onClose();
-                      })
-                      .catch(err => alert(err.response?.data?.message || 'Delete failed'));
-                  }
-                }}
+                onClick={() => onDelete(community)}
               >
                 🗑️ Delete Community
               </button>
@@ -799,6 +790,97 @@ const ModuleSettingsPanel = ({ community, onClose, onUpdated }) => {
 };
 
 // ─────────────────────────────────────────────
+// DeleteCommunityModal — members are logged out and must be re-approved.
+// Admin can optionally move them into another community.
+// ─────────────────────────────────────────────
+const DeleteCommunityModal = ({ community, communities, onClose, onDeleted }) => {
+  const [transferTo, setTransferTo] = useState('');
+  const [confirmText, setConfirmText] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const otherCommunities = communities.filter(c => c._id !== community._id && c.isActive !== false);
+  const canDelete = confirmText.trim().toLowerCase() === 'delete';
+
+  const handleDelete = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await deleteCommunity(community._id || community.id, { transferTo: transferTo || undefined });
+      onDeleted(res?.message);
+      onClose();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Delete failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="community-modal-overlay" onClick={onClose}>
+      <div className="community-modal" onClick={e => e.stopPropagation()}>
+        <div className="community-modal-header">
+          <div>
+            <h3>🗑️ Delete Community</h3>
+            <p className="text-xs text-slate-500 mt-0.5">{community.name}</p>
+          </div>
+          <button type="button" className="community-modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="community-modal-body">
+          <div style={{ padding: '12px 14px', background: '#fef2f2', border: '1.5px solid #fecaca', borderRadius: '12px', fontSize: '0.85rem', color: '#991b1b', lineHeight: 1.5 }}>
+            This permanently removes <strong>{community.name}</strong>. This cannot be undone.
+            <ul style={{ margin: '8px 0 0 18px', listStyle: 'disc' }}>
+              <li>All members will be <strong>logged out immediately</strong>.</li>
+              <li>Their account goes back to <strong>pending approval</strong>. Membership and plans are kept and restored once approved.</li>
+              <li>Local Heads / Sub-Heads of this community will be deactivated.</li>
+            </ul>
+          </div>
+
+          <div className="community-form-group" style={{ marginTop: '16px' }}>
+            <label>Move members to (optional)</label>
+            <select
+              className="community-input"
+              value={transferTo}
+              onChange={e => setTransferTo(e.target.value)}
+            >
+              <option value="">Don't move — members select a new community on next login</option>
+              {otherCommunities.map(c => (
+                <option key={c._id} value={c._id}>{c.name}{c.city ? ` (${c.city})` : ''}</option>
+              ))}
+            </select>
+            <small className="community-hint">
+              {transferTo
+                ? 'Approval requests go straight to the selected community’s Head and each member’s Local Head.'
+                : 'Members choose their community after logging in; the request then goes to that Community Head and Local Head.'}
+            </small>
+          </div>
+
+          <div className="community-form-group" style={{ marginTop: '12px' }}>
+            <label>Type <strong>DELETE</strong> to confirm</label>
+            <input
+              type="text"
+              className="community-input"
+              value={confirmText}
+              onChange={e => setConfirmText(e.target.value)}
+              placeholder="DELETE"
+            />
+          </div>
+
+          {error && <p className="community-form-error" style={{ marginTop: '10px' }}>⚠️ {error}</p>}
+        </div>
+        <div className="community-modal-actions">
+          <div style={{ display: 'flex', gap: '10px', marginLeft: 'auto' }}>
+            <button type="button" className="community-btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="button" className="community-btn-danger-sm" onClick={handleDelete} disabled={!canDelete || loading}>
+              {loading ? 'Deleting...' : 'Delete Community'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ─────────────────────────────────────────────
 // CommunityCard
 // ─────────────────────────────────────────────
@@ -939,6 +1021,7 @@ const CommunitiesPage = () => {
   const [showCreate, setShowCreate] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
   const [moduleTarget, setModuleTarget] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [search, setSearch] = useState('');
 
   const fetchCommunities = async () => {
@@ -967,14 +1050,9 @@ const CommunitiesPage = () => {
     }
   };
 
-  const handleDelete = async (community) => {
-    if (!window.confirm(`Are you sure you want to PERMANENTLY DELETE "${community.name}"?\n\nThis will remove the community from the platform. This action cannot be undone.`)) return;
-    try {
-      await deleteCommunity(community._id);
-      fetchCommunities();
-    } catch (err) {
-      alert(err.response?.data?.message || 'Deletion failed');
-    }
+  const handleDelete = (community) => {
+    setEditTarget(null);
+    setDeleteTarget(community);
   };
 
   const filtered = communities.filter(c =>
@@ -1077,6 +1155,18 @@ const CommunitiesPage = () => {
           community={editTarget}
           onClose={() => setEditTarget(null)}
           onUpdated={fetchCommunities}
+          onDelete={handleDelete}
+        />
+      )}
+      {deleteTarget && (
+        <DeleteCommunityModal
+          community={deleteTarget}
+          communities={communities}
+          onClose={() => setDeleteTarget(null)}
+          onDeleted={(message) => {
+            fetchCommunities();
+            if (message) alert(message);
+          }}
         />
       )}
       {moduleTarget && (

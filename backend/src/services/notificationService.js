@@ -1195,12 +1195,17 @@ const notifyProfileClosed = (userId) =>
  * Notify Local Head (matching member's city) and Main Community Head about a new member approval request
  * @param {Object} memberUser - Mongoose User document or plain object of the registered member
  */
-const notifyLocalHeadNewMember = async (memberUser) => {
+const notifyLocalHeadNewMember = async (memberUser, options = {}) => {
   try {
     if (!memberUser || !memberUser.communityId) return;
 
     const commId = memberUser.communityId._id || memberUser.communityId;
     const memberCity = (memberUser.city || '').trim();
+    // Re-joining member whose previous community was deleted by Admin
+    const previousCommunityName = options.previousCommunityName || '';
+    const rejoinNote = previousCommunityName
+      ? ` (re-joining — previous community "${previousCommunityName}" was removed)`
+      : '';
 
     // 1. If member has a city, find and notify Local Head(s) for that city & community
     if (memberCity) {
@@ -1219,7 +1224,7 @@ const notifyLocalHeadNewMember = async (memberUser) => {
           module: 'members',
           type: 'member_verification_request',
           title: 'New Member Approval Request 👤',
-          message: `${memberUser.name || 'A new member'} from ${memberCity} has registered and requested verification approval.`,
+          message: `${memberUser.name || 'A new member'} from ${memberCity} has registered and requested verification approval${rejoinNote}.`,
           icon: '👤',
           priority: 'high',
           actionUrl: '/head/members?tab=verification',
@@ -1244,7 +1249,7 @@ const notifyLocalHeadNewMember = async (memberUser) => {
         module: 'members',
         type: 'member_verification_request',
         title: 'New Member Approval Request 👤',
-        message: `${memberUser.name || 'A new member'}${memberCity ? ` from ${memberCity}` : ''} has registered and is awaiting verification approval.`,
+        message: `${memberUser.name || 'A new member'}${memberCity ? ` from ${memberCity}` : ''} has registered and is awaiting verification approval${rejoinNote}.`,
         icon: '👤',
         priority: 'high',
         actionUrl: '/head/members?tab=verification',

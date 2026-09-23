@@ -6,6 +6,7 @@ import {
 import { useData } from '../../context/DataProvider';
 import { useAuth } from '../../../../core/auth/useAuth';
 import { authService } from '../../../../core/auth/authService';
+import { readLogoutReason, clearLogoutReason, getLogoutReasonMessage } from '../../../../core/auth/logoutReason';
 import {
   validateIdentifier,
   validatePassword,
@@ -41,7 +42,9 @@ const LoginScreen = () => {
 
   const location = useLocation();
   // Step flow: 'initial-language' -> 'auth'
-  const [step, setStep] = useState(location.state?.skipLanguage ? 'auth' : 'initial-language');
+  // Forced logout reason (e.g. community deleted by Admin) — shown above the login form
+  const [logoutInfo] = useState(() => readLogoutReason());
+  const [step, setStep] = useState(location.state?.skipLanguage || logoutInfo ? 'auth' : 'initial-language');
 
   // Auth details
   const [loginIdentifier, setLoginIdentifier] = useState('');
@@ -157,8 +160,15 @@ const LoginScreen = () => {
       localStorage.removeItem('merisamaj_onboarding_resume_step');
       localStorage.removeItem('merisamaj_onboarding_from_home');
       const response = await login({ identifier: loginIdentifier.trim(), password: loginPassword });
+      clearLogoutReason();
       if (response?.user) {
         loginUser(response.user);
+
+        // Community was deleted by Admin → pick a new community to request approval
+        if (response.user.communityRemoved) {
+          navigate('/member/onboarding');
+          return;
+        }
         
         // Auto-redirect to appropriate panel based on user role
         if (
@@ -292,6 +302,15 @@ const LoginScreen = () => {
         <div className="flex-1 px-6 pt-2 pb-6 overflow-y-auto z-10 max-w-sm mx-auto w-full">
           {!isForgotMode ? (
             <>
+              {logoutInfo && (
+                <div role="alert" className="mt-2 mb-4 bg-amber-50 border border-amber-200 rounded-2xl p-3.5 flex gap-2.5 text-left">
+                  <AlertCircle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+                  <p className="text-[12px] text-amber-900 font-semibold leading-relaxed">
+                    {getLogoutReasonMessage(logoutInfo)}
+                  </p>
+                </div>
+              )}
+
               {/* Tab Switcher */}
               <div className="flex bg-purple-100/40 border border-purple-200/30 p-1.5 rounded-2xl mt-2 mb-6 shadow-inner">
                 <button 
