@@ -1,16 +1,17 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Search, Heart, Bell, SlidersHorizontal, X, Star, Crown, ChevronRight,
   ChevronLeft, Home, Mail, MessageCircle, Sparkles, ShieldCheck, MapPin,
-  Briefcase, GraduationCap, Clock, Check, Bookmark, BookmarkCheck,
+  Briefcase, GraduationCap, Clock, Check, CheckCheck, Bookmark, BookmarkCheck,
   Play, Pencil, User, Image, Lock, ShieldAlert, Award, EyeOff, ArrowLeft, Plus,
   Phone, MailCheck, ShieldCheck as VerifiedIcon, Sparkles as SpotlightIcon,
-  PhoneCall, Users, SwitchCamera
+  PhoneCall, Users, SwitchCamera, Settings
 } from 'lucide-react';
 import { useData } from '../../context/DataProvider';
 import { useMatrimonial } from './MatrimonialContext';
-import { matrimonialChatService } from '../../../../core/api/matrimonialService';
+import { matrimonialChatService, matrimonialProfileService } from '../../../../core/api/matrimonialService';
+import { MatrimonialVisibilityManager } from './components/MatrimonialVisibilityManager';
 
 const membershipRanks = {
   'Normal': 1,
@@ -54,6 +55,49 @@ const MatrimonialHomePage = () => {
     return [];
   }, [activityInterestTab, receivedInterests, sentInterests, acceptedInterests]);
   const [ignoredIds, setIgnoredIds] = useState([]);
+  const [locallySentIds, setLocallySentIds] = useState(new Set());
+
+  const getProfileInterestStatus = useCallback((profile) => {
+    if (!profile) return 'none';
+    const profileId = (profile._id || profile.id)?.toString();
+    const targetUserId = (profile.userId?._id || profile.userId)?.toString();
+
+    // 1. Check Accepted / Connected
+    if (profile.isConnected || profile.connectionStatus === 'connected' || profile.connectionStatus === 'accepted') {
+      return 'accepted';
+    }
+    const isAccepted = acceptedInterests?.some(item => {
+      const recProfileId = (item.receiverProfile?._id || item.receiverProfileId || item.receiverProfile)?.toString();
+      const recUserId = (item.receiverId?._id || item.receiverId || item.receiver?._id || item.receiver)?.toString();
+      const sndUserId = (item.senderId?._id || item.senderId || item.sender?._id || item.sender)?.toString();
+
+      return (
+        (profileId && (recProfileId === profileId || recUserId === profileId || sndUserId === profileId)) ||
+        (targetUserId && (recUserId === targetUserId || recProfileId === targetUserId || sndUserId === targetUserId))
+      );
+    });
+    if (isAccepted) return 'accepted';
+
+    // 2. Check Sent (pending)
+    if (profileId && locallySentIds.has(profileId)) return 'sent';
+    if (targetUserId && locallySentIds.has(targetUserId)) return 'sent';
+    if (profile.hasSentInterest || profile.interestStatus === 'sent' || profile.interestStatus === 'pending') {
+      return 'sent';
+    }
+    const isPendingSent = sentInterests?.some(item => {
+      const recProfileId = (item.receiverProfile?._id || item.receiverProfileId || item.receiverProfile)?.toString();
+      const recUserId = (item.receiverId?._id || item.receiverId || item.receiver?._id || item.receiver)?.toString();
+
+      return (
+        (profileId && (recProfileId === profileId || recUserId === profileId)) ||
+        (targetUserId && (recUserId === targetUserId || recProfileId === targetUserId))
+      );
+    });
+    if (isPendingSent) return 'sent';
+
+    return 'none';
+  }, [locallySentIds, sentInterests, acceptedInterests]);
+
   const [expandedId, setExpandedId] = useState(null);
   const [activeFilterPill, setActiveFilterPill] = useState('all'); // 'all' | 'other_community' | 'verified' | 'joined' | 'nearby'
   const [searchText, setSearchText] = useState('');
@@ -70,13 +114,12 @@ const MatrimonialHomePage = () => {
   useEffect(() => {
     const fetchCommunities = async () => {
       try {
-        const res = await fetch('/api/v1/member/matrimonial/profiles/communities');
-        const data = await res.json();
-        if (data.status === 'success' && Array.isArray(data.data) && data.data.length > 0) {
-          setAvailableCommunities(data.data);
+        const res = await matrimonialProfileService.getAvailableCommunities();
+        if (res.data?.data && Array.isArray(res.data.data) && res.data.data.length > 0) {
+          setAvailableCommunities(res.data.data);
         }
       } catch (err) {
-        console.warn('Failed to load communities, using defaults:', err);
+        console.warn('Using default communities list');
       }
     };
     fetchCommunities();
@@ -269,12 +312,39 @@ const MatrimonialHomePage = () => {
     }
   }, [searchFilters, setSearchFilters]);
 
-  const handleInterest = async (profileId) => {
+  const handleInterest = async (profile) => {
+    const profileId = profile?._id || profile?.id || profile;
+    if (!profileId) return;
+    const idStr = profileId.toString();
+    const currentStatus = getProfileInterestStatus(typeof profile === 'object' ? profile : { _id: profileId, id: profileId });
+
+    if (currentStatus === 'accepted') {
+      showToast('Interest already accepted! You are connected 💕');
+      openChatWithProfile(typeof profile === 'object' ? (profile.userId?._id || profile.userId || profile._id) : profileId);
+      return;
+    }
+
+    if (currentStatus === 'sent') {
+      showToast('Interest request already sent and is waiting for acceptance! 💕');
+      return;
+    }
+
+    // Optimistically update UI to green Sent button
+    setLocallySentIds(prev => new Set([...prev, idStr]));
     const result = await sendInterest(profileId);
     if (result.success) {
       showToast('Interest Request Sent Successfully! 💕');
     } else {
-      showToast(result.error || 'Failed to send interest');
+      if (result.error?.toLowerCase()?.includes('already')) {
+        showToast(result.error);
+      } else {
+        setLocallySentIds(prev => {
+          const next = new Set(prev);
+          next.delete(idStr);
+          return next;
+        });
+        showToast(result.error || 'Failed to send interest');
+      }
     }
   };
 
@@ -605,6 +675,16 @@ const MatrimonialHomePage = () => {
                   <button className="text-slate-700 active:scale-95 transition-transform" onClick={() => setIsSearchOpen(true)}>
                     <Search size={22} className="stroke-[1.8]" />
                   </button>
+                  <button 
+                    className="text-slate-700 hover:text-rose-600 active:scale-95 transition-transform" 
+                    title="Profile & Visibility Settings"
+                    onClick={() => {
+                      setActiveBottomTab('my-profile');
+                      setCurrentSubView(null);
+                    }}
+                  >
+                    <Settings size={22} className="stroke-[1.8]" />
+                  </button>
                 </div>
               </>
             )}
@@ -722,8 +802,12 @@ const MatrimonialHomePage = () => {
               )}
               {filteredFeed.length > 0 ? (
                 filteredFeed.map(profile => {
-                  const interestSent = profile.hasSentInterest || false;
-                  const isShort = isShortlisted(profile._id || profile.id);
+                  const targetProfileId = profile._id || profile.id;
+                  const interestStatus = getProfileInterestStatus(profile);
+                  const isAccepted = interestStatus === 'accepted';
+                  const isSent = interestStatus === 'sent';
+                  const isSentOrAccepted = isAccepted || isSent;
+                  const isShort = isShortlisted(targetProfileId);
 
                   const userRank = membershipRanks[userMembership] || 0;
                   const targetRank = membershipRanks[profile.membershipTier] || 0;
@@ -811,11 +895,17 @@ const MatrimonialHomePage = () => {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleInterest(profile.id);
+                                if (!isSentOrAccepted) {
+                                  handleInterest(profile);
+                                }
                               }}
-                              className="mt-4 px-5 py-2.5 bg-transparent hover:bg-white/10 text-white border-2 border-white rounded-full text-[12.5px] font-black tracking-wide transition-all active:scale-95 animate-pulse"
+                              className={`mt-4 px-5 py-2.5 rounded-full text-[12.5px] font-black tracking-wide transition-all active:scale-95 ${
+                                isSentOrAccepted
+                                  ? 'bg-emerald-600 text-white border-2 border-emerald-500 shadow-md shadow-emerald-600/30'
+                                  : 'bg-transparent hover:bg-white/10 text-white border-2 border-white animate-pulse'
+                              }`}
                             >
-                              {interestSent ? 'Interest Sent' : 'Express Interest'}
+                              {isAccepted ? 'Accepted' : isSent ? 'Sent' : 'Express Interest'}
                             </button>
                           </div>
                         )}
@@ -862,15 +952,38 @@ const MatrimonialHomePage = () => {
 
                         <div className="relative z-10 py-4 px-4 flex justify-around items-center select-none bg-transparent">
                           <button
-                            onClick={(e) => { e.stopPropagation(); handleInterest(profile.id); }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (isAccepted) {
+                                openChatWithProfile(profile._id || profile.id);
+                              } else if (isSent) {
+                                showToast('Interest already sent and is pending! 💕');
+                              } else {
+                                handleInterest(profile);
+                              }
+                            }}
                             className="flex flex-col items-center gap-1.5 cursor-pointer active:scale-95 transition-transform"
                           >
                             <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
-                              interestSent ? 'bg-emerald-600 text-white' : 'bg-[#9E2045] text-white hover:bg-[#B82B55]'
-                        }`}>
-                              {interestSent ? <Check size={20} strokeWidth={2.5} /> : <Mail size={20} />}
+                              isAccepted
+                                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/40 ring-2 ring-emerald-300'
+                                : isSent
+                                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/30'
+                                : 'bg-[#9E2045] text-white hover:bg-[#B82B55]'
+                            }`}>
+                              {isAccepted ? (
+                                <CheckCheck size={22} strokeWidth={2.8} />
+                              ) : isSent ? (
+                                <Check size={20} strokeWidth={2.8} />
+                              ) : (
+                                <Mail size={20} />
+                              )}
                             </div>
-                            <span className="text-[10px] font-bold text-white tracking-wide">Interest</span>
+                            <span className={`text-[10px] tracking-wide ${
+                              isSentOrAccepted ? 'font-black text-emerald-400' : 'font-bold text-white'
+                            }`}>
+                              {isAccepted ? 'Accepted' : isSent ? 'Sent' : 'Interest'}
+                            </span>
                           </button>
 
                           <button
@@ -1274,15 +1387,49 @@ const MatrimonialHomePage = () => {
 
                       {/* Action Circle overlays */}
                       <div className="relative z-10 py-4 px-4 flex justify-around items-center select-none bg-transparent">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleInterest(visitor.id); }}
-                          className="flex flex-col items-center gap-1.5 cursor-pointer active:scale-95 transition-transform"
-                        >
-                          <div className="w-12 h-12 rounded-full flex items-center justify-center bg-[#9E2045] text-white hover:bg-[#B82B55] transition-all">
-                            <Mail size={20} />
-                          </div>
-                          <span className="text-[10px] font-bold text-white tracking-wide">Interest</span>
-                        </button>
+                        {(() => {
+                          const status = getProfileInterestStatus(visitor);
+                          const isVisAccepted = status === 'accepted';
+                          const isVisSent = status === 'sent';
+                          const isVisSentOrAccepted = isVisAccepted || isVisSent;
+
+                          return (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (isVisAccepted) {
+                                  openChatWithProfile(visitor._id || visitor.id);
+                                } else if (isVisSent) {
+                                  showToast('Interest already sent and is pending! 💕');
+                                } else {
+                                  handleInterest(visitor);
+                                }
+                              }}
+                              className="flex flex-col items-center gap-1.5 cursor-pointer active:scale-95 transition-transform"
+                            >
+                              <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
+                                isVisAccepted
+                                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/40 ring-2 ring-emerald-300'
+                                  : isVisSent
+                                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/30'
+                                  : 'bg-[#9E2045] text-white hover:bg-[#B82B55]'
+                              }`}>
+                                {isVisAccepted ? (
+                                  <CheckCheck size={22} strokeWidth={2.8} />
+                                ) : isVisSent ? (
+                                  <Check size={20} strokeWidth={2.8} />
+                                ) : (
+                                  <Mail size={20} />
+                                )}
+                              </div>
+                              <span className={`text-[10px] tracking-wide ${
+                                isVisSentOrAccepted ? 'font-black text-emerald-400' : 'font-bold text-white'
+                              }`}>
+                                {isVisAccepted ? 'Accepted' : isVisSent ? 'Sent' : 'Interest'}
+                              </span>
+                            </button>
+                          );
+                        })()}
                         
                         <button
                           onClick={(e) => { e.stopPropagation(); handleShortlist(visitor.id); }}
@@ -1889,8 +2036,23 @@ const MatrimonialHomePage = () => {
         </div>
       )}
 
-      {/* ─── MY PROFILE VIEW (New Profile Section) ─── */}
+      {/* ─── MATRIMONIAL PROFILE & VISIBILITY FLOW ─── */}
       {activeBottomTab === 'my-profile' && (
+        <MatrimonialVisibilityManager
+          initialScreen="menu"
+          currentUser={currentUser}
+          myProfile={myProfile}
+          onClose={() => setActiveBottomTab('matches')}
+          onNavigateToTab={(tab) => {
+            if (tab === 'home') setActiveBottomTab('matches');
+            else if (tab === 'search') navigate('/member/matrimonial/search');
+            else if (tab === 'shortlist') navigate('/member/matrimonial/shortlist');
+            else if (tab === 'messages') setActiveBottomTab('messenger');
+            else if (tab === 'profile') setActiveBottomTab('my-profile');
+          }}
+        />
+      )}
+      {false && activeBottomTab === 'legacy-profile' && (
         <div className="flex-1 flex flex-col overflow-hidden bg-slate-50 font-sans">
           {/* Header */}
           <div className="bg-white sticky top-0 z-40 border-b border-slate-100/80 px-4 h-15 flex items-center gap-3 shrink-0">

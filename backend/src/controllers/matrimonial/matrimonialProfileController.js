@@ -585,3 +585,69 @@ exports.getAvailableCommunities = async (req, res) => {
     res.status(500).json({ status: 'error', message: err.message });
   }
 };
+
+// ─── Get & Update Visibility Settings ────────────────────────────────────────
+exports.getVisibilitySettings = async (req, res) => {
+  try {
+    const profile = await MatrimonialProfile.findOne({ userId: req.user._id, isDeleted: false });
+    const defaultSettings = {
+      otherCommunities: {
+        enabled: true,
+        scope: 'all',
+        selectedCommunities: ['Marathi', 'Gujarati', 'Punjabi', 'Tamil']
+      },
+      myCommunity: {
+        enabled: true,
+        scope: 'all'
+      },
+      mySubCommunity: {
+        enabled: true,
+        scope: 'all'
+      },
+      aadharVerifiedOnly: true,
+      communityVerifiedOnly: true,
+      selectedLocations: {
+        enabled: true,
+        locations: ['Mumbai, Maharashtra', 'Pune, Maharashtra', 'Delhi']
+      },
+      visibleOnlyAfterAccept: true
+    };
+
+    if (!profile) {
+      return res.json({ status: 'success', data: defaultSettings });
+    }
+
+    const settings = {
+      ...defaultSettings,
+      ...(profile.visibilitySettings || {})
+    };
+
+    res.json({ status: 'success', data: settings });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+exports.updateVisibilitySettings = async (req, res) => {
+  try {
+    let profile = await MatrimonialProfile.findOne({ userId: req.user._id, isDeleted: false });
+    if (!profile) {
+      profile = new MatrimonialProfile({
+        userId: req.user._id,
+        communityId: req.user.communityId,
+        visibilitySettings: req.body
+      });
+    } else {
+      profile.visibilitySettings = {
+        ...(profile.visibilitySettings || {}),
+        ...req.body
+      };
+      profile.updatedBy = req.user._id;
+    }
+
+    await profile.save();
+    res.json({ status: 'success', message: 'Visibility settings updated successfully.', data: profile.visibilitySettings });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};

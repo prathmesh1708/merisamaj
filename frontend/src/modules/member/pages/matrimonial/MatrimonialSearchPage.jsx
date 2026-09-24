@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Search, X, SlidersHorizontal, Loader2,
   Heart, BookmarkCheck, Bookmark, ShieldCheck, Crown,
-  MapPin, Briefcase, ChevronDown
+  MapPin, Briefcase, ChevronDown, Check
 } from 'lucide-react';
 import { useMatrimonial } from './MatrimonialContext';
 import { matrimonialProfileService, matrimonialInterestService } from '../../../../core/api/matrimonialService';
@@ -85,12 +85,12 @@ const ProfileCard = ({ profile, onInterest, onShortlist, isShortlisted, interest
           onClick={() => onInterest(profile._id)}
           className={`w-full py-2 rounded-xl text-[12px] font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 ${
             hasSentInterest
-              ? 'bg-rose-50 text-rose-500 border border-rose-200'
-              : 'bg-rose-500 text-white shadow-sm'
+              ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-500/20'
+              : 'bg-rose-500 text-white shadow-sm hover:bg-rose-600'
           }`}
         >
-          <Heart size={12} fill={hasSentInterest ? 'currentColor' : 'none'} />
-          {hasSentInterest ? 'Interest Sent' : 'Send Interest'}
+          {hasSentInterest ? <Check size={13} strokeWidth={2.8} /> : <Heart size={12} fill="none" />}
+          {hasSentInterest ? 'Sent' : 'Send Interest'}
         </button>
       </div>
     </div>

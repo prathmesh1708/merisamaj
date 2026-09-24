@@ -217,11 +217,11 @@ const MatrimonialShortlistPage = () => {
                     <button onClick={() => handleSendInterest(profileId)} disabled={item.interestSent || isSending}
                       className={`flex-1 py-2.5 rounded-xl text-[12px] font-bold flex items-center justify-center gap-1.5 active:scale-95 transition-all ${
                         item.interestSent
-                          ? 'bg-rose-50 text-rose-500 border border-rose-100'
-                          : 'bg-rose-500 text-white shadow-sm'
-                      } disabled:opacity-60`}>
-                      {isSending ? <Loader2 size={13} className="animate-spin" /> : <Heart size={12} fill={item.interestSent ? 'currentColor' : 'none'} />}
-                      {item.interestSent ? 'Interest Sent' : 'Send Interest'}
+                          ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-500/20'
+                          : 'bg-rose-500 text-white shadow-sm hover:bg-rose-600'
+                      } disabled:opacity-80`}>
+                      {isSending ? <Loader2 size={13} className="animate-spin" /> : item.interestSent ? <Check size={13} strokeWidth={2.8} /> : <Heart size={12} fill="none" />}
+                      {item.interestSent ? 'Sent' : 'Send Interest'}
                     </button>
                     <button onClick={() => navigate(`/member/matrimonial/${profileId}`)}
                       className="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-600 text-[12px] font-bold active:scale-95 transition-all">

@@ -460,9 +460,9 @@ const MatrimonialProfilePage = () => {
           <button onClick={handleInterest} disabled={actionLoading}
             className={`flex-1 py-3.5 rounded-xl text-[14px] font-extrabold flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all disabled:opacity-60 ${
               isConnected
-                ? 'bg-emerald-500 text-white'
+                ? 'bg-emerald-500 text-white shadow-emerald-200'
                 : isInterestSent
-                ? 'bg-rose-100 text-rose-500 border border-rose-200'
+                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20'
                 : 'bg-gradient-to-r from-rose-500 to-pink-500 text-white shadow-rose-200'
             }`}>
             {actionLoading
@@ -470,7 +470,7 @@ const MatrimonialProfilePage = () => {
               : isConnected
               ? <><MessageCircle size={17} /> Chat Now</>
               : isInterestSent
-              ? <><Check size={17} strokeWidth={3} /> Interest Sent</>
+              ? <><Check size={17} strokeWidth={3} /> Sent</>
               : <><Heart size={17} fill="currentColor" /> Express Interest</>
             }
           </button>

@@ -123,3 +123,18 @@ export const deleteSubCommunity = async (communityId, subId) => {
   const response = await axiosPrivate.delete(`${API_BASE}/${communityId}/sub-communities/${subId}`);
   return response.data;
 };
+
+// GET /admin/communities/:id/sub-communities/:subName/locations → real location breakdown with Local Heads
+export const getSubCommunityLocationBreakdown = async (communityId, subName) => {
+  const encoded = encodeURIComponent(subName);
+  const response = await axiosPrivate.get(`${API_BASE}/${communityId}/sub-communities/${encoded}/locations`);
+  return response.data;
+};
+
+// POST /admin/communities/:id/sub-communities/:subName/assign-head → assign or create local head/sub-head
+export const assignLocalHeadToLocationGroup = async (communityId, subName, data) => {
+  const encoded = encodeURIComponent(subName);
+  const response = await axiosPrivate.post(`${API_BASE}/${communityId}/sub-communities/${encoded}/assign-head`, data);
+  return response.data;
+};
+

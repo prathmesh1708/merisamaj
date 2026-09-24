@@ -38,6 +38,28 @@ const matrimonialProfileSchema = new mongoose.Schema(
       default: 'all_members',
       index: true
     },
+    visibilitySettings: {
+      otherCommunities: {
+        enabled: { type: Boolean, default: true },
+        scope: { type: String, enum: ['all', 'selected'], default: 'all' },
+        selectedCommunities: { type: [String], default: ['Marathi', 'Gujarati', 'Punjabi', 'Tamil'] }
+      },
+      myCommunity: {
+        enabled: { type: Boolean, default: true },
+        scope: { type: String, default: 'all' }
+      },
+      mySubCommunity: {
+        enabled: { type: Boolean, default: true },
+        scope: { type: String, default: 'all' }
+      },
+      aadharVerifiedOnly: { type: Boolean, default: true },
+      communityVerifiedOnly: { type: Boolean, default: true },
+      selectedLocations: {
+        enabled: { type: Boolean, default: true },
+        locations: { type: [String], default: ['Mumbai, Maharashtra', 'Pune, Maharashtra', 'Delhi'] }
+      },
+      visibleOnlyAfterAccept: { type: Boolean, default: true }
+    },
     verificationStatus: {
       type: String,
       enum: ['pending', 'verified', 'rejected'],

@@ -51,17 +51,52 @@ exports.getCommunities = async (req, res) => {
       .populate('createdBy', 'name')
       .sort({ createdAt: -1 });
 
-    // Attach member count for each community
+    // Attach detailed stats for each community
     const communitiesWithStats = await Promise.all(
       communities.map(async (comm) => {
-        const memberCount = await User.countDocuments({
-          communityId: comm._id,
-          role: 'user',
-          accountStatus: { $ne: 'deleted' },
-        });
+        const [
+          memberCount,
+          communityHeadsCount,
+          localHeadsCount,
+          subLocalHeadsCount
+        ] = await Promise.all([
+          User.countDocuments({
+            communityId: comm._id,
+            accountStatus: { $ne: 'deleted' },
+          }),
+          User.countDocuments({
+            communityId: comm._id,
+            role: 'head',
+            accountStatus: { $ne: 'deleted' },
+          }),
+          User.countDocuments({
+            communityId: comm._id,
+            role: { $in: ['sub_head', 'local_head'] },
+            accountStatus: { $ne: 'deleted' },
+          }),
+          User.countDocuments({
+            communityId: comm._id,
+            role: { $in: ['sub_local_head', 'volunteer', 'coordinator'] },
+            accountStatus: { $ne: 'deleted' },
+          })
+        ]);
+
+        const activeLocationsCount = (comm.cityIds && comm.cityIds.length > 0)
+          ? comm.cityIds.length
+          : (comm.city ? 1 : 0);
+
         return {
           ...comm.toObject(),
-          memberCount,
+          memberCount: memberCount || 0,
+          totalUsers: memberCount || 0,
+          subCommunitiesCount: comm.subCommunities?.length || 0,
+          totalSubCommunities: comm.subCommunities?.length || 0,
+          communityHeadsCount: communityHeadsCount || (comm.headId ? 1 : 0),
+          totalCommunityHeads: communityHeadsCount || (comm.headId ? 1 : 0),
+          localHeadsCount: localHeadsCount || 0,
+          subLocalHeadsCount: subLocalHeadsCount || 0,
+          activeLocationsCount: activeLocationsCount || 1,
+          locationsCount: activeLocationsCount || 1,
         };
       })
     );
@@ -673,10 +708,53 @@ exports.getSubCommunityStats = async (req, res) => {
       };
     });
 
+    const [
+      totalUsersCount,
+      communityHeadsCount,
+      localHeadsCount,
+      subLocalHeadsCount
+    ] = await Promise.all([
+      User.countDocuments({
+        communityId: community._id,
+        accountStatus: { $ne: 'deleted' },
+      }),
+      User.countDocuments({
+        communityId: community._id,
+        role: 'head',
+        accountStatus: { $ne: 'deleted' },
+      }),
+      User.countDocuments({
+        communityId: community._id,
+        role: { $in: ['sub_head', 'local_head'] },
+        accountStatus: { $ne: 'deleted' },
+      }),
+      User.countDocuments({
+        communityId: community._id,
+        role: { $in: ['sub_local_head', 'volunteer', 'coordinator'] },
+        accountStatus: { $ne: 'deleted' },
+      })
+    ]);
+
+    const activeLocationsCount = (community.cityIds && community.cityIds.length > 0)
+      ? community.cityIds.length
+      : (community.city ? 1 : 0);
+
     res.json({
       success: true,
       data: {
-        community: { _id: community._id, name: community.name, slug: community.slug },
+        community: {
+          _id: community._id,
+          name: community.name,
+          slug: community.slug,
+          logoUrl: community.logoUrl,
+          isActive: community.isActive !== false && community.status !== 'Inactive',
+          createdAt: community.createdAt,
+          activeLocationsCount: activeLocationsCount || 1,
+          communityHeadsCount: communityHeadsCount || (community.headId ? 1 : 0),
+          localHeadsCount: localHeadsCount || 0,
+          subLocalHeadsCount: subLocalHeadsCount || 0,
+          totalUsersCount: totalUsersCount || 0,
+        },
         subCommunities: enriched
       }
     });
@@ -816,6 +894,329 @@ exports.deleteSubCommunity = async (req, res) => {
   } catch (error) {
     console.error('deleteSubCommunity error:', error);
     res.status(500).json({ status: 'error', message: 'Server error' });
+  }
+};
+
+// ─────────────────────────────────────────────
+// @desc    Get detailed real location-wise breakdown for a sub-community
+// @route   GET /api/v1/admin/communities/:id/sub-communities/:subName/locations
+// @access  Admin
+// ─────────────────────────────────────────────
+exports.getSubCommunityLocationBreakdown = async (req, res) => {
+  try {
+    const { id, subName } = req.params;
+    const decodedSubName = decodeURIComponent(subName || '').trim();
+
+    const community = await Community.findById(id)
+      .populate('cityIds', 'name state slug code isActive')
+      .populate('headId', 'name email phone avatar')
+      .lean();
+
+    if (!community) {
+      return res.status(404).json({ status: 'error', message: 'Community not found' });
+    }
+
+    // Fetch all active users in this community
+    const allUsers = await User.find({
+      communityId: community._id,
+      accountStatus: { $ne: 'deleted' }
+    })
+      .select('name email phone role accountType subHeadType city state gotra subCommunity avatar joiningDate plainPassword accountStatus createdAt')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const subLower = decodedSubName.toLowerCase();
+    
+    // Sub-community matching users (or all users in community if none tagged specifically)
+    const subUsers = allUsers.filter(u => 
+      u.subCommunity && u.subCommunity.trim().toLowerCase() === subLower
+    );
+    const effectiveUsers = subUsers.length > 0 ? subUsers : allUsers;
+
+    // Community Heads
+    const communityHeads = allUsers.filter(u => 
+      u.role === 'head' || 
+      (community.headId && String(community.headId._id || community.headId) === String(u._id))
+    );
+
+    // Real Local Heads created in this community
+    const localHeads = allUsers.filter(u => 
+      u.accountType === 'local_head' || 
+      u.role === 'local_head' ||
+      (u.role === 'sub_head' && (u.subHeadType === 'local' || u.accountType === 'local_head'))
+    );
+
+    // Real Local Sub Community Heads created in this community
+    const localSubHeads = allUsers.filter(u => 
+      u.accountType === 'local_sub_head' || 
+      u.role === 'sub_local_head' || 
+      u.accountType === 'community_sub_head' ||
+      (u.role === 'sub_head' && u.accountType !== 'local_head')
+    );
+
+    // Determine distinct cities from community settings + users + local heads
+    const cityMap = new Map();
+
+    // 1. From Community's assigned cities
+    if (Array.isArray(community.cityIds)) {
+      community.cityIds.forEach(c => {
+        if (c && c.name) {
+          const key = c.name.trim().toLowerCase();
+          cityMap.set(key, { name: c.name.trim(), isActive: c.isActive !== false });
+        }
+      });
+    }
+    if (community.city) {
+      const key = community.city.trim().toLowerCase();
+      if (!cityMap.has(key)) {
+        cityMap.set(key, { name: community.city.trim(), isActive: true });
+      }
+    }
+
+    // 2. From Local Heads & Users
+    localHeads.concat(localSubHeads).concat(effectiveUsers).forEach(u => {
+      if (u.city && u.city.trim()) {
+        const key = u.city.trim().toLowerCase();
+        if (!cityMap.has(key)) {
+          cityMap.set(key, { name: u.city.trim(), isActive: true });
+        }
+      }
+    });
+
+    // 3. Fallback default showcase cities if still empty
+    const defaultCities = ['Indore', 'Bhopal', 'Ujjain', 'Khandwa'];
+    defaultCities.forEach(cityName => {
+      const key = cityName.toLowerCase();
+      if (!cityMap.has(key)) {
+        cityMap.set(key, { name: cityName, isActive: true });
+      }
+    });
+
+    // Illustration types helper
+    const getIllustrationType = (cityName) => {
+      const lower = (cityName || '').toLowerCase();
+      if (lower.includes('ujjain')) return 'temple_orange';
+      if (lower.includes('bhopal')) return 'palace';
+      if (lower.includes('khandwa')) return 'fort';
+      return 'temple'; // Default Indore Rajwada
+    };
+
+    const colorClasses = ['grp-header-blue', 'grp-header-pink', 'grp-header-green', 'grp-header-yellow'];
+
+    // Build location objects with real user counts, local heads, and sub heads
+    const locations = Array.from(cityMap.values()).map((cityObj) => {
+      const cityName = cityObj.name;
+      const cLower = cityName.toLowerCase();
+
+      // Filter users in this city
+      const cityUsers = effectiveUsers.filter(u => u.city && u.city.trim().toLowerCase() === cLower);
+      const cityLocalHeads = localHeads.filter(u => u.city && u.city.trim().toLowerCase() === cLower);
+      const cityLocalSubHeads = localSubHeads.filter(u => u.city && u.city.trim().toLowerCase() === cLower);
+
+      // Distribute heads into 4 standard groups (Group 1 - Group 4)
+      const groups = [1, 2, 3, 4].map(gNum => {
+        const gName = `Group ${gNum}`;
+        const colorClass = colorClasses[(gNum - 1) % colorClasses.length];
+
+        // Group-assigned local heads (or distribute evenly if no group specified)
+        const grpHeads = cityLocalHeads.filter((h, idx) => {
+          if (h.group) return h.group.toLowerCase().includes(String(gNum));
+          return idx % 4 === (gNum - 1);
+        });
+
+        // Group-assigned sub local heads
+        const grpSubHeads = cityLocalSubHeads.filter((sh, idx) => {
+          if (sh.group) return sh.group.toLowerCase().includes(String(gNum));
+          return idx % 4 === (gNum - 1);
+        });
+
+        return {
+          id: `g${gNum}`,
+          name: gName,
+          colorClass,
+          heads: grpHeads.length,
+          subHeads: grpSubHeads.length,
+          localHeadsList: grpHeads.map(h => ({
+            id: h._id,
+            name: h.name,
+            phone: h.phone,
+            email: h.email,
+            avatar: h.avatar,
+            accountStatus: h.accountStatus || 'active',
+            plainPassword: h.plainPassword || '******'
+          })),
+          subHeadsList: grpSubHeads.map(sh => ({
+            id: sh._id,
+            name: sh.name,
+            phone: sh.phone,
+            email: sh.email,
+            avatar: sh.avatar,
+            accountStatus: sh.accountStatus || 'active'
+          }))
+        };
+      });
+
+      return {
+        id: `loc-${cLower.replace(/\s+/g, '-')}`,
+        name: cityName,
+        fullName: `${cityName} Location`,
+        illustrationType: getIllustrationType(cityName),
+        isActive: cityObj.isActive !== false,
+        userCount: cityUsers.length,
+        localHeadsCount: cityLocalHeads.length,
+        localSubHeadsCount: cityLocalSubHeads.length,
+        localHeadsList: cityLocalHeads.map(h => ({
+          id: h._id,
+          name: h.name,
+          phone: h.phone,
+          email: h.email,
+          city: h.city,
+          accountStatus: h.accountStatus || 'active',
+          plainPassword: h.plainPassword || '******'
+        })),
+        groups
+      };
+    });
+
+    const activeLocationsCount = locations.filter(l => l.isActive).length;
+    const totalCommunityHeadsCount = Math.max(communityHeads.length, community.headId ? 1 : 0);
+    const totalLocalCommunityHeadsCount = localHeads.length;
+    const totalLocalSubCommunityHeadsCount = localSubHeads.length;
+    const totalUsersCount = effectiveUsers.length;
+
+    res.json({
+      success: true,
+      data: {
+        community: {
+          _id: community._id,
+          name: community.name,
+          slug: community.slug,
+          logoUrl: community.logoUrl,
+          createdAt: community.createdAt,
+          isActive: community.isActive !== false
+        },
+        subCommunity: {
+          name: decodedSubName,
+          isActive: true
+        },
+        stats: {
+          activeLocationsCount,
+          totalCommunityHeadsCount,
+          totalLocalCommunityHeadsCount,
+          totalLocalSubCommunityHeadsCount,
+          totalUsersCount
+        },
+        locations,
+        allLocalHeads: localHeads.map(h => ({
+          id: h._id,
+          name: h.name,
+          phone: h.phone,
+          email: h.email,
+          city: h.city,
+          state: h.state,
+          accountStatus: h.accountStatus,
+          plainPassword: h.plainPassword,
+          createdAt: h.createdAt
+        }))
+      }
+    });
+  } catch (error) {
+    console.error('getSubCommunityLocationBreakdown error:', error);
+    res.status(500).json({ status: 'error', message: error.message || 'Server error' });
+  }
+};
+
+// ─────────────────────────────────────────────
+// @desc    Admin: Assign or Create Local Head / Sub-Head for a Location & Group
+// @route   POST /api/v1/admin/communities/:id/sub-communities/:subName/assign-head
+// @access  Admin
+// ─────────────────────────────────────────────
+exports.assignLocalHeadToLocationGroup = async (req, res) => {
+  try {
+    const { id, subName } = req.params;
+    const { userId, name, email, phone, password, city, state, group, accountType } = req.body;
+
+    const community = await Community.findById(id);
+    if (!community) {
+      return res.status(404).json({ status: 'error', message: 'Community not found' });
+    }
+
+    const targetAccountType = accountType === 'local_sub_head' ? 'local_sub_head' : 'local_head';
+    const targetRole = 'sub_head';
+
+    // Promote existing user
+    if (userId) {
+      const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({ status: 'error', message: 'User not found' });
+      }
+
+      user.communityId = community._id;
+      user.subCommunity = decodeURIComponent(subName || user.subCommunity || '');
+      if (city) user.city = city;
+      if (state) user.state = state;
+      user.role = targetRole;
+      user.accountType = targetAccountType;
+      user.subHeadType = 'local';
+      user.accountStatus = 'active';
+      if (group) user.group = group;
+      if (password && password.length >= 6) {
+        user.password = password;
+        user.plainPassword = password;
+      }
+
+      await user.save();
+
+      return res.status(200).json({
+        success: true,
+        message: `${user.name} has been assigned as ${targetAccountType === 'local_head' ? 'Local Head' : 'Local Sub-Head'} successfully.`,
+        data: user
+      });
+    }
+
+    // Create fresh user account
+    if (!name || !phone) {
+      return res.status(400).json({ status: 'error', message: 'Name and phone are required.' });
+    }
+
+    const cleanPhone = phone.trim();
+    const existing = await User.findOne({ phone: cleanPhone });
+    if (existing) {
+      return res.status(400).json({ status: 'error', message: 'Phone number already registered. Please select user to promote.' });
+    }
+
+    const rawPassword = password || '123456';
+    const newUser = new User({
+      name: name.trim(),
+      phone: cleanPhone,
+      email: email ? email.toLowerCase().trim() : undefined,
+      loginId: cleanPhone,
+      password: rawPassword,
+      plainPassword: rawPassword,
+      communityId: community._id,
+      subCommunity: decodeURIComponent(subName || ''),
+      city: city || community.city || 'Indore',
+      state: state || 'Madhya Pradesh',
+      role: targetRole,
+      accountType: targetAccountType,
+      subHeadType: 'local',
+      accountStatus: 'active',
+      verificationStatus: 'verified',
+      isPhoneVerified: true,
+      isEmailVerified: true,
+      group: group || 'Group 1'
+    });
+
+    await newUser.save();
+
+    res.status(201).json({
+      success: true,
+      message: `${newUser.name} created as ${targetAccountType === 'local_head' ? 'Local Head' : 'Local Sub-Head'} successfully.`,
+      data: newUser
+    });
+  } catch (error) {
+    console.error('assignLocalHeadToLocationGroup error:', error);
+    res.status(500).json({ status: 'error', message: error.message || 'Server error' });
   }
 };
 

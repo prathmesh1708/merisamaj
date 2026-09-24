@@ -15,6 +15,8 @@ const {
   renameSubCommunity,
   toggleSubCommunityStatus,
   deleteSubCommunity,
+  getSubCommunityLocationBreakdown,
+  assignLocalHeadToLocationGroup,
 } = require('../../controllers/admin/communityController');
 
 // Secure all endpoints under /admin/communities with Admin Auth
@@ -57,4 +59,10 @@ router.patch('/:id/sub-communities/:subId/toggle', toggleSubCommunityStatus);
 // DELETE /api/v1/admin/communities/:id/sub-communities/:subId     → delete one
 router.delete('/:id/sub-communities/:subId', deleteSubCommunity);
 
+// GET    /api/v1/admin/communities/:id/sub-communities/:subName/locations → detailed location breakdown with real Local Heads
+router.get('/:id/sub-communities/:subName/locations', getSubCommunityLocationBreakdown);
+// POST   /api/v1/admin/communities/:id/sub-communities/:subName/assign-head → assign/create local head or sub-head
+router.post('/:id/sub-communities/:subName/assign-head', assignLocalHeadToLocationGroup);
+
 module.exports = router;
+

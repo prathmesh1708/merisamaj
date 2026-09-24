@@ -14,7 +14,10 @@ export const matrimonialProfileService = {
   getMyProfile:    ()           => axiosPrivate.get(`${BASE}/profile/me`),
   getUserProfile:  (id)         => axiosPrivate.get(`${BASE}/profile/${id}`),
   searchProfiles:  (params)     => axiosPrivate.get(`${BASE}/profile/search`, { params }),
-  deleteProfile:   ()           => axiosPrivate.delete(`${BASE}/profile`),
+  // Visibility & Privacy Settings
+  getVisibilitySettings: ()           => axiosPrivate.get(`${BASE}/profile/visibility`),
+  updateVisibilitySettings: (data)   => axiosPrivate.put(`${BASE}/profile/visibility`, data),
+  getAvailableCommunities: ()        => axiosPrivate.get(`${BASE}/profile/communities`),
   // Photos
   uploadPhotos:    (formData)   => axiosPrivate.post(`${BASE}/profile/photos/upload`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' }

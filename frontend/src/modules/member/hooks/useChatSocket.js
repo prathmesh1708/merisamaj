@@ -17,6 +17,24 @@ import { useAuth } from '../../../core/auth/useAuth';
 let socketInstance = null;
 let currentSocketUserId = null;
 
+export const getResolvedSocketUrl = () => {
+  const envSocketUrl = import.meta.env.VITE_SOCKET_URL;
+  const envApiUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || '';
+
+  // In production (running on live domain/IP, not localhost/127.0.0.1)
+  if (typeof window !== 'undefined' && !['localhost', '127.0.0.1'].includes(window.location.hostname)) {
+    // If env variable is missing, relative '/', or mistakenly points to localhost
+    if (!envSocketUrl || envSocketUrl === '/' || envSocketUrl.includes('localhost') || envSocketUrl.includes('127.0.0.1')) {
+      return window.location.origin;
+    }
+    return envSocketUrl;
+  }
+
+  return envSocketUrl
+    || (envApiUrl ? envApiUrl.replace(/\/api\/v1\/?$/, '') : '')
+    || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5001');
+};
+
 export const getSocket = (userId) => {
   if (!userId) return null;
   const targetUserId = userId.toString();
@@ -42,10 +60,7 @@ export const getSocket = (userId) => {
 
   currentSocketUserId = targetUserId;
 
-  const apiEnvUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || '';
-  const backendUrl = import.meta.env.VITE_SOCKET_URL
-    || (apiEnvUrl ? apiEnvUrl.replace(/\/api\/v1\/?$/, '') : '')
-    || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5001');
+  const backendUrl = getResolvedSocketUrl();
 
   const token = typeof localStorage !== 'undefined'
     ? (localStorage.getItem('merisamaj_token') || localStorage.getItem('admin_auth_token') || localStorage.getItem('head_auth_token'))
@@ -58,6 +73,10 @@ export const getSocket = (userId) => {
     reconnection: true,
     reconnectionDelay: 1000,
     reconnectionAttempts: 10
+  });
+
+  socketInstance.on('connect_error', (err) => {
+    console.warn('[ChatSocket] Connection error to', backendUrl, ':', err?.message || err);
   });
 
   return socketInstance;

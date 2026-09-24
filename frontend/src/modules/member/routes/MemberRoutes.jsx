@@ -38,6 +38,7 @@ import SocialHubPage from '../pages/social/SocialHubPage';
 import SocialInsightsPage from '../pages/social/SocialInsightsPage';
 import MatrimonialProfilePage from '../pages/matrimonial/MatrimonialProfilePage';
 import MatrimonialSetupPage from '../pages/matrimonial/MatrimonialSetupPage';
+import { MatrimonialVisibilityManager } from '../pages/matrimonial/components/MatrimonialVisibilityManager';
 import InterestsPage from '../pages/matrimonial/InterestsPage';
 import MatrimonialSearchPage from '../pages/matrimonial/MatrimonialSearchPage';
 import MatrimonialShortlistPage from '../pages/matrimonial/MatrimonialShortlistPage';
@@ -158,6 +159,8 @@ export const MemberRoutes = () => {
               <Route path="matrimonial" element={<MatrimonialProvider />}>
                 <Route index element={<AnimatedPage><MatrimonialHomePage /></AnimatedPage>} />
                 <Route path="setup" element={<AnimatedPage><MatrimonialSetupPage /></AnimatedPage>} />
+                <Route path="visibility" element={<AnimatedPage><MatrimonialVisibilityManager initialScreen="visibility" /></AnimatedPage>} />
+                <Route path="profile-menu" element={<AnimatedPage><MatrimonialVisibilityManager initialScreen="menu" /></AnimatedPage>} />
                 <Route path="interests" element={<AnimatedPage><InterestsPage /></AnimatedPage>} />
                 <Route path="search" element={<AnimatedPage><MatrimonialSearchPage /></AnimatedPage>} />
                 <Route path="shortlist" element={<AnimatedPage><MatrimonialShortlistPage /></AnimatedPage>} />

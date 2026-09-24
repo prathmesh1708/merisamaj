@@ -147,6 +147,10 @@ export const MatrimonialProvider = () => {
     if (auth.isAuthenticated && userId) {
       fetchMyProfile();
       fetchDashboard();
+      fetchInterests();
+      fetchVisitors();
+      fetchShortlistIds();
+      fetchBlockedIds();
     } else {
       setMyProfile(null);
       setDashboard(null);
@@ -157,7 +161,7 @@ export const MatrimonialProvider = () => {
       setShortlistedIds([]);
       setBlockedIds([]);
     }
-  }, [auth.isAuthenticated, userId, fetchMyProfile, fetchDashboard]);
+  }, [auth.isAuthenticated, userId, fetchMyProfile, fetchDashboard, fetchInterests, fetchVisitors, fetchShortlistIds, fetchBlockedIds]);
 
   // ─── Interest Actions (real API) ──────────────────────────────────────────
   const sendInterest = useCallback(async (receiverProfileId, message = '') => {
@@ -256,6 +260,45 @@ export const MatrimonialProvider = () => {
     setViewMode(prev => prev === 'grid' ? 'list' : 'grid');
   }, []);
 
+  const getInterestStatus = useCallback((profile) => {
+    if (!profile) return 'none';
+    const profileId = (profile._id || profile.id)?.toString();
+    const targetUserId = (profile.userId?._id || profile.userId)?.toString();
+
+    // 1. Check if Accepted / Connected
+    if (profile.isConnected || profile.connectionStatus === 'connected' || profile.connectionStatus === 'accepted') {
+      return 'accepted';
+    }
+    const isAccepted = acceptedInterests?.some(item => {
+      const recProfileId = (item.receiverProfile?._id || item.receiverProfileId || item.receiverProfile)?.toString();
+      const recUserId = (item.receiverId?._id || item.receiverId || item.receiver?._id || item.receiver)?.toString();
+      const sndUserId = (item.senderId?._id || item.senderId || item.sender?._id || item.sender)?.toString();
+
+      return (
+        (profileId && (recProfileId === profileId || recUserId === profileId || sndUserId === profileId)) ||
+        (targetUserId && (recUserId === targetUserId || recProfileId === targetUserId || sndUserId === targetUserId))
+      );
+    });
+    if (isAccepted) return 'accepted';
+
+    // 2. Check if Sent (pending)
+    if (profile.hasSentInterest || profile.interestStatus === 'sent' || profile.interestStatus === 'pending') {
+      return 'sent';
+    }
+    const isPendingSent = sentInterests?.some(item => {
+      const recProfileId = (item.receiverProfile?._id || item.receiverProfileId || item.receiverProfile)?.toString();
+      const recUserId = (item.receiverId?._id || item.receiverId || item.receiver?._id || item.receiver)?.toString();
+
+      return (
+        (profileId && (recProfileId === profileId || recUserId === profileId)) ||
+        (targetUserId && (recUserId === targetUserId || recProfileId === targetUserId))
+      );
+    });
+    if (isPendingSent) return 'sent';
+
+    return 'none';
+  }, [acceptedInterests, sentInterests]);
+
   const value = {
     // My profile
     myProfile,
@@ -277,6 +320,7 @@ export const MatrimonialProvider = () => {
     acceptInterest,
     rejectInterest,
     cancelInterest,
+    getInterestStatus,
 
     // Visitors
     visitors,

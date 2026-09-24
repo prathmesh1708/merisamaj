@@ -289,11 +289,18 @@ export default function MatrimonialManagement() {
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
-  // ─── Socket.IO Auto-Refresh ───────────────────────────────────────────────
   useEffect(() => {
-    const SOCKET_URL = import.meta.env.VITE_SOCKET_URL
-      || (import.meta.env.VITE_API_URL?.replace(/\/api\/v1\/?$/, ''))
-      || 'http://localhost:5000';
+    const envSocketUrl = import.meta.env.VITE_SOCKET_URL;
+    const envApiUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || '';
+    let SOCKET_URL = envSocketUrl
+      || (envApiUrl ? envApiUrl.replace(/\/api\/v1\/?$/, '') : '')
+      || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5001');
+
+    if (typeof window !== 'undefined' && !['localhost', '127.0.0.1'].includes(window.location.hostname)) {
+      if (!envSocketUrl || envSocketUrl === '/' || envSocketUrl.includes('localhost') || envSocketUrl.includes('127.0.0.1')) {
+        SOCKET_URL = window.location.origin;
+      }
+    }
     const token = localStorage.getItem('head_auth_token');
     
     const socket = io(SOCKET_URL, {

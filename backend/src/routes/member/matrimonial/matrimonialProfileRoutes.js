@@ -34,6 +34,8 @@ router.delete('/', profileCtrl.deleteProfile);
 
 // Static sub-paths: must come before /:id
 router.get('/me', profileCtrl.getMyProfile);
+router.get('/visibility', profileCtrl.getVisibilitySettings);
+router.put('/visibility', profileCtrl.updateVisibilitySettings);
 router.get('/communities', profileCtrl.getAvailableCommunities);
 
 router.get('/search',
