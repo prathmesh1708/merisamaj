@@ -82,11 +82,11 @@ const connectDB = async () => {
     }
 
     // 2b. Seed/Update Default Admin User
-    const adminEmail = 'admin@gmail.com';
+    const adminEmail = 'admin@merisamaj.com';
     const adminPassword = 'Admin!@#123';
     const adminPhone = '7777777777';
 
-    let adminUser = await User.findOne({ email: adminEmail });
+    let adminUser = await User.findOne({ email: { $in: ['admin@merisamaj.com', 'admin@gmail.com'] } });
     if (!adminUser) {
       adminUser = await User.findOne({ phone: adminPhone });
     }
@@ -103,7 +103,7 @@ const connectDB = async () => {
         accountStatus: 'active',
         verificationStatus: 'verified'
       });
-      console.log('Default Admin seeded successfully (Email: admin@gmail.com, Password: Admin!@#123).');
+      console.log('Default Admin seeded successfully (Email: admin@merisamaj.com / admin@gmail.com, Password: Admin!@#123).');
     } else {
       adminUser.email = adminEmail;
       adminUser.password = adminPassword;

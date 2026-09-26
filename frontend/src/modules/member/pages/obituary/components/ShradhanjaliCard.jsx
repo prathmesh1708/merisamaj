@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, Clock, Calendar } from 'lucide-react';
+import { resolvePostMediaUrl } from '../../../utils/mediaUtils';
 
 /**
  * ShradhanjaliCard — Compact list card for the home screen.
@@ -9,6 +10,8 @@ import { MapPin, Clock, Calendar } from 'lucide-react';
  */
 const ShradhanjaliCard = ({ obituary, index = 0 }) => {
   const navigate = useNavigate();
+  const [imgError, setImgError] = useState(false);
+  const resolvedImage = resolvePostMediaUrl(obituary.image);
 
   const formatCount = (n) => {
     if (!n && n !== 0) return '0';
@@ -28,12 +31,17 @@ const ShradhanjaliCard = ({ obituary, index = 0 }) => {
       <div className="flex gap-3 p-4">
         {/* Photo */}
         <div className="relative shrink-0">
-          <div className="w-[72px] h-[72px] rounded-2xl overflow-hidden border border-amber-100">
-            <img
-              src={obituary.image}
-              alt={obituary.deceasedName}
-              className="w-full h-full object-cover"
-            />
+          <div className="w-[72px] h-[72px] rounded-2xl overflow-hidden border border-amber-100 bg-amber-50/50 flex items-center justify-center">
+            {resolvedImage && !imgError ? (
+              <img
+                src={resolvedImage}
+                alt={obituary.deceasedName}
+                onError={() => setImgError(true)}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <span className="text-2xl">🪔</span>
+            )}
           </div>
           {/* Om badge */}
           <div

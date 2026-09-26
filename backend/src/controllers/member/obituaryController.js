@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const Obituary = require('../../models/Obituary');
 const User = require('../../models/User');
 const { notifyObituaryPosted, notifyObituaryPostedToHead, createBroadcastNotification } = require('../../services/notificationService');
@@ -88,10 +90,30 @@ exports.createObituary = async (req, res) => {
       return res.status(400).json({ message: 'Condolence message is required' });
     }
 
-    // Get image path from upload middleware (Cloudinary URL is in req.file.path)
+    // Get image path from upload middleware (Cloudinary URL or saved local file)
     let image = '';
     if (req.file) {
-      image = req.file.path;
+      if (req.file.path && (req.file.path.startsWith('http://') || req.file.path.startsWith('https://'))) {
+        image = req.file.path;
+      } else if (req.file.buffer) {
+        try {
+          const uploadDir = path.join(__dirname, '../../../uploads/obituaries');
+          if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+          }
+          const ext = req.file.mimetype ? (req.file.mimetype.split('/')[1] || 'png') : 'png';
+          const filename = `obituary_${Date.now()}_${Math.round(Math.random() * 1e6)}.${ext}`;
+          fs.writeFileSync(path.join(uploadDir, filename), req.file.buffer);
+          image = `/uploads/obituaries/${filename}`;
+        } catch (fileErr) {
+          console.error('Error saving obituary file buffer:', fileErr);
+          image = `data:${req.file.mimetype || 'image/jpeg'};base64,${req.file.buffer.toString('base64')}`;
+        }
+      } else if (req.file.path) {
+        image = req.file.path;
+      }
+    } else if (req.body.image && typeof req.body.image === 'string') {
+      image = req.body.image;
     }
 
     const fullName = `${prefix || ''} ${deceasedName}`.trim();
@@ -302,7 +324,25 @@ exports.updateObituary = async (req, res) => {
 
     let image = existingImage || obituary.image;
     if (req.file) {
-      image = req.file.path;
+      if (req.file.path && (req.file.path.startsWith('http://') || req.file.path.startsWith('https://'))) {
+        image = req.file.path;
+      } else if (req.file.buffer) {
+        try {
+          const uploadDir = path.join(__dirname, '../../../uploads/obituaries');
+          if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+          }
+          const ext = req.file.mimetype ? (req.file.mimetype.split('/')[1] || 'png') : 'png';
+          const filename = `obituary_${Date.now()}_${Math.round(Math.random() * 1e6)}.${ext}`;
+          fs.writeFileSync(path.join(uploadDir, filename), req.file.buffer);
+          image = `/uploads/obituaries/${filename}`;
+        } catch (fileErr) {
+          console.error('Error saving updated obituary file buffer:', fileErr);
+          image = `data:${req.file.mimetype || 'image/jpeg'};base64,${req.file.buffer.toString('base64')}`;
+        }
+      } else if (req.file.path) {
+        image = req.file.path;
+      }
     }
 
     if (deceasedName && deceasedName.trim()) {

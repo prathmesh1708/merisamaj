@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Search, X, Eye, MessageCircle, Bell, Menu } from 'lucide-react';
 import { useData } from '../../context/DataProvider';
 import { AnimatedPage } from '../../components/layout/AnimatedPage';
+import { resolvePostMediaUrl } from '../../utils/mediaUtils';
 
 const FILTER_TABS = [
   { id: 'all', label: 'All' },
@@ -18,64 +19,84 @@ const formatCount = (n) => {
   return n.toString();
 };
 
-/* ─── Full dark memorial card — same style for ALL posts ─── */
+/* ─── Elegant Light Cream / White Memorial Card ─── */
 const MemorialCard = ({ obituary, index }) => {
   const navigate = useNavigate();
+  const [imgError, setImgError] = useState(false);
+  const resolvedImage = resolvePostMediaUrl(obituary.image);
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 28 }}
+      initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.1, duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+      transition={{ delay: index * 0.08, duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
       onClick={() => navigate(`/member/shradhanjali/${obituary.id}`)}
-      className="relative rounded-[24px] overflow-hidden cursor-pointer card-press"
-      style={{
-        background: 'linear-gradient(160deg, #2D1A0E 0%, #1A0D05 100%)',
-        boxShadow: '0 10px 36px rgba(124,92,46,0.30)',
-      }}
+      className="relative rounded-[24px] overflow-hidden cursor-pointer card-press bg-white border border-amber-200/70 shadow-[0_4px_22px_rgba(124,92,46,0.07)] hover:shadow-[0_8px_30px_rgba(124,92,46,0.12)] transition-all"
     >
-      {/* ── Hero photo ── */}
-      <div className="relative h-[220px] bg-slate-900 flex items-center justify-center overflow-hidden">
-        <img
-          src={obituary.image}
-          alt={obituary.deceasedName}
-          className="w-full h-full object-cover"
-          style={{ objectPosition: 'center 20%' }}
-        />
+      {/* ── Hero photo / Peaceful Placeholder ── */}
+      <div className="relative h-[220px] bg-gradient-to-b from-amber-100/50 via-amber-50/30 to-amber-100/40 flex items-center justify-center overflow-hidden border-b border-amber-100/80">
+        {resolvedImage && !imgError ? (
+          <>
+            {/* Ambient blur background */}
+            <div className="absolute inset-0 overflow-hidden pointer-events-none select-none">
+              <img
+                src={resolvedImage}
+                alt=""
+                aria-hidden="true"
+                className="w-full h-full object-cover blur-xl scale-125 opacity-30"
+              />
+            </div>
+            <img
+              src={resolvedImage}
+              alt={obituary.deceasedName}
+              onError={() => setImgError(true)}
+              className="relative z-0 w-full h-full object-contain"
+            />
+          </>
+        ) : (
+          <div className="flex flex-col items-center justify-center gap-2 p-4 text-center">
+            <span className="text-[52px] animate-pulse">🪔</span>
+            <div className="px-3.5 py-1 rounded-full bg-amber-900/10 border border-amber-900/20 text-amber-900 font-extrabold text-[11px] tracking-wider uppercase">
+              In Loving Memory
+            </div>
+            <p className="text-[13px] font-bold text-slate-600 max-w-[200px] truncate">
+              {obituary.deceasedName}
+            </p>
+          </div>
+        )}
 
         {/* Om Shanti badge */}
         <div
-          className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-bold"
+          className="absolute top-3 left-3 flex items-center gap-1.5 px-3 py-1 rounded-full text-[11.5px] font-extrabold shadow-sm z-10"
           style={{
-            background: 'rgba(20,12,0,0.78)',
-            backdropFilter: 'blur(14px)',
-            color: '#D4AF37',
-            border: '1px solid rgba(212,175,55,0.3)',
+            background: 'rgba(20, 12, 0, 0.72)',
+            backdropFilter: 'blur(12px)',
+            color: '#F5E6C8',
+            border: '1px solid rgba(212,175,55,0.4)',
           }}
         >
           🪔 Om Shanti
         </div>
 
         {/* Floral corners */}
-        <div className="absolute bottom-2 left-3 right-3 flex justify-between pointer-events-none">
-          <span className="text-[22px] opacity-50 select-none">🌸</span>
-          <span className="text-[22px] opacity-50 select-none">🌸</span>
+        <div className="absolute bottom-2 left-3 right-3 flex justify-between pointer-events-none z-10">
+          <span className="text-[22px] select-none opacity-80" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.15))' }}>🌸</span>
+          <span className="text-[22px] select-none opacity-80" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.15))' }}>🌸</span>
         </div>
       </div>
 
-      {/* ── Info block ── */}
-      <div className="px-4 pt-3 pb-4">
-
+      {/* ── Info block in Light Cream / White ── */}
+      <div className="p-4 pt-3.5 bg-gradient-to-b from-[#FFFDF9] to-white text-left">
         {/* Name */}
         <h2
-          className="text-[19px] font-bold leading-snug mb-0.5"
-          style={{ color: '#F5E6C8', fontFamily: 'Outfit, serif' }}
+          className="text-[18px] font-extrabold leading-snug mb-1 text-slate-800 tracking-tight"
+          style={{ fontFamily: 'Outfit, serif' }}
         >
           {obituary.deceasedName}
         </h2>
 
-        {/* Age + dates */}
-        <p className="text-[12px] mb-1" style={{ color: 'rgba(212,175,55,0.8)' }}>
+        {/* Age + Passing Date */}
+        <p className="text-[12.5px] font-bold text-amber-800/90 mb-1">
           {obituary.age > 0 ? `Age: ${obituary.age} Years` : ''}
           {obituary.age > 0 && obituary.dateOfPassing ? ' • ' : ''}
           {obituary.dateOfPassing ? `Passing: ${obituary.dateOfPassing}` : ''}
@@ -83,86 +104,80 @@ const MemorialCard = ({ obituary, index }) => {
 
         {/* Birth date */}
         {obituary.birthDate && (
-          <p className="text-[11px] mb-2" style={{ color: 'rgba(255,255,255,0.4)' }}>
+          <p className="text-[11.5px] font-semibold text-slate-500 mb-2.5">
             🌸 Birth: {obituary.birthDate}
           </p>
         )}
 
         {/* Message */}
-        <p
-          className="text-[12px] leading-relaxed line-clamp-2 mb-3"
-          style={{ color: 'rgba(255,255,255,0.6)' }}
-        >
-          "{obituary.message}"
-        </p>
+        {obituary.message && (
+          <p className="text-[12.5px] leading-relaxed line-clamp-2 mb-3.5 text-slate-600 font-medium italic bg-amber-50/50 p-2.5 rounded-xl border border-amber-100/70">
+            "{obituary.message}"
+          </p>
+        )}
 
         {/* ── Stats row ── */}
         <div
-          className="flex items-center justify-around py-2.5 rounded-xl"
-          style={{
-            background: 'rgba(255,255,255,0.06)',
-            border: '1px solid rgba(212,175,55,0.13)',
-          }}
+          className="flex items-center justify-around py-2.5 px-2 rounded-xl bg-amber-50/50 border border-amber-200/50 mb-3.5"
         >
-          {/* Alignment stats */}
           {/* Haath Jode */}
           <div className="flex flex-col items-center gap-0.5">
-            <span className="text-[18px]">🙏</span>
-            <span className="text-[13px] font-bold" style={{ color: '#D4AF37' }}>
+            <span className="text-[17px]">🙏</span>
+            <span className="text-[13px] font-black text-amber-900">
               {formatCount(obituary.haathJodeCount ?? obituary.shraddhanjaliCount)}
             </span>
-            <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.38)' }}>
+            <span className="text-[10px] font-bold text-slate-500">
               Folded Hands
             </span>
           </div>
 
-          <div className="w-px h-8" style={{ background: 'rgba(255,255,255,0.08)' }} />
+          <div className="w-px h-7 bg-amber-200/60" />
 
           {/* Mala Arpan */}
           <div className="flex flex-col items-center gap-0.5">
-            <span className="text-[18px]">🪷</span>
-            <span className="text-[13px] font-bold" style={{ color: '#F9A8D4' }}>
+            <span className="text-[17px]">🪷</span>
+            <span className="text-[13px] font-black text-pink-600">
               {formatCount(obituary.malaArpanCount)}
             </span>
-            <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.38)' }}>
+            <span className="text-[10px] font-bold text-slate-500">
               Garland
             </span>
           </div>
 
-          <div className="w-px h-8" style={{ background: 'rgba(255,255,255,0.08)' }} />
+          <div className="w-px h-7 bg-amber-200/60" />
 
           {/* Views */}
           <div className="flex flex-col items-center gap-0.5">
-            <Eye size={16} style={{ color: 'rgba(255,255,255,0.55)' }} />
-            <span className="text-[13px] font-bold" style={{ color: 'rgba(255,255,255,0.75)' }}>
+            <Eye size={16} className="text-slate-500" />
+            <span className="text-[13px] font-black text-slate-700">
               {formatCount(obituary.views)}
             </span>
-            <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.38)' }}>
+            <span className="text-[10px] font-bold text-slate-500">
               Views
             </span>
           </div>
         </div>
 
         {/* ── Author + timestamp row ── */}
-        <div className="flex items-center justify-between mt-3">
+        <div className="flex items-center justify-between pt-2 border-t border-amber-100/70 text-slate-500">
           <div className="flex items-center gap-2">
-            {/* Author initials bubble */}
             <div
-              className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0"
-              style={{ background: 'rgba(212,175,55,0.18)', color: '#D4AF37' }}
+              className="w-6 h-6 rounded-full flex items-center justify-center text-[9.5px] font-black shrink-0 bg-amber-100 text-amber-900 border border-amber-200"
             >
               {obituary.author?.initials || '?'}
             </div>
-            <span className="text-[11px]" style={{ color: 'rgba(255,255,255,0.45)' }}>
-              {obituary.author?.name} ({obituary.author?.relation})
+            <span className="text-[11.5px] font-bold text-slate-600 truncate max-w-[180px]">
+              {obituary.author?.name} {obituary.author?.relation ? `(${obituary.author.relation})` : ''}
             </span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <MessageCircle size={12} style={{ color: 'rgba(255,255,255,0.3)' }} />
-            <span className="text-[11px]" style={{ color: 'rgba(255,255,255,0.35)' }}>
-              {obituary.comments?.length || 0}
-            </span>
-            <span className="text-[11px] ml-1" style={{ color: 'rgba(255,255,255,0.3)' }}>
+          <div className="flex items-center gap-2 text-slate-400 shrink-0">
+            <div className="flex items-center gap-1">
+              <MessageCircle size={12} />
+              <span className="text-[11px] font-bold">
+                {obituary.comments?.length || 0}
+              </span>
+            </div>
+            <span className="text-[11px] font-medium">
               {obituary.timestamp}
             </span>
           </div>

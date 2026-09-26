@@ -163,7 +163,7 @@ const ShradhanjaliDetailPage = () => {
       </div>
 
       {/* ── Scrollable Content ── */}
-      <div className="pb-28 max-w-lg mx-auto select-none">
+      <div className="pb-24 max-w-lg mx-auto select-none">
 
         {/* Hero Image */}
         <TributeHeroImage
@@ -180,7 +180,7 @@ const ShradhanjaliDetailPage = () => {
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="bg-white rounded-[28px] border border-amber-200/70 shadow-[0_4px_20px_rgba(0,0,0,0.03)] text-center p-6 text-left"
+            className="bg-white rounded-[28px] border border-amber-200/70 shadow-[0_4px_20px_rgba(0,0,0,0.03)] text-center p-5 sm:p-6"
           >
             {/* Name */}
             <h1

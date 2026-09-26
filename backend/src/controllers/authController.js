@@ -218,6 +218,12 @@ const loginUser = async (req, res) => {
       { loginId: identifier.toLowerCase() },
       { phone: identifier }
     ];
+
+    if (identifier.toLowerCase() === 'admin@merisamaj.com') {
+      searchConditions.push({ email: 'admin@gmail.com' });
+    } else if (identifier.toLowerCase() === 'admin@gmail.com') {
+      searchConditions.push({ email: 'admin@merisamaj.com' });
+    }
     
     if (normalizedPhone && normalizedPhone.length >= 7) {
       searchConditions.push({ phone: normalizedPhone });
