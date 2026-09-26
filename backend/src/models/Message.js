@@ -32,7 +32,7 @@ const messageSchema = new mongoose.Schema(
     // ─── Content ─────────────────────────────────────────────────────────────
     type: {
       type: String,
-      enum: ['text', 'image', 'file', 'system', 'announcement', 'poll', 'event', 'deleted'],
+      enum: ['text', 'image', 'audio', 'voice', 'file', 'system', 'announcement', 'poll', 'event', 'deleted'],
       default: 'text'
     },
     message:  { type: String, default: '' },

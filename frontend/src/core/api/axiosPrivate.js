@@ -19,6 +19,18 @@ export const axiosPrivate = axios.create({
 // auth context fully re-initializes.
 axiosPrivate.interceptors.request.use(
   (config) => {
+    // If sending FormData, delete 'Content-Type' so the browser/Axios automatically sets multipart/form-data with proper boundary
+    if (config.data instanceof FormData) {
+      if (config.headers) {
+        delete config.headers['Content-Type'];
+        delete config.headers['content-type'];
+        if (typeof config.headers.delete === 'function') {
+          config.headers.delete('Content-Type');
+          config.headers.delete('content-type');
+        }
+      }
+    }
+
     // Safely check for Authorization header
     const hasAuth = config.headers.has ? config.headers.has('Authorization') : !!config.headers['Authorization'];
     

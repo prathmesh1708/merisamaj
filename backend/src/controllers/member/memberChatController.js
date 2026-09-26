@@ -102,14 +102,16 @@ exports.getMessages = async (req, res) => {
     const { page = 1, limit = 50 } = req.query;
     const userId = req.user._id;
 
-    // Verify participant
+    // Verify participant and populate latest user profiles
     const conv = await Conversation.findOne({
       _id: conversationId,
       participants: userId,
       type: 'member',
       isDeleted: false
-    });
+    }).populate('participants', 'name avatar role communityId about bio phone');
     if (!conv) return res.status(403).json({ status: 'error', message: 'Access denied.' });
+
+    const otherParticipant = conv?.participants?.find(p => p._id.toString() !== userId.toString());
 
     // Mark messages as seen in DB immediately
     await markConversationSeen(conversationId, userId);
@@ -123,7 +125,7 @@ exports.getMessages = async (req, res) => {
         userId
       });
       for (const p of conv.participants) {
-        io.to(`user:${p.toString()}`).emit('chat:messages_seen', {
+        io.to(`user:${(p._id || p).toString()}`).emit('chat:messages_seen', {
           conversationId,
           seenBy: userId,
           userId
@@ -133,7 +135,16 @@ exports.getMessages = async (req, res) => {
 
     const { messages, total } = await getMessages(conversationId, userId, Number(page), Number(limit));
 
-    res.json({ status: 'success', data: { messages, total, page: Number(page) } });
+    res.json({ 
+      status: 'success', 
+      data: { 
+        messages, 
+        total, 
+        page: Number(page),
+        otherUser: otherParticipant || null,
+        conversation: conv
+      } 
+    });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }
@@ -156,9 +167,28 @@ exports.sendMessage = async (req, res) => {
 
     let mediaUrl = null, mediaPublicId = null, msgType = type;
     if (req.file) {
-      mediaUrl = req.file.path || null;
+      if (req.file.path) {
+        mediaUrl = req.file.path;
+      } else if (req.file.buffer) {
+        mediaUrl = `data:${req.file.mimetype || 'application/octet-stream'};base64,${req.file.buffer.toString('base64')}`;
+      }
       mediaPublicId = req.file.filename || req.file.public_id || null;
-      msgType = 'image';
+      if (req.file.mimetype && req.file.mimetype.startsWith('audio/')) {
+        msgType = 'audio';
+      } else if (req.file.mimetype && req.file.mimetype.startsWith('image/')) {
+        msgType = 'image';
+      } else {
+        msgType = req.body.type || 'file';
+      }
+    }
+
+    let parsedMetadata = null;
+    if (req.body.metadata) {
+      try {
+        parsedMetadata = typeof req.body.metadata === 'string' ? JSON.parse(req.body.metadata) : req.body.metadata;
+      } catch (e) {
+        parsedMetadata = null;
+      }
     }
 
     const populatedMsg = await createMessage({
@@ -169,7 +199,8 @@ exports.sendMessage = async (req, res) => {
       mediaUrl,
       mediaPublicId,
       replyTo: replyTo || null,
-      mentionedUsers: mentionedUsers ? JSON.parse(mentionedUsers) : []
+      mentionedUsers: mentionedUsers ? (typeof mentionedUsers === 'string' ? JSON.parse(mentionedUsers) : mentionedUsers) : [],
+      metadata: parsedMetadata
     });
 
     // Emit via socket

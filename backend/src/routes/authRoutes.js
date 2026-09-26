@@ -52,7 +52,7 @@ router.post('/aadhaar/verify-otp', verifyAadhaarOtp);
 // Private routes
 router.get('/me', protect, getMe);
 
-// Profile update handles avatar upload via Cloudinary
-router.put('/update-profile', protect, upload.single('avatarFile'), validateUpdateProfile, updateProfile);
+// Profile update handles avatar & cover upload via Cloudinary / memory fallback
+router.put('/update-profile', protect, upload.uploadProfileMedia, validateUpdateProfile, updateProfile);
 
 module.exports = router;

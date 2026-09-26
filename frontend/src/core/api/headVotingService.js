@@ -11,8 +11,18 @@ const headVotingService = {
     return response.data;
   },
 
+  getTargetOptions: async () => {
+    const response = await axiosPrivate.get('/head/voting/target-options');
+    return response.data;
+  },
+
   deleteElection: async (electionId) => {
     const response = await axiosPrivate.delete(`/head/voting/${electionId}`);
+    return response.data;
+  },
+
+  updateElection: async (electionId, electionData) => {
+    const response = await axiosPrivate.put(`/head/voting/${electionId}`, electionData);
     return response.data;
   },
 
