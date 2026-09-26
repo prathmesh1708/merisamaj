@@ -143,8 +143,11 @@ const PollDetailPage = () => {
           </h1>
         </div>
         <div className="flex items-center gap-1.5 text-xs text-text-secondary bg-gray-100 px-3 py-1 rounded-full font-bold">
-          <span className={`w-2 h-2 rounded-full ${election.status === 'Active' ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'}`} />
-          {election.status === 'Active' ? 'Active' : 'Ended'}
+          <span className={`w-2 h-2 rounded-full ${
+            election.status === 'Active' ? 'bg-emerald-500 animate-pulse' : 
+            election.status === 'Upcoming' ? 'bg-amber-500' : 'bg-gray-400'
+          }`} />
+          {election.status === 'Active' ? 'Active' : (election.status === 'Upcoming' ? 'Upcoming' : 'Ended')}
         </div>
       </div>
 
@@ -158,7 +161,13 @@ const PollDetailPage = () => {
             {/* Banner Section */}
             <div className="bg-gradient-to-r from-purple-800 to-indigo-900 text-white rounded-3xl p-5 border border-purple-700/20 shadow-md">
               <div className="flex justify-between items-center mb-2">
-                <Badge variant="warning" className="text-[10px] font-bold">Active</Badge>
+                <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
+                  election.status === 'Active' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40' :
+                  election.status === 'Upcoming' ? 'bg-amber-500/20 text-amber-300 border-amber-400/40' :
+                  'bg-white/20 text-white border-white/30'
+                }`}>
+                  {election.status}
+                </span>
               </div>
               <h2 className="text-base font-bold text-white">{election.title}</h2>
               
@@ -169,7 +178,9 @@ const PollDetailPage = () => {
                     <Calendar size={11} className="text-amber-400" /> Start Date
                   </div>
                   <div className="font-bold text-white">{election.startDate}</div>
-                  <div className="text-[9px] text-purple-300 mt-0.5">Active</div>
+                  <div className="text-[9px] text-purple-300 mt-0.5">
+                    {election.status === 'Upcoming' ? 'Starts' : 'Active'}
+                  </div>
                 </div>
                 <div className="bg-white/5 p-2.5 rounded-xl border border-white/10">
                   <div className="text-purple-200 text-[10px] uppercase font-bold tracking-wider mb-1 flex items-center justify-center gap-1">
@@ -218,6 +229,18 @@ const PollDetailPage = () => {
                 ))}
               </div>
             </div>
+
+            {/* Upcoming Information Box */}
+            {election.status === 'Upcoming' && (
+              <div className="bg-amber-50/80 border border-amber-200/80 rounded-2xl p-4 text-center space-y-1">
+                <span className="text-xs font-bold text-amber-800 flex items-center justify-center gap-1.5">
+                  <Clock size={14} className="text-amber-600" /> Voting Starts on {election.startDate}
+                </span>
+                <p className="text-[11px] text-amber-700 font-medium">
+                  Voting will open automatically on the start date. You can review candidate profiles above in advance.
+                </p>
+              </div>
+            )}
 
             {/* Next Action: Proceed to Vote screen */}
             {election.status === 'Active' && (
