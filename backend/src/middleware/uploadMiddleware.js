@@ -72,16 +72,18 @@ const uploadMultiple = multer({
 const handleUploadError = (uploadFn) => (req, res, next) => {
   uploadFn(req, res, (err) => {
     if (err instanceof multer.MulterError) {
+      console.error('[Multer Error]:', err.code, err.message);
       if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ status: 'error', message: 'File size must not exceed 5MB.' });
+        return res.status(400).json({ status: 'error', message: 'File size must not exceed 15MB.' });
       }
       if (err.code === 'LIMIT_FILE_COUNT') {
-        return res.status(400).json({ status: 'error', message: 'Maximum 6 photos allowed.' });
+        return res.status(400).json({ status: 'error', message: 'Too many files uploaded.' });
       }
       return res.status(400).json({ status: 'error', message: err.message });
     }
     if (err) {
-      return res.status(400).json({ status: 'error', message: err.message });
+      console.error('[Upload Middleware Error]:', err.message || err);
+      return res.status(400).json({ status: 'error', message: err.message || 'Upload failed.' });
     }
     next();
   });
@@ -98,9 +100,42 @@ const rawUpload = multer({
 const uploadSinglePhoto    = handleUploadError(uploadSingle);
 const uploadMultiplePhotos = handleUploadError(uploadMultiple);
 
-// ─── Chat Image Upload ────────────────────────────────────────────────────────
-// A dedicated Cloudinary storage for chat message images (separate folder)
-let chatStorage = storage; // default to whatever storage was configured above
+const uploadProfileMedia = handleUploadError(
+  multer({
+    storage,
+    fileFilter: imageFilter,
+    limits: { fileSize: MAX_FILE_SIZE }
+  }).fields([
+    { name: 'avatarFile', maxCount: 1 },
+    { name: 'avatar', maxCount: 1 },
+    { name: 'photo', maxCount: 1 },
+    { name: 'image', maxCount: 1 },
+    { name: 'coverFile', maxCount: 1 },
+    { name: 'cover', maxCount: 1 }
+  ])
+);
+
+// ─── Chat Media Upload ────────────────────────────────────────────────────────
+// Dedicated storage for chat message images, audio, voice notes & files
+let chatStorage = storage;
+
+const chatMediaFilter = (req, file, cb) => {
+  // Allow all standard image, audio, video, pdf, doc formats
+  if (
+    file.mimetype.startsWith('image/') ||
+    file.mimetype.startsWith('audio/') ||
+    file.mimetype.startsWith('video/') ||
+    file.mimetype === 'application/pdf' ||
+    file.mimetype === 'application/msword' ||
+    file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+    file.mimetype === 'text/plain'
+  ) {
+    cb(null, true);
+  } else {
+    // If unknown mimetype, still allow reasonable chat files
+    cb(null, true);
+  }
+};
 
 if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
   try {
@@ -111,10 +146,7 @@ if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && proce
       cloudinary,
       params: async (req, file) => ({
         folder: `merisamaj/chat_messages/${req.params.conversationId || 'general'}`,
-        allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
-        transformation: [
-          { quality: 'auto', fetch_format: 'auto' }
-        ],
+        resource_type: 'auto',
         public_id: `chat_${Date.now()}_${Math.round(Math.random() * 1e9)}`
       })
     });
@@ -123,18 +155,23 @@ if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && proce
   }
 }
 
+const CHAT_MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
+
 const uploadChatImageFn = multer({
   storage: chatStorage,
-  fileFilter: imageFilter,
-  limits: { fileSize: MAX_FILE_SIZE }
+  fileFilter: chatMediaFilter,
+  limits: { fileSize: CHAT_MAX_FILE_SIZE }
 }).single('photo');
 
 const uploadChatImage = handleUploadError(uploadChatImageFn);
+const uploadChatMedia = uploadChatImage;
 
 // Make module callable as upload.single('field') for backward compat (authRoutes etc.)
 module.exports = Object.assign(rawUpload, {
   uploadSinglePhoto,
   uploadMultiplePhotos,
+  uploadProfileMedia,
   uploadChatImage,
+  uploadChatMedia,
   handleUploadError
 });
