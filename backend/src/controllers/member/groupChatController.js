@@ -140,9 +140,19 @@ exports.sendGroupMessage = async (req, res) => {
 
     let mediaUrl = null, mediaPublicId = null, msgType = type;
     if (req.file) {
-      mediaUrl = req.file.path || null;
+      if (req.file.path) {
+        mediaUrl = req.file.path;
+      } else if (req.file.buffer) {
+        mediaUrl = `data:${req.file.mimetype || 'application/octet-stream'};base64,${req.file.buffer.toString('base64')}`;
+      }
       mediaPublicId = req.file.filename || req.file.public_id || null;
-      msgType = 'image';
+      if (req.file.mimetype && req.file.mimetype.startsWith('audio/')) {
+        msgType = 'audio';
+      } else if (req.file.mimetype && req.file.mimetype.startsWith('image/')) {
+        msgType = 'image';
+      } else {
+        msgType = req.body.type || 'file';
+      }
     }
 
     const populatedMsg = await createMessage({
@@ -153,7 +163,7 @@ exports.sendGroupMessage = async (req, res) => {
       mediaUrl,
       mediaPublicId,
       replyTo: replyTo || null,
-      mentionedUsers: mentionedUsers ? JSON.parse(mentionedUsers) : []
+      mentionedUsers: mentionedUsers ? (typeof mentionedUsers === 'string' ? JSON.parse(mentionedUsers) : mentionedUsers) : []
     });
 
     // Emit to room and members

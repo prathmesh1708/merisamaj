@@ -29,7 +29,9 @@ const VotingPage = () => {
   }, [markModuleAsVisited]);
 
   const activeElections = elections.filter(e => e.status === 'Active');
-  const firstActiveElection = activeElections.find(e => e.status === 'Active'); // Find first one rather than hardcoded 'el1'
+  const upcomingElections = elections.filter(e => e.status === 'Upcoming');
+  const liveOrUpcomingElections = [...activeElections, ...upcomingElections];
+  const firstActiveElection = activeElections[0] || upcomingElections[0];
   const pastElections = elections.filter(e => e.status === 'Completed' || e.status === 'Closed');
 
   const [timeLeft, setTimeLeft] = useState(15); // 15 seconds countdown
@@ -123,10 +125,16 @@ const VotingPage = () => {
                 Vote for the bright future and transparent leadership of your community
               </p>
               <button 
-                onClick={() => navigate('/member/voting/el1')}
+                onClick={() => {
+                  if (firstActiveElection) {
+                    navigate(`/member/voting/${firstActiveElection.id}`);
+                  } else {
+                    document.getElementById('election-list-section')?.scrollIntoView({ behavior: 'smooth' });
+                  }
+                }}
                 className="bg-white text-purple-950 text-[11.5px] font-extrabold px-4 py-2 rounded-xl shadow-md press-scale hover:bg-purple-50 transition-all hover:shadow-lg mt-1"
               >
-                Vote Now
+                {firstActiveElection ? (firstActiveElection.status === 'Active' ? 'Vote Now' : 'View Election') : 'View Elections'}
               </button>
             </div>
             
@@ -148,10 +156,10 @@ const VotingPage = () => {
         </div>
 
         {/* 3. Upcoming/Active Election Section */}
-        {activeElections.length > 0 && (
+        {liveOrUpcomingElections.length > 0 && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-[14.5px] font-extrabold text-slate-800 tracking-tight">Upcoming Elections</h3>
+              <h3 className="text-[14.5px] font-extrabold text-slate-800 tracking-tight">Active & Upcoming Elections</h3>
               <button 
                 onClick={() => navigate('/member/voting/list')}
                 className="text-[11.5px] font-extrabold text-purple-600 hover:text-purple-800 flex items-center gap-0.5 cursor-pointer"
@@ -161,7 +169,7 @@ const VotingPage = () => {
             </div>
             
             <div className="space-y-3">
-              {activeElections.slice(0, 1).map(elec => (
+              {liveOrUpcomingElections.slice(0, 2).map(elec => (
                 <div 
                   key={elec.id}
                   onClick={() => navigate(`/member/voting/${elec.id}`)}
@@ -178,8 +186,12 @@ const VotingPage = () => {
                       </p>
                     </div>
                   </div>
-                  <span className="bg-emerald-50 text-emerald-700 border border-emerald-200/60 text-[9.5px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full shrink-0">
-                    Active
+                  <span className={`border text-[9.5px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full shrink-0 ${
+                    elec.status === 'Active' 
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200/60' 
+                      : 'bg-amber-50 text-amber-700 border-amber-200/60'
+                  }`}>
+                    {elec.status}
                   </span>
                 </div>
               ))}
@@ -190,7 +202,7 @@ const VotingPage = () => {
         {/* 4. Horizontal Candidates Section — Clean Neutral Avatars */}
         {firstActiveElection && (
           <div className="space-y-3">
-            <h3 className="text-[14.5px] font-extrabold text-slate-800 tracking-tight">Candidates</h3>
+            <h3 className="text-[14.5px] font-extrabold text-slate-800 tracking-tight">Candidates ({firstActiveElection.title})</h3>
             <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
               {firstActiveElection.candidates.map(candidate => (
                 <div 
@@ -246,26 +258,30 @@ const VotingPage = () => {
         <div className="space-y-3">
           <h3 id="election-list-section" className="text-[14.5px] font-extrabold text-slate-800 tracking-tight pt-1 scroll-mt-4">Election List</h3>
           
-          {/* Active List */}
-          {activeElections.map(active => (
+          {/* Active & Upcoming List */}
+          {liveOrUpcomingElections.map(elec => (
             <div 
-              key={active.id}
-              onClick={() => navigate(`/member/voting/${active.id}`)}
+              key={elec.id}
+              onClick={() => navigate(`/member/voting/${elec.id}`)}
               className="bg-white rounded-[24px] p-4 border border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_10px_28px_rgba(124,58,237,0.08)] hover:border-purple-200 cursor-pointer relative overflow-hidden group transition-all duration-300"
             >
-              {votedElections[active.id] && (
+              {votedElections[elec.id] && (
                 <div className="absolute right-0 top-0 bg-emerald-600 text-white text-[9px] font-black uppercase py-0.5 px-3 rounded-bl-xl flex items-center gap-0.5">
                   Voted ✓
                 </div>
               )}
               <div className="flex justify-between items-start mb-2">
-                <h4 className="text-[13.5px] font-extrabold text-slate-800 group-hover:text-purple-700 transition-colors tracking-tight">{active.title}</h4>
-                <span className="bg-emerald-50 text-emerald-700 border border-emerald-200/60 text-[9.5px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full">
-                  Active
+                <h4 className="text-[13.5px] font-extrabold text-slate-800 group-hover:text-purple-700 transition-colors tracking-tight">{elec.title}</h4>
+                <span className={`border text-[9.5px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                  elec.status === 'Active' 
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200/60' 
+                    : 'bg-amber-50 text-amber-700 border-amber-200/60'
+                }`}>
+                  {elec.status}
                 </span>
               </div>
               <p className="text-[11px] font-semibold text-slate-400">
-                {active.startDate} - {active.endDate}
+                {elec.startDate} - {elec.endDate}
               </p>
             </div>
           ))}
