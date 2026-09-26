@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   CheckSquare, Search, Filter, CheckCircle, XCircle, Eye, Download, Users, 
   MapPin, Calendar, Clock, Sparkles, X, ChevronDown, Trash2, Globe, Award,
-  AlertCircle, RefreshCw, Layers, BarChart3, User
+  AlertCircle, RefreshCw, Layers, BarChart3, User, Plus, Check, Edit3, Building2
 } from 'lucide-react';
 import { adminVotingService } from '../../services/adminVotingService';
 import { axiosPrivate } from '../../../../core/api/axiosPrivate';
@@ -31,6 +31,41 @@ export const AdminVotingManagement = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [actionLoading, setActionLoading] = useState(false);
   const [toast, setToast] = useState(null);
+
+  // Create / Edit modal states
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [createSubmitting, setCreateSubmitting] = useState(false);
+
+  const [targetOptions, setTargetOptions] = useState({
+    communities: [],
+    cities: [],
+    communityHeads: [],
+    localHeads: [],
+    subHeads: [],
+    users: []
+  });
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [selectedUserFilterComm, setSelectedUserFilterComm] = useState('all');
+
+  const initialForm = {
+    title: '',
+    description: '',
+    type: 'Platform Election',
+    category: 'General',
+    startDate: '',
+    endDate: '',
+    targetAudience: 'ALL',
+    communityId: '',
+    targetCity: '',
+    targetUsers: [],
+    candidates: [
+      { name: '', age: '', profession: '', shortIntro: '' },
+      { name: '', age: '', profession: '', shortIntro: '' }
+    ]
+  };
+  const [formData, setFormData] = useState(initialForm);
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
@@ -78,6 +113,66 @@ export const AdminVotingManagement = () => {
     fetchCommunities();
   }, []);
 
+  const fetchTargetOptions = async () => {
+    try {
+      const res = await adminVotingService.getTargetOptions();
+      if (res.success) {
+        setTargetOptions(res.data);
+      }
+    } catch (err) {
+      console.warn('Failed to load admin target options:', err.message);
+    }
+  };
+
+  const handleOpenCreateModal = () => {
+    setIsEditing(false);
+    setEditingId(null);
+    setFormData(initialForm);
+    fetchTargetOptions();
+    setCreateModalOpen(true);
+  };
+
+  const handleOpenEditModal = (elec) => {
+    setIsEditing(true);
+    setEditingId(elec._id || elec.id);
+
+    const formatForInput = (d) => {
+      if (!d) return '';
+      const date = new Date(d);
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    };
+
+    setFormData({
+      title: elec.title || '',
+      description: elec.description || '',
+      type: elec.type || 'Platform Election',
+      category: elec.category || 'General',
+      startDate: formatForInput(elec.startDate),
+      endDate: formatForInput(elec.endDate),
+      targetAudience: elec.targetAudience || 'ALL',
+      communityId: elec.communityId?._id || elec.communityId || '',
+      targetCity: elec.targetCity || elec.city || '',
+      targetUsers: Array.isArray(elec.targetUsers) ? elec.targetUsers.map(u => u._id || u.id || u) : [],
+      candidates: Array.isArray(elec.candidates) && elec.candidates.length >= 2
+        ? elec.candidates.map(c => ({
+            _id: c._id || c.id,
+            id: c._id || c.id,
+            name: c.name || '',
+            age: c.age || '',
+            profession: c.profession || '',
+            shortIntro: c.shortIntro || '',
+            votes: c.votes || 0
+          }))
+        : [
+            { name: '', age: '', profession: '', shortIntro: '' },
+            { name: '', age: '', profession: '', shortIntro: '' }
+          ]
+    });
+    fetchTargetOptions();
+    setCreateModalOpen(true);
+  };
+
   const handleViewDetails = async (election) => {
     setSelectedElection(election);
     setDetailsLoading(true);
@@ -124,6 +219,98 @@ export const AdminVotingManagement = () => {
     }
   };
 
+  const handleCandidateChange = (idx, field, value) => {
+    const updated = [...formData.candidates];
+    updated[idx][field] = value;
+    setFormData({ ...formData, candidates: updated });
+  };
+
+  const handleAddCandidate = () => {
+    setFormData({
+      ...formData,
+      candidates: [...formData.candidates, { name: '', age: '', profession: '', shortIntro: '' }]
+    });
+  };
+
+  const handleRemoveCandidate = (idx) => {
+    if (formData.candidates.length <= 2) return;
+    const updated = [...formData.candidates];
+    updated.splice(idx, 1);
+    setFormData({ ...formData, candidates: updated });
+  };
+
+  const toggleUserSelection = (userId) => {
+    const current = formData.targetUsers || [];
+    if (current.includes(userId)) {
+      setFormData({
+        ...formData,
+        targetUsers: current.filter(id => id !== userId)
+      });
+    } else {
+      setFormData({
+        ...formData,
+        targetUsers: [...current, userId]
+      });
+    }
+  };
+
+  const handleFormSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.title || !formData.startDate || !formData.endDate || formData.candidates.some(c => !c.name.trim())) {
+      showToast('Please fill in all required fields (including candidate names)', 'error');
+      return;
+    }
+
+    if (formData.targetAudience === 'SPECIFIC_COMMUNITY' && !formData.communityId) {
+      showToast('Please select a specific community', 'error');
+      return;
+    }
+
+    if (formData.targetAudience === 'COMMUNITY_LOCATION' && (!formData.communityId || !formData.targetCity)) {
+      showToast('Please select both community and target location', 'error');
+      return;
+    }
+
+    if (formData.targetAudience === 'SPECIFIC_USERS' && (!formData.targetUsers || formData.targetUsers.length === 0)) {
+      showToast('Please select at least 1 specific user', 'error');
+      return;
+    }
+
+    setCreateSubmitting(true);
+    try {
+      if (isEditing && editingId) {
+        const res = await adminVotingService.updateElection(editingId, formData);
+        if (res.success) {
+          showToast(`Successfully updated election "${formData.title}"`);
+          setFormData(initialForm);
+          setCreateModalOpen(false);
+          fetchData();
+        }
+      } else {
+        const res = await adminVotingService.createElection(formData);
+        if (res.success) {
+          showToast(`Successfully launched election "${formData.title}"`);
+          setFormData(initialForm);
+          setCreateModalOpen(false);
+          fetchData();
+        }
+      }
+    } catch (err) {
+      showToast(err.response?.data?.message || err.message || 'Failed to save election', 'error');
+    } finally {
+      setCreateSubmitting(false);
+    }
+  };
+
+  const filteredUsers = (targetOptions.users || []).filter(u => {
+    const matchesSearch = !userSearchQuery ||
+      (u.name && u.name.toLowerCase().includes(userSearchQuery.toLowerCase())) ||
+      (u.phone && u.phone.includes(userSearchQuery));
+    const matchesComm = selectedUserFilterComm === 'all' || 
+      (u.communityId?._id ? u.communityId._id.toString() : u.communityId?.toString()) === selectedUserFilterComm;
+    return matchesSearch && matchesComm;
+  });
+
   return (
     <div className="space-y-6 pb-12">
       {/* Toast Notification */}
@@ -150,16 +337,24 @@ export const AdminVotingManagement = () => {
             <CheckSquare size={14} className="text-indigo-400" /> Platform Governance Desk
           </div>
           <h1 className="text-2xl font-black tracking-tight">Voting & Elections Oversight</h1>
-          <p className="text-xs text-indigo-200/75 mt-1">Platform-wide visibility, vote tallies, candidate profiles, and moderation for community elections & polls.</p>
+          <p className="text-xs text-indigo-200/75 mt-1">Platform-wide visibility, role-based targeting, candidate profiles, and live tally moderation.</p>
         </div>
 
-        <button 
-          onClick={fetchData} 
-          disabled={loading}
-          className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-xs font-bold flex items-center gap-2 transition-all active:scale-95 self-start md:self-auto"
-        >
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh List
-        </button>
+        <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+          <button 
+            onClick={handleOpenCreateModal}
+            className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-indigo-950/40 active:scale-95 transition-all"
+          >
+            <Plus size={15} /> Create Election
+          </button>
+          <button 
+            onClick={fetchData} 
+            disabled={loading}
+            className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-xs font-bold flex items-center gap-2 transition-all active:scale-95"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh List
+          </button>
+        </div>
       </div>
 
       {/* Metrics Summary Grid */}
@@ -261,7 +456,7 @@ export const AdminVotingManagement = () => {
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100 text-[11px] font-black uppercase text-slate-400 tracking-wider">
                   <th className="py-3.5 px-4">Election Title</th>
-                  <th className="py-3.5 px-4">Community</th>
+                  <th className="py-3.5 px-4">Community / Scope</th>
                   <th className="py-3.5 px-4">Candidates</th>
                   <th className="py-3.5 px-4">Total Votes</th>
                   <th className="py-3.5 px-4">Status</th>
@@ -314,6 +509,15 @@ export const AdminVotingManagement = () => {
                         >
                           <BarChart3 size={14} />
                         </button>
+
+                        <button
+                          onClick={() => handleOpenEditModal(elec)}
+                          className="p-1.5 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 transition-colors"
+                          title="Edit Election"
+                        >
+                          <Edit3 size={14} />
+                        </button>
+
                         {elec.status !== 'Closed' && (
                           <button
                             onClick={() => handleStatusChange(elec._id, 'Closed')}
@@ -323,6 +527,7 @@ export const AdminVotingManagement = () => {
                             <XCircle size={14} />
                           </button>
                         )}
+
                         <button
                           onClick={() => handleDelete(elec._id)}
                           className="p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors"
@@ -339,6 +544,376 @@ export const AdminVotingManagement = () => {
           </div>
         </div>
       )}
+
+      {/* CREATE / EDIT ELECTION MODAL FOR ADMIN */}
+      <AnimatePresence>
+        {createModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !createSubmitting && setCreateModalOpen(false)}
+              className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+            />
+            
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0, y: 15 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 15 }}
+              className="w-full max-w-2xl bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-2xl relative z-10 p-6 flex flex-col max-h-[90vh]"
+            >
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3 shrink-0 mb-4">
+                <h3 className="text-md font-black text-slate-800 flex items-center gap-2">
+                  <CheckSquare size={18} className="text-indigo-600" />
+                  {isEditing ? 'Edit Platform Election' : 'Create Platform Election / Poll'}
+                </h3>
+                <button 
+                  onClick={() => setCreateModalOpen(false)} 
+                  disabled={createSubmitting}
+                  className="w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 text-slate-500 hover:text-slate-800 hover:bg-slate-200 transition-colors disabled:opacity-50"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <form onSubmit={handleFormSubmit} className="overflow-y-auto pr-2 space-y-6 scrollbar-hide text-slate-800">
+                {/* 1. Basic Details */}
+                <div className="space-y-4">
+                  <h4 className="text-[11px] font-bold text-indigo-600 uppercase tracking-wider border-b border-slate-100 pb-1">1. Basic Details</h4>
+                  
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Election Title *</label>
+                    <input 
+                      type="text" 
+                      required
+                      placeholder="e.g., National Samaj Council Election 2026" 
+                      value={formData.title}
+                      onChange={(e) => setFormData({...formData, title: e.target.value})}
+                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 text-xs text-slate-800 transition-all font-semibold"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Type</label>
+                      <select
+                        value={formData.type}
+                        onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                        className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 text-xs font-semibold text-slate-800"
+                      >
+                        <option value="Platform Election">Platform Election</option>
+                        <option value="Community Election">Community Election</option>
+                        <option value="National Election">National Election</option>
+                        <option value="Executive Council">Executive Council</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Category</label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g., General, Executive"
+                        value={formData.category}
+                        onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                        className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 text-xs font-semibold text-slate-800"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Description & Rules *</label>
+                    <textarea 
+                      rows="2"
+                      required
+                      placeholder="Explain the election purpose..."
+                      value={formData.description}
+                      onChange={(e) => setFormData({...formData, description: e.target.value})}
+                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 text-xs text-slate-800 resize-none transition-all"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Start Date *</label>
+                      <input 
+                        type="datetime-local" 
+                        required
+                        value={formData.startDate}
+                        onChange={(e) => setFormData({...formData, startDate: e.target.value})}
+                        className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 text-xs text-slate-800 transition-all font-semibold"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">End Date *</label>
+                      <input 
+                        type="datetime-local" 
+                        required
+                        value={formData.endDate}
+                        onChange={(e) => setFormData({...formData, endDate: e.target.value})}
+                        className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 text-xs text-slate-800 transition-all font-semibold"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Target Audience / Whom to Send */}
+                <div className="space-y-4">
+                  <h4 className="text-[11px] font-bold text-indigo-600 uppercase tracking-wider border-b border-slate-100 pb-1">
+                    2. Target Audience & Community Selection (Whom to send this election to)
+                  </h4>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Target Audience Scope *</label>
+                    <select
+                      value={formData.targetAudience}
+                      onChange={(e) => setFormData({ ...formData, targetAudience: e.target.value })}
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 text-xs font-semibold text-slate-800"
+                    >
+                      <option value="ALL">🌐 All (Global - Across All Communities)</option>
+                      <option value="SPECIFIC_COMMUNITY">🏢 Specific Community (All Members of Selected Samaj)</option>
+                      <option value="COMMUNITY_LOCATION">📍 Specific Community at Specific Location / City</option>
+                      <option value="USERS_BY_LOCATION">🏙️ Location-Wise (All Samajs in Selected City)</option>
+                      <option value="COMMUNITY_HEADS">👑 All Community Heads</option>
+                      <option value="LOCAL_HEADS">🛡️ All Local Heads</option>
+                      <option value="LOCAL_AND_SUB_HEADS">👥 Local Heads & Sub-Heads</option>
+                      <option value="SPECIFIC_USERS">🎯 Specific Selected Users / Members</option>
+                    </select>
+                  </div>
+
+                  {/* Specific Community Selector */}
+                  {(formData.targetAudience === 'SPECIFIC_COMMUNITY' || formData.targetAudience === 'COMMUNITY_LOCATION') && (
+                    <div className="p-4 bg-indigo-50/60 border border-indigo-100 rounded-2xl space-y-3">
+                      <div>
+                        <label className="text-[10px] font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-1.5">
+                          <Building2 size={13} className="text-indigo-600" /> Select Community *
+                        </label>
+                        <select
+                          value={formData.communityId}
+                          onChange={(e) => setFormData({ ...formData, communityId: e.target.value })}
+                          required
+                          className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500 text-xs font-semibold text-slate-800 mt-1"
+                        >
+                          <option value="">-- Choose Community --</option>
+                          {targetOptions.communities.map((c) => (
+                            <option key={c._id} value={c._id}>{c.name} {c.city ? `(${c.city})` : ''}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {formData.targetAudience === 'COMMUNITY_LOCATION' && (
+                        <div>
+                          <label className="text-[10px] font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-1.5">
+                            <MapPin size={13} className="text-indigo-600" /> Select Target City / Location *
+                          </label>
+                          <select
+                            value={formData.targetCity}
+                            onChange={(e) => setFormData({ ...formData, targetCity: e.target.value })}
+                            required
+                            className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500 text-xs font-semibold text-slate-800 mt-1"
+                          >
+                            <option value="">-- Choose City --</option>
+                            {targetOptions.cities.map((city, idx) => (
+                              <option key={idx} value={city}>{city}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Location-Wise across all communities */}
+                  {formData.targetAudience === 'USERS_BY_LOCATION' && (
+                    <div className="p-4 bg-indigo-50/60 border border-indigo-100 rounded-2xl space-y-2">
+                      <label className="text-[10px] font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-1.5">
+                        <MapPin size={13} className="text-indigo-600" /> Select Target City / Location *
+                      </label>
+                      <select
+                        value={formData.targetCity}
+                        onChange={(e) => setFormData({ ...formData, targetCity: e.target.value })}
+                        required
+                        className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500 text-xs font-semibold text-slate-800"
+                      >
+                        <option value="">-- Choose City --</option>
+                        {targetOptions.cities.map((city, idx) => (
+                          <option key={idx} value={city}>{city}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Specific Users Multi-Select */}
+                  {formData.targetAudience === 'SPECIFIC_USERS' && (
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                          <Users size={13} className="text-indigo-600" /> Select Specific Users ({formData.targetUsers?.length || 0} selected)
+                        </label>
+                        {formData.targetUsers?.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setFormData({ ...formData, targetUsers: [] })}
+                            className="text-[10px] text-rose-600 font-bold hover:underline"
+                          >
+                            Clear All
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                          <input
+                            type="text"
+                            placeholder="Search user name or phone..."
+                            value={userSearchQuery}
+                            onChange={(e) => setUserSearchQuery(e.target.value)}
+                            className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 outline-none focus:border-indigo-500"
+                          />
+                        </div>
+                        <select
+                          value={selectedUserFilterComm}
+                          onChange={(e) => setSelectedUserFilterComm(e.target.value)}
+                          className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-[11px] font-semibold text-slate-700 outline-none"
+                        >
+                          <option value="all">All Communities</option>
+                          {targetOptions.communities.map((c) => (
+                            <option key={c._id} value={c._id}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 border border-slate-200/80 rounded-xl p-2 bg-white scrollbar-hide">
+                        {filteredUsers.length === 0 ? (
+                          <p className="text-[11px] text-slate-400 text-center py-4">No matching users found</p>
+                        ) : (
+                          filteredUsers.map(u => {
+                            const isSelected = (formData.targetUsers || []).includes(u.id || u._id);
+                            return (
+                              <div
+                                key={u.id || u._id}
+                                onClick={() => toggleUserSelection(u.id || u._id)}
+                                className={`flex items-center justify-between p-2 rounded-xl cursor-pointer transition-all border ${
+                                  isSelected 
+                                    ? 'bg-indigo-50/70 border-indigo-300 text-indigo-900' 
+                                    : 'hover:bg-slate-50 border-transparent text-slate-700'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <div className={`w-4 h-4 rounded-md border flex items-center justify-center shrink-0 ${
+                                    isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white'
+                                  }`}>
+                                    {isSelected && <Check size={11} strokeWidth={3} />}
+                                  </div>
+                                  <div className="truncate">
+                                    <p className="text-xs font-bold leading-snug truncate">{u.name}</p>
+                                    <p className="text-[10px] text-slate-400">
+                                      {u.community ? `${u.community} • ` : ''}{u.role} {u.city ? `(${u.city})` : ''}
+                                    </p>
+                                  </div>
+                                </div>
+                                <span className="text-[10px] font-semibold text-slate-400 shrink-0">{u.phone}</span>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 3. Candidates */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-1">
+                    <h4 className="text-[11px] font-bold text-indigo-600 uppercase tracking-wider">3. Candidates (Min. 2)</h4>
+                    <button 
+                      type="button"
+                      onClick={handleAddCandidate}
+                      className="text-[9px] font-black text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 px-2 py-1 rounded-md uppercase tracking-wider flex items-center gap-1 transition-colors"
+                    >
+                      <Plus size={12} /> Add Candidate
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    {formData.candidates.map((cand, idx) => (
+                      <div key={idx} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 relative">
+                        {formData.candidates.length > 2 && (
+                          <button 
+                            type="button" 
+                            onClick={() => handleRemoveCandidate(idx)}
+                            className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-rose-500 hover:bg-rose-600 text-white flex items-center justify-center shadow-lg transition-colors"
+                          >
+                            <X size={14} />
+                          </button>
+                        )}
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Candidate #{idx + 1} Name *</label>
+                            <input 
+                              type="text" 
+                              required
+                              placeholder="Full Name"
+                              value={cand.name}
+                              onChange={(e) => handleCandidateChange(idx, 'name', e.target.value)}
+                              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500 text-xs font-semibold text-slate-800 transition-colors"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Age (Optional)</label>
+                            <input 
+                              type="number" 
+                              placeholder="Age"
+                              value={cand.age}
+                              onChange={(e) => handleCandidateChange(idx, 'age', e.target.value)}
+                              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500 text-xs text-slate-800 transition-colors"
+                            />
+                          </div>
+                          <div className="space-y-1 sm:col-span-2">
+                            <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Profession / Designation</label>
+                            <input 
+                              type="text" 
+                              placeholder="e.g., Social Worker, Businessman, Advocate"
+                              value={cand.profession}
+                              onChange={(e) => handleCandidateChange(idx, 'profession', e.target.value)}
+                              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500 text-xs text-slate-800 transition-colors"
+                            />
+                          </div>
+                          <div className="space-y-1 sm:col-span-2">
+                            <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Short Bio (Optional)</label>
+                            <textarea 
+                              rows="1"
+                              placeholder="Brief description about candidate..."
+                              value={cand.shortIntro}
+                              onChange={(e) => handleCandidateChange(idx, 'shortIntro', e.target.value)}
+                              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500 text-xs text-slate-800 resize-none transition-colors"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-4 shrink-0">
+                  <button 
+                    type="submit"
+                    disabled={createSubmitting}
+                    className="w-full py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold uppercase tracking-wider text-xs shadow-md shadow-indigo-600/20 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+                  >
+                    {createSubmitting ? (
+                      <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> Saving Election...</>
+                    ) : (
+                      isEditing ? 'Save Changes' : 'Publish Platform Election'
+                    )}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Election Detail Modal */}
       {selectedElection && (

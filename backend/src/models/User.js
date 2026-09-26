@@ -14,6 +14,7 @@ const userSchema = new mongoose.Schema({
   avatar: { type: String }, // URL from cloudinary or base64
   cover: { type: String }, // Cover image URL
   bio: { type: String, trim: true },
+  about: { type: String, trim: true, default: 'Available' },
   gender: { type: String },
   dob: { type: Date },
   bloodGroup: { type: String },

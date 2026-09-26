@@ -47,6 +47,7 @@ const getUserResponsePayload = (user) => {
     avatar: user.avatar,
     cover: user.cover,
     bio: user.bio || '',
+    about: user.about || user.bio || 'Available',
     facebook: user.facebook || '',
     twitter: user.twitter || '',
     linkedin: user.linkedin || '',
@@ -482,6 +483,7 @@ const updateProfile = async (req, res) => {
       // Basic Fields
       user.name = req.body.name !== undefined ? req.body.name : user.name;
       user.bio = req.body.bio !== undefined ? req.body.bio : user.bio;
+      user.about = req.body.about !== undefined ? req.body.about : (req.body.bio !== undefined ? req.body.bio : user.about);
       user.gender = req.body.gender || user.gender;
       user.dob = req.body.dob || user.dob;
       user.bloodGroup = req.body.bloodGroup || user.bloodGroup;
@@ -501,43 +503,100 @@ const updateProfile = async (req, res) => {
       user.familyPrivacy = req.body.familyPrivacy !== undefined ? req.body.familyPrivacy : user.familyPrivacy;
 
       // Avatar & Cover upload handling
-      if (req.file) {
-        if (req.file.path) {
-          user.avatar = req.file.path;
-        } else if (req.file.buffer) {
+      const avatarFile = req.file || req.files?.avatarFile?.[0] || req.files?.avatar?.[0] || req.files?.photo?.[0] || req.files?.image?.[0];
+      const coverFile  = req.files?.coverFile?.[0] || req.files?.cover?.[0];
+
+      if (avatarFile) {
+        if (avatarFile.path && avatarFile.path.startsWith('http')) {
+          user.avatar = avatarFile.path;
+        } else if (avatarFile.path) {
+          user.avatar = avatarFile.path;
+        } else if (avatarFile.buffer) {
+          let uploaded = false;
+          if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+            try {
+              const cloudinary = require('cloudinary').v2;
+              const b64 = Buffer.from(avatarFile.buffer).toString('base64');
+              const dataURI = `data:${avatarFile.mimetype || 'image/jpeg'};base64,${b64}`;
+              const uploadRes = await cloudinary.uploader.upload(dataURI, {
+                folder: `merisamaj/avatars/${user._id}`,
+                transformation: [{ width: 500, height: 500, crop: 'limit', quality: 'auto:good' }]
+              });
+              user.avatar = uploadRes.secure_url;
+              uploaded = true;
+            } catch (cErr) {
+              console.warn('[Avatar Cloudinary Error]:', cErr.message);
+            }
+          }
+          if (!uploaded) {
+            const fs = require('fs');
+            const path = require('path');
+            const uploadDir = path.join(__dirname, '../../uploads/avatars');
+            if (!fs.existsSync(uploadDir)) {
+              fs.mkdirSync(uploadDir, { recursive: true });
+            }
+            const ext = avatarFile.mimetype ? (avatarFile.mimetype.split('/')[1] || 'png') : 'png';
+            const filename = `avatar_${user._id}_${Date.now()}.${ext}`;
+            fs.writeFileSync(path.join(uploadDir, filename), avatarFile.buffer);
+            user.avatar = `/uploads/avatars/${filename}`;
+          }
+        }
+      } else if (req.body.avatar !== undefined) {
+        if (typeof req.body.avatar === 'string' && req.body.avatar.startsWith('data:') && req.body.avatar.length > 200) {
+          let uploaded = false;
+          if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+            try {
+              const cloudinary = require('cloudinary').v2;
+              const uploadRes = await cloudinary.uploader.upload(req.body.avatar, {
+                folder: `merisamaj/avatars/${user._id}`,
+                transformation: [{ width: 500, height: 500, crop: 'limit', quality: 'auto:good' }]
+              });
+              user.avatar = uploadRes.secure_url;
+              uploaded = true;
+            } catch (cErr) {
+              console.warn('[Base64 Avatar Cloudinary Error]:', cErr.message);
+            }
+          }
+          if (!uploaded) {
+            const fs = require('fs');
+            const path = require('path');
+            const matches = req.body.avatar.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+            if (matches && matches.length === 3) {
+              const ext = matches[1].split('/')[1] || 'png';
+              const buffer = Buffer.from(matches[2], 'base64');
+              const uploadDir = path.join(__dirname, '../../uploads/avatars');
+              if (!fs.existsSync(uploadDir)) {
+                fs.mkdirSync(uploadDir, { recursive: true });
+              }
+              const filename = `avatar_${user._id}_${Date.now()}.${ext}`;
+              fs.writeFileSync(path.join(uploadDir, filename), buffer);
+              user.avatar = `/uploads/avatars/${filename}`;
+            } else {
+              user.avatar = req.body.avatar;
+            }
+          }
+        } else {
+          user.avatar = req.body.avatar || '';
+        }
+      }
+
+      if (coverFile) {
+        if (coverFile.path) {
+          user.cover = coverFile.path;
+        } else if (coverFile.buffer) {
           const fs = require('fs');
           const path = require('path');
           const uploadDir = path.join(__dirname, '../../uploads/avatars');
           if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir, { recursive: true });
           }
-          const ext = req.file.mimetype ? (req.file.mimetype.split('/')[1] || 'png') : 'png';
-          const filename = `avatar_${user._id}_${Date.now()}.${ext}`;
-          fs.writeFileSync(path.join(uploadDir, filename), req.file.buffer);
-          user.avatar = `/uploads/avatars/${filename}`;
+          const ext = coverFile.mimetype ? (coverFile.mimetype.split('/')[1] || 'png') : 'png';
+          const filename = `cover_${user._id}_${Date.now()}.${ext}`;
+          fs.writeFileSync(path.join(uploadDir, filename), coverFile.buffer);
+          user.cover = `/uploads/avatars/${filename}`;
         }
-      } else if (req.body.avatar) {
-        if (typeof req.body.avatar === 'string' && req.body.avatar.startsWith('data:') && req.body.avatar.length > 2048) {
-          const fs = require('fs');
-          const path = require('path');
-          const matches = req.body.avatar.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-          if (matches && matches.length === 3) {
-            const ext = matches[1].split('/')[1] || 'png';
-            const buffer = Buffer.from(matches[2], 'base64');
-            const uploadDir = path.join(__dirname, '../../uploads/avatars');
-            if (!fs.existsSync(uploadDir)) {
-              fs.mkdirSync(uploadDir, { recursive: true });
-            }
-            const filename = `avatar_${user._id}_${Date.now()}.${ext}`;
-            fs.writeFileSync(path.join(uploadDir, filename), buffer);
-            user.avatar = `/uploads/avatars/${filename}`;
-          }
-        } else {
-          user.avatar = req.body.avatar;
-        }
-      }
-      if (req.body.cover) {
-        if (typeof req.body.cover === 'string' && req.body.cover.startsWith('data:') && req.body.cover.length > 2048) {
+      } else if (req.body.cover !== undefined) {
+        if (typeof req.body.cover === 'string' && req.body.cover.startsWith('data:') && req.body.cover.length > 200) {
           const fs = require('fs');
           const path = require('path');
           const matches = req.body.cover.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
@@ -553,7 +612,7 @@ const updateProfile = async (req, res) => {
             user.cover = `/uploads/avatars/${filename}`;
           }
         } else {
-          user.cover = req.body.cover;
+          user.cover = req.body.cover || '';
         }
       }
       
