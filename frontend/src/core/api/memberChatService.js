@@ -26,10 +26,15 @@ export const memberChatService = {
   sendMessage: (conversationId, data) =>
     axiosPrivate.post(`${BASE}/conversations/${conversationId}/messages`, data),
 
-  /** Send an image message (multipart) */
+  /** Send a media message (image, audio/voice, document - multipart) */
+  sendMediaMessage: (conversationId, formData) =>
+    axiosPrivate.post(`${BASE}/conversations/${conversationId}/messages`, formData, {
+      headers: { 'Content-Type': undefined }
+    }),
+
   sendImageMessage: (conversationId, formData) =>
     axiosPrivate.post(`${BASE}/conversations/${conversationId}/messages`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+      headers: { 'Content-Type': undefined }
     }),
 
   /** Delete a message (deleteFor: 'me' | 'everyone') */
