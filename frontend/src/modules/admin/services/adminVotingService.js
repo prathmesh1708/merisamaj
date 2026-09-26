@@ -25,6 +25,21 @@ export const adminVotingService = {
     return res.data;
   },
 
+  createElection: async (electionData) => {
+    const res = await axiosPrivate.post(API_BASE, electionData);
+    return res.data;
+  },
+
+  updateElection: async (id, electionData) => {
+    const res = await axiosPrivate.put(`${API_BASE}/${id}`, electionData);
+    return res.data;
+  },
+
+  getTargetOptions: async () => {
+    const res = await axiosPrivate.get(`${API_BASE}/target-options`);
+    return res.data;
+  },
+
   deleteElection: async (id) => {
     const res = await axiosPrivate.delete(`${API_BASE}/${id}`);
     return res.data;

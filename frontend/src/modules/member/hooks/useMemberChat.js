@@ -96,6 +96,7 @@ export const useMemberChat = (conversationId) => {
   const [typingUsers, setTypingUsers] = useState([]);
   const [hasMore, setHasMore]       = useState(false);
   const [page, setPage]             = useState(1);
+  const [otherUser, setOtherUser]   = useState(null);
   const { user } = useAuth();
   const LIMIT = 50;
 
@@ -105,8 +106,10 @@ export const useMemberChat = (conversationId) => {
     setLoading(true);
     try {
       const res = await memberChatService.getMessages(conversationId, { page: pageNum, limit: LIMIT });
-      const fetched = res.data?.data?.messages || [];
-      const total   = res.data?.data?.total || 0;
+      const fetched   = res.data?.data?.messages || [];
+      const total     = res.data?.data?.total || 0;
+      const targetUser = res.data?.data?.otherUser;
+      if (targetUser) setOtherUser(targetUser);
       setMessages(prev => prepend ? [...fetched, ...prev] : fetched);
       setHasMore(total > pageNum * LIMIT);
       setPage(pageNum);
@@ -218,7 +221,7 @@ export const useMemberChat = (conversationId) => {
   });
 
   // ── Send message ───────────────────────────────────────────────────────────
-  const sendMessage = useCallback(async ({ text, imageFile, replyTo }) => {
+  const sendMessage = useCallback(async ({ text, imageFile, audioBlob, file, replyTo, metadata }) => {
     if (!conversationId) return;
     setSending(true);
 
@@ -227,14 +230,29 @@ export const useMemberChat = (conversationId) => {
     const userId = user?.id || user?._id;
     if (!userId) return;
 
+    let optimisticType = 'text';
+    let optimisticMediaUrl = null;
+
+    if (imageFile) {
+      optimisticType = 'image';
+      optimisticMediaUrl = URL.createObjectURL(imageFile);
+    } else if (audioBlob) {
+      optimisticType = 'audio';
+      optimisticMediaUrl = URL.createObjectURL(audioBlob);
+    } else if (file) {
+      optimisticType = 'file';
+      optimisticMediaUrl = null;
+    }
+
     const optimistic = {
       _id: tempId,
       conversationId,
       senderId: { _id: userId, name: user.name, avatar: user.avatar },
       message: text || '',
-      type: imageFile ? 'image' : 'text',
-      mediaUrl: imageFile ? URL.createObjectURL(imageFile) : null,
+      type: optimisticType,
+      mediaUrl: optimisticMediaUrl,
       replyTo: replyTo || null,
+      metadata: metadata || null,
       createdAt: new Date().toISOString(),
       status: 'sending',
       seenBy: [],
@@ -244,17 +262,21 @@ export const useMemberChat = (conversationId) => {
 
     try {
       let res;
-      if (imageFile) {
+      if (imageFile || audioBlob || file) {
         const formData = new FormData();
         if (text) formData.append('message', text);
-        formData.append('photo', imageFile);
+        if (imageFile) formData.append('photo', imageFile);
+        if (audioBlob) formData.append('photo', audioBlob, `voice_${Date.now()}.webm`);
+        if (file) formData.append('photo', file);
         if (replyTo) formData.append('replyTo', replyTo);
-        res = await memberChatService.sendImageMessage(conversationId, formData);
+        if (metadata) formData.append('metadata', JSON.stringify(metadata));
+        res = await memberChatService.sendMediaMessage(conversationId, formData);
       } else {
         res = await memberChatService.sendMessage(conversationId, {
           message: text,
           type: 'text',
-          replyTo: replyTo || undefined
+          replyTo: replyTo || undefined,
+          metadata: metadata || undefined
         });
       }
 
@@ -318,6 +340,7 @@ export const useMemberChat = (conversationId) => {
 
   return {
     messages,
+    otherUser,
     loading,
     sending,
     error,
