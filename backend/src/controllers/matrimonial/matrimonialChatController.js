@@ -228,7 +228,13 @@ exports.sendMessage = async (req, res) => {
         const base64Str = req.file.buffer.toString('base64');
         finalMediaUrl = `data:${req.file.mimetype};base64,${base64Str}`;
       }
-      type = 'image';
+      if (req.file.mimetype && req.file.mimetype.startsWith('audio/')) {
+        type = 'audio';
+      } else if (req.file.mimetype && req.file.mimetype.startsWith('image/')) {
+        type = 'image';
+      } else {
+        type = req.body.type || 'file';
+      }
     }
 
     const newMsg = await Message.create({

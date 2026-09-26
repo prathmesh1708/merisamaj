@@ -153,7 +153,7 @@ const validateLogin = (req, res, next) => {
 // ─── UPDATE PROFILE VALIDATOR ─────────────────────────────────────────────────
 const validateUpdateProfile = (req, res, next) => {
   const ALLOWED_FIELDS = [
-    'name', 'bio', 'gender', 'dob', 'bloodGroup', 'maritalStatus', 'gotra',
+    'name', 'bio', 'about', 'gender', 'dob', 'bloodGroup', 'maritalStatus', 'gotra',
     'community', 'communityId', 'subCommunity',
     'city', 'district', 'state', 'pincode', 'country',
     'qualification', 'school', 'passingYear', 'profession', 'company',
@@ -166,7 +166,7 @@ const validateUpdateProfile = (req, res, next) => {
     'facebook', 'twitter', 'linkedin',
     'isPrivate', 'phonePrivacy', 'emailPrivacy', 'familyPrivacy',
     'isAadharVerified', 'isFaceVerified',
-    'avatar', 'cover', 'deviceToken',
+    'avatar', 'cover', 'avatarFile', 'photo', 'deviceToken',
   ];
   sanitizeBody(req, ALLOWED_FIELDS);
 
