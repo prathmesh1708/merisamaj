@@ -19,12 +19,18 @@ const authorizeModule = (permissionKey) => {
       // 2. Head and Sub-Head role validation
       if (userRole === 'head' || userRole === 'sub_head') {
         const permissions = req.user.headPermissions || {};
+        const isLocalHead = req.user.accountType === 'local_head' || req.user.subHeadType === 'local';
         
         // Community Head with role 'head' has full head access by default unless specific restriction applies
         if (userRole === 'head') {
           if (!permissionKey || permissions[permissionKey] !== false) {
             return next();
           }
+        }
+
+        // Local Head leader has access to manage sub-heads and local community by default
+        if (isLocalHead && (permissionKey === 'canManageSubHeads' || permissionKey === 'canManageLocalCommunity')) {
+          return next();
         }
 
         // Sub-Head requires explicitly granted permission

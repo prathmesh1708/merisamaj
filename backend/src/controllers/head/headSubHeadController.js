@@ -233,10 +233,22 @@ exports.updateSubHead = async (req, res) => {
     const query = {
       _id: id,
       role: 'sub_head',
-      accountType: { $in: ['community_sub_head', 'local_sub_head', 'leadership'] }
+      accountType: { $in: ['community_sub_head', 'local_sub_head', 'leadership', 'local_head'] }
     };
     if (!isMasterAdmin) {
-      query.parentHeadId = req.user._id;
+      const userCommId = req.communityId || req.user?.communityId?._id || req.user?.communityId;
+      if (req.user?.accountType === 'local_head' || req.user?.subHeadType === 'local') {
+        query.$or = [
+          { parentHeadId: req.user._id },
+          { communityId: userCommId, city: new RegExp(`^${req.user.city}$`, 'i') },
+          { communityId: userCommId }
+        ];
+      } else {
+        query.$or = [
+          { parentHeadId: req.user._id },
+          { communityId: userCommId }
+        ];
+      }
     }
 
     const subHead = await User.findOne(query);
@@ -287,7 +299,7 @@ exports.updateSubHead = async (req, res) => {
       const updatedPermissions = { ...(subHead.headPermissions || {}) };
 
       Object.keys(headPermissions).forEach(key => {
-        if (isCreatorHead || parentPermissions[key] === true || headPermissions[key] === false) {
+        if (isCreatorHead || parentPermissions[key] === true || headPermissions[key] === false || req.user?.accountType === 'local_head') {
           updatedPermissions[key] = Boolean(headPermissions[key]);
         }
       });

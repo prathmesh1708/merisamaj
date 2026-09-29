@@ -464,17 +464,13 @@ const HomePage = () => {
           </div>
 
           <div className="text-left min-w-0">
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] font-extrabold tracking-wider uppercase text-slate-500">{greeting}</span>
-              <OmIcon size={12} className="text-amber-500" />
-            </div>
+            <span className="text-[10px] font-extrabold tracking-wider uppercase text-slate-500 block">{greeting}</span>
             <h1 className="text-[16px] sm:text-[18px] font-black text-slate-900 tracking-tight leading-tight truncate">
               {currentUser?.name || 'Member'}
             </h1>
-            {(currentUser?.community || userCommunity) && (
-              <p className="text-[11px] font-bold text-slate-500 mt-0.5 leading-tight select-none flex items-center gap-1 truncate">
-                <MapPin size={11} className="text-brand-primary shrink-0" />
-                <span className="truncate">{currentUser?.community || userCommunity}{currentUser?.city ? ` · ${currentUser.city}` : ''}</span>
+            {(userCommunity || currentUser?.city) && (
+              <p className="text-[11px] font-semibold text-slate-500 truncate mt-0.5">
+                📍 {[userCommunity, currentUser?.city].filter(Boolean).join(' · ')}
               </p>
             )}
           </div>

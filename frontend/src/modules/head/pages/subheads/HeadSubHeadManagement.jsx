@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { axiosPrivate } from '../../../../core/api/axiosPrivate';
 import { useHeadAuth } from '../../auth/useHeadAuth';
+import LocalCommunityManagement from '../local-community/LocalCommunityManagement';
 
 const HEAD_PERMISSION_CATEGORIES = [
   {
@@ -76,6 +77,8 @@ export const HeadSubHeadManagement = () => {
   const headUser = headAuth.headUser;
   const isLocalHead = headUser?.role === 'sub_head' || headUser?.accountType === 'local_head';
   const isMainHead = headUser?.role === 'head' || headUser?.role === 'admin';
+
+  const [activeViewTab, setActiveViewTab] = useState(isLocalHead ? 'groups' : 'list');
 
   const [subHeads, setSubHeads] = useState([]);
   const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0 });
@@ -343,7 +346,39 @@ export const HeadSubHeadManagement = () => {
         </div>
       </div>
 
-      {/* ─── STATS CARDS ─── */}
+      {/* ─── VIEW SWITCHER TABS ─── */}
+      <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl w-fit border border-slate-200 shadow-inner">
+        <button
+          type="button"
+          onClick={() => setActiveViewTab('groups')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer ${
+            activeViewTab === 'groups'
+              ? 'bg-white text-indigo-700 shadow-md scale-[1.02]'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <span>🏢</span> Location &amp; Group Cards (Group 1 - 4)
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveViewTab('list')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer ${
+            activeViewTab === 'list'
+              ? 'bg-white text-indigo-700 shadow-md scale-[1.02]'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <span>📋</span> Staff Directory List ({stats.total})
+        </button>
+      </div>
+
+      {activeViewTab === 'groups' ? (
+        <div className="pt-2">
+          <LocalCommunityManagement />
+        </div>
+      ) : (
+        <>
+          {/* ─── STATS CARDS ─── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm flex items-center justify-between">
           <div>
@@ -604,6 +639,8 @@ export const HeadSubHeadManagement = () => {
             );
           })}
         </div>
+      )}
+      </>
       )}
 
       {/* ─── CREATE / EDIT MODAL ─── */}

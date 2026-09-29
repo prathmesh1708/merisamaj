@@ -918,10 +918,14 @@ exports.getSubCommunityLocationBreakdown = async (req, res) => {
 
     // Fetch all active users in this community
     const allUsers = await User.find({
-      communityId: community._id,
+      $or: [
+        { communityId: community._id },
+        { assignedCommunityId: community._id },
+        { assignedCommunityIds: community._id }
+      ],
       accountStatus: { $ne: 'deleted' }
     })
-      .select('name email phone role accountType subHeadType city state gotra subCommunity avatar joiningDate plainPassword accountStatus createdAt')
+      .select('name email phone role accountType subHeadType city state gotra subCommunity avatar joiningDate plainPassword accountStatus createdAt headPermissions group')
       .sort({ createdAt: -1 })
       .lean();
 
@@ -943,7 +947,7 @@ exports.getSubCommunityLocationBreakdown = async (req, res) => {
     const localHeads = allUsers.filter(u => 
       u.accountType === 'local_head' || 
       u.role === 'local_head' ||
-      (u.role === 'sub_head' && (u.subHeadType === 'local' || u.accountType === 'local_head'))
+      (u.role === 'sub_head' && (u.accountType === 'local_head' || (!u.accountType && u.subHeadType === 'local')))
     );
 
     // Real Local Sub Community Heads created in this community
@@ -951,7 +955,7 @@ exports.getSubCommunityLocationBreakdown = async (req, res) => {
       u.accountType === 'local_sub_head' || 
       u.role === 'sub_local_head' || 
       u.accountType === 'community_sub_head' ||
-      (u.role === 'sub_head' && u.accountType !== 'local_head')
+      (u.role === 'sub_head' && u.accountType !== 'local_head' && u.role !== 'head')
     );
 
     // Determine distinct cities from community settings + users + local heads
@@ -1043,7 +1047,8 @@ exports.getSubCommunityLocationBreakdown = async (req, res) => {
             email: h.email,
             avatar: h.avatar,
             accountStatus: h.accountStatus || 'active',
-            plainPassword: h.plainPassword || '******'
+            plainPassword: h.plainPassword || '******',
+            headPermissions: h.headPermissions || {}
           })),
           subHeadsList: grpSubHeads.map(sh => ({
             id: sh._id,
@@ -1051,7 +1056,9 @@ exports.getSubCommunityLocationBreakdown = async (req, res) => {
             phone: sh.phone,
             email: sh.email,
             avatar: sh.avatar,
-            accountStatus: sh.accountStatus || 'active'
+            accountStatus: sh.accountStatus || 'active',
+            plainPassword: sh.plainPassword || '******',
+            headPermissions: sh.headPermissions || {}
           }))
         };
       });
@@ -1072,7 +1079,8 @@ exports.getSubCommunityLocationBreakdown = async (req, res) => {
           email: h.email,
           city: h.city,
           accountStatus: h.accountStatus || 'active',
-          plainPassword: h.plainPassword || '******'
+          plainPassword: h.plainPassword || '******',
+          headPermissions: h.headPermissions || {}
         })),
         groups
       };
@@ -1116,7 +1124,21 @@ exports.getSubCommunityLocationBreakdown = async (req, res) => {
           state: h.state,
           accountStatus: h.accountStatus,
           plainPassword: h.plainPassword,
+          headPermissions: h.headPermissions || {},
           createdAt: h.createdAt
+        })),
+        allSubHeads: localSubHeads.map(sh => ({
+          id: sh._id,
+          name: sh.name,
+          phone: sh.phone,
+          email: sh.email,
+          city: sh.city,
+          state: sh.state,
+          group: sh.group,
+          accountStatus: sh.accountStatus,
+          plainPassword: sh.plainPassword,
+          headPermissions: sh.headPermissions || {},
+          createdAt: sh.createdAt
         }))
       }
     });
@@ -1127,22 +1149,108 @@ exports.getSubCommunityLocationBreakdown = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────
-// @desc    Admin: Assign or Create Local Head / Sub-Head for a Location & Group
+// @desc    Admin / Head: Assign or Create Local Head / Sub-Head for a Location & Group
 // @route   POST /api/v1/admin/communities/:id/sub-communities/:subName/assign-head
-// @access  Admin
+// @access  Admin / Head
 // ─────────────────────────────────────────────
 exports.assignLocalHeadToLocationGroup = async (req, res) => {
   try {
     const { id, subName } = req.params;
-    const { userId, name, email, phone, password, city, state, group, accountType } = req.body;
+    const { userId, name, email, phone, password, city, state, group, accountType, headPermissions } = req.body;
 
     const community = await Community.findById(id);
     if (!community) {
       return res.status(404).json({ status: 'error', message: 'Community not found' });
     }
 
-    const targetAccountType = accountType === 'local_sub_head' ? 'local_sub_head' : 'local_head';
-    const targetRole = 'sub_head';
+    let targetRole = 'sub_head';
+    let targetAccountType = 'local_head';
+    let subHeadType = 'local';
+
+    if (accountType === 'community_head') {
+      targetRole = 'head';
+      targetAccountType = 'community_head';
+      subHeadType = 'community';
+    } else if (accountType === 'sub_community_head' || accountType === 'community_sub_head') {
+      targetRole = 'sub_head';
+      targetAccountType = 'community_sub_head';
+      subHeadType = 'community';
+    } else if (accountType === 'local_sub_head') {
+      targetRole = 'sub_head';
+      targetAccountType = 'local_sub_head';
+      subHeadType = 'local';
+    } else {
+      targetRole = 'sub_head';
+      targetAccountType = 'local_head';
+      subHeadType = 'local';
+    }
+
+    // Default permissions setup
+    let finalPermissions = headPermissions || {};
+    if (targetRole === 'head' || targetAccountType === 'community_head') {
+      finalPermissions = {
+        canViewDashboard: true,
+        canViewMembers: true,
+        canAddMembers: true,
+        canEditMembers: true,
+        canRemoveMembers: true,
+        canApproveProfiles: true,
+        canViewProfiles: true,
+        canEditProfiles: true,
+        canViewEvents: true,
+        canCreateEvents: true,
+        canEditEvents: true,
+        canDeleteEvents: true,
+        canViewFunds: true,
+        canManageFunds: true,
+        canViewDonations: true,
+        canCreateDonationCampaigns: true,
+        canViewSocial: true,
+        canManageSocial: true,
+        canViewDharmashala: true,
+        canManageDharmashala: true,
+        canViewDirectory: true,
+        canManageDirectory: true,
+        canViewInvitations: true,
+        canCreateInvitations: true,
+        canViewObituary: true,
+        canManageObituary: true,
+        canSendNotifications: true,
+        canViewCensus: true,
+        canManageLeadership: true,
+        canManageSubHeads: true,
+        canManageLocalCommunity: true,
+        ...(headPermissions || {})
+      };
+    } else if (targetAccountType === 'local_head') {
+      finalPermissions = {
+        canViewDashboard: true,
+        canViewMembers: true,
+        canAddMembers: true,
+        canEditMembers: true,
+        canApproveProfiles: true,
+        canViewProfiles: true,
+        canViewEvents: true,
+        canCreateEvents: true,
+        canViewFunds: true,
+        canManageFunds: true,
+        canViewDonations: true,
+        canViewSocial: true,
+        canViewDharmashala: true,
+        canSendNotifications: true,
+        canViewCensus: true,
+        canManageSubHeads: true,
+        canManageLocalCommunity: true,
+        ...(headPermissions || {})
+      };
+    } else {
+      // Local Sub-Head default permissions if none specified
+      finalPermissions = {
+        canViewDashboard: true,
+        canViewMembers: true,
+        ...(headPermissions || {})
+      };
+    }
 
     // Promote existing user
     if (userId) {
@@ -1157,19 +1265,33 @@ exports.assignLocalHeadToLocationGroup = async (req, res) => {
       if (state) user.state = state;
       user.role = targetRole;
       user.accountType = targetAccountType;
-      user.subHeadType = 'local';
+      user.subHeadType = subHeadType;
       user.accountStatus = 'active';
       if (group) user.group = group;
+      user.headPermissions = finalPermissions;
+      user.markModified('headPermissions');
       if (password && password.length >= 6) {
         user.password = password;
         user.plainPassword = password;
       }
 
+      user.assignedCommunityId = community._id;
+      if (!user.assignedCommunityIds || user.assignedCommunityIds.length === 0) {
+        user.assignedCommunityIds = [community._id];
+      }
       await user.save();
+
+      // If assigned as community head and community has no head, link them
+      if (targetRole === 'head' && !community.headId) {
+        community.headId = user._id;
+        await community.save();
+      }
+
+      const roleTitle = targetRole === 'head' ? 'Community Head' : (targetAccountType === 'community_sub_head' ? 'Sub-Community Head' : (targetAccountType === 'local_sub_head' ? 'Local Sub-Head' : 'Local Head'));
 
       return res.status(200).json({
         success: true,
-        message: `${user.name} has been assigned as ${targetAccountType === 'local_head' ? 'Local Head' : 'Local Sub-Head'} successfully.`,
+        message: `${user.name} has been assigned as ${roleTitle} successfully.`,
         data: user
       });
     }
@@ -1186,32 +1308,44 @@ exports.assignLocalHeadToLocationGroup = async (req, res) => {
     }
 
     const rawPassword = password || '123456';
+    const userLoginId = (req.body.loginId && req.body.loginId.trim()) ? req.body.loginId.trim() : cleanPhone;
+
     const newUser = new User({
       name: name.trim(),
       phone: cleanPhone,
       email: email ? email.toLowerCase().trim() : undefined,
-      loginId: cleanPhone,
+      loginId: userLoginId,
       password: rawPassword,
       plainPassword: rawPassword,
       communityId: community._id,
+      assignedCommunityId: community._id,
+      assignedCommunityIds: [community._id],
       subCommunity: decodeURIComponent(subName || ''),
       city: city || community.city || 'Indore',
       state: state || 'Madhya Pradesh',
       role: targetRole,
       accountType: targetAccountType,
-      subHeadType: 'local',
+      subHeadType: subHeadType,
       accountStatus: 'active',
       verificationStatus: 'verified',
       isPhoneVerified: true,
       isEmailVerified: true,
-      group: group || 'Group 1'
+      group: group || 'Group 1',
+      headPermissions: finalPermissions
     });
 
     await newUser.save();
 
+    if (targetRole === 'head' && !community.headId) {
+      community.headId = newUser._id;
+      await community.save();
+    }
+
+    const roleTitle = targetRole === 'head' ? 'Community Head' : (targetAccountType === 'community_sub_head' ? 'Sub-Community Head' : (targetAccountType === 'local_sub_head' ? 'Local Sub-Head' : 'Local Head'));
+
     res.status(201).json({
       success: true,
-      message: `${newUser.name} created as ${targetAccountType === 'local_head' ? 'Local Head' : 'Local Sub-Head'} successfully.`,
+      message: `${newUser.name} created as ${roleTitle} successfully.`,
       data: newUser
     });
   } catch (error) {

@@ -165,7 +165,7 @@ const userSchema = new mongoose.Schema({
   // (e.g. Leadership team member vs. Local Head module vs Admin/Community/Local Sub-Head)
   accountType: { 
     type: String, 
-    enum: ['leadership', 'local_head', 'admin_sub_head', 'community_sub_head', 'local_sub_head'] 
+    enum: ['leadership', 'local_head', 'admin_sub_head', 'community_sub_head', 'local_sub_head', 'community_head', 'head'] 
   },
   designation: { type: String, default: 'Member' },
   department: { type: String },

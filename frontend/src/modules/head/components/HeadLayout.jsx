@@ -37,7 +37,7 @@ export const HeadLayout = () => {
   const isModuleAllowed = (permKey) => {
     if (isSuperAdmin) return true;
     if (!permKey) return true;
-    if (permKey === 'canManageSubHeads') {
+    if (permKey === 'canManageSubHeads' || permKey === 'canManageLocalCommunity') {
       if (isMainHead || isLocalHeadLeader) return true;
       return permissions[permKey] === true;
     }
@@ -179,7 +179,7 @@ export const HeadLayout = () => {
         { 
           name: 'Election Commission', 
           path: '/head/elections', 
-          permKey: 'canViewElections',
+          permKey: 'canViewElections', 
           icon: Vote 
         },
         {
@@ -201,7 +201,7 @@ export const HeadLayout = () => {
   const filteredNavigationConfig = navigationConfig.map(section => ({
     ...section,
     items: section.items.filter(item =>
-      isModuleAllowed(item.permKey) && (!item.headOnly || isSuperAdmin || headUser?.role === 'head')
+      isModuleAllowed(item.permKey) && (!item.headOnly || isSuperAdmin || headUser?.role === 'head' || isLocalHeadLeader)
     )
   })).filter(section => section.items.length > 0);
 

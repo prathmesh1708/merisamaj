@@ -159,14 +159,14 @@ const CustomSelect = ({ value, onChange, options, placeholder = 'Select', disabl
     };
   }, [open]);
 
-  // Reset the filter text each time the dropdown closes, and focus it on open
+  // Reset the filter text each time the dropdown closes.
+  // Intentionally NOT auto-focusing the search input on open — doing so pops the
+  // mobile keyboard immediately, which both shrinks the viewport (breaking the
+  // options list scroll) and opens the keyboard before the user asked for it.
+  // The keyboard should only appear when the user actually taps the search field.
   useEffect(() => {
-    if (open && searchable) {
-      const t = setTimeout(() => searchInputRef.current?.focus(), 50);
-      return () => clearTimeout(t);
-    }
     if (!open) setSearchQuery('');
-  }, [open, searchable]);
+  }, [open]);
 
   const handleOpen = () => {
     if (disabled) return;

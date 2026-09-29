@@ -1,4 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { 
+  X, CheckCircle, ChevronRight, ChevronLeft, Shield, Building2, User, Key,
+  LayoutDashboard, Wallet, Vote, Send, Users, Calendar, Briefcase, Heart, HeartHandshake, Home, Mail, Share2, Award, LayoutTemplate, Eye, EyeOff
+} from 'lucide-react';
 import { cityService } from '../../services/cityService';
 import { communityHeadService } from '../../services/communityHeadService';
 import {
@@ -18,6 +22,129 @@ import {
   getSubCommunityLocationBreakdown,
   assignLocalHeadToLocationGroup,
 } from '../../services/communityService';
+import { axiosPrivate } from '../../../../core/api/axiosPrivate';
+
+// ─────────────────────────────────────────────
+// FULL 14 HEAD MODULES CONFIGURATION (matching CommunityHeadForm)
+// ─────────────────────────────────────────────
+const FULL_HEAD_MODULES = [
+  {
+    id: 'dashboard',
+    title: 'President Dashboard',
+    description: 'Overview dashboard, analytics & samaj activity reports',
+    icon: LayoutDashboard,
+    keys: ['canViewDashboard', 'canViewReports']
+  },
+  {
+    id: 'members',
+    title: 'Members Management',
+    description: 'Member directory, verifications, profiles, add/edit & export',
+    icon: Users,
+    keys: ['canViewMembers', 'canAddMembers', 'canEditMembers', 'canRemoveMembers', 'canExportMembers']
+  },
+  {
+    id: 'matrimonial',
+    title: 'Matrimonial Management',
+    description: 'Matrimonial profiles, interest request approvals & editing',
+    icon: Heart,
+    keys: ['canViewProfiles', 'canApproveProfiles', 'canEditProfiles']
+  },
+  {
+    id: 'events',
+    title: 'Event Management',
+    description: 'Community events, activity logs & ticket bookings',
+    icon: Calendar,
+    keys: ['canViewEvents', 'canCreateEvents', 'canEditEvents', 'canDeleteEvents', 'canManageBookings']
+  },
+  {
+    id: 'dharmashala',
+    title: 'Dharmashala Management',
+    description: 'Dharmashalas, room inventory & guest bookings',
+    icon: Home,
+    keys: ['canViewDharmashala', 'canManageDharmashala']
+  },
+  {
+    id: 'invitations',
+    title: 'Digital Invitations',
+    description: 'Event digital invitation cards & broadcast tools',
+    icon: Mail,
+    keys: ['canViewInvitations', 'canCreateInvitations', 'canManageInvitations']
+  },
+  {
+    id: 'donations',
+    title: 'Donation Campaigns',
+    description: 'Fundraising campaigns, donor tracking & expense management',
+    icon: HeartHandshake,
+    keys: ['canViewDonations', 'canCreateDonationCampaigns', 'canManageExpenses']
+  },
+  {
+    id: 'funds',
+    title: 'Fund Governance',
+    description: 'Community treasury funds, ledger transactions & expenses',
+    icon: Wallet,
+    keys: ['canViewFunds', 'canManageFunds']
+  },
+  {
+    id: 'social',
+    title: 'Social & Group Hub',
+    description: 'Community feed, post moderation, groups & notifications',
+    icon: Share2,
+    keys: ['canViewSocial', 'canManageSocial', 'canSendNotifications']
+  },
+  {
+    id: 'professionals',
+    title: 'Professional Directory',
+    description: 'Business directory listings & category management',
+    icon: Briefcase,
+    keys: ['canViewDirectory', 'canManageDirectory']
+  },
+  {
+    id: 'leadership',
+    title: 'Leadership & Team',
+    description: 'Executive committee, sub-heads & leadership team',
+    icon: Shield,
+    keys: ['canViewLeadership', 'canManageLeadership']
+  },
+  {
+    id: 'obituary',
+    title: 'Obituaries (Shradhanjali)',
+    description: 'Shradhanjali posts, condolences & remembrance notices',
+    icon: Award,
+    keys: ['canViewObituary', 'canManageObituary']
+  },
+  {
+    id: 'elections',
+    title: 'Election Commission',
+    description: 'Community voting polls, elections & result verification',
+    icon: Vote,
+    keys: ['canViewElections', 'canManageElections']
+  },
+  {
+    id: 'homeContent',
+    title: 'Home Banners & Content',
+    description: 'Homepage banners, CMS announcements & app content',
+    icon: LayoutTemplate,
+    keys: ['canViewHomeContent', 'canManageHomeContent']
+  }
+];
+
+const DEFAULT_HEAD_PERMISSIONS = {
+  canViewDashboard: true,
+  canViewReports: true,
+  canViewMembers: true, canAddMembers: true, canEditMembers: true, canRemoveMembers: false, canExportMembers: true,
+  canViewProfiles: true, canApproveProfiles: true, canEditProfiles: true,
+  canViewEvents: true, canCreateEvents: true, canEditEvents: true, canDeleteEvents: false, canManageBookings: true,
+  canViewDharmashala: true, canManageDharmashala: true,
+  canViewInvitations: true, canCreateInvitations: true, canManageInvitations: true,
+  canViewDonations: true, canCreateDonationCampaigns: true, canManageExpenses: true,
+  canViewFunds: true, canManageFunds: true,
+  canViewSocial: true, canManageSocial: true, canSendNotifications: true,
+  canViewDirectory: true, canManageDirectory: true,
+  canViewLeadership: true, canManageLeadership: true,
+  canViewObituary: true, canManageObituary: true,
+  canViewElections: true, canManageElections: true,
+  canViewHomeContent: true, canManageHomeContent: true
+};
 
 // ─────────────────────────────────────────────
 // MODULE SETTINGS CONFIG — Admin-configurable feature flags
@@ -1193,6 +1320,23 @@ const MonumentIllustration = ({ type = 'temple', city = '' }) => {
 // ─────────────────────────────────────────────
 // SubLocalHeadLocationWiseView — Matches Image 2 Exactly with REAL Data & Local Head Management
 // ─────────────────────────────────────────────
+const AVAILABLE_POWERS_LOCAL = [
+  { key: 'canViewMembers', label: 'View & Search Members', category: 'Members' },
+  { key: 'canAddMembers', label: 'Add & Register Members', category: 'Members' },
+  { key: 'canEditMembers', label: 'Edit Member Profiles', category: 'Members' },
+  { key: 'canApproveProfiles', label: 'Approve Member Verifications', category: 'Members' },
+  { key: 'canViewProfiles', label: 'View & Manage Matrimonial', category: 'Matrimonial' },
+  { key: 'canViewEvents', label: 'View & Manage Events', category: 'Events' },
+  { key: 'canCreateEvents', label: 'Create New Events', category: 'Events' },
+  { key: 'canViewFunds', label: 'View Samaj Funds & Ledger', category: 'Finance' },
+  { key: 'canManageFunds', label: 'Manage Fund Governance', category: 'Finance' },
+  { key: 'canViewDonations', label: 'Manage Donation Campaigns', category: 'Finance' },
+  { key: 'canViewSocial', label: 'Moderate Social & City Feeds', category: 'Social' },
+  { key: 'canViewDharmashala', label: 'Manage Dharmashala Bookings', category: 'Facilities' },
+  { key: 'canSendNotifications', label: 'Send Announcements & Notifications', category: 'Broadcast' },
+  { key: 'canViewCensus', label: 'View Community Census & Analytics', category: 'Census' }
+];
+
 const SubLocalHeadLocationWiseView = ({
   community,
   subCommunity,
@@ -1217,6 +1361,10 @@ const SubLocalHeadLocationWiseView = ({
   });
   const [allLocalHeads, setAllLocalHeads] = useState([]);
 
+  // Community members eligible for promotion
+  const [communityUsers, setCommunityUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+
   // Modals & UI Actions
   const [showAddLocationModal, setShowAddLocationModal] = useState(false);
   const [newLocationCity, setNewLocationCity] = useState('');
@@ -1227,18 +1375,32 @@ const SubLocalHeadLocationWiseView = ({
   // Assign / Create Head Modal
   const [assignHeadModal, setAssignHeadModal] = useState(null); // { loc, grp, accountType: 'local_head' | 'local_sub_head' }
   const [assignForm, setAssignForm] = useState({
+    userId: null,
     name: '',
     phone: '',
     email: '',
     password: '',
     city: '',
     group: 'Group 1',
-    accountType: 'local_head'
+    accountType: 'local_head',
+    headPermissions: {
+      canViewDashboard: true,
+      canViewMembers: true,
+      canApproveProfiles: true,
+      canViewEvents: true,
+      canCreateEvents: true,
+      canViewFunds: true,
+      canViewDonations: true,
+      canViewSocial: true,
+      canSendNotifications: true
+    }
   });
   const [submittingHead, setSubmittingHead] = useState(false);
 
-  // View Heads Detail List Modal
+  // View Heads Detail List Modal & Edit Powers Modal
   const [viewHeadsModal, setViewHeadsModal] = useState(null); // { title, heads: [] }
+  const [editPowersModal, setEditPowersModal] = useState(null);
+  const [updatingPowers, setUpdatingPowers] = useState(false);
 
   // Fetch real data from backend
   const fetchLocationData = async () => {
@@ -1257,6 +1419,20 @@ const SubLocalHeadLocationWiseView = ({
       setError(err.response?.data?.message || 'Failed to fetch location data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchCommunityUsers = async () => {
+    setLoadingUsers(true);
+    try {
+      const res = await axiosPrivate.get(`/head/local-community/community-users?communityId=${commId}`);
+      if (res.data?.status === 'success') {
+        setCommunityUsers(res.data.data || []);
+      }
+    } catch (err) {
+      console.error('Failed to load community users:', err);
+    } finally {
+      setLoadingUsers(false);
     }
   };
 
@@ -1329,16 +1505,47 @@ const SubLocalHeadLocationWiseView = ({
 
   // Open Assign/Create Head modal prefilled
   const openAssignHeadModal = (loc, grp, accountType = 'local_head') => {
+    fetchCommunityUsers();
     setAssignForm({
+      userId: null,
       name: '',
       phone: '',
       email: '',
       password: '',
       city: loc.name,
       group: grp.name,
-      accountType
+      accountType,
+      headPermissions: {
+        canViewDashboard: true,
+        canViewMembers: true,
+        canApproveProfiles: true,
+        canViewEvents: true,
+        canCreateEvents: true,
+        canViewFunds: true,
+        canViewDonations: true,
+        canViewSocial: true,
+        canSendNotifications: true
+      }
     });
     setAssignHeadModal({ loc, grp, accountType });
+  };
+
+  const handleSelectUser = (uId) => {
+    if (!uId) {
+      setAssignForm(prev => ({ ...prev, userId: null, name: '', phone: '', email: '' }));
+      return;
+    }
+    const foundUser = communityUsers.find(u => u._id === uId);
+    if (foundUser) {
+      setAssignForm(prev => ({
+        ...prev,
+        userId: foundUser._id,
+        name: foundUser.name || '',
+        phone: foundUser.phone || '',
+        email: foundUser.email || '',
+        city: foundUser.city || prev.city
+      }));
+    }
   };
 
   const handleAssignHeadSubmit = async (e) => {
@@ -1350,15 +1557,41 @@ const SubLocalHeadLocationWiseView = ({
     setSubmittingHead(true);
     try {
       const res = await assignLocalHeadToLocationGroup(commId, subName, assignForm);
-      alert(res.message || 'Head assigned successfully!');
+      alert(res.message || 'Leader assigned successfully!');
       setAssignHeadModal(null);
       fetchLocationData();
       if (onRefreshCommunities) onRefreshCommunities();
     } catch (err) {
-      console.error('Failed to assign head:', err);
-      alert(err.response?.data?.message || 'Failed to assign head');
+      console.error('Failed to assign leader:', err);
+      alert(err.response?.data?.message || 'Failed to assign leader');
     } finally {
       setSubmittingHead(false);
+    }
+  };
+
+  // Open Power Editor for an existing Sub-Head or Local Head
+  const openEditPowersModal = (subHead) => {
+    setEditPowersModal({
+      ...subHead,
+      headPermissions: subHead.headPermissions || {}
+    });
+  };
+
+  const handleSavePowers = async () => {
+    if (!editPowersModal) return;
+    setUpdatingPowers(true);
+    try {
+      await axiosPrivate.put(`/head/sub-heads/${editPowersModal.id || editPowersModal._id}`, {
+        headPermissions: editPowersModal.headPermissions
+      });
+      alert('Powers & Permissions updated successfully!');
+      setEditPowersModal(null);
+      fetchLocationData();
+    } catch (err) {
+      console.error('Failed to update powers:', err);
+      alert(err.response?.data?.message || 'Failed to update powers');
+    } finally {
+      setUpdatingPowers(false);
     }
   };
 
@@ -1695,9 +1928,9 @@ const SubLocalHeadLocationWiseView = ({
               {(!viewHeadsModal.heads || viewHeadsModal.heads.length === 0) ? (
                 <div style={{ textAlign: 'center', padding: '40px 20px', color: '#64748b' }}>
                   <div style={{ fontSize: '2.5rem', marginBottom: '8px' }}>👤</div>
-                  <h4 style={{ margin: '0 0 6px', color: '#1e293b' }}>No Local Heads Assigned Yet</h4>
+                  <h4 style={{ margin: '0 0 6px', color: '#1e293b' }}>No Leaders Assigned Yet</h4>
                   <p style={{ fontSize: '0.85rem', margin: 0 }}>
-                    Click the <strong>+</strong> button on any group to create or appoint a Local Community Head.
+                    Click the <strong>+</strong> button on any group to create or appoint Local Heads or Sub Heads.
                   </p>
                 </div>
               ) : (
@@ -1733,9 +1966,16 @@ const SubLocalHeadLocationWiseView = ({
                           {(head.name || 'H').charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#1e293b' }}>
-                            {head.name}
-                          </h4>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#1e293b' }}>
+                              {head.name}
+                            </h4>
+                            {head.group && (
+                              <span style={{ fontSize: '0.7rem', fontWeight: 700, background: '#f3e8ff', color: '#7e22ce', padding: '2px 8px', borderRadius: '10px' }}>
+                                {head.group}
+                              </span>
+                            )}
+                          </div>
                           <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: '#64748b' }}>
                             📞 {head.phone} {head.email ? `• ✉️ ${head.email}` : ''}
                           </p>
@@ -1746,7 +1986,7 @@ const SubLocalHeadLocationWiseView = ({
                           )}
                         </div>
                       </div>
-                      <div style={{ textAlign: 'right' }}>
+                      <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
                         <span
                           style={{
                             fontSize: '0.72rem',
@@ -1759,11 +1999,23 @@ const SubLocalHeadLocationWiseView = ({
                         >
                           ● {head.accountStatus?.toUpperCase() || 'ACTIVE'}
                         </span>
-                        {head.city && (
-                          <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '4px' }}>
-                            📍 {head.city}
-                          </div>
-                        )}
+                        
+                        <button
+                          type="button"
+                          onClick={() => openEditPowersModal(head)}
+                          style={{
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            color: '#4f46e5',
+                            background: '#eef2ff',
+                            border: '1px solid #c7d2fe',
+                            padding: '3px 10px',
+                            borderRadius: '8px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          🛡️ Edit Powers
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -1779,14 +2031,14 @@ const SubLocalHeadLocationWiseView = ({
         </div>
       )}
 
-      {/* Assign / Create Local Head Modal */}
+      {/* Assign / Create Local Head & Sub Head Modal with Powers */}
       {assignHeadModal && (
         <div className="community-modal-overlay" onClick={() => setAssignHeadModal(null)}>
-          <div className="community-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '520px' }}>
+          <div className="community-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '560px' }}>
             <div className="community-modal-header">
               <div>
                 <h3>
-                  👤 Create &amp; Appoint {assignHeadModal.accountType === 'local_sub_head' ? 'Local Sub Head' : 'Local Community Head'}
+                  👤 Appoint {assignForm.accountType === 'local_sub_head' ? 'Local Sub Head' : 'Local Community Head'}
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Assign to: <strong>{assignHeadModal.loc.name}</strong> • <strong>{assignHeadModal.grp.name}</strong>
@@ -1795,7 +2047,69 @@ const SubLocalHeadLocationWiseView = ({
               <button type="button" className="community-modal-close" onClick={() => setAssignHeadModal(null)}>✕</button>
             </div>
             <form onSubmit={handleAssignHeadSubmit}>
-              <div className="community-modal-body">
+              <div className="community-modal-body" style={{ maxHeight: '68vh', overflowY: 'auto' }}>
+                {/* Role Switcher in Modal */}
+                <div style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '10px', marginBottom: '14px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setAssignForm(prev => ({ ...prev, accountType: 'local_head' }))}
+                    style={{
+                      flex: 1,
+                      padding: '6px 10px',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      background: assignForm.accountType === 'local_head' ? '#ffffff' : 'transparent',
+                      color: assignForm.accountType === 'local_head' ? '#4338ca' : '#64748b',
+                      boxShadow: assignForm.accountType === 'local_head' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                    }}
+                  >
+                    👤 Local Community Head
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAssignForm(prev => ({ ...prev, accountType: 'local_sub_head' }))}
+                    style={{
+                      flex: 1,
+                      padding: '6px 10px',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      background: assignForm.accountType === 'local_sub_head' ? '#ffffff' : 'transparent',
+                      color: assignForm.accountType === 'local_sub_head' ? '#be123c' : '#64748b',
+                      boxShadow: assignForm.accountType === 'local_sub_head' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                    }}
+                  >
+                    👥 Local Sub Head (With Powers)
+                  </button>
+                </div>
+
+                {/* Option A: Select Registered Community Member */}
+                <div className="community-form-group">
+                  <label>Option A: Select Registered Community Member</label>
+                  <select
+                    value={assignForm.userId || ''}
+                    onChange={e => handleSelectUser(e.target.value)}
+                    className="community-input"
+                  >
+                    <option value="">-- Choose existing member (or create new below) --</option>
+                    {communityUsers.map(u => (
+                      <option key={u._id} value={u._id}>
+                        {u.name} ({u.phone}) - {u.city || 'No City'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ textAlign: 'center', margin: '8px 0', fontSize: '0.72rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>
+                  ── Or Create / Edit Account Details ──
+                </div>
+
+                {/* Account Details */}
                 <div className="community-form-group">
                   <label>Full Name *</label>
                   <input
@@ -1841,10 +2155,10 @@ const SubLocalHeadLocationWiseView = ({
                     onChange={e => setAssignForm(f => ({ ...f, password: e.target.value }))}
                     className="community-input"
                   />
-                  <small className="community-hint">Local Head will use their phone number &amp; password to sign in.</small>
+                  <small className="community-hint">Leader will use their phone number &amp; password to sign in.</small>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
                   <div className="community-form-group">
                     <label>Assigned Location</label>
                     <input
@@ -1866,14 +2180,143 @@ const SubLocalHeadLocationWiseView = ({
                     />
                   </div>
                 </div>
+
+                {/* Sub-Head Powers & Permissions Checklist */}
+                {assignForm.accountType === 'local_sub_head' && (
+                  <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1.5px solid #e2e8f0' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <label style={{ fontSize: '0.8rem', fontWeight: 800, color: '#312e81' }}>
+                        🛡️ Grant Powers &amp; Permissions to Sub-Head
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const allTrue = {};
+                          AVAILABLE_POWERS_LOCAL.forEach(p => { allTrue[p.key] = true; });
+                          setAssignForm(prev => ({ ...prev, headPermissions: allTrue }));
+                        }}
+                        style={{ fontSize: '0.72rem', fontWeight: 700, color: '#4f46e5', background: 'none', border: 'none', cursor: 'pointer' }}
+                      >
+                        Grant All Powers
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', background: '#f8fafc', padding: '10px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                      {AVAILABLE_POWERS_LOCAL.map(power => {
+                        const isChecked = assignForm.headPermissions?.[power.key] === true;
+                        return (
+                          <label
+                            key={power.key}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              padding: '6px 8px',
+                              borderRadius: '8px',
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              background: isChecked ? '#ffffff' : 'transparent',
+                              border: isChecked ? '1px solid #c7d2fe' : '1px solid transparent',
+                              color: isChecked ? '#1e1b4b' : '#64748b'
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={e => {
+                                setAssignForm(prev => ({
+                                  ...prev,
+                                  headPermissions: {
+                                    ...(prev.headPermissions || {}),
+                                    [power.key]: e.target.checked
+                                  }
+                                }));
+                              }}
+                              style={{ width: '14px', height: '14px', accentColor: '#4f46e5' }}
+                            />
+                            <span>{power.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="community-modal-actions">
                 <button type="button" className="community-btn-secondary" onClick={() => setAssignHeadModal(null)}>Cancel</button>
                 <button type="submit" className="community-btn-primary" disabled={submittingHead || !assignForm.name.trim() || !assignForm.phone.trim()}>
-                  {submittingHead ? 'Assigning...' : '✓ Create & Appoint Head'}
+                  {submittingHead ? 'Assigning...' : '✓ Appoint Leader & Grant Access'}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Powers & Permissions Modal */}
+      {editPowersModal && (
+        <div className="community-modal-overlay" onClick={() => setEditPowersModal(null)}>
+          <div className="community-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '540px' }}>
+            <div className="community-modal-header">
+              <div>
+                <h3>🛡️ Edit Powers &amp; Permissions</h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Leader: <strong>{editPowersModal.name}</strong> ({editPowersModal.phone})
+                </p>
+              </div>
+              <button type="button" className="community-modal-close" onClick={() => setEditPowersModal(null)}>✕</button>
+            </div>
+            <div className="community-modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+              <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '0 0 10px' }}>
+                Toggle administrative capabilities and module access for this leader:
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', background: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                {AVAILABLE_POWERS_LOCAL.map(power => {
+                  const isChecked = editPowersModal.headPermissions?.[power.key] === true;
+                  return (
+                    <label
+                      key={power.key}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '6px 8px',
+                        borderRadius: '8px',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        background: isChecked ? '#ffffff' : 'transparent',
+                        border: isChecked ? '1px solid #818cf8' : '1px solid transparent',
+                        color: isChecked ? '#1e1b4b' : '#64748b'
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={e => {
+                          setEditPowersModal(prev => ({
+                            ...prev,
+                            headPermissions: {
+                              ...(prev.headPermissions || {}),
+                              [power.key]: e.target.checked
+                            }
+                          }));
+                        }}
+                        style={{ width: '14px', height: '14px', accentColor: '#4f46e5' }}
+                      />
+                      <span>{power.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="community-modal-actions">
+              <button type="button" className="community-btn-secondary" onClick={() => setEditPowersModal(null)}>Cancel</button>
+              <button type="button" className="community-btn-primary" onClick={handleSavePowers} disabled={updatingPowers}>
+                {updatingPowers ? 'Saving Powers...' : '✓ Save Powers & Permissions'}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1949,6 +2392,23 @@ const SubLocalHeadLocationWiseView = ({
 };
 
 
+const AVAILABLE_ADMIN_POWERS = [
+  { key: 'canViewMembers', label: 'View & Search Members', category: 'Members' },
+  { key: 'canAddMembers', label: 'Add & Register Members', category: 'Members' },
+  { key: 'canEditMembers', label: 'Edit Member Profiles', category: 'Members' },
+  { key: 'canApproveProfiles', label: 'Approve Member Verifications', category: 'Members' },
+  { key: 'canViewProfiles', label: 'View & Manage Matrimonial', category: 'Matrimonial' },
+  { key: 'canViewEvents', label: 'View & Manage Events', category: 'Events' },
+  { key: 'canCreateEvents', label: 'Create New Events', category: 'Events' },
+  { key: 'canViewFunds', label: 'View Samaj Funds & Ledger', category: 'Finance' },
+  { key: 'canManageFunds', label: 'Manage Fund Governance', category: 'Finance' },
+  { key: 'canViewDonations', label: 'Manage Donation Campaigns', category: 'Finance' },
+  { key: 'canViewSocial', label: 'Moderate Social & City Feeds', category: 'Social' },
+  { key: 'canViewDharmashala', label: 'Manage Dharmashala Bookings', category: 'Facilities' },
+  { key: 'canSendNotifications', label: 'Send Announcements & Notifications', category: 'Broadcast' },
+  { key: 'canViewCensus', label: 'View Community Census & Analytics', category: 'Census' }
+];
+
 // ─────────────────────────────────────────────
 // SubCommunityLocationView — Level 2 Sub-Communities View
 // ─────────────────────────────────────────────
@@ -1971,6 +2431,29 @@ const SubCommunityLocationView = ({
   const [addingLocation, setAddingLocation] = useState(false);
   const [editingSub, setEditingSub] = useState(null); // { id, name }
   const [selectedSubCommunity, setSelectedSubCommunity] = useState(null); // Active Sub-Community for Image 2 view (e.g. Rathore)
+
+  // Direct Leader Creation & Permissions State (4-Step Wizard matching CommunityHeadForm)
+  const [assignLeaderModal, setAssignLeaderModal] = useState(null); // { sub, grp, accountType }
+  const [leaderStep, setLeaderStep] = useState(1);
+  const [submittingLeader, setSubmittingLeader] = useState(false);
+  const [viewLeadersModal, setViewLeadersModal] = useState(null); // { title, leaders }
+  const [customGroupsData, setCustomGroupsData] = useState({});
+  const [showLeaderPassword, setShowLeaderPassword] = useState(false);
+
+  const [assignLeaderForm, setAssignLeaderForm] = useState({
+    userId: null,
+    name: '',
+    phone: '',
+    email: '',
+    loginId: '',
+    password: '',
+    city: 'Indore',
+    state: 'Madhya Pradesh',
+    group: 'Group 1',
+    accountType: 'community_head',
+    assignedSubCommunityIds: [],
+    headPermissions: { ...DEFAULT_HEAD_PERMISSIONS }
+  });
 
   const communityId = community._id || community.id;
 
@@ -2059,6 +2542,92 @@ const SubCommunityLocationView = ({
     }
   };
 
+  // ── Open Assign Leader Modal (4-Step Wizard) ──
+  const openLeaderModal = (sub, grp, accountType = 'community_head') => {
+    setLeaderStep(1);
+    setShowLeaderPassword(false);
+    setAssignLeaderForm({
+      userId: null,
+      name: '',
+      phone: '',
+      email: '',
+      loginId: '',
+      password: '',
+      city: comm.city || 'Indore',
+      state: comm.state || 'Madhya Pradesh',
+      group: grp.name,
+      accountType,
+      assignedSubCommunityIds: [sub._id || sub.name],
+      headPermissions: { ...DEFAULT_HEAD_PERMISSIONS }
+    });
+    setAssignLeaderModal({ sub, grp, accountType });
+  };
+
+  // ── Submit Leader & Assign Powers ──
+  const handleAssignLeaderSubmit = async (e) => {
+    if (e) e.preventDefault();
+    if (!assignLeaderForm.name.trim()) {
+      alert('Please provide Full Name');
+      setLeaderStep(1);
+      return;
+    }
+    if (!assignLeaderForm.phone.trim()) {
+      alert('Please provide Mobile / Phone number');
+      setLeaderStep(1);
+      return;
+    }
+    if (!assignLeaderForm.password.trim()) {
+      alert('Please set a Login Password');
+      setLeaderStep(1);
+      return;
+    }
+    setSubmittingLeader(true);
+    try {
+      const subName = assignLeaderModal.sub.name;
+      const payload = {
+        ...assignLeaderForm,
+        loginId: assignLeaderForm.loginId.trim() || assignLeaderForm.phone.trim()
+      };
+      const res = await assignLocalHeadToLocationGroup(communityId, subName, payload);
+      alert(res.message || 'Leader appointed and powers granted successfully!');
+      
+      // Update local state count dynamically
+      const grpKey = `${subName}_${assignLeaderModal.grp.id || assignLeaderModal.grp.name}`;
+      setCustomGroupsData(prev => {
+        const curr = prev[grpKey] || { heads: assignLeaderModal.grp.heads || 0, subHeads: assignLeaderModal.grp.subHeads || 0, leaderList: [] };
+        return {
+          ...prev,
+          [grpKey]: {
+            ...curr,
+            heads: assignLeaderForm.accountType === 'community_head' ? curr.heads + 1 : curr.heads,
+            subHeads: assignLeaderForm.accountType !== 'community_head' ? curr.subHeads + 1 : curr.subHeads,
+            leaderList: [
+              ...(curr.leaderList || []),
+              {
+                name: assignLeaderForm.name,
+                phone: assignLeaderForm.phone,
+                email: assignLeaderForm.email,
+                loginId: payload.loginId,
+                plainPassword: assignLeaderForm.password || '123456',
+                accountType: assignLeaderForm.accountType,
+                headPermissions: assignLeaderForm.headPermissions
+              }
+            ]
+          }
+        };
+      });
+
+      setAssignLeaderModal(null);
+      fetchDetails();
+      if (onRefreshCommunities) onRefreshCommunities();
+    } catch (err) {
+      console.error('Failed to assign leader:', err);
+      alert(err.response?.data?.message || 'Failed to appoint leader');
+    } finally {
+      setSubmittingLeader(false);
+    }
+  };
+
   const comm = data.community || community;
   const isActive = comm.isActive !== false && comm.status !== 'Inactive';
   const createdFormatted = comm.createdAt
@@ -2068,8 +2637,8 @@ const SubCommunityLocationView = ({
   // Overall top stats
   const activeLocationsCount = comm.activeLocationsCount ?? Math.max(1, (comm.cityIds?.length || (comm.city ? 1 : 0)));
   const totalCommunityHeadsCount = comm.communityHeadsCount ?? (comm.headId ? 1 : 0);
-  const totalLocalHeadsCount = comm.localHeadsCount || 0;
-  const totalSubCommunityHeadsCount = comm.subLocalHeadsCount || 0;
+  const totalLocalHeadsCount = comm.localHeadsCount || 1;
+  const totalSubCommunityHeadsCount = comm.subLocalHeadsCount || 3;
   const totalUsersCount = comm.totalUsersCount ?? comm.memberCount ?? 0;
 
   // Combine real subCommunities from backend, community.subCommunities, or presets
@@ -2104,16 +2673,23 @@ const SubCommunityLocationView = ({
 
   // Render default/preset groups for visual representation if dynamic groups not stored yet
   const getSubGroups = (sub) => {
-    if (sub.groups && Array.isArray(sub.groups) && sub.groups.length > 0) {
-      return sub.groups;
-    }
-    // Standard default 4 groups as shown in Image 1: Group 1, Group 2, Group 3, Group 4
-    return [
-      { id: 'g1', name: 'Group 1', colorClass: 'grp-header-blue', heads: 1, subHeads: 2 },
-      { id: 'g2', name: 'Group 2', colorClass: 'grp-header-pink', heads: 0, subHeads: 1 },
-      { id: 'g3', name: 'Group 3', colorClass: 'grp-header-green', heads: 0, subHeads: 0 },
-      { id: 'g4', name: 'Group 4', colorClass: 'grp-header-yellow', heads: 0, subHeads: 0 },
-    ];
+    const baseGroups = (sub.groups && Array.isArray(sub.groups) && sub.groups.length > 0)
+      ? sub.groups
+      : [
+          { id: 'g1', name: 'Group 1', colorClass: 'grp-header-blue', heads: 1, subHeads: 2 },
+          { id: 'g2', name: 'Group 2', colorClass: 'grp-header-pink', heads: 0, subHeads: 1 },
+          { id: 'g3', name: 'Group 3', colorClass: 'grp-header-green', heads: 0, subHeads: 0 },
+          { id: 'g4', name: 'Group 4', colorClass: 'grp-header-yellow', heads: 0, subHeads: 0 },
+        ];
+
+    return baseGroups.map(grp => {
+      const grpKey = `${sub.name}_${grp.id || grp.name}`;
+      const custom = customGroupsData[grpKey];
+      if (custom) {
+        return { ...grp, heads: custom.heads, subHeads: custom.subHeads, leaderList: custom.leaderList };
+      }
+      return grp;
+    });
   };
 
   // If a subcommunity like Rathore is clicked, open the Location-Wise view (Image 2)
@@ -2180,14 +2756,14 @@ const SubCommunityLocationView = ({
         {/* Stat 3: Total Sub Community Heads (Light Blue) */}
         <div className="strip-stat-box bg-sky-strip">
           <div className="strip-stat-icon text-sky">👤</div>
-          <div className="strip-stat-num">{totalLocalHeadsCount || 1}</div>
+          <div className="strip-stat-num">{totalLocalHeadsCount}</div>
           <div className="strip-stat-label">Total Community Heads</div>
         </div>
 
         {/* Stat 4: Total Sub Community Heads (Light Red) */}
         <div className="strip-stat-box bg-rose-strip">
           <div className="strip-stat-icon text-rose">👥</div>
-          <div className="strip-stat-num">{totalSubCommunityHeadsCount || 3}</div>
+          <div className="strip-stat-num">{totalSubCommunityHeadsCount}</div>
           <div className="strip-stat-label">Sub Community Heads</div>
         </div>
 
@@ -2312,14 +2888,27 @@ const SubCommunityLocationView = ({
                       <div className="grp-row">
                         <div className="grp-count-line">
                           <span className="grp-icon-blue">👤</span>
-                          <span className="grp-number">{grp.heads ?? 0}</span>
+                          <span
+                            className="grp-number"
+                            style={{ cursor: (grp.heads > 0) ? 'pointer' : 'default' }}
+                            onClick={() => (grp.heads > 0) && setViewLeadersModal({
+                              title: `Community Heads • ${sub.name} (${grp.name})`,
+                              subName: sub.name,
+                              groupName: grp.name,
+                              type: 'community_head',
+                              leaders: grp.leaderList?.filter(l => l.accountType === 'community_head') || []
+                            })}
+                            title={grp.heads > 0 ? 'Click to view Community Heads' : ''}
+                          >
+                            {grp.heads ?? 0}
+                          </span>
                           <button
                             type="button"
                             className="grp-plus-btn"
-                            title="Add Community Head"
+                            title="Directly Create & Appoint Community Head"
                             onClick={(e) => {
                               e.stopPropagation();
-                              alert(`Assign Community Head to ${sub.name} - ${grp.name}`);
+                              openLeaderModal(sub, grp, 'community_head');
                             }}
                           >
                             +
@@ -2332,14 +2921,27 @@ const SubCommunityLocationView = ({
                       <div className="grp-row">
                         <div className="grp-count-line">
                           <span className="grp-icon-red">👥</span>
-                          <span className="grp-number">{grp.subHeads ?? 0}</span>
+                          <span
+                            className="grp-number"
+                            style={{ cursor: (grp.subHeads > 0) ? 'pointer' : 'default' }}
+                            onClick={() => (grp.subHeads > 0) && setViewLeadersModal({
+                              title: `Sub Community Heads • ${sub.name} (${grp.name})`,
+                              subName: sub.name,
+                              groupName: grp.name,
+                              type: 'sub_community_head',
+                              leaders: grp.leaderList?.filter(l => l.accountType !== 'community_head') || []
+                            })}
+                            title={grp.subHeads > 0 ? 'Click to view Sub-Heads & Powers' : ''}
+                          >
+                            {grp.subHeads ?? 0}
+                          </span>
                           <button
                             type="button"
                             className="grp-plus-btn"
-                            title="Add Sub Community Head"
+                            title="Directly Create & Appoint Sub Community Head with Powers"
                             onClick={(e) => {
                               e.stopPropagation();
-                              alert(`Assign Sub Community Head to ${sub.name} - ${grp.name}`);
+                              openLeaderModal(sub, grp, 'sub_community_head');
                             }}
                           >
                             +
@@ -2404,6 +3006,813 @@ const SubCommunityLocationView = ({
         </button>
       </div>
 
+      {/* ─────────────────────────────────────────────
+          MODAL: Direct Leader Creation with 4-Step Wizard (matching CommunityHeadForm)
+      ───────────────────────────────────────────── */}
+      {assignLeaderModal && (
+        <div className="community-modal-overlay" onClick={() => setAssignLeaderModal(null)}>
+          <div 
+            className="community-modal" 
+            onClick={e => e.stopPropagation()} 
+            style={{ maxWidth: '820px', width: '95%', maxHeight: '92vh', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden', borderRadius: '24px' }}
+          >
+            {/* Header */}
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#ffffff' }}>
+              <div>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                  <Shield style={{ width: '22px', height: '22px', color: '#4f46e5' }} />
+                  {assignLeaderModal.accountType === 'community_head' ? 'Appoint Community Head' : 'Appoint Sub-Community Head'}
+                </h3>
+                <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '3px 0 0 0' }}>
+                  Community: <strong style={{ color: '#1e293b' }}>{comm.name}</strong> • Sub-Community: <strong style={{ color: '#4f46e5' }}>{assignLeaderModal.sub.name}</strong> • Group: <strong style={{ color: '#be185d' }}>{assignLeaderModal.grp.name}</strong>
+                </p>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setAssignLeaderModal(null)}
+                style={{ background: '#f8fafc', border: 'none', borderRadius: '12px', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* 4-Step Progress Stepper */}
+            <div style={{ padding: '16px 28px 12px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', maxWidth: '580px', margin: '0 auto' }}>
+                <div style={{ position: 'absolute', left: '10px', right: '10px', top: '18px', height: '2px', background: '#e2e8f0', zIndex: 0 }}>
+                  <div 
+                    style={{ 
+                      height: '100%', 
+                      background: '#4f46e5', 
+                      transition: 'width 0.3s ease',
+                      width: `${((leaderStep - 1) / 3) * 100}%` 
+                    }} 
+                  />
+                </div>
+
+                {[
+                  { stepNum: 1, label: 'PROFILE', icon: User },
+                  { stepNum: 2, label: 'COMMUNITIES', icon: Building2 },
+                  { stepNum: 3, label: 'PERMISSIONS', icon: Shield },
+                  { stepNum: 4, label: 'REVIEW', icon: CheckCircle }
+                ].map((s) => {
+                  const isCompleted = leaderStep > s.stepNum;
+                  const isCurrent = leaderStep === s.stepNum;
+                  const Icon = s.icon;
+                  return (
+                    <div 
+                      key={s.stepNum} 
+                      onClick={() => {
+                        // Allow clicking back to completed steps
+                        if (isCompleted || s.stepNum < leaderStep) setLeaderStep(s.stepNum);
+                      }}
+                      style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: (isCompleted || isCurrent) ? 'pointer' : 'default' }}
+                    >
+                      <div 
+                        style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '50%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          transition: 'all 0.25s ease',
+                          background: isCompleted ? '#4f46e5' : isCurrent ? '#ffffff' : '#ffffff',
+                          border: isCompleted ? '2px solid #4f46e5' : isCurrent ? '2px solid #4f46e5' : '2px solid #cbd5e1',
+                          color: isCompleted ? '#ffffff' : isCurrent ? '#4f46e5' : '#94a3b8',
+                          boxShadow: isCurrent ? '0 3px 8px rgba(79, 70, 229, 0.25)' : 'none',
+                          fontWeight: 700
+                        }}
+                      >
+                        {isCompleted ? <CheckCircle size={16} /> : <Icon size={16} />}
+                      </div>
+                      <span 
+                        style={{ 
+                          fontSize: '0.68rem', 
+                          fontWeight: 800, 
+                          letterSpacing: '0.05em',
+                          color: isCurrent ? '#4f46e5' : isCompleted ? '#1e293b' : '#94a3b8' 
+                        }}
+                      >
+                        {s.label}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Modal Body with Step Content */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px', background: '#fafbfc' }}>
+              {/* ─────────────────────────────────────────────
+                  STEP 1: PROFILE & CREDENTIALS
+              ───────────────────────────────────────────── */}
+              {leaderStep === 1 && (
+                <div style={{ maxWidth: '640px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                  {/* Account Type Selector Toggle */}
+                  <div style={{ display: 'flex', background: '#eef2ff', padding: '5px', borderRadius: '14px', border: '1px solid #e0e7ff' }}>
+                    <button
+                      type="button"
+                      onClick={() => setAssignLeaderForm(prev => ({ ...prev, accountType: 'community_head' }))}
+                      style={{
+                        flex: 1,
+                        padding: '10px 14px',
+                        fontSize: '0.84rem',
+                        fontWeight: 800,
+                        borderRadius: '10px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        background: assignLeaderForm.accountType === 'community_head' ? '#ffffff' : 'transparent',
+                        color: assignLeaderForm.accountType === 'community_head' ? '#4338ca' : '#64748b',
+                        boxShadow: assignLeaderForm.accountType === 'community_head' ? '0 2px 8px rgba(67, 56, 202, 0.12)' : 'none',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <User size={16} /> Community Head
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAssignLeaderForm(prev => ({ ...prev, accountType: 'sub_community_head' }))}
+                      style={{
+                        flex: 1,
+                        padding: '10px 14px',
+                        fontSize: '0.84rem',
+                        fontWeight: 800,
+                        borderRadius: '10px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        background: assignLeaderForm.accountType === 'sub_community_head' ? '#ffffff' : 'transparent',
+                        color: assignLeaderForm.accountType === 'sub_community_head' ? '#be185d' : '#64748b',
+                        boxShadow: assignLeaderForm.accountType === 'sub_community_head' ? '0 2px 8px rgba(190, 24, 93, 0.12)' : 'none',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <Users size={16} /> Sub-Community Head (With Powers)
+                    </button>
+                  </div>
+
+                  {/* Head Information Card */}
+                  <div style={{ background: '#ffffff', borderRadius: '18px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
+                    <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: '#1e293b', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <User size={16} style={{ color: '#4f46e5' }} /> Head Information
+                    </h4>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                      <div className="community-form-group" style={{ marginBottom: 0 }}>
+                        <label style={{ fontSize: '0.74rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Full Name *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. Rahul Sharma"
+                          value={assignLeaderForm.name}
+                          onChange={e => setAssignLeaderForm({ ...assignLeaderForm, name: e.target.value })}
+                          className="community-input"
+                          style={{ padding: '10px 14px', borderRadius: '12px', border: '1.5px solid #e2e8f0', fontSize: '0.88rem' }}
+                        />
+                      </div>
+
+                      <div className="community-form-group" style={{ marginBottom: 0 }}>
+                        <label style={{ fontSize: '0.74rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Phone Number (Login ID) *
+                        </label>
+                        <input
+                          type="tel"
+                          required
+                          maxLength="10"
+                          placeholder="9876543210"
+                          value={assignLeaderForm.phone}
+                          onChange={e => {
+                            const val = e.target.value.replace(/\D/g, '');
+                            setAssignLeaderForm({ 
+                              ...assignLeaderForm, 
+                              phone: val,
+                              loginId: assignLeaderForm.loginId === assignLeaderForm.phone ? val : assignLeaderForm.loginId
+                            });
+                          }}
+                          className="community-input"
+                          style={{ padding: '10px 14px', borderRadius: '12px', border: '1.5px solid #e2e8f0', fontSize: '0.88rem' }}
+                        />
+                      </div>
+
+                      <div className="community-form-group" style={{ gridColumn: 'span 2', marginBottom: 0 }}>
+                        <label style={{ fontSize: '0.74rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Email Address (Optional)
+                        </label>
+                        <input
+                          type="email"
+                          placeholder="head@community.com"
+                          value={assignLeaderForm.email}
+                          onChange={e => setAssignLeaderForm({ ...assignLeaderForm, email: e.target.value })}
+                          className="community-input"
+                          style={{ padding: '10px 14px', borderRadius: '12px', border: '1.5px solid #e2e8f0', fontSize: '0.88rem' }}
+                        />
+                        <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '4px', margin: 0 }}>Official contact email for notifications and alerts.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Head Panel Login Credentials Card */}
+                  <div style={{ background: '#ffffff', borderRadius: '18px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
+                    <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: '#4f46e5', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Key size={16} /> Head Panel Login Credentials
+                    </h4>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                      <div className="community-form-group" style={{ marginBottom: 0 }}>
+                        <label style={{ fontSize: '0.74rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Login ID *
+                        </label>
+                        <div style={{ display: 'flex', alignItems: 'center', background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: '12px', padding: '0 12px' }}>
+                          <User size={16} style={{ color: '#94a3b8', marginRight: '8px' }} />
+                          <input
+                            type="text"
+                            placeholder="e.g. rahul_head or 9876543210"
+                            value={assignLeaderForm.loginId || assignLeaderForm.phone}
+                            onChange={e => setAssignLeaderForm({ ...assignLeaderForm, loginId: e.target.value })}
+                            style={{ border: 'none', background: 'transparent', outline: 'none', padding: '10px 0', width: '100%', fontSize: '0.88rem', fontWeight: 600, color: '#1e293b' }}
+                          />
+                        </div>
+                        <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '4px', margin: 0 }}>Unique ID used to log in to the Head Panel.</p>
+                      </div>
+
+                      <div className="community-form-group" style={{ marginBottom: 0 }}>
+                        <label style={{ fontSize: '0.74rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Login Password *
+                        </label>
+                        <div style={{ display: 'flex', alignItems: 'center', background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: '12px', padding: '0 12px' }}>
+                          <Key size={16} style={{ color: '#94a3b8', marginRight: '8px' }} />
+                          <input
+                            type={showLeaderPassword ? 'text' : 'password'}
+                            required
+                            placeholder="Min 6 characters (e.g. 123456)"
+                            value={assignLeaderForm.password}
+                            onChange={e => setAssignLeaderForm({ ...assignLeaderForm, password: e.target.value })}
+                            style={{ border: 'none', background: 'transparent', outline: 'none', padding: '10px 0', width: '100%', fontSize: '0.88rem', fontWeight: 600, color: '#1e293b', fontFamily: showLeaderPassword ? 'inherit' : 'monospace' }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowLeaderPassword(prev => !prev)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '4px', display: 'flex', alignItems: 'center' }}
+                            title={showLeaderPassword ? 'Hide Password' : 'Show Password'}
+                          >
+                            {showLeaderPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </button>
+                        </div>
+                        <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '4px', margin: 0 }}>Password for Head Panel authentication.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ─────────────────────────────────────────────
+                  STEP 2: COMMUNITIES & HIERARCHY SCOPE
+              ───────────────────────────────────────────── */}
+              {leaderStep === 2 && (
+                <div style={{ maxWidth: '680px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                  {/* Primary Scope Highlight Card */}
+                  <div style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)', borderRadius: '18px', padding: '20px 24px', color: '#ffffff', boxShadow: '0 8px 24px rgba(79, 70, 229, 0.25)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 800, background: 'rgba(255,255,255,0.2)', padding: '4px 10px', borderRadius: '20px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Primary Target Scope
+                      </span>
+                      <span style={{ fontSize: '0.76rem', fontWeight: 700, color: '#c7d2fe' }}>
+                        Active Context
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+                      <div style={{ background: 'rgba(255,255,255,0.12)', padding: '12px 14px', borderRadius: '14px', backdropFilter: 'blur(8px)' }}>
+                        <div style={{ fontSize: '0.7rem', color: '#c7d2fe', fontWeight: 700, textTransform: 'uppercase' }}>Main Community</div>
+                        <div style={{ fontSize: '0.98rem', fontWeight: 900, marginTop: '2px' }}>{comm.name}</div>
+                      </div>
+
+                      <div style={{ background: 'rgba(255,255,255,0.12)', padding: '12px 14px', borderRadius: '14px', backdropFilter: 'blur(8px)' }}>
+                        <div style={{ fontSize: '0.7rem', color: '#c7d2fe', fontWeight: 700, textTransform: 'uppercase' }}>Sub-Community</div>
+                        <div style={{ fontSize: '0.98rem', fontWeight: 900, marginTop: '2px' }}>{assignLeaderModal.sub.name}</div>
+                      </div>
+
+                      <div style={{ background: 'rgba(255,255,255,0.12)', padding: '12px 14px', borderRadius: '14px', backdropFilter: 'blur(8px)' }}>
+                        <div style={{ fontSize: '0.7rem', color: '#c7d2fe', fontWeight: 700, textTransform: 'uppercase' }}>Assigned Group</div>
+                        <div style={{ fontSize: '0.98rem', fontWeight: 900, marginTop: '2px' }}>{assignLeaderModal.grp.name}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Additional Sub-Communities Assignment Multi-Select */}
+                  <div style={{ background: '#ffffff', borderRadius: '18px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                      <div>
+                        <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: '#1e293b', margin: 0 }}>
+                          Sub-Communities in {comm.name}
+                        </h4>
+                        <p style={{ fontSize: '0.74rem', color: '#64748b', margin: '2px 0 0 0' }}>
+                          Select all sub-communities this head will manage.
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const allIds = displaySubCommunities.map(s => s._id || s.name);
+                          const isAllSelected = allIds.every(id => (assignLeaderForm.assignedSubCommunityIds || []).includes(id));
+                          setAssignLeaderForm(prev => ({
+                            ...prev,
+                            assignedSubCommunityIds: isAllSelected ? [assignLeaderModal.sub._id || assignLeaderModal.sub.name] : allIds
+                          }));
+                        }}
+                        style={{ fontSize: '0.75rem', fontWeight: 800, color: '#4f46e5', background: '#eef2ff', border: 'none', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer' }}
+                      >
+                        {displaySubCommunities.every(s => (assignLeaderForm.assignedSubCommunityIds || []).includes(s._id || s.name)) ? 'Deselect Others' : 'Select All Sub-Communities'}
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      {displaySubCommunities.map(sub => {
+                        const subId = sub._id || sub.name;
+                        const isPrimary = sub.name === assignLeaderModal.sub.name;
+                        const isChecked = isPrimary || (assignLeaderForm.assignedSubCommunityIds || []).includes(subId);
+
+                        return (
+                          <label
+                            key={subId}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '10px',
+                              padding: '12px 14px',
+                              borderRadius: '14px',
+                              border: isChecked ? '2px solid #4f46e5' : '1.5px solid #e2e8f0',
+                              background: isChecked ? '#f5f3ff' : '#ffffff',
+                              cursor: isPrimary ? 'default' : 'pointer',
+                              transition: 'all 0.2s ease'
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              disabled={isPrimary}
+                              onChange={(e) => {
+                                if (isPrimary) return;
+                                const curr = assignLeaderForm.assignedSubCommunityIds || [];
+                                if (e.target.checked) {
+                                  setAssignLeaderForm(prev => ({ ...prev, assignedSubCommunityIds: [...curr, subId] }));
+                                } else {
+                                  setAssignLeaderForm(prev => ({ ...prev, assignedSubCommunityIds: curr.filter(id => id !== subId) }));
+                                }
+                              }}
+                              style={{ width: '18px', height: '18px', accentColor: '#4f46e5' }}
+                            />
+                            <div style={{ flex: 1 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ fontSize: '0.84rem', fontWeight: 800, color: '#1e293b' }}>{sub.name}</span>
+                                {isPrimary && (
+                                  <span style={{ fontSize: '0.62rem', fontWeight: 800, background: '#4f46e5', color: '#ffffff', padding: '1px 6px', borderRadius: '6px' }}>
+                                    PRIMARY
+                                  </span>
+                                )}
+                              </div>
+                              <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                                {sub.memberCount || 0} Members
+                              </span>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ─────────────────────────────────────────────
+                  STEP 3: PERMISSIONS (Full 14-Module Controls)
+              ───────────────────────────────────────────── */}
+              {leaderStep === 3 && (
+                <div style={{ maxWidth: '740px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {/* Module Access Controls Header & Master Toggle */}
+                  <div style={{ background: '#ffffff', borderRadius: '16px', padding: '16px 20px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
+                    <div>
+                      <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Shield size={18} style={{ color: '#4f46e5' }} /> Head Module Access Controls
+                      </h4>
+                      <p style={{ fontSize: '0.74rem', color: '#64748b', margin: '3px 0 0 0' }}>
+                        Toggle modules ACTIVE to grant full management access, or DISABLED to restrict.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allActive = FULL_HEAD_MODULES.every(mod => mod.keys.some(k => assignLeaderForm.headPermissions?.[k]));
+                        const updated = { ...(assignLeaderForm.headPermissions || DEFAULT_HEAD_PERMISSIONS) };
+                        FULL_HEAD_MODULES.forEach(mod => {
+                          mod.keys.forEach(k => { updated[k] = !allActive; });
+                        });
+                        setAssignLeaderForm(prev => ({ ...prev, headPermissions: updated }));
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '8px 14px',
+                        borderRadius: '10px',
+                        fontSize: '0.76rem',
+                        fontWeight: 800,
+                        border: 'none',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        background: FULL_HEAD_MODULES.every(mod => mod.keys.some(k => assignLeaderForm.headPermissions?.[k])) ? '#ffe4e6' : '#e0e7ff',
+                        color: FULL_HEAD_MODULES.every(mod => mod.keys.some(k => assignLeaderForm.headPermissions?.[k])) ? '#e11d48' : '#4338ca'
+                      }}
+                    >
+                      <CheckCircle size={14} />
+                      {FULL_HEAD_MODULES.every(mod => mod.keys.some(k => assignLeaderForm.headPermissions?.[k])) ? 'Disable All Modules' : 'Enable All Modules'}
+                    </button>
+                  </div>
+
+                  {/* 14 Modules Switch Cards Grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    {FULL_HEAD_MODULES.map(mod => {
+                      const ModuleIcon = mod.icon;
+                      const isActive = mod.keys.some(k => assignLeaderForm.headPermissions?.[k]);
+
+                      return (
+                        <div
+                          key={mod.id}
+                          onClick={() => {
+                            const updated = { ...(assignLeaderForm.headPermissions || DEFAULT_HEAD_PERMISSIONS) };
+                            mod.keys.forEach(k => { updated[k] = !isActive; });
+                            setAssignLeaderForm(prev => ({ ...prev, headPermissions: updated }));
+                          }}
+                          style={{
+                            padding: '14px 16px',
+                            borderRadius: '16px',
+                            border: isActive ? '2px solid #4f46e5' : '1.5px solid #e2e8f0',
+                            background: isActive ? '#ffffff' : '#f8fafc',
+                            boxShadow: isActive ? '0 4px 14px rgba(79, 70, 229, 0.08)' : 'none',
+                            opacity: isActive ? 1 : 0.75,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            transition: 'all 0.2s ease'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
+                            <div 
+                              style={{
+                                width: '40px',
+                                height: '40px',
+                                borderRadius: '12px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                                background: isActive ? '#eef2ff' : '#f1f5f9',
+                                color: isActive ? '#4f46e5' : '#94a3b8'
+                              }}
+                            >
+                              <ModuleIcon size={20} />
+                            </div>
+
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: '0.84rem', fontWeight: 800, color: '#1e293b' }}>
+                                  {mod.title}
+                                </span>
+                                <span 
+                                  style={{
+                                    fontSize: '0.62rem',
+                                    fontWeight: 800,
+                                    padding: '1px 6px',
+                                    borderRadius: '10px',
+                                    background: isActive ? '#dcfce7' : '#f1f5f9',
+                                    color: isActive ? '#15803d' : '#64748b'
+                                  }}
+                                >
+                                  {isActive ? 'ACTIVE' : 'DISABLED'}
+                                </span>
+                              </div>
+                              <p style={{ fontSize: '0.7rem', color: '#64748b', margin: '2px 0 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {mod.description}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* iOS Style Switch Toggle */}
+                          <div 
+                            style={{
+                              width: '42px',
+                              height: '24px',
+                              borderRadius: '24px',
+                              padding: '2px',
+                              flexShrink: 0,
+                              marginLeft: '10px',
+                              transition: 'background 0.2s ease',
+                              background: isActive ? '#4f46e5' : '#cbd5e1',
+                              position: 'relative'
+                            }}
+                          >
+                            <div 
+                              style={{
+                                width: '20px',
+                                height: '20px',
+                                borderRadius: '50%',
+                                background: '#ffffff',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                                transition: 'transform 0.2s ease',
+                                transform: isActive ? 'translateX(18px)' : 'translateX(0px)'
+                              }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* ─────────────────────────────────────────────
+                  STEP 4: REVIEW & CONFIRM
+              ───────────────────────────────────────────── */}
+              {leaderStep === 4 && (
+                <div style={{ maxWidth: '640px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                  {/* Hero Summary Card */}
+                  <div style={{ background: '#ffffff', borderRadius: '20px', padding: '24px', border: '1px solid #e2e8f0', textAlign: 'center', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
+                    <div 
+                      style={{
+                        width: '64px',
+                        height: '64px',
+                        borderRadius: '50%',
+                        background: '#eef2ff',
+                        color: '#4f46e5',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        margin: '0 auto 12px auto'
+                      }}
+                    >
+                      <User size={32} />
+                    </div>
+
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a', margin: 0 }}>
+                      {assignLeaderForm.name || 'Unnamed Leader'}
+                    </h3>
+                    <p style={{ fontSize: '0.82rem', color: '#64748b', margin: '4px 0 0 0' }}>
+                      {assignLeaderForm.email || 'No email'} • {assignLeaderForm.phone || 'No phone'}
+                    </p>
+
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: assignLeaderForm.accountType === 'community_head' ? '#eef2ff' : '#fdf2f8', color: assignLeaderForm.accountType === 'community_head' ? '#4338ca' : '#be185d', padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 800, marginTop: '10px' }}>
+                      <Shield size={13} />
+                      {assignLeaderForm.accountType === 'community_head' ? 'Community Head' : 'Sub-Community Head'} • Login ID: {assignLeaderForm.loginId || assignLeaderForm.phone}
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '20px', paddingTop: '18px', borderTop: '1px solid #f1f5f9', textAlign: 'left' }}>
+                      {/* Assigned Hierarchy */}
+                      <div>
+                        <h5 style={{ fontSize: '0.72rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
+                          Assigned Scope
+                        </h5>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
+                            🏛️ Community: <strong>{comm.name}</strong>
+                          </div>
+                          <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
+                            🏷️ Sub-Community: <strong>{assignLeaderModal.sub.name}</strong>
+                          </div>
+                          <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
+                            👥 Group: <strong>{assignLeaderModal.grp.name}</strong>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Active Modules Badges */}
+                      <div>
+                        <h5 style={{ fontSize: '0.72rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
+                          Active Modules ({FULL_HEAD_MODULES.filter(m => m.keys.some(k => assignLeaderForm.headPermissions?.[k])).length} of 14)
+                        </h5>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', maxHeight: '120px', overflowY: 'auto' }}>
+                          {FULL_HEAD_MODULES.filter(m => m.keys.some(k => assignLeaderForm.headPermissions?.[k])).map(m => (
+                            <span 
+                              key={m.id}
+                              style={{
+                                fontSize: '0.68rem',
+                                fontWeight: 700,
+                                background: '#ecfdf5',
+                                color: '#047857',
+                                border: '1px solid #a7f3d0',
+                                padding: '2px 7px',
+                                borderRadius: '8px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px'
+                              }}
+                            >
+                              ✓ {m.title}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer Controls */}
+            <div style={{ padding: '16px 24px', borderTop: '1px solid #f1f5f9', background: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  if (leaderStep > 1) {
+                    setLeaderStep(prev => prev - 1);
+                  } else {
+                    setAssignLeaderModal(null);
+                  }
+                }}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: '12px',
+                  fontSize: '0.84rem',
+                  fontWeight: 800,
+                  border: '1.5px solid #e2e8f0',
+                  background: '#ffffff',
+                  color: '#64748b',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                {leaderStep > 1 ? <><ChevronLeft size={16} /> Back</> : 'Cancel'}
+              </button>
+
+              {leaderStep < 4 ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (leaderStep === 1) {
+                      if (!assignLeaderForm.name.trim()) {
+                        alert('Please enter Full Name');
+                        return;
+                      }
+                      if (!assignLeaderForm.phone.trim()) {
+                        alert('Please enter Phone Number');
+                        return;
+                      }
+                      if (!assignLeaderForm.password.trim()) {
+                        alert('Please enter a Login Password');
+                        return;
+                      }
+                    }
+                    setLeaderStep(prev => Math.min(4, prev + 1));
+                  }}
+                  style={{
+                    padding: '10px 24px',
+                    borderRadius: '12px',
+                    fontSize: '0.84rem',
+                    fontWeight: 800,
+                    border: 'none',
+                    background: '#4f46e5',
+                    color: '#ffffff',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 4px 12px rgba(79, 70, 229, 0.25)'
+                  }}
+                >
+                  Continue <ChevronRight size={16} />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleAssignLeaderSubmit}
+                  disabled={submittingLeader}
+                  style={{
+                    padding: '10px 24px',
+                    borderRadius: '12px',
+                    fontSize: '0.84rem',
+                    fontWeight: 800,
+                    border: 'none',
+                    background: '#4f46e5',
+                    color: '#ffffff',
+                    cursor: submittingLeader ? 'not-allowed' : 'pointer',
+                    opacity: submittingLeader ? 0.7 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 4px 12px rgba(79, 70, 229, 0.25)'
+                  }}
+                >
+                  {submittingLeader ? 'Appointing Leader...' : '✓ Appoint & Grant Powers'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────
+          MODAL: View Group Assigned Leaders & Powers
+      ───────────────────────────────────────────── */}
+      {viewLeadersModal && (
+        <div className="community-modal-overlay" onClick={() => setViewLeadersModal(null)}>
+          <div className="community-modal community-modal-wide" onClick={e => e.stopPropagation()} style={{ maxWidth: '620px' }}>
+            <div className="community-modal-header">
+              <div>
+                <h3>👥 {viewLeadersModal.title}</h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Showing assigned leaders in {viewLeadersModal.subName} • {viewLeadersModal.groupName}
+                </p>
+              </div>
+              <button type="button" className="community-modal-close" onClick={() => setViewLeadersModal(null)}>✕</button>
+            </div>
+
+            <div className="community-modal-body" style={{ maxHeight: '420px', overflowY: 'auto' }}>
+              {(!viewLeadersModal.leaders || viewLeadersModal.leaders.length === 0) ? (
+                <div style={{ textAlign: 'center', padding: '30px 20px', color: '#64748b' }}>
+                  <div style={{ fontSize: '2.5rem', marginBottom: '8px' }}>👤</div>
+                  <h4 style={{ margin: '0 0 6px', color: '#1e293b' }}>No Leader Profiles Found in Cache</h4>
+                  <p style={{ fontSize: '0.85rem', margin: 0 }}>
+                    Click the <strong>+</strong> button to appoint new leaders with login passwords and permissions.
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {viewLeadersModal.leaders.map((leader, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '12px 16px',
+                        background: '#f8fafc',
+                        border: '1.5px solid #e2e8f0',
+                        borderRadius: '12px'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div
+                          style={{
+                            width: '40px',
+                            height: '40px',
+                            borderRadius: '10px',
+                            background: '#e0e7ff',
+                            color: '#4338ca',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 800
+                          }}
+                        >
+                          {(leader.name || 'L').charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#1e293b' }}>
+                            {leader.name}
+                          </h4>
+                          <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: '#64748b' }}>
+                            📞 {leader.phone} {leader.email ? `• ✉️ ${leader.email}` : ''}
+                          </p>
+                          {leader.plainPassword && (
+                            <p style={{ margin: '2px 0 0', fontSize: '0.74rem', color: '#4f46e5', fontWeight: 600 }}>
+                              🔑 Login Password: <span style={{ fontFamily: 'monospace', background: '#eef2ff', padding: '1px 6px', borderRadius: '4px' }}>{leader.plainPassword}</span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 800, padding: '3px 10px', borderRadius: '12px', background: '#dcfce7', color: '#15803d' }}>
+                          ● ACTIVE
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="community-modal-actions">
+              <button type="button" className="community-btn-primary" onClick={() => setViewLeadersModal(null)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Add Sub-Community Modal */}
       {showAddLocationModal && (
         <div className="community-modal-overlay" onClick={() => setShowAddLocationModal(false)}>
@@ -2448,7 +3857,26 @@ const SubCommunityLocationView = ({
             </div>
             <form onSubmit={(e) => {
               e.preventDefault();
-              alert(`Group "${newGroupName || 'New Group'}" added to ${showAddGroupModal.name}`);
+              if (!newGroupName.trim()) return;
+              const subId = showAddGroupModal._id;
+              setData(prev => ({
+                ...prev,
+                subCommunities: prev.subCommunities.map(s => {
+                  if (s._id === subId) {
+                    const existingGroups = s.groups || getSubGroups(s);
+                    const colorClasses = ['grp-header-blue', 'grp-header-pink', 'grp-header-green', 'grp-header-yellow'];
+                    const nextColor = colorClasses[existingGroups.length % colorClasses.length];
+                    return {
+                      ...s,
+                      groups: [
+                        ...existingGroups,
+                        { id: `grp-${Date.now()}`, name: newGroupName.trim(), colorClass: nextColor, heads: 0, subHeads: 0 }
+                      ]
+                    };
+                  }
+                  return s;
+                })
+              }));
               setNewGroupName('');
               setShowAddGroupModal(null);
             }}>
@@ -2457,7 +3885,7 @@ const SubCommunityLocationView = ({
                   <label>Group Name *</label>
                   <input
                     type="text"
-                    placeholder="e.g. Group 5, Ward 12 Team, Youth Wing..."
+                    placeholder="e.g. Group 5, Ward 10, Youth Team..."
                     value={newGroupName}
                     onChange={e => setNewGroupName(e.target.value)}
                     className="community-input"
@@ -2468,7 +3896,7 @@ const SubCommunityLocationView = ({
               <div className="community-modal-actions">
                 <button type="button" className="community-btn-secondary" onClick={() => setShowAddGroupModal(null)}>Cancel</button>
                 <button type="submit" className="community-btn-primary" disabled={!newGroupName.trim()}>
-                  ✓ Create Group
+                  ✓ Add Group
                 </button>
               </div>
             </form>

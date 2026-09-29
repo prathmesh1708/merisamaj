@@ -1,206 +1,297 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   MapPin, Plus, Edit, Trash2, Loader, CheckCircle2,
   XCircle, Mail, Phone, RefreshCw, Eye, EyeOff, Copy, Check, Shield,
-  User, UserCheck, Search, X, Building
+  User, UserCheck, Search, X, Building, ChevronDown, Award, Users, Key, AlertCircle
 } from 'lucide-react';
-import headLocalCommunityService from '../../../../core/api/headLocalCommunityService';
 import { useData } from '../../../member/context/DataProvider';
+import { useHeadAuth } from '../../auth/useHeadAuth';
+import { axiosPrivate } from '../../../../core/api/axiosPrivate';
+
+// ─────────────────────────────────────────────
+// Heritage Monument SVG Illustrations
+// ─────────────────────────────────────────────
+const MonumentIllustration = ({ type = 'temple', city = '' }) => {
+  const cLower = (city || '').toLowerCase();
+
+  if (type === 'temple_orange' || cLower.includes('ujjain')) {
+    return (
+      <div className="location-monument-badge bg-orange-monument">
+        <svg viewBox="0 0 64 64" className="monument-svg" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M32 6L30 18H34L32 6Z" fill="#EA580C" />
+          <path d="M32 6L40 10L32 14" fill="#F97316" />
+          <path d="M22 22L32 12L42 22H22Z" fill="#FB923C" />
+          <path d="M18 32L32 20L46 32H18Z" fill="#F97316" />
+          <path d="M14 42L32 28L50 42H14Z" fill="#EA580C" />
+          <rect x="12" y="42" width="40" height="16" rx="2" fill="#C2410C" />
+          <path d="M26 58V46C26 43.8 28.7 42 32 42C35.3 42 38 43.8 38 46V58H26Z" fill="#7C2D12" />
+          <circle cx="32" cy="36" r="3" fill="#FEF08A" />
+        </svg>
+      </div>
+    );
+  }
+  if (type === 'palace' || cLower.includes('bhopal')) {
+    return (
+      <div className="location-monument-badge bg-amber-monument">
+        <svg viewBox="0 0 64 64" className="monument-svg" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M32 10C24 10 20 18 20 26H44C44 18 40 10 32 10Z" fill="#D97706" />
+          <path d="M32 4V10" stroke="#F59E0B" strokeWidth="2" strokeLinecap="round" />
+          <circle cx="32" cy="4" r="2" fill="#FDE68A" />
+          <rect x="14" y="26" width="36" height="30" rx="3" fill="#B45309" />
+          <rect x="8" y="18" width="8" height="38" rx="2" fill="#D97706" />
+          <rect x="48" y="18" width="8" height="38" rx="2" fill="#D97706" />
+          <path d="M26 56V40C26 36.7 28.7 34 32 34C35.3 34 38 36.7 38 40V56H26Z" fill="#78350F" />
+        </svg>
+      </div>
+    );
+  }
+  if (type === 'fort' || cLower.includes('khandwa')) {
+    return (
+      <div className="location-monument-badge bg-terracotta-monument">
+        <svg viewBox="0 0 64 64" className="monument-svg" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="22" width="44" height="34" rx="2" fill="#B45309" />
+          <path d="M10 22L14 16H20L22 22H26L28 16H34L36 22H40L42 16H48L52 22V26H10V22Z" fill="#D97706" />
+          <rect x="24" y="36" width="16" height="20" rx="8" fill="#78350F" />
+          <circle cx="18" cy="34" r="2.5" fill="#FEF3C7" />
+          <circle cx="46" cy="34" r="2.5" fill="#FEF3C7" />
+        </svg>
+      </div>
+    );
+  }
+  // Default: Indore Rajwada Heritage Palace
+  return (
+    <div className="location-monument-badge bg-gold-monument">
+      <svg viewBox="0 0 64 64" className="monument-svg" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M18 16L32 6L46 16V22H18V16Z" fill="#D97706" />
+        <rect x="14" y="22" width="36" height="34" rx="2" fill="#B45309" />
+        <path d="M24 56V38C24 33.6 27.6 30 32 30C36.4 30 40 33.6 40 38V56H24Z" fill="#78350F" />
+        <rect x="18" y="26" width="6" height="8" rx="1" fill="#FEF3C7" />
+        <rect x="40" y="26" width="6" height="8" rx="1" fill="#FEF3C7" />
+      </svg>
+    </div>
+  );
+};
 
 const INDIAN_STATES_AND_CITIES = {
-  'Madhya Pradesh': [
-    'Indore', 'Bhopal', 'Jabalpur', 'Gwalior', 'Ujjain', 'Sagar', 'Dewas',
-    'Satna', 'Ratlam', 'Rewa', 'Murwara (Katni)', 'Singrauli', 'Burhanpur',
-    'Khandwa', 'Bhind', 'Chhindwara', 'Guna', 'Shivpuri', 'Vidisha',
-    'Chhatarpur', 'Damoh', 'Mandsaur', 'Khargone', 'Neemuch', 'Pithampur',
-    'Narmadapuram (Hoshangabad)', 'Itarsi', 'Sehore', 'Betul', 'Seoni',
-    'Datia', 'Nagda', 'Dhar', 'Balaghat', 'Ashoknagar', 'Tikamgarh', 'Shahdol',
-    'Panna', 'Mandla', 'Sheopur', 'Barwani', 'Shajapur', 'Rajgarh', 'Harda'
-  ],
-  'Maharashtra': [
-    'Mumbai', 'Pune', 'Nagpur', 'Thane', 'Nashik', 'Kalyan-Dombivli', 'Vasai-Virar',
-    'Chhatrapati Sambhajinagar (Aurangabad)', 'Navi Mumbai', 'Solapur', 'Mira-Bhayandar',
-    'Bhiwandi', 'Amravati', 'Nanded', 'Kolhapur', 'Akola', 'Ulhasnagar', 'Sangli',
-    'Malegaon', 'Jalgaon', 'Latur', 'Dhule', 'Ahmednagar', 'Chandrapur', 'Parbhani',
-    'Ichalkaranji', 'Jalna', 'Ambarnath', 'Bhusawal', 'Panvel', 'Badlapur', 'Beed',
-    'Gondia', 'Satara', 'Barshi', 'Yavatmal', 'Achalpur', 'Osmanabad', 'Nandurbar', 'Wardha'
-  ],
-  'Rajasthan': [
-    'Jaipur', 'Jodhpur', 'Kota', 'Bikaner', 'Ajmer', 'Udaipur', 'Bhilwara', 'Alwar',
-    'Bharatpur', 'Sriganganagar', 'Sikar', 'Pali', 'Chittorgarh', 'Beawar', 'Tonk',
-    'Kishangarh', 'Jhunjhunu', 'Hanumangarh', 'Gangapur', 'Sawai Madhopur', 'Churu',
-    'Barmer', 'Hindaun', 'Nagaur', 'Sujangarh', 'Banswara', 'Dungarpur', 'Jaisalmer'
-  ],
-  'Gujarat': [
-    'Ahmedabad', 'Surat', 'Vadodara', 'Rajkot', 'Bhavnagar', 'Jamnagar', 'Junagadh',
-    'Gandhinagar', 'Anand', 'Navsari', 'Surendranagar', 'Morbi', 'Bharuch', 'Porbandar',
-    'Godhra', 'Nadiad', 'Vapi', 'Veraval', 'Valsad', 'Bhuj', 'Mehsana', 'Palanpur', 'Ankleshwar'
-  ],
-  'Uttar Pradesh': [
-    'Lucknow', 'Kanpur', 'Ghaziabad', 'Agra', 'Varanasi', 'Meerut', 'Prayagraj (Allahabad)',
-    'Bareilly', 'Aligarh', 'Moradabad', 'Saharanpur', 'Gorakhpur', 'Noida', 'Greater Noida',
-    'Firozabad', 'Jhansi', 'Muzaffarnagar', 'Mathura', 'Ayodhya', 'Rampur', 'Shahjahanpur',
-    'Farrukhabad', 'Budaun', 'Maunath Bhanjan', 'Hapur', 'Etawah', 'Mirzapur', 'Bulandshahr',
-    'Sambhal', 'Amroha', 'Hardoi', 'Fatehpur', 'Raebareli', 'Orai', 'Sitapur', 'Bahraich', 'Unnao', 'Jaunpur'
-  ],
-  'Delhi': [
-    'New Delhi', 'Central Delhi', 'North Delhi', 'South Delhi', 'East Delhi', 'West Delhi',
-    'North East Delhi', 'North West Delhi', 'South East Delhi', 'South West Delhi', 'Shahdara'
-  ],
-  'Bihar': [
-    'Patna', 'Gaya', 'Bhagalpur', 'Muzaffarpur', 'Purnia', 'Darbhanga', 'Bihar Sharif',
-    'Arrah', 'Begusarai', 'Katihar', 'Munger', 'Chhapra', 'Danapur', 'Bettiah', 'Saharsa',
-    'Sasaram', 'Hajipur', 'Dehri', 'Siwan', 'Motihari', 'Nawada', 'Bagaha', 'Buxar', 'Kishanganj', 'Sitamarhi'
-  ],
-  'Chhattisgarh': [
-    'Raipur', 'Bhilai', 'Bilaspur', 'Korba', 'Durg', 'Rajnandgaon', 'Jagdalpur', 'Raigarh',
-    'Ambikapur', 'Dhamtari', 'Mahasamund', 'Kanker', 'Kawardha', 'Janjgir'
-  ],
-  'Haryana': [
-    'Faridabad', 'Gurugram (Gurgaon)', 'Panipat', 'Ambala', 'Yamunanagar', 'Rohtak',
-    'Hisar', 'Karnal', 'Sonipat', 'Panchkula', 'Sirsa', 'Bhiwani', 'Bahadurgarh', 'Jind',
-    'Thanesar', 'Kaithal', 'Rewari', 'Palwal', 'Kurukshetra'
-  ],
-  'Punjab': [
-    'Ludhiana', 'Amritsar', 'Jalandhar', 'Patiala', 'Bathinda', 'Mohali (SAS Nagar)',
-    'Hoshiarpur', 'Batala', 'Pathankot', 'Moga', 'Abohar', 'Malerkotla', 'Khanna',
-    'Phagwara', 'Muktsar', 'Barnala', 'Firozpur', 'Kapurthala'
-  ],
-  'Karnataka': [
-    'Bengaluru', 'Mysuru', 'Hubballi-Dharwad', 'Mangaluru', 'Belagavi', 'Kalaburagi',
-    'Davanagere', 'Ballari', 'Vijayapura', 'Shivamogga', 'Tumakuru', 'Raichur', 'Bidar',
-    'Hosapete', 'Gadag-Betageri', 'Hassan', 'Udupi'
-  ],
-  'Tamil Nadu': [
-    'Chennai', 'Coimbatore', 'Madurai', 'Tiruchirappalli', 'Salem', 'Tiruppur', 'Erode',
-    'Tirunelveli', 'Vellore', 'Thoothukudi', 'Dindigul', 'Thanjavur', 'Ranipet', 'Sivakasi',
-    'Karur', 'Udhagamandalam (Ooty)', 'Hosur', 'Nagercoil', 'Kanchipuram'
-  ],
-  'Telangana': [
-    'Hyderabad', 'Warangal', 'Nizamabad', 'Khammam', 'Karimnagar', 'Ramagundam',
-    'Mahbubnagar', 'Nalgonda', 'Adilabad', 'Suryapet', 'Siddipet', 'Miryalaguda'
-  ],
-  'Andhra Pradesh': [
-    'Visakhapatnam', 'Vijayawada', 'Guntur', 'Nellore', 'Kurnool', 'Kakinada',
-    'Rajamahendravaram (Rajahmundry)', 'Kadapa', 'Tirupati', 'Anantapur', 'Vizianagaram',
-    'Eluru', 'Ongole', 'Nandyal', 'Machilipatnam', 'Adoni', 'Tenali'
-  ],
-  'West Bengal': [
-    'Kolkata', 'Asansol', 'Siliguri', 'Durgapur', 'Bardhaman', 'Malda', 'Baharampur',
-    'Habra', 'Kharagpur', 'Shantipur', 'Dankuni', 'Dhulian', 'Ranaghat', 'Haldia',
-    'Raiganj', 'Krishnanagar', 'Nabadwip', 'Medinipur', 'Jalpaiguri', 'Balurghat', 'Basirhat', 'Bankura', 'Darjeeling'
-  ],
-  'Uttarakhand': [
-    'Dehradun', 'Haridwar', 'Roorkee', 'Haldwani', 'Rudrapur', 'Kashipur', 'Rishikesh', 'Nainital', 'Mussoorie'
-  ],
-  'Jharkhand': [
-    'Ranchi', 'Jamshedpur', 'Dhanbad', 'Bokaro Steel City', 'Deoghar', 'Phusro', 'Hazaribagh',
-    'Giridih', 'Ramgarh', 'Medininagar', 'Chirkunda'
-  ],
-  'Odisha': [
-    'Bhubaneswar', 'Cuttack', 'Rourkela', 'Berhampur', 'Sambalpur', 'Puri', 'Balasore',
-    'Bhadrak', 'Baripada', 'Jharsuguda', 'Jeypore'
-  ],
-  'Kerala': [
-    'Thiruvananthapuram', 'Kochi', 'Kozhikode', 'Kollam', 'Thrissur', 'Kannur',
-    'Alappuzha', 'Kottayam', 'Palakkad', 'Manjeri', 'Thalassery', 'Ponnani'
-  ],
-  'Assam': [
-    'Guwahati', 'Silchar', 'Dibrugarh', 'Jorhat', 'Nagaon', 'Tinsukia', 'Tezpur', 'Bongaigaon'
-  ],
-  'Goa': [
-    'Panaji', 'Margao', 'Vasco da Gama', 'Mapusa', 'Ponda'
-  ],
-  'Himachal Pradesh': [
-    'Shimla', 'Dharamshala', 'Solan', 'Mandi', 'Kullu', 'Manali', 'Baddi', 'Bilaspur', 'Hamirpur', 'Una'
-  ],
-  'Jammu & Kashmir': [
-    'Srinagar', 'Jammu', 'Anantnag', 'Baramulla', 'Udhampur', 'Sopore', 'Kathua'
-  ],
-  'Chandigarh': [
-    'Chandigarh'
-  ],
-  'Puducherry': [
-    'Puducherry', 'Karaikal', 'Mahe', 'Yanam'
-  ],
-  'Tripura': [
-    'Agartala', 'Dharmanagar', 'Udaipur', 'Kailashahar'
-  ],
-  'Meghalaya': [
-    'Shillong', 'Tura', 'Jowai'
-  ],
-  'Manipur': [
-    'Imphal', 'Churachandpur', 'Thoubal'
-  ],
-  'Nagaland': [
-    'Kohima', 'Dimapur', 'Mokokchung'
-  ],
-  'Mizoram': [
-    'Aizawl', 'Lunglei', 'Champhai'
-  ],
-  'Arunachal Pradesh': [
-    'Itanagar', 'Naharlagun', 'Pasighat'
-  ],
-  'Sikkim': [
-    'Gangtok', 'Namchi', 'Geyzing'
-  ],
-  'Ladakh': [
-    'Leh', 'Kargil'
-  ]
+  'Madhya Pradesh': ['Indore', 'Bhopal', 'Jabalpur', 'Gwalior', 'Ujjain', 'Sagar', 'Dewas', 'Satna', 'Ratlam', 'Rewa'],
+  'Rajasthan': ['Jaipur', 'Jodhpur', 'Kota', 'Bikaner', 'Ajmer', 'Udaipur', 'Bhilwara', 'Alwar', 'Sikar'],
+  'Maharashtra': ['Mumbai', 'Pune', 'Nagpur', 'Thane', 'Nashik', 'Chhatrapati Sambhajinagar', 'Navi Mumbai', 'Solapur'],
+  'Gujarat': ['Ahmedabad', 'Surat', 'Vadodara', 'Rajkot', 'Bhavnagar', 'Jamnagar', 'Gandhinagar', 'Anand'],
+  'Uttar Pradesh': ['Lucknow', 'Kanpur', 'Ghaziabad', 'Agra', 'Varanasi', 'Meerut', 'Prayagraj', 'Noida'],
+  'Delhi': ['New Delhi', 'Central Delhi', 'South Delhi', 'East Delhi', 'North Delhi']
 };
 
-const emptyForm = {
-  name: '',
-  email: '',
-  phone: '',
-  password: '',
-  state: 'Madhya Pradesh',
-  city: 'Indore'
-};
+const AVAILABLE_POWERS = [
+  { key: 'canViewMembers', label: 'View & Search Members', category: 'Members' },
+  { key: 'canAddMembers', label: 'Add & Register Members', category: 'Members' },
+  { key: 'canEditMembers', label: 'Edit Member Profiles', category: 'Members' },
+  { key: 'canApproveProfiles', label: 'Approve Member Verifications', category: 'Members' },
+  { key: 'canViewProfiles', label: 'View & Manage Matrimonial', category: 'Matrimonial' },
+  { key: 'canViewEvents', label: 'View & Manage Events', category: 'Events' },
+  { key: 'canCreateEvents', label: 'Create New Events', category: 'Events' },
+  { key: 'canViewFunds', label: 'View Samaj Funds & Ledger', category: 'Finance' },
+  { key: 'canManageFunds', label: 'Manage Fund Governance', category: 'Finance' },
+  { key: 'canViewDonations', label: 'Manage Donation Campaigns', category: 'Finance' },
+  { key: 'canViewSocial', label: 'Moderate Social & City Feeds', category: 'Social' },
+  { key: 'canViewDharmashala', label: 'Manage Dharmashala Bookings', category: 'Facilities' },
+  { key: 'canSendNotifications', label: 'Send Announcements & Notifications', category: 'Broadcast' },
+  { key: 'canViewCensus', label: 'View Community Census & Analytics', category: 'Census' }
+];
 
 export default function LocalCommunityManagement() {
-  const { user } = useData();
-  const [localHeads, setLocalHeads] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [visiblePasswordId, setVisiblePasswordId] = useState(null);
-  const [copiedId, setCopiedId] = useState(null);
+  const { headAuth } = useHeadAuth();
+  const { currentUser } = useData();
+  const headUser = headAuth?.headUser || currentUser;
+  const isLocalHead = (headUser?.role === 'sub_head' || headUser?.accountType === 'local_head') && headUser?.role !== 'head' && headUser?.role !== 'admin';
 
-  // Community users state for selection
+  const [community, setCommunity] = useState(null);
+  const [subCommunities, setSubCommunities] = useState([]);
+  const [selectedSubCommunity, setSelectedSubCommunity] = useState('');
+  
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [locations, setLocations] = useState([]);
+  const [stats, setStats] = useState({});
+  const [allLocalHeads, setAllLocalHeads] = useState([]);
+  const [allSubHeads, setAllSubHeads] = useState([]);
+
+  // Community members eligible for promotion
   const [communityUsers, setCommunityUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
-  const [selectedUserId, setSelectedUserId] = useState(null);
   const [userSearchTerm, setUserSearchTerm] = useState('');
 
-  // Modal state
-  const [showModal, setShowModal] = useState(false);
-  const [editId, setEditId] = useState(null);
-  const [form, setForm] = useState(emptyForm);
-  const [error, setError] = useState('');
-  const [saving, setSaving] = useState(false);
+  // Modals state
+  const [showAddLocationModal, setShowAddLocationModal] = useState(false);
+  const [newLocationState, setNewLocationState] = useState('Madhya Pradesh');
+  const [newLocationCity, setNewLocationCity] = useState('Indore');
+  const [customCityInput, setCustomCityInput] = useState('');
 
-  const [createdSuccessInfo, setCreatedSuccessInfo] = useState(null);
-  const [copiedSuccess, setCopiedSuccess] = useState(false);
+  const [showAddGroupModal, setShowAddGroupModal] = useState(null);
+  const [newGroupName, setNewGroupName] = useState('');
 
-  const fetchLocalHeads = async () => {
+  const [assignHeadModal, setAssignHeadModal] = useState(null);
+  const [submittingHead, setSubmittingHead] = useState(false);
+  const [viewHeadsModal, setViewHeadsModal] = useState(null);
+  const [editingLoc, setEditingLoc] = useState(null);
+
+  // Form for Assigning / Updating Local Head or Sub Head
+  const [assignForm, setAssignForm] = useState({
+    userId: null,
+    name: '',
+    phone: '',
+    email: '',
+    password: '',
+    city: '',
+    state: 'Madhya Pradesh',
+    group: 'Group 1',
+    accountType: 'local_head',
+    headPermissions: {
+      canViewDashboard: true,
+      canViewMembers: true,
+      canApproveProfiles: true,
+      canViewEvents: true,
+      canCreateEvents: true,
+      canViewFunds: true,
+      canViewDonations: true,
+      canViewSocial: true,
+      canSendNotifications: true
+    }
+  });
+
+  // Power editing modal for existing sub heads
+  const [editPowersModal, setEditPowersModal] = useState(null);
+  const [updatingPowers, setUpdatingPowers] = useState(false);
+
+  // ── 1. Initial Load: Fetch Community & Sub-Communities ──
+  useEffect(() => {
+    const initCommunity = async () => {
+      setLoading(true);
+      try {
+        const commRes = await axiosPrivate.get('/admin/communities');
+        const commList = Array.isArray(commRes.data?.data) ? commRes.data.data : (Array.isArray(commRes.data) ? commRes.data : []);
+        
+        // Find community assigned to this head
+        let targetComm = null;
+        const headCommId = headUser?.communityId?._id || headUser?.communityId;
+        
+        if (headCommId) {
+          targetComm = commList.find(c => c._id === headCommId || c.id === headCommId);
+        }
+        if (!targetComm && commList.length > 0) {
+          targetComm = commList[0];
+        }
+
+        if (targetComm) {
+          setCommunity(targetComm);
+          
+          // Fetch sub-communities
+          const subRes = await axiosPrivate.get(`/admin/communities/${targetComm._id}/sub-communities`);
+          const subs = subRes.data?.data || [];
+          setSubCommunities(subs);
+
+          // Select first sub-community or head's subCommunity
+          const defaultSub = headUser?.subCommunity || (subs.length > 0 ? (subs[0].name || subs[0]) : 'Rathore');
+          setSelectedSubCommunity(defaultSub);
+        } else {
+          // Fallback mock community if none in DB
+          setCommunity({
+            _id: 'default-comm',
+            name: headUser?.community || 'Rajput',
+            createdAt: new Date().toISOString()
+          });
+          setSelectedSubCommunity(headUser?.subCommunity || 'Rathore');
+        }
+      } catch (err) {
+        console.error('Failed to init community:', err);
+        setCommunity({
+          _id: headUser?.communityId?._id || headUser?.communityId || 'default-comm',
+          name: headUser?.community || 'Rajput',
+          createdAt: new Date().toISOString()
+        });
+        setSelectedSubCommunity(headUser?.subCommunity || 'Rathore');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initCommunity();
+  }, [headUser]);
+
+  // ── 2. Fetch Location Breakdown for Selected Sub-Community ──
+  const fetchLocationData = async () => {
+    if (!community?._id || !selectedSubCommunity) return;
     setLoading(true);
+    setError('');
     try {
-      const res = await headLocalCommunityService.getLocalHeads();
-      if (res.status === 'success') {
-        setLocalHeads(res.data);
+      const res = await axiosPrivate.get(`/admin/communities/${community._id}/sub-communities/${encodeURIComponent(selectedSubCommunity)}/locations`);
+      if (res.data?.success && res.data?.data) {
+        setLocations(res.data.data.locations || []);
+        setStats(res.data.data.stats || {});
+        setAllLocalHeads(res.data.data.allLocalHeads || []);
+        setAllSubHeads(res.data.data.allSubHeads || []);
       }
     } catch (err) {
-      console.error('Failed to load local heads:', err);
+      console.error('Failed to fetch location data:', err);
+      // Fallback default locations
+      setLocations([
+        {
+          id: 'loc-indore',
+          name: 'Indore',
+          fullName: 'Indore Location',
+          illustrationType: 'temple',
+          isActive: true,
+          userCount: 0,
+          localHeadsCount: 0,
+          localSubHeadsCount: 0,
+          groups: [
+            { id: 'g1', name: 'Group 1', colorClass: 'grp-header-blue', heads: 0, subHeads: 0, localHeadsList: [], subHeadsList: [] },
+            { id: 'g2', name: 'Group 2', colorClass: 'grp-header-pink', heads: 0, subHeads: 0, localHeadsList: [], subHeadsList: [] },
+            { id: 'g3', name: 'Group 3', colorClass: 'grp-header-green', heads: 0, subHeads: 0, localHeadsList: [], subHeadsList: [] },
+            { id: 'g4', name: 'Group 4', colorClass: 'grp-header-yellow', heads: 0, subHeads: 0, localHeadsList: [], subHeadsList: [] },
+          ]
+        },
+        {
+          id: 'loc-bhopal',
+          name: 'Bhopal',
+          fullName: 'Bhopal Location',
+          illustrationType: 'palace',
+          isActive: true,
+          userCount: 0,
+          localHeadsCount: 0,
+          localSubHeadsCount: 0,
+          groups: [
+            { id: 'g1', name: 'Group 1', colorClass: 'grp-header-blue', heads: 0, subHeads: 0, localHeadsList: [], subHeadsList: [] },
+            { id: 'g2', name: 'Group 2', colorClass: 'grp-header-pink', heads: 0, subHeads: 0, localHeadsList: [], subHeadsList: [] },
+            { id: 'g3', name: 'Group 3', colorClass: 'grp-header-green', heads: 0, subHeads: 0, localHeadsList: [], subHeadsList: [] },
+            { id: 'g4', name: 'Group 4', colorClass: 'grp-header-yellow', heads: 0, subHeads: 0, localHeadsList: [], subHeadsList: [] },
+          ]
+        }
+      ]);
+      setStats({
+        activeLocationsCount: 2,
+        totalCommunityHeadsCount: 1,
+        totalLocalCommunityHeadsCount: 0,
+        totalLocalSubCommunityHeadsCount: 0,
+        totalUsersCount: 0
+      });
     } finally {
       setLoading(false);
     }
   };
 
+  useEffect(() => {
+    if (community?._id && selectedSubCommunity) {
+      fetchLocationData();
+    }
+  }, [community?._id, selectedSubCommunity]);
+
+  // Fetch Community Users for quick promotion
   const fetchCommunityUsers = async () => {
     setLoadingUsers(true);
     try {
-      const res = await headLocalCommunityService.getCommunityUsers();
-      if (res.status === 'success') {
-        setCommunityUsers(res.data || []);
+      const res = await axiosPrivate.get('/head/local-community/community-users');
+      if (res.data?.status === 'success') {
+        setCommunityUsers(res.data.data || []);
       }
     } catch (err) {
       console.error('Failed to load community users:', err);
@@ -209,465 +300,687 @@ export default function LocalCommunityManagement() {
     }
   };
 
-  useEffect(() => {
-    fetchLocalHeads();
-  }, []);
-
-  const openCreateModal = () => {
-    setEditId(null);
-    setSelectedUserId(null);
-    setUserSearchTerm('');
-    setForm({
-      name: '',
-      email: '',
-      phone: '',
-      password: '',
-      state: user?.state || 'Madhya Pradesh',
-      city: user?.city || 'Indore'
-    });
-    setError('');
-    setShowModal(true);
-    fetchCommunityUsers();
+  // ── 3. Actions: Add Location, Add Group, Toggle, Delete, Rename ──
+  const handleToggleLocStatus = (locId) => {
+    setLocations(prev => prev.map(l =>
+      l.id === locId ? { ...l, isActive: !l.isActive } : l
+    ));
   };
 
-  const openEditModal = (localHead) => {
-    setEditId(localHead._id);
-    setSelectedUserId(null);
-    setForm({
-      name: localHead.name || '',
-      email: localHead.email || '',
-      phone: localHead.phone || '',
+  const handleDeleteLoc = (loc) => {
+    if (!window.confirm(`Are you sure you want to delete "${loc.fullName || loc.name}"?`)) return;
+    setLocations(prev => prev.filter(l => l.id !== loc.id));
+  };
+
+  const handleRenameLoc = (locId, newName) => {
+    if (!newName.trim()) return;
+    setLocations(prev => prev.map(l =>
+      l.id === locId ? { ...l, name: newName.trim(), fullName: `${newName.trim()} Location` } : l
+    ));
+    setEditingLoc(null);
+  };
+
+  const handleAddLocationSubmit = (e) => {
+    e.preventDefault();
+    const city = customCityInput.trim() || newLocationCity.trim();
+    if (!city) return;
+    const newLoc = {
+      id: `loc-${Date.now()}`,
+      name: city,
+      fullName: `${city} Location`,
+      illustrationType: 'temple',
+      isActive: true,
+      userCount: 0,
+      groups: [
+        { id: 'g1', name: 'Group 1', colorClass: 'grp-header-blue', heads: 0, subHeads: 0, localHeadsList: [], subHeadsList: [] },
+        { id: 'g2', name: 'Group 2', colorClass: 'grp-header-pink', heads: 0, subHeads: 0, localHeadsList: [], subHeadsList: [] },
+        { id: 'g3', name: 'Group 3', colorClass: 'grp-header-green', heads: 0, subHeads: 0, localHeadsList: [], subHeadsList: [] },
+        { id: 'g4', name: 'Group 4', colorClass: 'grp-header-yellow', heads: 0, subHeads: 0, localHeadsList: [], subHeadsList: [] },
+      ]
+    };
+    setLocations(prev => [...prev, newLoc]);
+    setNewLocationCity('Indore');
+    setCustomCityInput('');
+    setShowAddLocationModal(false);
+  };
+
+  const handleAddGroupSubmit = (e) => {
+    e.preventDefault();
+    if (!newGroupName.trim() || !showAddGroupModal) return;
+    const colorClasses = ['grp-header-blue', 'grp-header-pink', 'grp-header-green', 'grp-header-yellow'];
+    setLocations(prev => prev.map(l => {
+      if (l.id === showAddGroupModal.id) {
+        const nextIdx = (l.groups?.length || 0) % colorClasses.length;
+        return {
+          ...l,
+          groups: [
+            ...(l.groups || []),
+            { id: `g-${Date.now()}`, name: newGroupName.trim(), colorClass: colorClasses[nextIdx], heads: 0, subHeads: 0, localHeadsList: [], subHeadsList: [] }
+          ]
+        };
+      }
+      return l;
+    }));
+    setNewGroupName('');
+    setShowAddGroupModal(null);
+  };
+
+  // ── 4. Assign Head / Sub Head & Powers ──
+  const openAssignHeadModal = (loc, grp, accountType = 'local_head') => {
+    fetchCommunityUsers();
+    const targetAccountType = isLocalHead ? 'local_sub_head' : accountType;
+    setAssignForm({
+      userId: null,
+      name: '',
+      phone: '',
+      email: '',
       password: '',
-      state: localHead.state || 'Madhya Pradesh',
-      city: localHead.city || 'Indore'
+      city: loc.name,
+      state: 'Madhya Pradesh',
+      group: grp.name,
+      accountType: targetAccountType,
+      headPermissions: {
+        canViewDashboard: true,
+        canViewMembers: true,
+        canApproveProfiles: true,
+        canViewEvents: true,
+        canCreateEvents: true,
+        canViewFunds: true,
+        canViewDonations: true,
+        canViewSocial: true,
+        canSendNotifications: true
+      }
     });
-    setError('');
-    setShowModal(true);
+    setAssignHeadModal({ loc, grp, accountType: targetAccountType });
   };
 
   const handleSelectUser = (uId) => {
     if (!uId) {
-      setSelectedUserId(null);
-      setForm(emptyForm);
+      setAssignForm(prev => ({ ...prev, userId: null, name: '', phone: '', email: '' }));
       return;
     }
     const foundUser = communityUsers.find(u => u._id === uId);
     if (foundUser) {
-      setSelectedUserId(foundUser._id);
-      const userState = foundUser.state || form.state || 'Madhya Pradesh';
-      const userCity = foundUser.city || form.city || (INDIAN_STATES_AND_CITIES[userState]?.[0] || 'Indore');
-      setForm({
+      setAssignForm(prev => ({
+        ...prev,
+        userId: foundUser._id,
         name: foundUser.name || '',
-        email: foundUser.email || '',
         phone: foundUser.phone || '',
-        password: form.password || '',
-        state: userState,
-        city: userCity
-      });
+        email: foundUser.email || '',
+        city: foundUser.city || prev.city
+      }));
     }
   };
 
-  const clearSelectedUser = () => {
-    setSelectedUserId(null);
-    setForm(emptyForm);
-  };
-
-  const handleSubmit = async (e) => {
+  const handleAssignHeadSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    setSaving(true);
+    if (!assignForm.name.trim() || !assignForm.phone.trim()) {
+      alert('Please provide Name and Phone number');
+      return;
+    }
+    setSubmittingHead(true);
     try {
-      const payload = editId
-        ? form
-        : { ...form, userId: selectedUserId || undefined };
-
-      const res = editId
-        ? await headLocalCommunityService.updateLocalHead(editId, payload)
-        : await headLocalCommunityService.createLocalHead(payload);
-
-      if (res.status === 'success') {
-        setShowModal(false);
-        fetchLocalHeads();
-        if (!editId) {
-          setCreatedSuccessInfo({
-            name: res.data?.name || form.name,
-            email: res.data?.email || form.email,
-            phone: res.data?.phone || form.phone,
-            password: form.password,
-            city: res.data?.city || form.city,
-            state: res.data?.state || form.state
-          });
-        }
-      }
+      const res = await axiosPrivate.post(
+        `/admin/communities/${community._id}/sub-communities/${encodeURIComponent(selectedSubCommunity)}/assign-head`,
+        assignForm
+      );
+      alert(res.data?.message || 'Leader assigned successfully!');
+      setAssignHeadModal(null);
+      fetchLocationData();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to save Local Head');
+      console.error('Failed to assign head:', err);
+      alert(err.response?.data?.message || 'Failed to assign leader');
     } finally {
-      setSaving(false);
+      setSubmittingHead(false);
     }
   };
 
-  const handleToggleStatus = async (localHead) => {
-    try {
-      const res = await headLocalCommunityService.toggleLocalHeadStatus(localHead._id);
-      if (res.status === 'success') {
-        fetchLocalHeads();
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleDelete = async (localHead) => {
-    if (!window.confirm(`Deactivate ${localHead.name}'s Local Head account? They will no longer be able to log in.`)) return;
-    try {
-      const res = await headLocalCommunityService.deleteLocalHead(localHead._id);
-      if (res.status === 'success') {
-        fetchLocalHeads();
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleCopyPassword = (localHead) => {
-    if (!localHead.plainPassword) return;
-    navigator.clipboard.writeText(localHead.plainPassword).then(() => {
-      setCopiedId(localHead._id);
-      setTimeout(() => setCopiedId(null), 1500);
+  // ── 5. Update Powers of Existing Sub-Head ──
+  const openEditPowersModal = (subHead) => {
+    setEditPowersModal({
+      ...subHead,
+      headPermissions: subHead.headPermissions || {}
     });
   };
 
-  const filteredCommunityUsers = communityUsers.filter(u => {
-    if (!userSearchTerm) return true;
-    const term = userSearchTerm.toLowerCase();
-    return (
-      u.name?.toLowerCase().includes(term) ||
-      u.phone?.toLowerCase().includes(term) ||
-      u.email?.toLowerCase().includes(term)
-    );
-  });
+  const handleSavePowers = async () => {
+    if (!editPowersModal) return;
+    setUpdatingPowers(true);
+    try {
+      await axiosPrivate.put(`/head/sub-heads/${editPowersModal.id || editPowersModal._id}`, {
+        headPermissions: editPowersModal.headPermissions
+      });
+      alert('Powers & Permissions updated successfully!');
+      setEditPowersModal(null);
+      fetchLocationData();
+    } catch (err) {
+      console.error('Failed to update powers:', err);
+      alert(err.response?.data?.message || 'Failed to update powers');
+    } finally {
+      setUpdatingPowers(false);
+    }
+  };
 
-  const availableCities = form.state && INDIAN_STATES_AND_CITIES[form.state]
-    ? INDIAN_STATES_AND_CITIES[form.state]
+  const commName = community?.name || 'Rajput';
+  const subName = selectedSubCommunity || 'Rathore';
+  const subAvatarLetter = (subName || 'R').charAt(0).toUpperCase();
+
+  const activeLocationsCount = stats.activeLocationsCount || locations.filter(l => l.isActive).length;
+  const totalCommunityHeadsCount = stats.totalCommunityHeadsCount || 1;
+  const totalLocalCommunityHeadsCount = stats.totalLocalCommunityHeadsCount || allLocalHeads.length;
+  const totalLocalSubCommunityHeadsCount = stats.totalLocalSubCommunityHeadsCount || allSubHeads.length;
+  const totalUsersCount = stats.totalUsersCount || 0;
+
+  const availableCities = newLocationState && INDIAN_STATES_AND_CITIES[newLocationState]
+    ? INDIAN_STATES_AND_CITIES[newLocationState]
     : [];
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6 font-sans">
-      {/* Header Card */}
-      <div className="bg-gradient-to-r from-[#120b32] via-[#1e1145] to-[#2e1a6c] p-6 rounded-3xl text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border border-purple-500/20">
-        <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-amber-400 font-bold text-2xl shrink-0">
-            <MapPin size={32} />
+    <div className="subcomm-view-container font-sans">
+      {/* ── Sub-Community Selector Tabs if multiple ── */}
+      {subCommunities.length > 1 && (
+        <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-1">
+          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider shrink-0">Sub-Community:</span>
+          {subCommunities.map((sub, idx) => {
+            const sName = typeof sub === 'string' ? sub : (sub.name || `Sub-${idx+1}`);
+            const isSelected = sName === selectedSubCommunity;
+            return (
+              <button
+                key={idx}
+                onClick={() => setSelectedSubCommunity(sName)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
+                  isSelected
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                {sName}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Top Header Strip matching Screenshot ── */}
+      <div className="subcomm-top-nav">
+        <div className="subcomm-left-header">
+          <div className="subcomm-avatar-square">
+            <span>{subAvatarLetter}</span>
           </div>
           <div>
-            <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-purple-200 mb-1">
-              <Shield size={14} className="text-amber-400" /> Local Community Management
-            </div>
-            <h1 className="text-2xl font-black text-white leading-tight">Local Heads</h1>
-            <p className="text-xs font-semibold text-purple-200/90 mt-0.5">Select existing community members or create new accounts for Local Heads with State & City assignment.</p>
+            <h2 className="subcomm-main-title">{commName} / {subName}</h2>
+            <p className="subcomm-breadcrumb">
+              Communities &gt; {commName} &gt; {subName} (Location Wise)
+            </p>
           </div>
         </div>
 
-        <button
-          onClick={openCreateModal}
-          className="px-5 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-lg flex items-center gap-2 transition-all active:scale-95 shrink-0"
-        >
-          <Plus size={16} /> Add Local Head
-        </button>
+        <div className="subcomm-right-meta">
+          <div className="comm-status-pill comm-pill-active">
+            <span className="pill-dot">●</span> ACTIVE
+          </div>
+          <span className="subcomm-created-badge">
+            📅 Created: {community?.createdAt ? new Date(community.createdAt).toLocaleDateString('en-GB') : '20/09/2026'}
+          </span>
+        </div>
       </div>
 
-      {/* Local Heads Table */}
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-4">
-        <div className="flex justify-between items-center">
-          <div>
-            <h2 className="text-lg font-black text-slate-800">Local Head Accounts</h2>
-            <p className="text-xs text-slate-500">Share the email/phone and password with each Local Head so they can log in to their Local Head panel.</p>
+      {/* ── Top Summary Stats Strip matching Screenshot ── */}
+      <div className="subcomm-stats-strip">
+        {/* Stat 1: Active Locations (Purple) */}
+        <div className="strip-stat-box bg-lavender-strip" title="Total active regional units">
+          <div className="strip-stat-icon text-indigo">📍</div>
+          <div className="strip-stat-num">{activeLocationsCount}</div>
+          <div className="strip-stat-label">Active Locations</div>
+        </div>
+
+        {/* Stat 2: Total Community Heads (Warm Amber) - Only for Main Head */}
+        {!isLocalHead && (
+          <div className="strip-stat-box bg-amber-strip" title="Main Community Heads">
+            <div className="strip-stat-icon text-amber">👥</div>
+            <div className="strip-stat-num">{totalCommunityHeadsCount}</div>
+            <div className="strip-stat-label">Total Community Heads</div>
           </div>
-          <button onClick={fetchLocalHeads} className="p-2 text-slate-400 hover:text-indigo-600">
-            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+        )}
+
+        {/* Stat 3: Total Local Community Heads (Sky Blue) - Only for Main Head */}
+        {!isLocalHead && (
+          <div
+            className="strip-stat-box bg-sky-strip comm-stat-clickable cursor-pointer hover:shadow-md transition-all"
+            onClick={() => setViewHeadsModal({ title: `All Local Community Heads • ${commName} / ${subName}`, type: 'local_head', heads: allLocalHeads })}
+            title="Click to view all Local Heads"
+          >
+            <div className="strip-stat-icon text-sky">👤</div>
+            <div className="strip-stat-num">{totalLocalCommunityHeadsCount}</div>
+            <div className="strip-stat-label">Total Local Community Heads</div>
+          </div>
+        )}
+
+        {/* Stat 4: Total Local Sub Community Heads (Rose / Red) */}
+        <div
+          className="strip-stat-box bg-rose-strip comm-stat-clickable cursor-pointer hover:shadow-md transition-all"
+          onClick={() => setViewHeadsModal({ title: `All Local Sub Community Heads • ${commName} / ${subName}`, type: 'local_sub_head', heads: allSubHeads })}
+          title="Click to view all Local Sub Heads and manage powers"
+        >
+          <div className="strip-stat-icon text-rose">👥</div>
+          <div className="strip-stat-num">{totalLocalSubCommunityHeadsCount}</div>
+          <div className="strip-stat-label">Total Local Sub Community Heads</div>
+        </div>
+
+        {/* Stat 5: Total Users (Mint Green) */}
+        <div className="strip-stat-box bg-mint-strip" title="Live member count registered under this sub-community">
+          <div className="strip-stat-icon text-emerald">👥</div>
+          <div className="strip-stat-num">{totalUsersCount.toLocaleString()}</div>
+          <div className="strip-stat-label">Total Users</div>
+        </div>
+
+        {/* Action Button: + Add New Location */}
+        <div className="strip-action-box">
+          <button
+            type="button"
+            className="subcomm-btn-add-primary"
+            onClick={() => setShowAddLocationModal(true)}
+          >
+            + Add New Location
           </button>
         </div>
-
-        {/* Login Instruction Card */}
-        <div className="bg-indigo-50/70 border border-indigo-100 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-2.5 text-indigo-900 font-semibold">
-            <Shield size={16} className="text-indigo-600 shrink-0" />
-            <span>
-              <strong>How Local Heads Log In:</strong> Direct them to <code className="bg-white px-2 py-0.5 rounded-lg border border-indigo-200 text-indigo-700 font-mono text-[11px]">/head/login</code> or the Member App login. They enter their <strong>Email or Phone</strong> and the <strong>Password</strong> set below.
-            </span>
-          </div>
-          <a
-            href="/head/login"
-            target="_blank"
-            rel="noreferrer"
-            className="px-3 py-1.5 bg-indigo-600 text-white font-bold rounded-xl text-[11px] shadow-sm hover:bg-indigo-700 shrink-0 transition-colors"
-          >
-            Open Login Page ↗
-          </a>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-100 text-[11px] font-bold uppercase text-slate-400">
-                <th className="p-4">Name</th>
-                <th className="p-4">Contact</th>
-                <th className="p-4">Assigned Location</th>
-                <th className="p-4">Password</th>
-                <th className="p-4">Status</th>
-                <th className="p-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-700">
-              {loading ? (
-                <tr><td colSpan="6" className="p-8 text-center"><Loader className="animate-spin text-indigo-600 inline" /></td></tr>
-              ) : localHeads.length === 0 ? (
-                <tr><td colSpan="6" className="p-8 text-center text-slate-400 font-bold">No Local Heads created yet. Click "Add Local Head" to appoint one.</td></tr>
-              ) : (
-                localHeads.map(lh => (
-                  <tr key={lh._id} className="hover:bg-slate-50/50">
-                    <td className="p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
-                          {lh.name.charAt(0)}
-                        </div>
-                        <div>
-                          <p className="font-bold text-slate-900">{lh.name}</p>
-                          <p className="text-[10px] text-slate-400">Added: {lh.joiningDate ? new Date(lh.joiningDate).toLocaleDateString() : 'Recent'}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="p-4">
-                      <p className="flex items-center gap-1.5 text-slate-800"><Mail size={12} className="text-slate-400" /> {lh.email}</p>
-                      <p className="flex items-center gap-1.5 text-[10px] text-slate-400 mt-0.5"><Phone size={11} /> {lh.phone}</p>
-                    </td>
-                    <td className="p-4">
-                      <div className="flex items-center gap-1.5 font-bold text-slate-900">
-                        <MapPin size={13} className="text-amber-500 shrink-0" />
-                        <span>{lh.city || 'Indore'}</span>
-                      </div>
-                      <p className="text-[10px] font-medium text-slate-400 pl-4">{lh.state || 'Madhya Pradesh'}</p>
-                    </td>
-                    <td className="p-4">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-mono text-slate-700">
-                          {visiblePasswordId === lh._id ? (lh.plainPassword || '—') : '••••••••'}
-                        </span>
-                        <button
-                          onClick={() => setVisiblePasswordId(visiblePasswordId === lh._id ? null : lh._id)}
-                          className="p-1 text-slate-400 hover:text-indigo-600"
-                          title={visiblePasswordId === lh._id ? 'Hide password' : 'Show password'}
-                        >
-                          {visiblePasswordId === lh._id ? <EyeOff size={13} /> : <Eye size={13} />}
-                        </button>
-                        <button
-                          onClick={() => handleCopyPassword(lh)}
-                          className="p-1 text-slate-400 hover:text-indigo-600"
-                          title="Copy password"
-                        >
-                          {copiedId === lh._id ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
-                        </button>
-                      </div>
-                    </td>
-                    <td className="p-4">
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${lh.accountStatus === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                        {lh.accountStatus}
-                      </span>
-                    </td>
-                    <td className="p-4 text-right space-x-2">
-                      <button onClick={() => openEditModal(lh)} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600" title="Edit / Reset Password"><Edit size={14} /></button>
-                      <button onClick={() => handleToggleStatus(lh)} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600" title="Toggle Active Status">
-                        {lh.accountStatus === 'active' ? <XCircle size={14} className="text-rose-500" /> : <CheckCircle2 size={14} className="text-emerald-500" />}
-                      </button>
-                      <button onClick={() => handleDelete(lh)} className="p-1.5 hover:bg-rose-50 rounded-lg text-rose-600" title="Deactivate"><Trash2 size={14} /></button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
       </div>
 
-      {/* CREATE / EDIT MODAL */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-5 my-8 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-black text-slate-800">{editId ? 'Edit Local Head' : 'Create Local Head'}</h3>
-            <p className="text-xs text-slate-500">
-              {editId ? 'Update details, assigned location, or reset the login password.' : 'Select an existing community member or enter details to create a Local Head with state & city assignment.'}
-            </p>
+      {/* ── Main 2x2 Grid of Location Cards ── */}
+      {loading ? (
+        <div className="communities-loading py-12 flex flex-col items-center justify-center gap-3">
+          <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm font-semibold text-slate-500">Loading location matrix and assigned heads...</p>
+        </div>
+      ) : error ? (
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-rose-700 text-sm font-semibold flex items-center justify-between">
+          <span>⚠️ {error}</span>
+          <button onClick={fetchLocationData} className="px-3 py-1 bg-rose-600 text-white rounded-lg text-xs font-bold">Retry</button>
+        </div>
+      ) : (
+        <div className="subcomm-cards-grid">
+          {locations.map(loc => {
+            const isLocActive = loc.isActive !== false;
+            const isEditing = editingLoc?.id === loc.id;
+            const locHeadCount = (loc.localHeadsList && loc.localHeadsList.length) || loc.localHeadsCount || 0;
 
-            {error && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700">
-                {error}
-              </div>
-            )}
-
-            {!editId && (
-              <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                    <User size={14} className="text-indigo-600" /> Select Existing Member (Optional)
-                  </label>
-                  {loadingUsers && <Loader size={12} className="animate-spin text-indigo-600" />}
-                </div>
-
-                {selectedUserId ? (
-                  <div className="flex items-center justify-between p-3 bg-indigo-50 border border-indigo-200 rounded-xl">
-                    <div className="flex items-center gap-2.5">
-                      <UserCheck size={18} className="text-indigo-600" />
-                      <div>
-                        <p className="text-xs font-bold text-indigo-950">{form.name}</p>
-                        <p className="text-[10px] font-medium text-indigo-700">{form.phone} {form.email ? `• ${form.email}` : ''}</p>
-                        <p className="text-[10px] font-medium text-indigo-600 flex items-center gap-1 mt-0.5">
-                          <MapPin size={10} /> {form.city || 'Indore'}, {form.state || 'Madhya Pradesh'}
-                        </p>
+            return (
+              <div key={loc.id} className={`subcomm-item-card ${!isLocActive ? 'subcomm-card-inactive' : ''}`}>
+                {/* Card Header: Monument Icon + Location Name + Status Pill + Add Group */}
+                <div className="subcomm-card-header">
+                  <div className="location-header-left">
+                    <MonumentIllustration type={loc.illustrationType} city={loc.name} />
+                    <div>
+                      {isEditing ? (
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            autoFocus
+                            value={editingLoc.name}
+                            onChange={e => setEditingLoc({ ...editingLoc, name: e.target.value })}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') handleRenameLoc(loc.id, editingLoc.name);
+                              if (e.key === 'Escape') setEditingLoc(null);
+                            }}
+                            className="px-2 py-1 border border-slate-300 rounded-lg text-sm font-bold w-36"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRenameLoc(loc.id, editingLoc.name)}
+                            className="text-green-600 font-extrabold text-sm"
+                          >
+                            ✓
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingLoc(null)}
+                            className="text-slate-400 font-extrabold text-sm"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <h3 className="subcomm-card-title">{loc.fullName || `${loc.name} Location`}</h3>
+                      )}
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <p className="subcomm-card-subtitle">Total Groups: {loc.groups?.length || 4}</p>
+                        {locHeadCount > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setViewHeadsModal({
+                              title: `Local Heads in ${loc.name}`,
+                              type: 'local_head',
+                              heads: loc.localHeadsList || []
+                            })}
+                            className="text-[11px] font-bold bg-blue-50 text-blue-600 border border-blue-200 px-2 py-0.5 rounded-full"
+                          >
+                            👤 {locHeadCount} Head{locHeadCount > 1 ? 's' : ''}
+                          </button>
+                        )}
                       </div>
+                    </div>
+                  </div>
+
+                  <div className="subcomm-card-header-actions">
+                    <div className={`comm-status-pill ${isLocActive ? 'comm-pill-active' : 'comm-pill-inactive'}`}>
+                      <span className="pill-dot">●</span> {isLocActive ? 'ACTIVE' : 'INACTIVE'}
                     </div>
                     <button
                       type="button"
-                      onClick={clearSelectedUser}
-                      className="p-1 text-slate-400 hover:text-rose-600 rounded-lg transition-colors"
-                      title="Clear selection"
+                      className="subcomm-btn-add-group"
+                      onClick={() => setShowAddGroupModal(loc)}
                     >
-                      <X size={14} />
+                      + Add Group
                     </button>
                   </div>
-                ) : (
-                  <div className="space-y-2">
-                    {communityUsers.length > 5 && (
-                      <div className="relative">
-                        <Search size={13} className="absolute left-3 top-2.5 text-slate-400" />
-                        <input
-                          type="text"
-                          placeholder="Search members by name, phone or email..."
-                          value={userSearchTerm}
-                          onChange={(e) => setUserSearchTerm(e.target.value)}
-                          className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:border-indigo-500"
-                        />
+                </div>
+
+                {/* 4 Group Columns Matrix matching Screenshot */}
+                <div className="subcomm-groups-columns">
+                  {(loc.groups || []).map((grp, idx) => {
+                    const grpHeadCount = grp.heads ?? (grp.localHeadsList?.length || 0);
+                    const grpSubHeadCount = grp.subHeads ?? (grp.subHeadsList?.length || 0);
+
+                    return (
+                      <div key={grp.id || idx} className="subcomm-group-col">
+                        <div className={`grp-col-header ${grp.colorClass || 'grp-header-blue'}`}>
+                          {grp.name}
+                        </div>
+
+                        {/* Local Community Heads Row - Only show for Main Head/Admin */}
+                        {!isLocalHead && (
+                          <div className="grp-row">
+                            <div className="grp-count-line">
+                              <span className="grp-icon-blue">👤</span>
+                              <span
+                                className="grp-number"
+                                style={{ cursor: grpHeadCount > 0 ? 'pointer' : 'default' }}
+                                onClick={() => grpHeadCount > 0 && setViewHeadsModal({
+                                  title: `Local Community Heads • ${loc.name} (${grp.name})`,
+                                  type: 'local_head',
+                                  heads: grp.localHeadsList || []
+                                })}
+                                title={grpHeadCount > 0 ? 'Click to view heads in this group' : ''}
+                              >
+                                {grpHeadCount}
+                              </span>
+                              <button
+                                type="button"
+                                className="grp-plus-btn"
+                                title="Assign/Create Local Community Head"
+                                onClick={() => openAssignHeadModal(loc, grp, 'local_head')}
+                              >
+                                +
+                              </button>
+                            </div>
+                            <div className="grp-label-small">Local Community Heads</div>
+                          </div>
+                        )}
+
+                        {/* Local Sub Community Heads Row */}
+                        <div className="grp-row">
+                          <div className="grp-count-line">
+                            <span className="grp-icon-red">👥</span>
+                            <span
+                              className="grp-number"
+                              style={{ cursor: grpSubHeadCount > 0 ? 'pointer' : 'default' }}
+                              onClick={() => grpSubHeadCount > 0 && setViewHeadsModal({
+                                title: `Local Sub Heads • ${loc.name} (${grp.name})`,
+                                type: 'local_sub_head',
+                                heads: grp.subHeadsList || []
+                              })}
+                              title={grpSubHeadCount > 0 ? 'Click to view sub-heads in this group and manage powers' : ''}
+                            >
+                              {grpSubHeadCount}
+                            </span>
+                            <button
+                              type="button"
+                              className="grp-plus-btn"
+                              title="Assign/Create Local Sub Community Head with Powers"
+                              onClick={() => openAssignHeadModal(loc, grp, 'local_sub_head')}
+                            >
+                              +
+                            </button>
+                          </div>
+                          <div className="grp-label-small">Local Sub Community Heads</div>
+                        </div>
                       </div>
-                    )}
-                    <select
-                      onChange={(e) => handleSelectUser(e.target.value)}
-                      value={selectedUserId || ''}
-                      className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-indigo-500"
+                    );
+                  })}
+                </div>
+
+                {/* Mint Green User Strip matching Screenshot */}
+                <div className="subcomm-users-strip">
+                  <span className="users-icon">👥</span>
+                  <span className="users-count-bold">{(loc.userCount || 0).toLocaleString()}</span>
+                  <span className="users-label">Total Users ({loc.name})</span>
+                </div>
+
+                {/* Action Buttons: Edit, Deactivate, Delete */}
+                <div className="subcomm-card-action-bar">
+                  <button
+                    type="button"
+                    className="subcomm-act-btn"
+                    onClick={() => setEditingLoc({ id: loc.id, name: loc.name })}
+                  >
+                    <span className="comm-icon-orange">✏️</span> Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="subcomm-act-btn"
+                    onClick={() => handleToggleLocStatus(loc.id)}
+                  >
+                    <span className="comm-icon-blue">{isLocActive ? '⏸️' : '▶️'}</span> {isLocActive ? 'Deactivate' : 'Activate'}
+                  </button>
+                  <button
+                    type="button"
+                    className="subcomm-act-btn subcomm-act-delete"
+                    onClick={() => handleDeleteLoc(loc)}
+                  >
+                    <span className="comm-icon-red">🗑️</span> Delete
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Bottom Large "+ Add New Location" Button ── */}
+      <div className="subcomm-bottom-add-bar">
+        <button
+          type="button"
+          className="subcomm-btn-bottom-add"
+          onClick={() => setShowAddLocationModal(true)}
+        >
+          <span className="plus-symbol">+</span> Add New Location
+        </button>
+      </div>
+
+      {/* ─────────────────────────────────────────────
+          MODAL 1: Assign / Appoint Head / Sub-Head + Give Powers
+      ───────────────────────────────────────────── */}
+      {assignHeadModal && (
+        <div className="community-modal-overlay" onClick={() => setAssignHeadModal(null)}>
+          <div className="community-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '560px' }}>
+            <div className="community-modal-header">
+              <div>
+                <h3 className="text-lg font-black text-slate-800">
+                  👤 Appoint {assignHeadModal.accountType === 'local_sub_head' ? 'Local Sub Head' : 'Local Community Head'}
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Assign to: <strong>{assignHeadModal.loc.name}</strong> • <strong>{assignHeadModal.grp.name}</strong>
+                </p>
+              </div>
+              <button type="button" className="community-modal-close" onClick={() => setAssignHeadModal(null)}>✕</button>
+            </div>
+
+            <form onSubmit={handleAssignHeadSubmit}>
+              <div className="community-modal-body space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+                {/* Role Switcher in Modal - Only for Main Community Head/Admin */}
+                {!isLocalHead && (
+                  <div className="flex bg-slate-100 p-1 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => setAssignForm(prev => ({ ...prev, accountType: 'local_head' }))}
+                      className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                        assignForm.accountType === 'local_head' ? 'bg-white shadow text-indigo-700' : 'text-slate-600'
+                      }`}
                     >
-                      <option value="">-- Choose a user from community --</option>
-                      {filteredCommunityUsers.map(u => (
-                        <option key={u._id} value={u._id}>
-                          {u.name} ({u.phone}) {u.city ? `• ${u.city}` : ''} {u.accountType === 'local_head' ? '• Already Local Head' : ''}
-                        </option>
-                      ))}
-                    </select>
+                      👤 Local Community Head
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAssignForm(prev => ({ ...prev, accountType: 'local_sub_head' }))}
+                      className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                        assignForm.accountType === 'local_sub_head' ? 'bg-white shadow text-rose-700' : 'text-slate-600'
+                      }`}
+                    >
+                      👥 Local Sub Head (With Powers)
+                    </button>
+                  </div>
+                )}
+
+                {/* Option A: Pick Existing Community Member */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Option A: Select Registered Community Member
+                  </label>
+                  <select
+                    value={assignForm.userId || ''}
+                    onChange={e => handleSelectUser(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">-- Choose existing member (or create new below) --</option>
+                    {communityUsers.map(u => (
+                      <option key={u._id} value={u._id}>
+                        {u.name} ({u.phone}) - {u.city || 'No City'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="relative flex py-1 items-center">
+                  <div className="flex-grow border-t border-slate-200"></div>
+                  <span className="flex-shrink mx-3 text-slate-400 text-[11px] font-bold uppercase">or create / edit details</span>
+                  <div className="flex-grow border-t border-slate-200"></div>
+                </div>
+
+                {/* Option B: Account Info Form */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Full Name *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Ramesh Singh"
+                      value={assignForm.name}
+                      onChange={e => setAssignForm({ ...assignForm, name: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Phone Number (Login ID) *</label>
+                    <input
+                      type="tel"
+                      required
+                      placeholder="e.g. 9876543210"
+                      value={assignForm.phone}
+                      onChange={e => setAssignForm({ ...assignForm, phone: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Email Address</label>
+                    <input
+                      type="email"
+                      placeholder="ramesh@gmail.com"
+                      value={assignForm.email}
+                      onChange={e => setAssignForm({ ...assignForm, email: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Login Password *</label>
+                    <input
+                      type="text"
+                      required={!assignForm.userId}
+                      placeholder="Min 6 characters (e.g. 123456)"
+                      value={assignForm.password}
+                      onChange={e => setAssignForm({ ...assignForm, password: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* Sub-Head Powers & Permissions Checklist */}
+                {assignForm.accountType === 'local_sub_head' && (
+                  <div className="mt-4 pt-3 border-t border-slate-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs font-black text-indigo-900 flex items-center gap-1.5">
+                        <Shield size={14} className="text-indigo-600" /> Grant Powers &amp; Permissions to Sub-Head
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const allTrue = {};
+                          AVAILABLE_POWERS.forEach(p => { allTrue[p.key] = true; });
+                          setAssignForm(prev => ({ ...prev, headPermissions: allTrue }));
+                        }}
+                        className="text-[11px] font-bold text-indigo-600 hover:underline"
+                      >
+                        Grant All Powers
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-indigo-50/50 p-3 rounded-2xl border border-indigo-100">
+                      {AVAILABLE_POWERS.map(power => {
+                        const isChecked = assignForm.headPermissions?.[power.key] === true;
+                        return (
+                          <label
+                            key={power.key}
+                            className={`flex items-center gap-2 p-2 rounded-xl text-xs font-semibold cursor-pointer transition-all border ${
+                              isChecked
+                                ? 'bg-white border-indigo-300 text-indigo-950 shadow-sm'
+                                : 'bg-transparent border-transparent text-slate-600 hover:bg-white/60'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={e => {
+                                setAssignForm(prev => ({
+                                  ...prev,
+                                  headPermissions: {
+                                    ...(prev.headPermissions || {}),
+                                    [power.key]: e.target.checked
+                                  }
+                                }));
+                              }}
+                              className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
+                            />
+                            <span>{power.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
-            )}
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Full Name *</label>
-                <input
-                  type="text" required
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Email Address *</label>
-                  <input
-                    type="email" required
-                    value={form.email}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Phone Number *</label>
-                  <input
-                    type="text" required
-                    value={form.phone}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-              </div>
-
-              {/* Location Assignment: State & City */}
-              <div className="bg-slate-50/80 border border-slate-200/90 rounded-2xl p-3.5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                    <MapPin size={14} className="text-amber-500" /> Assigned Location (State & City) *
-                  </label>
-                  <span className="text-[10px] text-slate-400 font-semibold">City updates by state</span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[11px] font-bold text-slate-600 block mb-1">State *</label>
-                    <select
-                      required
-                      value={form.state}
-                      onChange={(e) => {
-                        const newState = e.target.value;
-                        const citiesForState = INDIAN_STATES_AND_CITIES[newState] || [];
-                        setForm({
-                          ...form,
-                          state: newState,
-                          city: citiesForState[0] || ''
-                        });
-                      }}
-                      className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-indigo-500 shadow-sm"
-                    >
-                      <option value="">-- Choose State --</option>
-                      {Object.keys(INDIAN_STATES_AND_CITIES).map((st) => (
-                        <option key={st} value={st}>{st}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-bold text-slate-600 block mb-1">City / Region *</label>
-                    <select
-                      required
-                      value={form.city}
-                      onChange={(e) => setForm({ ...form, city: e.target.value })}
-                      disabled={!form.state}
-                      className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-indigo-500 shadow-sm disabled:bg-slate-100 disabled:text-slate-400"
-                    >
-                      <option value="">-- Choose City --</option>
-                      {availableCities.map((cityName) => (
-                        <option key={cityName} value={cityName}>{cityName}</option>
-                      ))}
-                      {form.city && !availableCities.includes(form.city) && (
-                        <option value={form.city}>{form.city} (Current)</option>
-                      )}
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">{editId ? 'New Password (Optional)' : 'Login Password *'}</label>
-                <input
-                  type="text" required={!editId}
-                  minLength={6}
-                  placeholder={editId ? 'Leave blank to keep unchanged' : 'At least 6 characters'}
-                  value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div className="flex gap-2 justify-end pt-3">
-                <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2.5 font-bold text-xs text-slate-500 hover:text-slate-700">Cancel</button>
-                <button type="submit" disabled={saving} className="px-5 py-2.5 bg-indigo-600 text-white font-bold text-xs rounded-xl shadow-sm hover:bg-indigo-700 disabled:opacity-60 transition-all">
-                  {saving ? 'Saving...' : 'Save Local Head'}
+              <div className="community-modal-actions mt-4">
+                <button
+                  type="button"
+                  className="community-btn-secondary"
+                  onClick={() => setAssignHeadModal(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingHead}
+                  className="community-btn-primary"
+                >
+                  {submittingHead ? 'Saving Leader...' : 'Appoint Leader & Grant Access'}
                 </button>
               </div>
             </form>
@@ -675,74 +988,777 @@ export default function LocalCommunityManagement() {
         </div>
       )}
 
-      {/* SUCCESS CREDENTIALS POPUP MODAL */}
-      {createdSuccessInfo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-4 border border-indigo-100">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-xl shrink-0">
-                🎉
-              </div>
+      {/* ─────────────────────────────────────────────
+          MODAL 2: View Assigned Leaders & Manage Powers
+      ───────────────────────────────────────────── */}
+      {viewHeadsModal && (
+        <div className="community-modal-overlay" onClick={() => setViewHeadsModal(null)}>
+          <div className="community-modal community-modal-wide" onClick={e => e.stopPropagation()} style={{ maxWidth: '680px' }}>
+            <div className="community-modal-header">
               <div>
-                <h3 className="text-lg font-black text-slate-900">Local Head Created!</h3>
-                <p className="text-xs text-slate-500">Account is active. Share these login credentials:</p>
+                <h3 className="text-lg font-black text-slate-800">👥 {viewHeadsModal.title}</h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Showing {viewHeadsModal.heads?.length || 0} assigned leader profile(s)
+                </p>
               </div>
+              <button type="button" className="community-modal-close" onClick={() => setViewHeadsModal(null)}>✕</button>
             </div>
 
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2.5 text-xs">
-              <div className="flex justify-between items-center py-1 border-b border-slate-100">
-                <span className="text-slate-500 font-bold">Portal URL</span>
-                <span className="font-mono font-bold text-indigo-700">{window.location.origin}/head/login</span>
-              </div>
-              <div className="flex justify-between items-center py-1 border-b border-slate-100">
-                <span className="text-slate-500 font-bold">Full Name</span>
-                <span className="font-bold text-slate-800">{createdSuccessInfo.name}</span>
-              </div>
-              <div className="flex justify-between items-center py-1 border-b border-slate-100">
-                <span className="text-slate-500 font-bold">Login Email</span>
-                <span className="font-mono font-bold text-slate-800">{createdSuccessInfo.email}</span>
-              </div>
-              <div className="flex justify-between items-center py-1 border-b border-slate-100">
-                <span className="text-slate-500 font-bold">Phone Number</span>
-                <span className="font-mono font-bold text-slate-800">{createdSuccessInfo.phone}</span>
-              </div>
-              <div className="flex justify-between items-center py-1 border-b border-slate-100">
-                <span className="text-slate-500 font-bold">Assigned City</span>
-                <span className="font-bold text-amber-600">{createdSuccessInfo.city}, {createdSuccessInfo.state}</span>
-              </div>
-              <div className="flex justify-between items-center py-1">
-                <span className="text-slate-500 font-bold">Password</span>
-                <span className="font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                  {createdSuccessInfo.password}
-                </span>
-              </div>
+            <div className="community-modal-body max-h-[60vh] overflow-y-auto">
+              {(!viewHeadsModal.heads || viewHeadsModal.heads.length === 0) ? (
+                <div className="text-center py-10 text-slate-500">
+                  <div className="text-4xl mb-2">👤</div>
+                  <h4 className="text-base font-bold text-slate-800">No Leaders Assigned Yet</h4>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Click the <strong>+</strong> button in any group column to appoint Local Heads or Sub Heads.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {viewHeadsModal.heads.map((head, idx) => (
+                    <div
+                      key={head.id || head._id || idx}
+                      className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 font-extrabold flex items-center justify-center text-lg shrink-0">
+                          {(head.name || 'H').charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-sm font-black text-slate-900">{head.name}</h4>
+                            {head.group && (
+                              <span className="text-[10px] font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
+                                {head.group}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            📞 {head.phone} {head.email ? `• ✉️ ${head.email}` : ''}
+                          </p>
+                          {head.plainPassword && (
+                            <p className="text-xs text-indigo-600 font-semibold mt-0.5">
+                              🔑 Password: <span className="font-mono bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">{head.plainPassword}</span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex sm:flex-col items-end justify-between gap-2">
+                        <span className={`text-[11px] font-extrabold px-2.5 py-1 rounded-full ${
+                          head.accountStatus === 'active' ? 'bg-green-100 text-green-700' : 'bg-rose-100 text-rose-700'
+                        }`}>
+                          ● {head.accountStatus?.toUpperCase() || 'ACTIVE'}
+                        </span>
+                        
+                        {/* Edit Powers Button for Sub-Heads */}
+                        <button
+                          type="button"
+                          onClick={() => openEditPowersModal(head)}
+                          className="text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 px-3 py-1 rounded-xl hover:bg-indigo-100 flex items-center gap-1 transition-all"
+                        >
+                          <Shield size={12} /> Edit Powers
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
-            <div className="flex gap-2 justify-end pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  const text = `🎉 *Merisamaj Local Head Portal Credentials*\n\nPortal Login URL: ${window.location.origin}/head/login\nName: ${createdSuccessInfo.name}\nEmail / Login ID: ${createdSuccessInfo.email}\nPhone: ${createdSuccessInfo.phone}\nPassword: ${createdSuccessInfo.password}\nLocation: ${createdSuccessInfo.city}, ${createdSuccessInfo.state}`;
-                  navigator.clipboard.writeText(text);
-                  setCopiedSuccess(true);
-                  setTimeout(() => setCopiedSuccess(false), 2000);
-                }}
-                className="px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-colors"
-              >
-                {copiedSuccess ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
-                {copiedSuccess ? 'Copied Details!' : 'Copy Credentials'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setCreatedSuccessInfo(null)}
-                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-colors"
-              >
-                Done
+            <div className="community-modal-actions mt-4">
+              <button type="button" className="community-btn-primary" onClick={() => setViewHeadsModal(null)}>
+                Close
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* ─────────────────────────────────────────────
+          MODAL 3: Edit Powers & Permissions
+      ───────────────────────────────────────────── */}
+      {editPowersModal && (
+        <div className="community-modal-overlay" onClick={() => setEditPowersModal(null)}>
+          <div className="community-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '520px' }}>
+            <div className="community-modal-header">
+              <div>
+                <h3 className="text-lg font-black text-slate-800">
+                  🛡️ Edit Powers &amp; Permissions
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Leader: <strong>{editPowersModal.name}</strong> ({editPowersModal.phone})
+                </p>
+              </div>
+              <button type="button" className="community-modal-close" onClick={() => setEditPowersModal(null)}>✕</button>
+            </div>
+
+            <div className="community-modal-body space-y-3 max-h-[60vh] overflow-y-auto">
+              <p className="text-xs text-slate-600">
+                Check the modules and administrative capabilities you wish to grant to this leader:
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                {AVAILABLE_POWERS.map(power => {
+                  const isChecked = editPowersModal.headPermissions?.[power.key] === true;
+                  return (
+                    <label
+                      key={power.key}
+                      className={`flex items-center gap-2 p-2 rounded-xl text-xs font-semibold cursor-pointer transition-all border ${
+                        isChecked
+                          ? 'bg-white border-indigo-400 text-indigo-950 shadow-sm'
+                          : 'bg-transparent border-transparent text-slate-600 hover:bg-white/60'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={e => {
+                          setEditPowersModal(prev => ({
+                            ...prev,
+                            headPermissions: {
+                              ...(prev.headPermissions || {}),
+                              [power.key]: e.target.checked
+                            }
+                          }));
+                        }}
+                        className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span>{power.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="community-modal-actions mt-4">
+              <button
+                type="button"
+                className="community-btn-secondary"
+                onClick={() => setEditPowersModal(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={updatingPowers}
+                onClick={handleSavePowers}
+                className="community-btn-primary"
+              >
+                {updatingPowers ? 'Updating Powers...' : 'Save & Apply Powers'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────
+          MODAL 4: Add New Location
+      ───────────────────────────────────────────── */}
+      {showAddLocationModal && (
+        <div className="community-modal-overlay" onClick={() => setShowAddLocationModal(false)}>
+          <div className="community-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+            <div className="community-modal-header">
+              <h3 className="text-lg font-black text-slate-800">📍 Add New Location Unit</h3>
+              <button type="button" className="community-modal-close" onClick={() => setShowAddLocationModal(false)}>✕</button>
+            </div>
+            <form onSubmit={handleAddLocationSubmit}>
+              <div className="community-modal-body space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">State</label>
+                  <select
+                    value={newLocationState}
+                    onChange={e => {
+                      setNewLocationState(e.target.value);
+                      const cities = INDIAN_STATES_AND_CITIES[e.target.value] || [];
+                      if (cities.length > 0) setNewLocationCity(cities[0]);
+                    }}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold"
+                  >
+                    {Object.keys(INDIAN_STATES_AND_CITIES).map(st => (
+                      <option key={st} value={st}>{st}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">City / Region</label>
+                  <select
+                    value={newLocationCity}
+                    onChange={e => setNewLocationCity(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold"
+                  >
+                    {availableCities.map(ct => (
+                      <option key={ct} value={ct}>{ct}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Or Enter Custom Location Name</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Ujjain Rural, Gwalior Central"
+                    value={customCityInput}
+                    onChange={e => setCustomCityInput(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold"
+                  />
+                </div>
+              </div>
+
+              <div className="community-modal-actions mt-4">
+                <button
+                  type="button"
+                  className="community-btn-secondary"
+                  onClick={() => setShowAddLocationModal(false)}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="community-btn-primary">
+                  Create Location Card
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────
+          MODAL 5: Add Group
+      ───────────────────────────────────────────── */}
+      {showAddGroupModal && (
+        <div className="community-modal-overlay" onClick={() => setShowAddGroupModal(null)}>
+          <div className="community-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '420px' }}>
+            <div className="community-modal-header">
+              <h3 className="text-lg font-black text-slate-800">➕ Add New Group to {showAddGroupModal.name}</h3>
+              <button type="button" className="community-modal-close" onClick={() => setShowAddGroupModal(null)}>✕</button>
+            </div>
+            <form onSubmit={handleAddGroupSubmit}>
+              <div className="community-modal-body space-y-3">
+                <label className="block text-xs font-bold text-slate-700">Group Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder={`Group ${(showAddGroupModal.groups?.length || 0) + 1}`}
+                  value={newGroupName}
+                  onChange={e => setNewGroupName(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold"
+                  autoFocus
+                />
+              </div>
+              <div className="community-modal-actions mt-4">
+                <button type="button" className="community-btn-secondary" onClick={() => setShowAddGroupModal(null)}>
+                  Cancel
+                </button>
+                <button type="submit" className="community-btn-primary">
+                  Add Group
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── EMBEDDED STYLES FOR EXACT SCREENSHOT REPLICATION & MOBILE RESPONSIVENESS ── */}
+      <style>{`
+        .subcomm-view-container {
+          animation: fadeIn 0.25s ease;
+          padding: 12px;
+          max-width: 1400px;
+          margin: 0 auto;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+        .subcomm-top-nav {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 20px;
+          flex-wrap: wrap;
+          gap: 16px;
+          padding-bottom: 14px;
+          border-bottom: 1.5px solid #f1f5f9;
+        }
+        .subcomm-left-header {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+        }
+        .subcomm-avatar-square {
+          width: 48px;
+          height: 48px;
+          border-radius: 14px;
+          background: linear-gradient(135deg, #1e3a8a, #2563eb);
+          color: #ffffff;
+          font-size: 1.4rem;
+          font-weight: 800;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+        }
+        .subcomm-main-title {
+          font-size: 1.45rem;
+          font-weight: 900;
+          color: #0f172a;
+          margin: 0;
+          line-height: 1.2;
+        }
+        .subcomm-breadcrumb {
+          font-size: 0.8rem;
+          color: #64748b;
+          margin: 3px 0 0;
+          font-weight: 600;
+        }
+        .subcomm-right-meta {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+        .comm-status-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          font-size: 0.72rem;
+          font-weight: 800;
+          padding: 4px 10px;
+          border-radius: 20px;
+          letter-spacing: 0.04em;
+        }
+        .comm-pill-active {
+          background: #dcfce7;
+          color: #15803d;
+          border: 1px solid #bbf7d0;
+        }
+        .comm-pill-inactive {
+          background: #fee2e2;
+          color: #b91c1c;
+          border: 1px solid #fecaca;
+        }
+        .subcomm-created-badge {
+          font-size: 0.78rem;
+          color: #64748b;
+          font-weight: 600;
+        }
+
+        /* ── Top Summary Stats Strip ── */
+        .subcomm-stats-strip {
+          display: grid;
+          grid-template-columns: repeat(5, 1fr) auto;
+          gap: 12px;
+          margin-bottom: 24px;
+        }
+        @media (max-width: 1100px) {
+          .subcomm-stats-strip {
+            grid-template-columns: repeat(3, 1fr);
+          }
+        }
+        @media (max-width: 640px) {
+          .subcomm-stats-strip {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+          }
+        }
+
+        .strip-stat-box {
+          border-radius: 14px;
+          padding: 14px 12px;
+          text-align: center;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+        }
+        .bg-lavender-strip { background: #f5f3ff; border: 1.5px solid #ede9fe; }
+        .bg-amber-strip    { background: #fffbeb; border: 1.5px solid #fef3c7; }
+        .bg-sky-strip      { background: #f0f9ff; border: 1.5px solid #e0f2fe; }
+        .bg-rose-strip     { background: #fef2f2; border: 1.5px solid #fee2e2; }
+        .bg-mint-strip     { background: #f0fdf4; border: 1.5px solid #dcfce7; }
+
+        .strip-stat-icon {
+          font-size: 1.25rem;
+          margin-bottom: 2px;
+        }
+        .strip-stat-num {
+          font-size: 1.5rem;
+          font-weight: 900;
+          color: #0f172a;
+          line-height: 1.1;
+        }
+        .strip-stat-label {
+          font-size: 0.72rem;
+          font-weight: 700;
+          color: #475569;
+          margin-top: 4px;
+          white-space: nowrap;
+        }
+
+        .strip-action-box {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        @media (max-width: 640px) {
+          .strip-action-box {
+            grid-column: span 2;
+          }
+        }
+        .subcomm-btn-add-primary {
+          background: #2563eb;
+          color: #ffffff;
+          border: none;
+          border-radius: 14px;
+          padding: 0 20px;
+          height: 100%;
+          min-height: 52px;
+          font-size: 0.9rem;
+          font-weight: 800;
+          cursor: pointer;
+          white-space: nowrap;
+          transition: all 0.15s;
+          box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
+          width: 100%;
+        }
+        .subcomm-btn-add-primary:hover {
+          background: #1d4ed8;
+          transform: translateY(-1px);
+        }
+
+        /* ── Location 2-Column Cards Grid ── */
+        .subcomm-cards-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 20px;
+          margin-bottom: 24px;
+        }
+        @media (max-width: 960px) {
+          .subcomm-cards-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        .subcomm-item-card {
+          background: #ffffff;
+          border: 1.5px solid #e2e8f0;
+          border-radius: 20px;
+          padding: 20px;
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          transition: all 0.2s;
+        }
+        .subcomm-item-card:hover {
+          border-color: #cbd5e1;
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+        }
+        .subcomm-card-inactive {
+          opacity: 0.65;
+        }
+
+        .subcomm-card-header {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+        .location-header-left {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+        .location-monument-badge {
+          width: 48px;
+          height: 48px;
+          border-radius: 14px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          box-shadow: inset 0 0 0 1px rgba(0,0,0,0.05);
+        }
+        .bg-gold-monument       { background: #fef3c7; }
+        .bg-amber-monument      { background: #fed7aa; }
+        .bg-orange-monument     { background: #ffedd5; }
+        .bg-terracotta-monument { background: #ffe4e6; }
+        .monument-svg {
+          width: 32px;
+          height: 32px;
+        }
+        .subcomm-card-title {
+          font-size: 1.25rem;
+          font-weight: 900;
+          color: #0f172a;
+          margin: 0;
+        }
+        .subcomm-card-subtitle {
+          font-size: 0.8rem;
+          color: #64748b;
+          font-weight: 600;
+          margin: 0;
+        }
+
+        .subcomm-card-header-actions {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .subcomm-btn-add-group {
+          background: #2563eb;
+          color: #ffffff;
+          border: none;
+          border-radius: 10px;
+          padding: 6px 14px;
+          font-size: 0.78rem;
+          font-weight: 800;
+          cursor: pointer;
+          transition: background 0.15s;
+        }
+        .subcomm-btn-add-group:hover {
+          background: #1d4ed8;
+        }
+
+        /* ── Group Columns Matrix ── */
+        .subcomm-groups-columns {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 10px;
+        }
+        @media (max-width: 600px) {
+          .subcomm-groups-columns {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+          }
+        }
+
+        .subcomm-group-col {
+          background: #f8fafc;
+          border: 1.5px solid #e2e8f0;
+          border-radius: 14px;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+        }
+        .grp-col-header {
+          padding: 8px 4px;
+          font-size: 0.78rem;
+          font-weight: 900;
+          text-align: center;
+          letter-spacing: 0.02em;
+        }
+        .grp-header-blue   { background: #e0f2fe; color: #0369a1; }
+        .grp-header-pink   { background: #fce7f3; color: #be185d; }
+        .grp-header-green  { background: #dcfce7; color: #15803d; }
+        .grp-header-yellow { background: #fef3c7; color: #b45309; }
+
+        .grp-row {
+          padding: 10px 8px;
+          border-bottom: 1px solid #f1f5f9;
+          text-align: center;
+        }
+        .grp-row:last-child {
+          border-bottom: none;
+        }
+        .grp-count-line {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          margin-bottom: 2px;
+        }
+        .grp-number {
+          font-size: 1.25rem;
+          font-weight: 900;
+          color: #0f172a;
+        }
+        .grp-plus-btn {
+          width: 22px;
+          height: 22px;
+          border-radius: 50%;
+          border: none;
+          background: #38bdf8;
+          color: #ffffff;
+          font-size: 0.95rem;
+          font-weight: 900;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          line-height: 1;
+          transition: transform 0.1s, background 0.15s;
+          padding: 0;
+        }
+        .grp-plus-btn:hover {
+          background: #0284c7;
+          transform: scale(1.1);
+        }
+        .grp-label-small {
+          font-size: 0.65rem;
+          font-weight: 700;
+          color: #64748b;
+          line-height: 1.15;
+          margin-top: 2px;
+        }
+
+        /* ── Users Mint Strip ── */
+        .subcomm-users-strip {
+          background: #f0fdf4;
+          border: 1.5px solid #dcfce7;
+          border-radius: 12px;
+          padding: 10px 16px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          font-size: 0.85rem;
+        }
+        .users-count-bold {
+          font-weight: 900;
+          color: #15803d;
+          font-size: 1.1rem;
+        }
+        .users-label {
+          font-weight: 700;
+          color: #166534;
+        }
+
+        /* ── Action Bar ── */
+        .subcomm-card-action-bar {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 8px;
+          padding-top: 4px;
+        }
+        .subcomm-act-btn {
+          border: 1.5px solid #e2e8f0;
+          border-radius: 10px;
+          padding: 8px;
+          background: #ffffff;
+          font-size: 0.78rem;
+          font-weight: 800;
+          color: #334155;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          transition: all 0.15s;
+        }
+        .subcomm-act-btn:hover {
+          background: #f8fafc;
+          border-color: #cbd5e1;
+        }
+        .subcomm-act-delete {
+          color: #dc2626;
+        }
+        .subcomm-act-delete:hover {
+          background: #fef2f2;
+          border-color: #fecaca;
+        }
+
+        /* ── Bottom Large Add Button ── */
+        .subcomm-bottom-add-bar {
+          margin-top: 20px;
+        }
+        .subcomm-btn-bottom-add {
+          width: 100%;
+          background: #2563eb;
+          color: #ffffff;
+          border: none;
+          border-radius: 16px;
+          padding: 16px;
+          font-size: 1rem;
+          font-weight: 900;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          cursor: pointer;
+          box-shadow: 0 4px 16px rgba(37, 99, 235, 0.25);
+          transition: background 0.15s;
+        }
+        .subcomm-btn-bottom-add:hover {
+          background: #1d4ed8;
+        }
+
+        /* ── Modals Generic ── */
+        .community-modal-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(15, 23, 42, 0.65);
+          backdrop-filter: blur(4px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999;
+          padding: 16px;
+        }
+        .community-modal {
+          background: #ffffff;
+          border-radius: 24px;
+          width: 100%;
+          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+          max-height: 90vh;
+        }
+        .community-modal-header {
+          padding: 20px 24px;
+          border-bottom: 1.5px solid #f1f5f9;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+        .community-modal-close {
+          background: #f1f5f9;
+          border: none;
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          font-size: 1rem;
+          font-weight: 800;
+          color: #64748b;
+          cursor: pointer;
+        }
+        .community-modal-body {
+          padding: 20px 24px;
+        }
+        .community-modal-actions {
+          padding: 16px 24px;
+          background: #f8fafc;
+          border-top: 1.5px solid #f1f5f9;
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 10px;
+        }
+        .community-btn-primary {
+          background: #2563eb;
+          color: #ffffff;
+          border: none;
+          border-radius: 12px;
+          padding: 10px 20px;
+          font-size: 0.85rem;
+          font-weight: 800;
+          cursor: pointer;
+          transition: background 0.15s;
+        }
+        .community-btn-primary:hover {
+          background: #1d4ed8;
+        }
+        .community-btn-secondary {
+          background: #ffffff;
+          color: #475569;
+          border: 1.5px solid #cbd5e1;
+          border-radius: 12px;
+          padding: 10px 18px;
+          font-size: 0.85rem;
+          font-weight: 800;
+          cursor: pointer;
+        }
+      `}</style>
     </div>
   );
 }
