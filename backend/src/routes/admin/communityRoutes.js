@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { protect, authorize } = require('../../middleware/authMiddleware');
+const upload = require('../../middleware/uploadMiddleware');
 const {
   getCommunities,
   getCommunityById,
@@ -17,6 +18,7 @@ const {
   deleteSubCommunity,
   getSubCommunityLocationBreakdown,
   assignLocalHeadToLocationGroup,
+  updateGroupMeta,
 } = require('../../controllers/admin/communityController');
 
 // Secure admin endpoints, allowing 'admin' and 'head' roles where appropriate
@@ -61,7 +63,10 @@ router.delete('/:id/sub-communities/:subId', authorize('admin'), deleteSubCommun
 // GET    /api/v1/admin/communities/:id/sub-communities/:subName/locations → detailed location breakdown with real Local Heads
 router.get('/:id/sub-communities/:subName/locations', authorize('admin', 'head'), getSubCommunityLocationBreakdown);
 // POST   /api/v1/admin/communities/:id/sub-communities/:subName/assign-head → assign/create local head or sub-head
-router.post('/:id/sub-communities/:subName/assign-head', authorize('admin', 'head'), assignLocalHeadToLocationGroup);
+router.post('/:id/sub-communities/:subName/assign-head', authorize('admin', 'head'), upload.uploadProfileMedia, assignLocalHeadToLocationGroup);
+
+// PATCH  /api/v1/admin/communities/:id/groups/:groupName → rename a Group and/or toggle its Home-page visibility
+router.patch('/:id/groups/:groupName', authorize('admin', 'head'), updateGroupMeta);
 
 module.exports = router;
 

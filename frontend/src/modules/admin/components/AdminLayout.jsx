@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { 
-  LayoutDashboard, Users, Heart, Calendar, Settings, LogOut, Menu, X, Shield, ShieldAlert, Send, Search, Building2, CreditCard, Globe, ChevronDown, ChevronUp, Network, Briefcase, HeartHandshake, Megaphone, Landmark, Flame, Crown, CheckSquare, BarChart3, Gift, Sparkles, LayoutTemplate
+  LayoutDashboard, Users, Heart, Calendar, Settings, LogOut, Menu, X, Shield, ShieldAlert, Send, Search, Building2, CreditCard, Globe, ChevronDown, ChevronUp, Network, Briefcase, HeartHandshake, Megaphone, Landmark, Flame, Crown, CheckSquare, BarChart3, Gift, Sparkles, LayoutTemplate, User
 } from 'lucide-react';
 import { useData } from '../../member/context/DataProvider';
 import { Avatar } from '../../member/components/common/Avatar';
@@ -36,11 +36,16 @@ export const AdminLayout = () => {
     {
       category: 'CORE DASHBOARD',
       items: [
-        { 
-          name: 'Admin Dashboard', 
-          path: '/admin/dashboard', 
+        {
+          name: 'Admin Dashboard',
+          path: '/admin/dashboard',
           icon: LayoutDashboard,
           permKey: 'canViewDashboard'
+        },
+        {
+          name: 'My Profile',
+          path: '/admin/profile',
+          icon: User,
         }
       ]
     },

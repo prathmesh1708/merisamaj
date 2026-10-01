@@ -106,8 +106,19 @@ export const AdminAuthProvider = ({ children }) => {
     }
   };
 
+  const updateAdminUser = (updatedUserFields) => {
+    setAdminAuth(prev => {
+      const merged = { ...(prev.adminUser || {}), ...updatedUserFields };
+      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(merged));
+      return {
+        ...prev,
+        adminUser: merged
+      };
+    });
+  };
+
   return (
-    <AdminAuthContext.Provider value={{ adminAuth, setAdminAuth, adminLogin, adminLogout }}>
+    <AdminAuthContext.Provider value={{ adminAuth, setAdminAuth, adminLogin, adminLogout, updateAdminUser }}>
       {children}
     </AdminAuthContext.Provider>
   );

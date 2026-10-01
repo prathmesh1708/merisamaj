@@ -134,10 +134,11 @@ const CommunityHeadManagement = () => {
         </div>
       </div>
 
-      <CommunityHeadForm 
+      <CommunityHeadForm
         isOpen={isFormOpen}
         onClose={() => { setIsFormOpen(false); setEditingHead(null); }}
         initialData={editingHead}
+        existingGroups={Array.from(new Set((heads || []).map(h => h.group).filter(Boolean)))}
         onSubmit={async (data) => {
           let result;
           if (editingHead) {

@@ -40,6 +40,7 @@ import AdminReferralManagement from '../pages/referral/AdminReferralManagement';
 import AdminAppShortcutsManagement from '../pages/shortcuts/AdminAppShortcutsManagement';
 import { UserAppEditsPage } from '../pages/userAppEdits/UserAppEditsPage';
 import AdminSubHeadManagement from '../pages/subheads/AdminSubHeadManagement';
+import AdminProfileSettings from '../pages/profile/AdminProfileSettings';
 
 export const AdminRoutes = () => {
   return (
@@ -54,7 +55,10 @@ export const AdminRoutes = () => {
         
         {/* Admin Operational Dashboard */}
         <Route path="dashboard" element={<AdminDashboard />} />
-        
+
+        {/* Self-service profile (Master Admin & Admin Sub-Heads) */}
+        <Route path="profile" element={<AdminProfileSettings />} />
+
         {/* Other Admin views */}
         <Route path="users" element={<UserManagement />} />
         <Route path="sub-heads" element={<AdminSubHeadManagement />} />

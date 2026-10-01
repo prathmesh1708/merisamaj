@@ -206,12 +206,12 @@ const HomePage = () => {
           if (Array.isArray(appData.successStories) && appData.successStories.length > 0) {
             setLiveSuccessStories(appData.successStories);
           }
-          if (appData.coreMembers?.communityHead && !liveCommunityHead) {
-            setLiveCommunityHead(appData.coreMembers.communityHead);
-          }
-          if (Array.isArray(appData.coreMembers?.committee) && appData.coreMembers.committee.length > 0 && liveSubLeaders.length === 0) {
-            setLiveSubLeaders(appData.coreMembers.committee);
-          }
+          // Intentionally NOT falling back to appData.coreMembers here — that's
+          // Head-configured showcase content (unrelated stock names/photos), not real
+          // leadership data. Doing so used to hide the real Community Head / sub-heads
+          // (from /member/leadership) behind fake ones whenever this request happened
+          // to resolve first, or whenever the community genuinely has no sub-heads yet.
+          // The Core Members widget should only ever show real data or an honest empty state.
           if (appData.censusBanner) {
             setLiveCensusBanner(appData.censusBanner);
           }
@@ -1341,68 +1341,64 @@ const HomePage = () => {
                   <p className="text-purple-200/70 text-[11px] font-medium mt-1">Community head appointment is currently pending.</p>
                 </div>
               ) : (
-                <div 
+                <div
                   onClick={() => navigate('/member/leadership', { state: { selectedId: president.id } })}
-                  className="relative w-full rounded-[24px] bg-gradient-to-r from-[#1e1145] via-[#2d1b69] to-[#4C1D95] shadow-xl shadow-purple-500/10 border border-purple-400/10 overflow-hidden p-5 shrink-0 cursor-pointer active:scale-[0.99] transition-all duration-300 min-h-[170px]"
+                  className="relative w-full rounded-[24px] shadow-xl shadow-sky-500/10 border border-sky-200 overflow-hidden p-5 shrink-0 cursor-pointer active:scale-[0.99] transition-all duration-300 min-h-[170px]"
+                  style={{ background: '#FFFFFF' }}
                 >
-                  {/* Full-height blended portrait photo on right */}
-                  <img 
-                    src={leaderAvatarPhoto} 
-                    className="absolute right-0 top-0 bottom-0 w-[58%] h-full object-cover object-[center_20%] pointer-events-none z-0" 
-                    style={{
-                      WebkitMaskImage: 'linear-gradient(to right, transparent 0%, rgba(0,0,0,0.05) 8%, rgba(0,0,0,0.85) 60%, black 100%)',
-                      maskImage: 'linear-gradient(to right, transparent 0%, rgba(0,0,0,0.05) 8%, rgba(0,0,0,0.85) 60%, black 100%)'
-                    }}
-                    alt={president.name} 
+                  {/* Full-height portrait photo on right, unmodified */}
+                  <img
+                    src={leaderAvatarPhoto}
+                    className="absolute right-0 top-0 bottom-0 w-[58%] h-full object-cover object-[center_20%] pointer-events-none z-0"
+                    alt={president.name}
                     onError={(e) => {
                       e.target.onerror = null;
                       e.target.src = defaultLeaderPhoto;
                     }}
                   />
-                  <div className="absolute inset-0 bg-gradient-to-r from-[#1e1145] via-[#2d1b69]/70 via-[#2d1b69]/15 to-transparent pointer-events-none z-0" />
 
                   {/* Left content */}
-                  <div className="relative z-10 flex flex-col justify-between h-full max-w-[62%]">
+                  <div className="relative z-10 flex flex-col justify-between h-full max-w-[55%]">
                     <div className="flex items-center gap-2">
-                      <div className="w-9 h-9 rounded-full border-2 border-amber-400/60 flex items-center justify-center bg-black/20 shadow-sm shrink-0">
-                        <Crown size={16} className="text-amber-400 fill-amber-400" />
+                      <div className="w-9 h-9 rounded-full border-2 border-amber-400 flex items-center justify-center bg-white shadow-sm shrink-0">
+                        <Crown size={16} className="text-amber-500 fill-amber-500" />
                       </div>
-                      <span className="bg-purple-500/80 backdrop-blur-sm text-white text-[9px] font-bold px-3 py-0.5 rounded-full uppercase tracking-wider border border-purple-400/30 truncate">
+                      <span className="bg-sky-600 text-white text-[9px] font-bold px-3 py-0.5 rounded-full uppercase tracking-wider truncate">
                         {president.role || 'Community Head'}
                       </span>
                     </div>
 
                     <div className="mt-3.5">
-                      <h4 className="text-white text-[18px] font-bold leading-tight tracking-tight drop-shadow-sm">
+                      <h4 className="text-slate-900 text-[18px] font-bold leading-tight tracking-tight">
                         {president.name}
                       </h4>
-                      <p className="text-amber-300/90 text-[11px] font-bold mt-0.5 uppercase tracking-wide">
+                      <p className="text-sky-700 text-[11px] font-bold mt-0.5 uppercase tracking-wide">
                         {president.role || 'Community Head'}
                       </p>
                     </div>
 
                     {/* Golden Separator */}
                     <div className="flex items-center gap-1.5 my-3 w-28">
-                      <div className="h-[1px] flex-1 bg-amber-400/25" />
-                      <div className="w-1 h-1 rotate-45 bg-amber-400/60" />
-                      <div className="h-[1px] flex-1 bg-amber-400/25" />
+                      <div className="h-[1px] flex-1 bg-amber-400/40" />
+                      <div className="w-1 h-1 rotate-45 bg-amber-400" />
+                      <div className="h-[1px] flex-1 bg-amber-400/40" />
                     </div>
 
                     {/* Location */}
-                    <div className="flex items-center gap-2 text-white/90 text-[10px] font-medium mb-3.5">
-                      <MapPin size={11} className="text-white/70 shrink-0" />
+                    <div className="flex items-center gap-2 text-slate-600 text-[10px] font-medium mb-3.5">
+                      <MapPin size={11} className="text-slate-500 shrink-0" />
                       <span>{[president.city, president.state].filter(Boolean).join(', ') || 'Community Head'}</span>
                     </div>
 
                     {/* Action Buttons */}
                     <div className="flex gap-2 w-full" onClick={(e) => e.stopPropagation()}>
-                      <a 
+                      <a
                         href={`tel:${president.phone || ''}`}
-                        className="flex-1 py-1.5 rounded-xl border border-purple-300/30 hover:bg-white/5 text-white text-[10px] font-bold flex items-center justify-center gap-1.5 active:scale-95 transition-transform text-center backdrop-blur-sm"
+                        className="flex-1 py-1.5 rounded-xl bg-sky-600 text-white text-[10px] font-bold flex items-center justify-center gap-1.5 active:scale-95 transition-transform text-center shadow-sm"
                       >
                         <Phone size={11} /> Call
                       </a>
-                      <button 
+                      <button
                         onClick={() => {
                           const targetId = president.id || president._id;
                           if (targetId && /^[0-9a-fA-F]{24}$/.test(targetId.toString())) {
@@ -1411,7 +1407,7 @@ const HomePage = () => {
                             navigate('/member/leadership');
                           }
                         }}
-                        className="flex-1 py-1.5 rounded-xl border border-emerald-300/30 hover:bg-white/5 text-white text-[10px] font-bold flex items-center justify-center gap-1.5 active:scale-95 transition-transform backdrop-blur-sm"
+                        className="flex-1 py-1.5 rounded-xl bg-white border border-sky-300 text-sky-700 text-[10px] font-bold flex items-center justify-center gap-1.5 active:scale-95 transition-transform shadow-sm"
                       >
                         <MessageCircle size={11} /> Chat
                       </button>

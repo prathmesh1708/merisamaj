@@ -1,5 +1,6 @@
 const User = require('../../models/User');
 const { inheritTenantPayload } = require('../../utils/queryScopeHelper');
+const { resolveAvatarUpload } = require('../../utils/avatarUploadHelper');
 
 // @desc    Get Sub-Heads created by the current Head or Local Head
 // @route   GET /api/v1/head/sub-heads
@@ -186,6 +187,9 @@ exports.createSubHead = async (req, res) => {
       state: resolvedState,
       designation: designation || (isLocalHeadCreator ? 'Local Sub-Head' : 'Community Sub-Head'),
       department: department || 'Operations',
+      // Inherit the creator's Leadership Group so this sub-head displays alongside
+      // them on the member-facing leadership directory.
+      group: req.user?.group || 'Group 1',
       joiningDate: new Date(),
       headPermissions: sanitizedHeadPermissions,
       accountStatus: 'active',
@@ -193,6 +197,12 @@ exports.createSubHead = async (req, res) => {
       isPhoneVerified: true,
       isEmailVerified: true
     });
+
+    // Optional profile photo upload (multipart form via `upload.uploadProfileMedia`)
+    const avatarUrl = await resolveAvatarUpload(req, subHead._id.toString());
+    if (avatarUrl) {
+      subHead.avatar = avatarUrl;
+    }
 
     await subHead.save();
 
@@ -211,6 +221,7 @@ exports.createSubHead = async (req, res) => {
         subHeadType: subHead.subHeadType,
         city: subHead.city,
         state: subHead.state,
+        avatar: subHead.avatar,
         headPermissions: subHead.headPermissions,
         accountStatus: subHead.accountStatus
       }
@@ -227,7 +238,13 @@ exports.createSubHead = async (req, res) => {
 exports.updateSubHead = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, phone, password, designation, department, headPermissions, city, state } = req.body;
+    const { name, email, phone, password, designation, department, city, state } = req.body;
+    // headPermissions arrives as a JSON string when the form is submitted as
+    // multipart/form-data (i.e. a profile photo was attached).
+    let { headPermissions } = req.body;
+    if (typeof headPermissions === 'string') {
+      try { headPermissions = JSON.parse(headPermissions); } catch (e) { headPermissions = undefined; }
+    }
 
     const isMasterAdmin = req.user?.role === 'admin';
     const query = {
@@ -308,6 +325,12 @@ exports.updateSubHead = async (req, res) => {
       subHead.markModified('headPermissions');
     }
 
+    // Optional profile photo upload (multipart form via `upload.uploadProfileMedia`)
+    const avatarUrl = await resolveAvatarUpload(req, subHead._id.toString());
+    if (avatarUrl) {
+      subHead.avatar = avatarUrl;
+    }
+
     await subHead.save();
 
     res.status(200).json({
@@ -322,6 +345,7 @@ exports.updateSubHead = async (req, res) => {
         department: subHead.department,
         city: subHead.city,
         state: subHead.state,
+        avatar: subHead.avatar,
         headPermissions: subHead.headPermissions,
         accountStatus: subHead.accountStatus
       }

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   MapPin, Plus, Edit, Trash2, Loader, CheckCircle2,
   XCircle, Mail, Phone, RefreshCw, Eye, EyeOff, Copy, Check, Shield,
-  User, UserCheck, Search, X, Building, ChevronDown, Award, Users, Key, AlertCircle
+  User, UserCheck, Search, X, Building, ChevronDown, Award, Users, Key, AlertCircle, Upload
 } from 'lucide-react';
 import { useData } from '../../../member/context/DataProvider';
 import { useHeadAuth } from '../../auth/useHeadAuth';
@@ -145,6 +145,7 @@ export default function LocalCommunityManagement() {
     state: 'Madhya Pradesh',
     group: 'Group 1',
     accountType: 'local_head',
+    avatar: '',
     headPermissions: {
       canViewDashboard: true,
       canViewMembers: true,
@@ -157,6 +158,18 @@ export default function LocalCommunityManagement() {
       canSendNotifications: true
     }
   });
+  const [assignAvatarFile, setAssignAvatarFile] = useState(null);
+  const handleAssignAvatarSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setAssignAvatarFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAssignForm(prev => ({ ...prev, avatar: reader.result }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   // Power editing modal for existing sub heads
   const [editPowersModal, setEditPowersModal] = useState(null);
@@ -347,22 +360,14 @@ export default function LocalCommunityManagement() {
   const handleAddGroupSubmit = (e) => {
     e.preventDefault();
     if (!newGroupName.trim() || !showAddGroupModal) return;
-    const colorClasses = ['grp-header-blue', 'grp-header-pink', 'grp-header-green', 'grp-header-yellow'];
-    setLocations(prev => prev.map(l => {
-      if (l.id === showAddGroupModal.id) {
-        const nextIdx = (l.groups?.length || 0) % colorClasses.length;
-        return {
-          ...l,
-          groups: [
-            ...(l.groups || []),
-            { id: `g-${Date.now()}`, name: newGroupName.trim(), colorClass: colorClasses[nextIdx], heads: 0, subHeads: 0, localHeadsList: [], subHeadsList: [] }
-          ]
-        };
-      }
-      return l;
-    }));
+    // A group only really exists once it has a real Local Head, so "Add Group" goes
+    // straight into appointing that group's first Local Head — this used to just add
+    // a fake, unsaved card that vanished on refresh.
+    const loc = showAddGroupModal;
+    const groupName = newGroupName.trim();
     setNewGroupName('');
     setShowAddGroupModal(null);
+    openAssignHeadModal(loc, { id: `new-${Date.now()}`, name: groupName }, 'local_head');
   };
 
   // ── 4. Assign Head / Sub Head & Powers ──
@@ -379,6 +384,7 @@ export default function LocalCommunityManagement() {
       state: 'Madhya Pradesh',
       group: grp.name,
       accountType: targetAccountType,
+      avatar: '',
       headPermissions: {
         canViewDashboard: true,
         canViewMembers: true,
@@ -391,6 +397,7 @@ export default function LocalCommunityManagement() {
         canSendNotifications: true
       }
     });
+    setAssignAvatarFile(null);
     setAssignHeadModal({ loc, grp, accountType: targetAccountType });
   };
 
@@ -418,11 +425,34 @@ export default function LocalCommunityManagement() {
       alert('Please provide Name and Phone number');
       return;
     }
+    // Password is only required when creating a brand-new account — editing an
+    // existing leader can leave it blank to keep the current one. Never silently
+    // fall back to a default password.
+    if (!assignForm.userId && (!assignForm.password || assignForm.password.length < 6)) {
+      alert('Please set a login password of at least 6 characters');
+      return;
+    }
     setSubmittingHead(true);
     try {
+      const { avatar, headPermissions, ...restAssignForm } = assignForm;
+      let submitPayload;
+
+      if (assignAvatarFile) {
+        // A new photo was attached — send as multipart/form-data so the file
+        // reaches the backend; the permissions object must travel as a JSON string.
+        submitPayload = new FormData();
+        Object.entries(restAssignForm).forEach(([key, value]) => {
+          submitPayload.append(key, value ?? '');
+        });
+        submitPayload.append('headPermissions', JSON.stringify(headPermissions));
+        submitPayload.append('avatarFile', assignAvatarFile);
+      } else {
+        submitPayload = assignForm;
+      }
+
       const res = await axiosPrivate.post(
         `/admin/communities/${community._id}/sub-communities/${encodeURIComponent(selectedSubCommunity)}/assign-head`,
-        assignForm
+        submitPayload
       );
       alert(res.data?.message || 'Leader assigned successfully!');
       setAssignHeadModal(null);
@@ -814,8 +844,8 @@ export default function LocalCommunityManagement() {
               <button type="button" className="community-modal-close" onClick={() => setAssignHeadModal(null)}>✕</button>
             </div>
 
-            <form onSubmit={handleAssignHeadSubmit}>
-              <div className="community-modal-body space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+            <form onSubmit={handleAssignHeadSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', minHeight: 0 }}>
+              <div className="community-modal-body space-y-4 overflow-y-auto pr-1" style={{ flex: 1, minHeight: 0 }}>
                 {/* Role Switcher in Modal - Only for Main Community Head/Admin */}
                 {!isLocalHead && (
                   <div className="flex bg-slate-100 p-1 rounded-xl">
@@ -865,6 +895,35 @@ export default function LocalCommunityManagement() {
                   <div className="flex-grow border-t border-slate-200"></div>
                 </div>
 
+                {/* Profile Photo */}
+                <div className="flex items-center gap-3">
+                  <div className="relative w-14 h-14 rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 shrink-0">
+                    {assignForm.avatar ? (
+                      <img src={assignForm.avatar} className="w-full h-full object-cover" alt="Profile preview" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-slate-400">
+                        <User size={22} />
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 text-[11px] font-bold rounded-xl cursor-pointer hover:bg-indigo-100 transition-colors">
+                      <Upload size={12} />
+                      {assignForm.avatar ? 'Change Photo' : 'Upload Photo'}
+                      <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp" className="hidden" onChange={handleAssignAvatarSelect} />
+                    </label>
+                    {assignForm.avatar && (
+                      <button
+                        type="button"
+                        onClick={() => { setAssignForm(prev => ({ ...prev, avatar: '' })); setAssignAvatarFile(null); }}
+                        className="ml-2 text-[11px] font-bold text-slate-400 hover:text-rose-500 transition-colors"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
+
                 {/* Option B: Account Info Form */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
@@ -900,7 +959,7 @@ export default function LocalCommunityManagement() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Login Password *</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Login Password {assignForm.userId ? '(leave blank to keep current)' : '*'}</label>
                     <input
                       type="text"
                       required={!assignForm.userId}
@@ -909,6 +968,17 @@ export default function LocalCommunityManagement() {
                       onChange={e => setAssignForm({ ...assignForm, password: e.target.value })}
                       className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold font-mono"
                     />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Assigned Group</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Group 2"
+                      value={assignForm.group}
+                      onChange={e => setAssignForm({ ...assignForm, group: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">Type a new name to start a new group.</p>
                   </div>
                 </div>
 
@@ -967,7 +1037,7 @@ export default function LocalCommunityManagement() {
                 )}
               </div>
 
-              <div className="community-modal-actions mt-4">
+              <div className="community-modal-actions">
                 <button
                   type="button"
                   className="community-btn-secondary"

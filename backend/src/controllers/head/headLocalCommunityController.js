@@ -1,5 +1,17 @@
 const User = require('../../models/User');
 const { inheritTenantPayload } = require('../../utils/queryScopeHelper');
+const { resolveAvatarUpload } = require('../../utils/avatarUploadHelper');
+
+// Master Admin can manage any Local Head regardless of which specific account created
+// it (e.g. one appointed via the Community drill-down wizard, not the requesting
+// admin's own user id); a Head is still restricted to Local Heads they created.
+const buildLocalHeadQuery = (req, id) => {
+  const query = { _id: id, role: 'sub_head', accountType: 'local_head' };
+  if (req.user?.role !== 'admin') {
+    query.parentHeadId = req.user._id;
+  }
+  return query;
+};
 
 // @desc    Get eligible community users for promoting to Local Head
 // @route   GET /api/v1/head/local-community/community-users
@@ -100,6 +112,12 @@ exports.createLocalHead = async (req, res) => {
       existingUser.isPhoneVerified = true;
       existingUser.isEmailVerified = true;
 
+      // Optional profile photo upload (multipart form via `upload.uploadProfileMedia`)
+      const promotedAvatarUrl = await resolveAvatarUpload(req, existingUser._id.toString());
+      if (promotedAvatarUrl) {
+        existingUser.avatar = promotedAvatarUrl;
+      }
+
       await existingUser.save();
 
       return res.status(201).json({
@@ -113,6 +131,7 @@ exports.createLocalHead = async (req, res) => {
           loginId: existingUser.loginId,
           city: existingUser.city,
           state: existingUser.state,
+          avatar: existingUser.avatar,
           plainPassword: existingUser.plainPassword,
           accountStatus: existingUser.accountStatus
         }
@@ -159,6 +178,12 @@ exports.createLocalHead = async (req, res) => {
       isEmailVerified: true
     });
 
+    // Optional profile photo upload (multipart form via `upload.uploadProfileMedia`)
+    const avatarUrl = await resolveAvatarUpload(req, localHead._id.toString());
+    if (avatarUrl) {
+      localHead.avatar = avatarUrl;
+    }
+
     await localHead.save();
 
     return res.status(201).json({
@@ -172,6 +197,7 @@ exports.createLocalHead = async (req, res) => {
         loginId: localHead.loginId,
         city: localHead.city,
         state: localHead.state,
+        avatar: localHead.avatar,
         plainPassword: localHead.plainPassword,
         accountStatus: localHead.accountStatus
       }
@@ -188,7 +214,7 @@ exports.createLocalHead = async (req, res) => {
 exports.getLocalHeads = async (req, res) => {
   try {
     const localHeads = await User.find({ parentHeadId: req.user._id, role: 'sub_head', accountType: 'local_head' })
-      .select('name email phone city state accountStatus joiningDate createdAt plainPassword')
+      .select('name email phone city state avatar accountStatus joiningDate createdAt plainPassword')
       .sort({ createdAt: -1 })
       .lean();
 
@@ -211,7 +237,7 @@ exports.updateLocalHead = async (req, res) => {
     const { id } = req.params;
     const { name, email, phone, password, state, city } = req.body;
 
-    const localHead = await User.findOne({ _id: id, parentHeadId: req.user._id, role: 'sub_head', accountType: 'local_head' });
+    const localHead = await User.findOne(buildLocalHeadQuery(req, id));
     if (!localHead) {
       return res.status(404).json({ status: 'fail', message: 'Local Head not found or unauthorized.' });
     }
@@ -273,7 +299,7 @@ exports.updateLocalHead = async (req, res) => {
 exports.toggleLocalHeadStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const localHead = await User.findOne({ _id: id, parentHeadId: req.user._id, role: 'sub_head', accountType: 'local_head' });
+    const localHead = await User.findOne(buildLocalHeadQuery(req, id));
     if (!localHead) {
       return res.status(404).json({ status: 'fail', message: 'Local Head not found or unauthorized.' });
     }
@@ -299,7 +325,7 @@ exports.deleteLocalHead = async (req, res) => {
   try {
     const { id } = req.params;
     const localHead = await User.findOneAndUpdate(
-      { _id: id, parentHeadId: req.user._id, role: 'sub_head', accountType: 'local_head' },
+      buildLocalHeadQuery(req, id),
       { $set: { accountStatus: 'inactive' } },
       { new: true }
     );

@@ -6,7 +6,7 @@ import {
   Mail, Phone, RefreshCw, AlertCircle, Sparkles, Building2,
   CheckSquare, Square, Layers, ShieldCheck, Heart, Calendar,
   Briefcase, HeartHandshake, Landmark, Flame, Crown, Send, Globe,
-  CreditCard, Gift, BarChart3, Settings, LayoutTemplate
+  CreditCard, Gift, BarChart3, Settings, LayoutTemplate, Upload, User
 } from 'lucide-react';
 import { axiosPrivate } from '../../../../core/api/axiosPrivate';
 
@@ -94,8 +94,22 @@ export const AdminSubHeadManagement = () => {
     password: '',
     designation: 'Admin Sub-Head',
     department: 'Operations',
-    adminPermissions: {}
+    adminPermissions: {},
+    avatar: ''
   });
+  const [avatarFile, setAvatarFile] = useState(null);
+
+  const handleAvatarSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setAvatarFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setForm(prev => ({ ...prev, avatar: reader.result }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
@@ -144,8 +158,10 @@ export const AdminSubHeadManagement = () => {
       password: '',
       designation: 'Admin Sub-Head',
       department: 'Operations',
-      adminPermissions: defaultPermissions
+      adminPermissions: defaultPermissions,
+      avatar: ''
     });
+    setAvatarFile(null);
     setIsModalOpen(true);
   };
 
@@ -167,8 +183,10 @@ export const AdminSubHeadManagement = () => {
       password: '',
       designation: subHead.designation || 'Admin Sub-Head',
       department: subHead.department || 'Operations',
-      adminPermissions: permissions
+      adminPermissions: permissions,
+      avatar: subHead.avatar || ''
     });
+    setAvatarFile(null);
     setIsModalOpen(true);
   };
 
@@ -229,13 +247,29 @@ export const AdminSubHeadManagement = () => {
 
     setIsSubmitting(true);
     try {
+      const { avatar, adminPermissions, ...restForm } = form;
+      let payload;
+
+      if (avatarFile) {
+        // A new photo was attached — send as multipart/form-data so the file
+        // reaches the backend; the permissions object must travel as a JSON string.
+        payload = new FormData();
+        Object.entries(restForm).forEach(([key, value]) => {
+          if (key === 'password' && editingSubHead && !value) return;
+          payload.append(key, value ?? '');
+        });
+        payload.append('adminPermissions', JSON.stringify(adminPermissions));
+        payload.append('avatarFile', avatarFile);
+      } else {
+        payload = { ...restForm, adminPermissions };
+        if (editingSubHead && !payload.password) delete payload.password;
+      }
+
       if (editingSubHead) {
-        const payload = { ...form };
-        if (!payload.password) delete payload.password;
         await axiosPrivate.put(`/admin/sub-heads/${editingSubHead._id}`, payload);
         showToast('Admin Sub-Head updated successfully!', 'success');
       } else {
-        await axiosPrivate.post('/admin/sub-heads', form);
+        await axiosPrivate.post('/admin/sub-heads', payload);
         showToast('Admin Sub-Head created successfully with credentials!', 'success');
       }
       setIsModalOpen(false);
@@ -644,6 +678,36 @@ export const AdminSubHeadManagement = () => {
                     <span className="w-5 h-5 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-[10px]">1</span>
                     Sub-Head Information & Login Credentials
                   </h4>
+
+                  {/* Profile Photo */}
+                  <div className="flex items-center gap-4">
+                    <div className="relative w-16 h-16 rounded-2xl overflow-hidden bg-gray-100 border border-gray-200 shrink-0">
+                      {form.avatar ? (
+                        <img src={form.avatar} className="w-full h-full object-cover" alt="Profile preview" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400">
+                          <User size={26} />
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <label className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-purple-100 text-purple-700 text-xs font-bold rounded-xl cursor-pointer hover:bg-purple-200 transition-colors">
+                        <Upload size={13} />
+                        {form.avatar ? 'Change Photo' : 'Upload Photo'}
+                        <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp" className="hidden" onChange={handleAvatarSelect} />
+                      </label>
+                      {form.avatar && (
+                        <button
+                          type="button"
+                          onClick={() => { setForm(prev => ({ ...prev, avatar: '' })); setAvatarFile(null); }}
+                          className="ml-2 text-xs font-bold text-gray-400 hover:text-rose-500 transition-colors"
+                        >
+                          Remove
+                        </button>
+                      )}
+                      <p className="text-xs text-gray-400 mt-1.5">Optional — JPG, PNG or WEBP, up to 5MB.</p>
+                    </div>
+                  </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>

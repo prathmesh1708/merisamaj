@@ -5,98 +5,146 @@ const { applyScopeFilter } = require('../../utils/queryScopeHelper');
 const { createNotification } = require('../../services/notificationService');
 const { sendPushNotification } = require('../../services/pushNotificationService');
 
-// @desc    Get leadership directory for member's community (Dynamic Head + Sub-Leaders)
+// Format a raw User leader doc (head, local_head, or any sub-head) into the
+// shape the leadership directory UI expects.
+const formatLeaderUser = (u, { isHead = false, fallbackDesignation = 'Executive Member' } = {}) => {
+  const rawDes = u.designation;
+  const designation = (!rawDes || rawDes.toLowerCase() === 'member') ? fallbackDesignation : rawDes;
+
+  return {
+    _id: u._id,
+    name: u.name,
+    initials: u.name ? u.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : (isHead ? 'CH' : 'SL'),
+    designation,
+    role: designation,
+    department: u.department || '',
+    group: u.group || 'Group 1',
+    groupVisibleOnHome: u.groupVisibleOnHome !== false,
+    city: u.city || '',
+    state: u.state || '',
+    phone: u.phone || '',
+    email: u.email || '',
+    bio: u.bio || '',
+    avatar: u.avatar || '',
+    cover: u.cover || '',
+    socialLinks: u.socialLinks || {},
+    termYears: u.termYears || (isHead ? '' : '2024-2027'),
+    joiningDate: u.joiningDate,
+    isHead
+  };
+};
+
+// Natural sort for "Group 1", "Group 2", ... "Group 10" labels
+const groupSortValue = (label) => {
+  const match = /(\d+)/.exec(label || '');
+  return match ? parseInt(match[1], 10) : 0;
+};
+
+const LEADER_SELECT = 'name email phone city state role accountType designation department group groupVisibleOnHome bio avatar cover socialLinks termYears joiningDate parentHeadId createdAt';
+
+// @desc    Get grouped leadership directory for member's community
+//          (Community Head groups + Local Head groups, each with their own sub-heads)
 // @route   GET /api/v1/member/leadership
 // @access  Private
 exports.getCommunityLeadership = async (req, res) => {
   try {
-    const { city, designation, search } = req.query;
+    const { designation, search } = req.query;
     const rawCommunityId = req.communityId || req.user?.communityId;
     const targetCommunityId = (rawCommunityId && mongoose.Types.ObjectId.isValid(rawCommunityId))
       ? new mongoose.Types.ObjectId(rawCommunityId.toString())
       : (rawCommunityId ? rawCommunityId : new mongoose.Types.ObjectId('000000000000000000000000'));
 
-    // 1. Fetch Main Community Head (Strictly scoped to targetCommunityId, NO city restriction)
-    const headQuery = {
-      role: 'head',
-      accountStatus: 'active',
-      $or: [
-        { communityId: targetCommunityId },
-        { assignedCommunityIds: targetCommunityId }
-      ]
-    };
+    const communityOrCondition = [
+      { communityId: targetCommunityId },
+      { assignedCommunityIds: targetCommunityId }
+    ];
+    const roleOrCondition = [
+      { role: 'head' },
+      { role: 'sub_head', accountType: { $in: ['community_sub_head', 'local_head', 'local_sub_head'] } }
+    ];
 
-    const communityHeadUser = await User.findOne(headQuery)
-      .select('name email phone city state designation bio avatar cover socialLinks termYears createdAt')
+    // 1. Fetch ALL Community Heads (one community can have several, one per Group) —
+    //    plus ALL Local Heads and ALL their respective sub-heads, in one query.
+    const allLeaderUsers = await User.find({
+      accountStatus: 'active',
+      $and: [
+        { $or: communityOrCondition },
+        { $or: roleOrCondition }
+      ]
+    })
+      .select(LEADER_SELECT)
+      .sort({ group: 1, createdAt: 1 })
       .lean();
 
-    const headDesignation = (!communityHeadUser?.designation || communityHeadUser.designation.toLowerCase() === 'member')
-      ? 'Community Head'
-      : communityHeadUser.designation;
+    const communityHeadsRaw = allLeaderUsers.filter(u => u.role === 'head');
+    const localHeadsRaw = allLeaderUsers.filter(u => u.accountType === 'local_head');
+    const communitySubHeadsRaw = allLeaderUsers.filter(u => u.accountType === 'community_sub_head');
+    const localSubHeadsRaw = allLeaderUsers.filter(u => u.accountType === 'local_sub_head');
 
-    const formattedHead = communityHeadUser ? {
-      _id: communityHeadUser._id,
-      name: communityHeadUser.name,
-      initials: communityHeadUser.name ? communityHeadUser.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'CH',
-      designation: headDesignation,
-      role: headDesignation,
-      city: communityHeadUser.city || '',
-      state: communityHeadUser.state || '',
-      phone: communityHeadUser.phone || '',
-      email: communityHeadUser.email || '',
-      bio: communityHeadUser.bio || '',
-      avatar: communityHeadUser.avatar || '',
-      cover: communityHeadUser.cover || '',
-      socialLinks: communityHeadUser.socialLinks || {},
-      termYears: communityHeadUser.termYears || '',
-      isHead: true
-    } : null;
+    const buildGroups = (heads, subHeads, headFallbackDesignation, subFallbackDesignation) => {
+      // How many heads share each group label — used below to safely fall back to
+      // group-label matching only when it's unambiguous (exactly one head in that group).
+      const headsPerGroup = {};
+      heads.forEach(h => {
+        const g = h.group || 'Group 1';
+        headsPerGroup[g] = (headsPerGroup[g] || 0) + 1;
+      });
 
-    // 2. Fetch Sub-Leaders from User collection (unconditionally scoped via applyScopeFilter)
-    const baseSubFilter = { role: 'sub_head', accountStatus: 'active' };
+      return heads
+        .map(head => {
+          const headGroup = head.group || 'Group 1';
+          const matchedSubHeads = subHeads.filter(sh => {
+            if (sh.parentHeadId) return String(sh.parentHeadId) === String(head._id);
+            // Legacy/unlinked sub-heads (created before parentHeadId tracking) —
+            // fall back to matching by Group label, but only when that label maps
+            // to exactly one Head, so we never guess between multiple candidates.
+            return (sh.group || 'Group 1') === headGroup && headsPerGroup[headGroup] === 1;
+          });
+
+          return {
+            group: headGroup,
+            head: formatLeaderUser(head, { isHead: true, fallbackDesignation: headFallbackDesignation }),
+            subHeads: matchedSubHeads.map(sh => formatLeaderUser(sh, { fallbackDesignation: subFallbackDesignation }))
+          };
+        })
+        .sort((a, b) => groupSortValue(a.group) - groupSortValue(b.group));
+    };
+
+    // The "Show on Home Page" toggle (User.groupVisibleOnHome) only affects the
+    // compact Home widget — the full "View All" leadership directory always shows
+    // every group regardless of that flag. So communityHeadGroups/localHeadGroups
+    // below are intentionally the UNFILTERED full lists; only the back-compat
+    // single-head fields (which the Home widget reads) are scoped to a visible group.
+    const communityHeadGroups = buildGroups(communityHeadsRaw, communitySubHeadsRaw, 'Community Head', 'Sub-Community Head');
+    const localHeadGroups = buildGroups(localHeadsRaw, localSubHeadsRaw, 'Local Head', 'Local Sub-Head');
+
+    const availableLocalCities = Array.from(new Set(
+      localHeadGroups.map(g => g.head.city).filter(Boolean)
+    ));
+
+    // Back-compat single-head fields, used by the Home widget's compact card —
+    // the first group that's actually set to show on Home. If every group has been
+    // hidden, Home correctly shows its "No Head Assigned" empty state rather than
+    // showing a hidden group anyway.
+    const homeVisibleGroup = communityHeadGroups.find(g => g.head.groupVisibleOnHome !== false);
+    const formattedHead = homeVisibleGroup?.head || null;
+    const allSubLeaders = [...(homeVisibleGroup?.subHeads || [])];
+
+    // 2. Optional legacy Leadership-collection entries (e.g. hand-entered committee
+    //    members not backed by a User login), folded into the flat back-compat list only.
+    const activeCity = (req.query.city && req.query.city !== 'all') ? req.query.city : null;
+    const baseLegacyFilter = { isActive: true };
     if (designation && designation !== 'all') {
-      baseSubFilter.designation = designation;
+      baseLegacyFilter.role = designation;
     }
     if (search && search.trim()) {
       const escapeRegex = (str) => (str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const searchRegex = new RegExp(escapeRegex(search.trim()), 'i');
-      baseSubFilter.$or = [
+      baseLegacyFilter.$or = [
         { name: searchRegex },
-        { designation: searchRegex },
+        { role: searchRegex },
         { department: searchRegex }
       ];
-    }
-    const activeCity = (city && city !== 'all') ? city : null;
-    const subLeadersQuery = applyScopeFilter(req, baseSubFilter, { overrideCity: activeCity });
-
-    const subHeadUsers = await User.find(subLeadersQuery)
-      .select('name email phone city state designation department bio avatar socialLinks termYears joiningDate')
-      .sort({ createdAt: -1 })
-      .lean();
-
-    const formattedSubHeads = subHeadUsers.map(u => ({
-      _id: u._id,
-      name: u.name,
-      initials: u.name ? u.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'SL',
-      designation: u.designation || 'Executive Member',
-      role: u.designation || 'Executive Member',
-      department: u.department || '',
-      city: u.city || '',
-      state: u.state || '',
-      phone: u.phone || '',
-      email: u.email || '',
-      bio: u.bio || '',
-      avatar: u.avatar || '',
-      socialLinks: u.socialLinks || {},
-      termYears: u.termYears || '2024-2027',
-      joiningDate: u.joiningDate,
-      isHead: false
-    }));
-
-    // 3. Fetch entries from Leadership collection (unconditionally scoped via applyScopeFilter)
-    const baseLegacyFilter = { isActive: true };
-    if (designation && designation !== 'all') {
-      baseLegacyFilter.role = designation;
     }
     const leadershipFilter = applyScopeFilter(req, baseLegacyFilter, { overrideCity: activeCity });
 
@@ -117,10 +165,8 @@ exports.getCommunityLeadership = async (req, res) => {
       isHead: false
     }));
 
-    // Combine subordinate leaders (User sub_heads + Leadership docs) with read-time deduplication (zero DB writes)
-    const allSubLeaders = [...formattedSubHeads];
     formattedLegacy.forEach(leg => {
-      const isDuplicate = allSubLeaders.some(s => 
+      const isDuplicate = allSubLeaders.some(s =>
         (s.phone && leg.phone && s.phone.trim() === leg.phone.trim()) ||
         (s.email && leg.email && s.email.trim().toLowerCase() === leg.email.trim().toLowerCase()) ||
         (s.name.toLowerCase() === leg.name.toLowerCase() && (s.city || '').toLowerCase() === (leg.city || '').toLowerCase())
@@ -164,6 +210,11 @@ exports.getCommunityLeadership = async (req, res) => {
       success: true,
       status: 'success',
       data: {
+        // New grouped shape — used by the redesigned leadership directory.
+        communityHeadGroups,
+        localHeadGroups,
+        availableLocalCities,
+        // Back-compat flat shape — still used by the Home page's compact card.
         communityHead: formattedHead,
         subLeaders: allSubLeaders,
         designations: Array.from(designationsSet),

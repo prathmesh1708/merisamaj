@@ -1,5 +1,6 @@
 const express = require('express');
 const { protect, authorize } = require('../../middleware/authMiddleware');
+const upload = require('../../middleware/uploadMiddleware');
 const communityHeadController = require('../../controllers/admin/communityHeadController');
 
 const router = express.Router();
@@ -10,7 +11,7 @@ router.use(authorize('admin'));
 
 router.route('/')
   .get(communityHeadController.getCommunityHeads)
-  .post(communityHeadController.createCommunityHead);
+  .post(upload.uploadProfileMedia, communityHeadController.createCommunityHead);
 
 router.route('/stats')
   .get(communityHeadController.getHeadStats);
@@ -20,7 +21,7 @@ router.route('/activities')
 
 router.route('/:id')
   .get(communityHeadController.getCommunityHeadById)
-  .put(communityHeadController.updateCommunityHead)
+  .put(upload.uploadProfileMedia, communityHeadController.updateCommunityHead)
   .delete(communityHeadController.deleteCommunityHead);
 
 router.route('/:id/status')

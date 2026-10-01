@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  X, CheckCircle, ChevronRight, ChevronLeft, Shield, Building2, User, Key,
+import {
+  X, CheckCircle, ChevronRight, ChevronLeft, Shield, Building2, User, Key, Upload,
   LayoutDashboard, Wallet, Vote, Send, Users, Calendar, Briefcase, Heart, HeartHandshake, Home, Mail, Share2, Award, LayoutTemplate
 } from 'lucide-react';
 import { axiosPrivate } from '../../../../../core/api/axiosPrivate';
@@ -125,14 +125,15 @@ const HEAD_MODULES = [
   }
 ];
 
-export const CommunityHeadForm = ({ isOpen, onClose, onSubmit, initialData }) => {
+export const CommunityHeadForm = ({ isOpen, onClose, onSubmit, initialData, existingGroups = [] }) => {
   const [step, setStep] = useState(1);
   const totalSteps = 4;
-  
+
   const [formData, setFormData] = useState({
-    name: '', email: '', phone: '', loginId: '', password: '', assignedCommunityIds: []
+    name: '', email: '', phone: '', loginId: '', password: '', assignedCommunityIds: [], avatar: '', group: 'Group 1'
   });
-  
+  const [avatarFile, setAvatarFile] = useState(null);
+
   const [permissions, setPermissions] = useState(defaultPermissions);
   const [availableCommunities, setAvailableCommunities] = useState([]);
   const [isFetchingCommunities, setIsFetchingCommunities] = useState(false);
@@ -143,6 +144,7 @@ export const CommunityHeadForm = ({ isOpen, onClose, onSubmit, initialData }) =>
     if (isOpen) {
       setStep(1);
       setError(null);
+      setAvatarFile(null);
       if (initialData) {
         setFormData({
           name: initialData.name || '',
@@ -150,11 +152,13 @@ export const CommunityHeadForm = ({ isOpen, onClose, onSubmit, initialData }) =>
           phone: initialData.phone || '',
           loginId: initialData.loginId || '',
           password: '', // Leave blank unless they want to change it
-          assignedCommunityIds: initialData.assignedCommunityIds?.map(c => c._id || c.id || c) || []
+          assignedCommunityIds: initialData.assignedCommunityIds?.map(c => c._id || c.id || c) || [],
+          avatar: initialData.avatar || '',
+          group: initialData.group || 'Group 1'
         });
         setPermissions({ ...defaultPermissions, ...initialData.headPermissions });
       } else {
-        setFormData({ name: '', email: '', phone: '', loginId: '', password: '', assignedCommunityIds: [] });
+        setFormData({ name: '', email: '', phone: '', loginId: '', password: '', assignedCommunityIds: [], avatar: '', group: 'Group 1' });
         setPermissions(defaultPermissions);
       }
       
@@ -185,16 +189,50 @@ export const CommunityHeadForm = ({ isOpen, onClose, onSubmit, initialData }) =>
     setStep(prev => Math.max(1, prev - 1));
   };
   
+  // ── Handle avatar file selection ──
+  const handleAvatarSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setAvatarFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => ({ ...prev, avatar: reader.result }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSubmit = async () => {
     setError(null);
     setLoading(true);
-    const dataToSubmit = {
-      ...formData,
-      headPermissions: permissions
-    };
-    if (initialData && !dataToSubmit.password) {
-      delete dataToSubmit.password;
+
+    const { avatar, ...restFormData } = formData;
+    let dataToSubmit;
+
+    if (avatarFile) {
+      // A new photo was attached — send as multipart/form-data so the file reaches
+      // the backend; array/object fields must travel as JSON strings in this mode.
+      dataToSubmit = new FormData();
+      Object.entries(restFormData).forEach(([key, value]) => {
+        if (key === 'password' && initialData && !value) return;
+        if (key === 'assignedCommunityIds') {
+          dataToSubmit.append(key, JSON.stringify(value || []));
+        } else {
+          dataToSubmit.append(key, value ?? '');
+        }
+      });
+      dataToSubmit.append('headPermissions', JSON.stringify(permissions));
+      dataToSubmit.append('avatarFile', avatarFile);
+    } else {
+      dataToSubmit = {
+        ...restFormData,
+        headPermissions: permissions
+      };
+      if (initialData && !dataToSubmit.password) {
+        delete dataToSubmit.password;
+      }
     }
+
     const result = await onSubmit(dataToSubmit);
     if (result && !result.success) {
       setError(result.error || 'Failed to save Community Head');
@@ -273,6 +311,37 @@ export const CommunityHeadForm = ({ isOpen, onClose, onSubmit, initialData }) =>
                 {/* Head Information Section */}
                 <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-5">
                   <h3 className="text-sm font-bold text-gray-800 border-b border-gray-100 pb-2 mb-4">Head Information</h3>
+
+                  {/* Profile Photo */}
+                  <div className="flex items-center gap-4">
+                    <div className="relative w-16 h-16 rounded-2xl overflow-hidden bg-gray-100 border border-gray-200 shrink-0">
+                      {formData.avatar ? (
+                        <img src={formData.avatar} className="w-full h-full object-cover" alt="Profile preview" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400">
+                          <User size={26} />
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <label className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-brand-primary/10 text-brand-primary text-xs font-bold rounded-xl cursor-pointer hover:bg-brand-primary/20 transition-colors">
+                        <Upload size={13} />
+                        {formData.avatar ? 'Change Photo' : 'Upload Photo'}
+                        <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp" className="hidden" onChange={handleAvatarSelect} />
+                      </label>
+                      {formData.avatar && (
+                        <button
+                          type="button"
+                          onClick={() => { setFormData(prev => ({ ...prev, avatar: '' })); setAvatarFile(null); }}
+                          className="ml-2 text-xs font-bold text-gray-400 hover:text-rose-500 transition-colors"
+                        >
+                          Remove
+                        </button>
+                      )}
+                      <p className="text-xs text-gray-400 mt-1.5">Optional — JPG, PNG or WEBP, up to 5MB.</p>
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-5">
                     <div className="space-y-1.5 col-span-2 sm:col-span-1">
                       <label className="text-xs font-bold text-gray-600 uppercase">Full Name *</label>
@@ -300,9 +369,26 @@ export const CommunityHeadForm = ({ isOpen, onClose, onSubmit, initialData }) =>
                     </div>
                   </div>
                   <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-gray-600 uppercase">Leadership Group</label>
+                    <input
+                      type="text"
+                      list="community-head-group-suggestions"
+                      value={formData.group}
+                      onChange={e => setFormData({ ...formData, group: e.target.value })}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary outline-none transition-all"
+                      placeholder="e.g. Group 1"
+                    />
+                    <datalist id="community-head-group-suggestions">
+                      {existingGroups.map(g => <option key={g} value={g} />)}
+                      <option value="Group 1" />
+                      <option value="Group 2" />
+                    </datalist>
+                    <p className="text-xs text-gray-400 mt-1">Which section this Community Head appears under on the member leadership directory. Reuse an existing group, or type a new one to start another section.</p>
+                  </div>
+                  <div className="space-y-1.5">
                     <label className="text-xs font-bold text-gray-600 uppercase">Email Address (Optional)</label>
-                    <input 
-                      type="email" 
+                    <input
+                      type="email"
                       value={formData.email}
                       onChange={e => setFormData({...formData, email: e.target.value})}
                       className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary outline-none transition-all"
@@ -495,8 +581,12 @@ export const CommunityHeadForm = ({ isOpen, onClose, onSubmit, initialData }) =>
             {step === 4 && (
               <div className="max-w-2xl mx-auto bg-white border border-gray-100 rounded-2xl p-8 shadow-sm">
                 <div className="text-center mb-8">
-                  <div className="w-16 h-16 bg-brand-primary/10 text-brand-primary rounded-full flex items-center justify-center mx-auto mb-4">
-                    <User size={32} />
+                  <div className="w-16 h-16 bg-brand-primary/10 text-brand-primary rounded-full flex items-center justify-center mx-auto mb-4 overflow-hidden">
+                    {formData.avatar ? (
+                      <img src={formData.avatar} className="w-full h-full object-cover" alt={formData.name || 'Profile'} />
+                    ) : (
+                      <User size={32} />
+                    )}
                   </div>
                   <h3 className="text-2xl font-black text-gray-900">{formData.name || 'Unknown Name'}</h3>
                   <p className="text-gray-500 mt-1">{formData.email || 'No email provided'} • {formData.phone || 'No phone provided'}</p>

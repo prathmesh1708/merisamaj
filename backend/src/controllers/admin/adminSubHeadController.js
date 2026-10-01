@@ -1,4 +1,5 @@
 const User = require('../../models/User');
+const { resolveAvatarUpload } = require('../../utils/avatarUploadHelper');
 
 // @desc    Get all Admin Sub-Heads
 // @route   GET /api/v1/admin/sub-heads
@@ -169,6 +170,12 @@ exports.createAdminSubHead = async (req, res) => {
       isEmailVerified: true
     });
 
+    // Optional profile photo upload (multipart form via `upload.uploadProfileMedia`)
+    const avatarUrl = await resolveAvatarUpload(req, subHead._id.toString());
+    if (avatarUrl) {
+      subHead.avatar = avatarUrl;
+    }
+
     await subHead.save();
 
     res.status(201).json({
@@ -183,6 +190,7 @@ exports.createAdminSubHead = async (req, res) => {
         plainPassword: subHead.plainPassword,
         designation: subHead.designation,
         department: subHead.department,
+        avatar: subHead.avatar,
         adminPermissions: subHead.adminPermissions,
         accountStatus: subHead.accountStatus
       }
@@ -199,7 +207,13 @@ exports.createAdminSubHead = async (req, res) => {
 exports.updateAdminSubHead = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, phone, password, designation, department, adminPermissions } = req.body;
+    const { name, email, phone, password, designation, department } = req.body;
+    // adminPermissions arrives as a JSON string when the form is submitted as
+    // multipart/form-data (i.e. a profile photo was attached).
+    let { adminPermissions } = req.body;
+    if (typeof adminPermissions === 'string') {
+      try { adminPermissions = JSON.parse(adminPermissions); } catch (e) { adminPermissions = undefined; }
+    }
 
     const subHead = await User.findOne({
       _id: id,
@@ -258,6 +272,12 @@ exports.updateAdminSubHead = async (req, res) => {
       subHead.markModified('adminPermissions');
     }
 
+    // Optional profile photo upload (multipart form via `upload.uploadProfileMedia`)
+    const avatarUrl = await resolveAvatarUpload(req, subHead._id.toString());
+    if (avatarUrl) {
+      subHead.avatar = avatarUrl;
+    }
+
     await subHead.save();
 
     res.status(200).json({
@@ -270,6 +290,7 @@ exports.updateAdminSubHead = async (req, res) => {
         phone: subHead.phone,
         designation: subHead.designation,
         department: subHead.department,
+        avatar: subHead.avatar,
         adminPermissions: subHead.adminPermissions,
         accountStatus: subHead.accountStatus
       }

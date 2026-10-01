@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Community = require('../../models/Community');
 const User = require('../../models/User');
 const { notifyHeadAssigned } = require('../../services/notificationService');
+const { resolveAvatarUpload } = require('../../utils/avatarUploadHelper');
 
 // ─────────────────────────────────────────────
 // Normalize a create/update payload's subCommunities into the sub-document shape.
@@ -69,14 +70,20 @@ exports.getCommunities = async (req, res) => {
             role: 'head',
             accountStatus: { $ne: 'deleted' },
           }),
+          // 'local_head' / 'sub_local_head' / 'volunteer' / 'coordinator' are never
+          // actual `role` values (role is one of user/admin/head/sub_head/admin_sub_head) —
+          // these used to always match everyone-or-no-one. Local/Sub-Community Heads are
+          // distinguished by `accountType`, not `role`.
           User.countDocuments({
             communityId: comm._id,
-            role: { $in: ['sub_head', 'local_head'] },
+            role: 'sub_head',
+            accountType: 'local_head',
             accountStatus: { $ne: 'deleted' },
           }),
           User.countDocuments({
             communityId: comm._id,
-            role: { $in: ['sub_local_head', 'volunteer', 'coordinator'] },
+            role: 'sub_head',
+            accountType: { $in: ['community_sub_head', 'local_sub_head'] },
             accountStatus: { $ne: 'deleted' },
           })
         ]);
@@ -695,16 +702,68 @@ exports.getSubCommunityStats = async (req, res) => {
       }])
     );
 
+    // Real Community Heads & Sub-Community Heads tagged to a sub-community, for the
+    // "Total Groups" Group N cards — replaces the previous hardcoded 1/2/0/0 mock.
+    const groupableLeaders = await User.find({
+      communityId: community._id,
+      accountStatus: { $ne: 'deleted' },
+      $or: [
+        { role: 'head' },
+        { role: 'sub_head', accountType: 'community_sub_head' }
+      ]
+    })
+      .select('name phone email avatar accountStatus plainPassword headPermissions subCommunity group groupVisibleOnHome role accountType')
+      .lean();
+
+    const groupSortValue = (label) => {
+      const match = /(\d+)/.exec(label || '');
+      return match ? parseInt(match[1], 10) : 0;
+    };
+    const groupColorClasses = ['grp-header-blue', 'grp-header-pink', 'grp-header-green', 'grp-header-yellow'];
+
     const enriched = subCommunities.map(sub => {
       const key = String(sub.name || '').trim().toLowerCase();
       const found = statsByName.get(key);
+
+      // When a community has only one sub-community, there's nothing to disambiguate —
+      // every Head/Sub-Community-Head in the community belongs here, even ones created
+      // (e.g. via the top-level "Appoint Community Head" wizard) without a subCommunity
+      // tag, or tagged to some other string. With multiple sub-communities, keep strict
+      // tag matching so heads land under the right one.
+      const leadersForSub = subCommunities.length <= 1
+        ? groupableLeaders
+        : groupableLeaders.filter(u => String(u.subCommunity || '').trim().toLowerCase() === key);
+      const groupLabels = Array.from(new Set(leadersForSub.map(u => u.group || 'Group 1')))
+        .sort((a, b) => groupSortValue(a) - groupSortValue(b));
+
+      const groups = groupLabels.map((label, idx) => {
+        const groupLeaders = leadersForSub.filter(u => (u.group || 'Group 1') === label);
+        const heads = groupLeaders.filter(u => u.role === 'head');
+        const subHeads = groupLeaders.filter(u => u.accountType === 'community_sub_head');
+        // The group's own Head is the authoritative source for visibility; default true.
+        const isVisibleOnHome = heads[0]?.groupVisibleOnHome !== false;
+        return {
+          id: `g-${idx + 1}`,
+          name: label,
+          colorClass: groupColorClasses[idx % groupColorClasses.length],
+          heads: heads.length,
+          subHeads: subHeads.length,
+          isVisibleOnHome,
+          leaderList: [
+            ...heads.map(h => ({ ...h, accountType: 'community_head' })),
+            ...subHeads.map(sh => ({ ...sh, accountType: 'community_sub_head' }))
+          ]
+        };
+      });
+
       return {
         _id: sub._id,
         name: sub.name,
         isActive: sub.isActive !== false,
         createdAt: sub.createdAt || null,
         memberCount: found?.memberCount || 0,
-        locationCount: found?.locationCount || 0
+        locationCount: found?.locationCount || 0,
+        groups
       };
     });
 
@@ -723,14 +782,18 @@ exports.getSubCommunityStats = async (req, res) => {
         role: 'head',
         accountStatus: { $ne: 'deleted' },
       }),
+      // 'local_head' / 'sub_local_head' / 'volunteer' / 'coordinator' are never actual
+      // `role` values — Local/Sub-Community Heads are distinguished by `accountType`.
       User.countDocuments({
         communityId: community._id,
-        role: { $in: ['sub_head', 'local_head'] },
+        role: 'sub_head',
+        accountType: 'local_head',
         accountStatus: { $ne: 'deleted' },
       }),
       User.countDocuments({
         communityId: community._id,
-        role: { $in: ['sub_local_head', 'volunteer', 'coordinator'] },
+        role: 'sub_head',
+        accountType: { $in: ['community_sub_head', 'local_sub_head'] },
         accountStatus: { $ne: 'deleted' },
       })
     ]);
@@ -925,7 +988,7 @@ exports.getSubCommunityLocationBreakdown = async (req, res) => {
       ],
       accountStatus: { $ne: 'deleted' }
     })
-      .select('name email phone role accountType subHeadType city state gotra subCommunity avatar joiningDate plainPassword accountStatus createdAt headPermissions group')
+      .select('name email phone role accountType subHeadType city state gotra subCommunity avatar joiningDate plainPassword accountStatus createdAt headPermissions group groupVisibleOnHome')
       .sort({ createdAt: -1 })
       .lean();
 
@@ -950,12 +1013,18 @@ exports.getSubCommunityLocationBreakdown = async (req, res) => {
       (u.role === 'sub_head' && (u.accountType === 'local_head' || (!u.accountType && u.subHeadType === 'local')))
     );
 
-    // Real Local Sub Community Heads created in this community
-    const localSubHeads = allUsers.filter(u => 
-      u.accountType === 'local_sub_head' || 
-      u.role === 'sub_local_head' || 
-      u.accountType === 'community_sub_head' ||
-      (u.role === 'sub_head' && u.accountType !== 'local_head' && u.role !== 'head')
+    // Real Local Sub Community Heads created in this community.
+    // IMPORTANT: this must NOT match 'community_sub_head' — a Sub-Community Head
+    // (reports to a Community Head) and a Local Sub-Head (reports to a Local Head)
+    // are different roles. An earlier, overly broad version of this filter
+    // ("any sub_head that isn't local_head") caught community_sub_head users too,
+    // which made one real account appear as — and share its delete action with —
+    // both a "Sub Community Head" and a "Local Sub Community Head" at once.
+    const localSubHeads = allUsers.filter(u =>
+      u.accountType === 'local_sub_head' ||
+      // Legacy fallback: old records created before accountType was reliably set,
+      // identifiable only by their subHeadType.
+      (u.role === 'sub_head' && !u.accountType && u.subHeadType === 'local')
     );
 
     // Determine distinct cities from community settings + users + local heads
@@ -1040,6 +1109,7 @@ exports.getSubCommunityLocationBreakdown = async (req, res) => {
           colorClass,
           heads: grpHeads.length,
           subHeads: grpSubHeads.length,
+          isVisibleOnHome: grpHeads[0]?.groupVisibleOnHome !== false,
           localHeadsList: grpHeads.map(h => ({
             id: h._id,
             name: h.name,
@@ -1156,12 +1226,21 @@ exports.getSubCommunityLocationBreakdown = async (req, res) => {
 exports.assignLocalHeadToLocationGroup = async (req, res) => {
   try {
     const { id, subName } = req.params;
-    const { userId, name, email, phone, password, city, state, group, accountType, headPermissions } = req.body;
+    const { userId, name, email, phone, password, city, state, group, accountType } = req.body;
+    // headPermissions arrives as a JSON string when the form is submitted as
+    // multipart/form-data (i.e. a profile photo was attached).
+    let { headPermissions } = req.body;
+    if (typeof headPermissions === 'string') {
+      try { headPermissions = JSON.parse(headPermissions); } catch (e) { headPermissions = {}; }
+    }
 
     const community = await Community.findById(id);
     if (!community) {
       return res.status(404).json({ status: 'error', message: 'Community not found' });
     }
+
+    const decodedSubName = decodeURIComponent(subName || '').trim();
+    const effectiveGroup = (group && group.trim()) || 'Group 1';
 
     let targetRole = 'sub_head';
     let targetAccountType = 'local_head';
@@ -1252,6 +1331,57 @@ exports.assignLocalHeadToLocationGroup = async (req, res) => {
       };
     }
 
+    const roleTitle = targetRole === 'head' ? 'Community Head' : (targetAccountType === 'community_sub_head' ? 'Sub-Community Head' : (targetAccountType === 'local_sub_head' ? 'Local Sub-Head' : 'Local Head'));
+
+    // Heads created before the Group field existed have no `group` stored at all
+    // (not even "Group 1") — so a strict { group: "Group 1" } match would never find
+    // them. Treat a missing/empty group as equivalent to "Group 1" when matching.
+    const groupMatchCondition = (targetGroup) => targetGroup === 'Group 1'
+      ? { $or: [{ group: 'Group 1' }, { group: { $in: [null, ''] } }, { group: { $exists: false } }] }
+      : { group: targetGroup };
+
+    // Resolve the specific parent Head this Sub-Head reports to, so the member-facing
+    // leadership directory can nest them under the right Community Head / Local Head
+    // banner instead of just grouping by matching Group label.
+    let parentHead = null;
+    if (targetAccountType === 'community_sub_head') {
+      parentHead = await User.findOne({
+        communityId: community._id,
+        role: 'head',
+        accountStatus: { $ne: 'deleted' },
+        subCommunity: new RegExp(`^${decodedSubName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+        ...groupMatchCondition(effectiveGroup)
+      });
+      // Fall back to any Head in this Group if none matches the sub-community exactly
+      if (!parentHead) {
+        parentHead = await User.findOne({
+          communityId: community._id,
+          role: 'head',
+          accountStatus: { $ne: 'deleted' },
+          ...groupMatchCondition(effectiveGroup)
+        }).sort({ createdAt: 1 });
+      }
+    } else if (targetAccountType === 'local_sub_head') {
+      const cityRegex = city ? new RegExp(`^${city.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') : null;
+      parentHead = await User.findOne({
+        communityId: community._id,
+        role: 'sub_head',
+        accountType: 'local_head',
+        accountStatus: { $ne: 'deleted' },
+        ...groupMatchCondition(effectiveGroup),
+        ...(cityRegex ? { city: cityRegex } : {})
+      }).sort({ createdAt: 1 });
+      if (!parentHead && cityRegex) {
+        parentHead = await User.findOne({
+          communityId: community._id,
+          role: 'sub_head',
+          accountType: 'local_head',
+          accountStatus: { $ne: 'deleted' },
+          city: cityRegex
+        }).sort({ createdAt: 1 });
+      }
+    }
+
     // Promote existing user
     if (userId) {
       const user = await User.findById(userId);
@@ -1266,8 +1396,10 @@ exports.assignLocalHeadToLocationGroup = async (req, res) => {
       user.role = targetRole;
       user.accountType = targetAccountType;
       user.subHeadType = subHeadType;
+      user.designation = roleTitle;
       user.accountStatus = 'active';
-      if (group) user.group = group;
+      user.group = effectiveGroup;
+      if (parentHead) user.parentHeadId = parentHead._id;
       user.headPermissions = finalPermissions;
       user.markModified('headPermissions');
       if (password && password.length >= 6) {
@@ -1279,6 +1411,13 @@ exports.assignLocalHeadToLocationGroup = async (req, res) => {
       if (!user.assignedCommunityIds || user.assignedCommunityIds.length === 0) {
         user.assignedCommunityIds = [community._id];
       }
+
+      // Optional profile photo upload (multipart form via `upload.uploadProfileMedia`)
+      const promotedAvatarUrl = await resolveAvatarUpload(req, user._id.toString());
+      if (promotedAvatarUrl) {
+        user.avatar = promotedAvatarUrl;
+      }
+
       await user.save();
 
       // If assigned as community head and community has no head, link them
@@ -1286,8 +1425,6 @@ exports.assignLocalHeadToLocationGroup = async (req, res) => {
         community.headId = user._id;
         await community.save();
       }
-
-      const roleTitle = targetRole === 'head' ? 'Community Head' : (targetAccountType === 'community_sub_head' ? 'Sub-Community Head' : (targetAccountType === 'local_sub_head' ? 'Local Sub-Head' : 'Local Head'));
 
       return res.status(200).json({
         success: true,
@@ -1300,6 +1437,9 @@ exports.assignLocalHeadToLocationGroup = async (req, res) => {
     if (!name || !phone) {
       return res.status(400).json({ status: 'error', message: 'Name and phone are required.' });
     }
+    if (!password || password.length < 6) {
+      return res.status(400).json({ status: 'error', message: 'A login password of at least 6 characters is required.' });
+    }
 
     const cleanPhone = phone.trim();
     const existing = await User.findOne({ phone: cleanPhone });
@@ -1307,7 +1447,7 @@ exports.assignLocalHeadToLocationGroup = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'Phone number already registered. Please select user to promote.' });
     }
 
-    const rawPassword = password || '123456';
+    const rawPassword = password;
     const userLoginId = (req.body.loginId && req.body.loginId.trim()) ? req.body.loginId.trim() : cleanPhone;
 
     const newUser = new User({
@@ -1326,13 +1466,21 @@ exports.assignLocalHeadToLocationGroup = async (req, res) => {
       role: targetRole,
       accountType: targetAccountType,
       subHeadType: subHeadType,
+      designation: roleTitle,
       accountStatus: 'active',
       verificationStatus: 'verified',
       isPhoneVerified: true,
       isEmailVerified: true,
-      group: group || 'Group 1',
+      group: effectiveGroup,
+      parentHeadId: parentHead ? parentHead._id : null,
       headPermissions: finalPermissions
     });
+
+    // Optional profile photo upload (multipart form via `upload.uploadProfileMedia`)
+    const avatarUrl = await resolveAvatarUpload(req, newUser._id.toString());
+    if (avatarUrl) {
+      newUser.avatar = avatarUrl;
+    }
 
     await newUser.save();
 
@@ -1341,8 +1489,6 @@ exports.assignLocalHeadToLocationGroup = async (req, res) => {
       await community.save();
     }
 
-    const roleTitle = targetRole === 'head' ? 'Community Head' : (targetAccountType === 'community_sub_head' ? 'Sub-Community Head' : (targetAccountType === 'local_sub_head' ? 'Local Sub-Head' : 'Local Head'));
-
     res.status(201).json({
       success: true,
       message: `${newUser.name} created as ${roleTitle} successfully.`,
@@ -1350,6 +1496,101 @@ exports.assignLocalHeadToLocationGroup = async (req, res) => {
     });
   } catch (error) {
     console.error('assignLocalHeadToLocationGroup error:', error);
+    res.status(500).json({ status: 'error', message: error.message || 'Server error' });
+  }
+};
+
+// ─────────────────────────────────────────────
+// @desc    Rename a Group and/or toggle whether it's shown on the member-facing
+//          Home/Leadership page. A "Group" isn't its own stored entity — it's a
+//          label shared by a Head and their Sub-Heads — so this bulk-updates every
+//          User currently carrying that label (scoped to this community, and
+//          optionally to one sub-community / city to disambiguate Local Head groups
+//          that reuse the same "Group 1" name in different cities).
+// @route   PATCH /api/v1/admin/communities/:id/groups/:groupName
+// @access  Admin / Head
+// ─────────────────────────────────────────────
+exports.updateGroupMeta = async (req, res) => {
+  try {
+    const { id, groupName } = req.params;
+    const { subCommunity, city, newName, isVisibleOnHome, scope } = req.body;
+    const decodedGroupName = decodeURIComponent(groupName || '').trim();
+
+    if (!decodedGroupName) {
+      return res.status(400).json({ status: 'error', message: 'Group name is required.' });
+    }
+
+    // `group` is a generic field every User has (default "Group 1"), including plain
+    // members and the *other* hierarchy's heads — without this, renaming/hiding a
+    // Community Head group would also silently rename regular members' own `group`
+    // value, and Local Head groups, just because they happened to share the same
+    // label. `scope` restricts the bulk update to exactly the role/accountType set
+    // the admin is actually looking at.
+    const SCOPE_ROLE_CONDITIONS = {
+      community_head: [
+        { role: 'head' },
+        { role: 'sub_head', accountType: 'community_sub_head' }
+      ],
+      local_head: [
+        { role: 'sub_head', accountType: 'local_head' },
+        { role: 'sub_head', accountType: 'local_sub_head' }
+      ]
+    };
+    const roleCondition = SCOPE_ROLE_CONDITIONS[scope];
+    if (!roleCondition) {
+      return res.status(400).json({ status: 'error', message: 'A valid scope ("community_head" or "local_head") is required.' });
+    }
+
+    const escapeRegex = (str) => (str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const matchQuery = {
+      communityId: id,
+      group: decodedGroupName,
+      $or: roleCondition
+    };
+
+    if (city && city.trim()) {
+      // A Local Head group card — getSubCommunityLocationBreakdown scopes these by
+      // city only (never subCommunity), so the write must match that exactly or it
+      // could silently rename/hide the wrong person.
+      matchQuery.city = new RegExp(`^${escapeRegex(city.trim())}$`, 'i');
+    } else if (subCommunity && subCommunity.trim()) {
+      // A Community Head group card — getSubCommunityStats only scopes by
+      // subCommunity when the community actually has more than one; with just one,
+      // every Head/Sub-Community-Head in the community is shown there regardless of
+      // their own subCommunity tag, so the write must match that same behavior.
+      const community = await Community.findById(id).select('subCommunities').lean();
+      const subCommunityCount = Array.isArray(community?.subCommunities) ? community.subCommunities.length : 0;
+      if (subCommunityCount > 1) {
+        matchQuery.subCommunity = new RegExp(`^${escapeRegex(subCommunity.trim())}$`, 'i');
+      }
+    }
+
+    const update = {};
+    const trimmedNewName = (newName || '').trim();
+    if (trimmedNewName && trimmedNewName !== decodedGroupName) {
+      update.group = trimmedNewName;
+    }
+    if (typeof isVisibleOnHome === 'boolean') {
+      update.groupVisibleOnHome = isVisibleOnHome;
+    }
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ status: 'error', message: 'Nothing to update — provide a new name and/or visibility.' });
+    }
+
+    const result = await User.updateMany(matchQuery, { $set: update });
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ status: 'error', message: 'No members found in this group.' });
+    }
+
+    res.status(200).json({
+      status: 'success',
+      message: update.group
+        ? `Group renamed to "${update.group}" successfully.`
+        : `Group visibility updated successfully.`,
+      data: { matched: result.matchedCount, modified: result.modifiedCount, ...update }
+    });
+  } catch (error) {
+    console.error('updateGroupMeta error:', error);
     res.status(500).json({ status: 'error', message: error.message || 'Server error' });
   }
 };

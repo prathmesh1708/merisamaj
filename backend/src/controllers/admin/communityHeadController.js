@@ -3,6 +3,7 @@ const Community = require('../../models/Community');
 const HeadActivityLog = require('../../models/HeadActivityLog');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const { resolveAvatarUpload } = require('../../utils/avatarUploadHelper');
 
 // @desc    Get all community heads
 // @route   GET /api/v1/admin/community-heads
@@ -86,7 +87,16 @@ exports.getCommunityHeadById = async (req, res) => {
 // @access  Private/Admin
 exports.createCommunityHead = async (req, res) => {
   try {
-    const { name, email, phone, loginId, password, assignedCommunityIds, headPermissions } = req.body;
+    const { name, email, phone, loginId, password } = req.body;
+    // assignedCommunityIds / headPermissions arrive as JSON strings when the form is
+    // submitted as multipart/form-data (i.e. a profile photo was attached).
+    let { assignedCommunityIds, headPermissions } = req.body;
+    if (typeof assignedCommunityIds === 'string') {
+      try { assignedCommunityIds = JSON.parse(assignedCommunityIds); } catch (e) { assignedCommunityIds = []; }
+    }
+    if (typeof headPermissions === 'string') {
+      try { headPermissions = JSON.parse(headPermissions); } catch (e) { headPermissions = {}; }
+    }
 
     if (!name || !phone || !loginId || !password) {
       return res.status(400).json({ status: 'fail', message: 'Name, phone, login ID, and password are required' });
@@ -110,7 +120,7 @@ exports.createCommunityHead = async (req, res) => {
       }
     }
 
-    const newHead = await User.create({
+    const newHead = new User({
       name,
       email: email || undefined,
       phone,
@@ -123,8 +133,19 @@ exports.createCommunityHead = async (req, res) => {
       assignedCommunityIds: assignedCommunityIds || [],
       communityId: (assignedCommunityIds && assignedCommunityIds.length > 0) ? assignedCommunityIds[0] : null,
       headPermissions: headPermissions || {},
+      // Leadership "Group" section this Community Head appears under on the
+      // member-facing leadership directory (Group 1, Group 2, ...).
+      group: (req.body.group && req.body.group.trim()) || 'Group 1',
       createdBy: req.user.id
     });
+
+    // Optional profile photo upload (multipart form via `upload.uploadProfileMedia`)
+    const avatarUrl = await resolveAvatarUpload(req, newHead._id.toString());
+    if (avatarUrl) {
+      newHead.avatar = avatarUrl;
+    }
+
+    await newHead.save();
 
     // Bidirectional sync: assign this new head to the selected communities
     if (assignedCommunityIds && assignedCommunityIds.length > 0) {
@@ -153,7 +174,16 @@ exports.createCommunityHead = async (req, res) => {
 // @access  Private/Admin
 exports.updateCommunityHead = async (req, res) => {
   try {
-    const { name, email, phone, loginId, password, assignedCommunityIds, headPermissions } = req.body;
+    const { name, email, phone, loginId, password } = req.body;
+    // assignedCommunityIds / headPermissions arrive as JSON strings when the form is
+    // submitted as multipart/form-data (i.e. a profile photo was attached).
+    let { assignedCommunityIds, headPermissions } = req.body;
+    if (typeof assignedCommunityIds === 'string') {
+      try { assignedCommunityIds = JSON.parse(assignedCommunityIds); } catch (e) { assignedCommunityIds = undefined; }
+    }
+    if (typeof headPermissions === 'string') {
+      try { headPermissions = JSON.parse(headPermissions); } catch (e) { headPermissions = undefined; }
+    }
 
     const head = await User.findOne({ _id: req.params.id, role: 'head' });
     if (!head) {
@@ -188,6 +218,7 @@ exports.updateCommunityHead = async (req, res) => {
     if (email !== undefined) head.email = email;
     if (phone) head.phone = phone;
     if (loginId) head.loginId = loginId;
+    if (req.body.group && req.body.group.trim()) head.group = req.body.group.trim();
     if (password) {
       head.password = password; // pre('save') hook will hash this if changed
       head.plainPassword = password;
@@ -215,6 +246,12 @@ exports.updateCommunityHead = async (req, res) => {
     // Merge new permissions with existing
     if (headPermissions) {
       head.headPermissions = { ...head.headPermissions, ...headPermissions };
+    }
+
+    // Optional profile photo upload (multipart form via `upload.uploadProfileMedia`)
+    const avatarUrl = await resolveAvatarUpload(req, head._id.toString());
+    if (avatarUrl) {
+      head.avatar = avatarUrl;
     }
 
     await head.save();

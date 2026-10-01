@@ -169,6 +169,17 @@ const userSchema = new mongoose.Schema({
   },
   designation: { type: String, default: 'Member' },
   department: { type: String },
+  // Leadership "Group" label (Group 1, Group 2, ...) — scopes a Community Head /
+  // Local Head and their own sub-heads (matched via parentHeadId) into a display
+  // section on the member-facing leadership directory. Was previously being set
+  // by several controllers without being declared here, so it was silently
+  // dropped by Mongoose's strict mode on every save.
+  group: { type: String, default: 'Group 1', trim: true },
+  // Whether this Group's section (this Head + their Sub-Heads) is shown on the
+  // member-facing Home/Leadership directory. Lives on every member of the group
+  // (set together via the "rename/visibility" group action) so any of them can be
+  // used to resolve it, but the group's own Head is the authoritative source.
+  groupVisibleOnHome: { type: Boolean, default: true },
   termYears: { type: String, default: '2024-2027' },
   joiningDate: { type: Date },
   socialLinks: {
