@@ -42,7 +42,7 @@ const matrimonialProfileSchema = new mongoose.Schema(
       otherCommunities: {
         enabled: { type: Boolean, default: true },
         scope: { type: String, enum: ['all', 'selected'], default: 'all' },
-        selectedCommunities: { type: [String], default: ['Marathi', 'Gujarati', 'Punjabi', 'Tamil'] }
+        selectedCommunities: { type: [String], default: [] }
       },
       myCommunity: {
         enabled: { type: Boolean, default: true },
@@ -56,7 +56,7 @@ const matrimonialProfileSchema = new mongoose.Schema(
       communityVerifiedOnly: { type: Boolean, default: true },
       selectedLocations: {
         enabled: { type: Boolean, default: true },
-        locations: { type: [String], default: ['Mumbai, Maharashtra', 'Pune, Maharashtra', 'Delhi'] }
+        locations: { type: [String], default: [] }
       },
       visibleOnlyAfterAccept: { type: Boolean, default: true }
     },
@@ -80,6 +80,13 @@ const matrimonialProfileSchema = new mongoose.Schema(
     contactSharing: {
       phone: { type: Boolean, default: false },
       email: { type: Boolean, default: false }
+    },
+
+    // ─── Privacy & Security Preferences ──────────────────────────────────────
+    privacy: {
+      showPhoneOnlyAfterAccept:   { type: Boolean, default: true },
+      incognitoMode:               { type: Boolean, default: false },
+      protectPhotosScreenshot:     { type: Boolean, default: true }
     },
 
     // ─── Personal Details ─────────────────────────────────────────────────────

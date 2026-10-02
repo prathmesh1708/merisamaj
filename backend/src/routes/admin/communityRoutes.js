@@ -19,6 +19,9 @@ const {
   getSubCommunityLocationBreakdown,
   assignLocalHeadToLocationGroup,
   updateGroupMeta,
+  searchMantriMandalCandidates,
+  addMantriMandalMember,
+  removeMantriMandalMember,
 } = require('../../controllers/admin/communityController');
 
 // Secure admin endpoints, allowing 'admin' and 'head' roles where appropriate
@@ -67,6 +70,14 @@ router.post('/:id/sub-communities/:subName/assign-head', authorize('admin', 'hea
 
 // PATCH  /api/v1/admin/communities/:id/groups/:groupName → rename a Group and/or toggle its Home-page visibility
 router.patch('/:id/groups/:groupName', authorize('admin', 'head'), updateGroupMeta);
+
+// ── Mantri Mandal (display-only committee a Head curates from existing members) ──
+// GET    /api/v1/admin/communities/:id/mantri-mandal/search?q=... → search existing members to add
+router.get('/:id/mantri-mandal/search', authorize('admin', 'head'), searchMantriMandalCandidates);
+// POST   /api/v1/admin/communities/heads/:headId/mantri-mandal    → add a member
+router.post('/heads/:headId/mantri-mandal', authorize('admin', 'head'), addMantriMandalMember);
+// DELETE /api/v1/admin/communities/heads/:headId/mantri-mandal/:userId → remove a member
+router.delete('/heads/:headId/mantri-mandal/:userId', authorize('admin', 'head'), removeMantriMandalMember);
 
 module.exports = router;
 

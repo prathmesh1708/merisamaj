@@ -1282,6 +1282,23 @@ main input:focus, main select:focus, main textarea:focus {
   box-shadow: 0 0 0 3px rgba(111, 66, 193, 0.12) !important;
 }
 
+/* Dark modal forms (e.g. admin plan-editor popups) — opts out of the light
+   "main input[type=text]/textarea" rule above, which otherwise forces a
+   white background + white text (invisible) inside dark-themed modals. */
+main .dark-modal-form input,
+main .dark-modal-form textarea,
+main .dark-modal-form select {
+  color: #ffffff !important;
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+main .dark-modal-form input:focus,
+main .dark-modal-form textarea:focus,
+main .dark-modal-form select:focus {
+  border-color: #a78bfa !important;
+  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.15) !important;
+}
+
 /* 6. Badges & Status */
 main .status-badge, main .badge {
   font-size: 11px !important;

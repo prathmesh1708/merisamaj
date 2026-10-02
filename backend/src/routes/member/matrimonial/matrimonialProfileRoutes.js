@@ -37,6 +37,9 @@ router.get('/me', profileCtrl.getMyProfile);
 router.get('/visibility', profileCtrl.getVisibilitySettings);
 router.put('/visibility', profileCtrl.updateVisibilitySettings);
 router.get('/communities', profileCtrl.getAvailableCommunities);
+router.get('/communities-with-counts', profileCtrl.getAvailableCommunitiesWithCounts);
+router.get('/locations', profileCtrl.getAvailableLocations);
+router.put('/account-status', profileCtrl.setAccountStatus);
 
 router.get('/search',
   [
@@ -53,6 +56,7 @@ router.get('/search',
 // ─── Photo Routes (must be before /:id) ───────────────────────────────────────
 router.get('/photos/all', photoCtrl.getPhotos);
 router.post('/photos/upload', upload.uploadMultiplePhotos, photoCtrl.uploadPhotos);
+router.put('/photos/reorder', photoCtrl.reorderPhotos);
 router.put('/photos/:photoId/primary', photoCtrl.setPrimaryPhoto);
 router.delete('/photos/:photoId', photoCtrl.deletePhoto);
 

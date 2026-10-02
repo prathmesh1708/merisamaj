@@ -149,6 +149,7 @@ const HomePage = () => {
   const [totalFundsAmount, setTotalFundsAmount] = useState(0);
   const [liveCommunityHead, setLiveCommunityHead] = useState(null);
   const [liveSubLeaders, setLiveSubLeaders] = useState([]);
+  const [homeVisibleGroups, setHomeVisibleGroups] = useState([]); // every Community/Local Head group admin set to show on Home
   const [leadershipLoading, setLeadershipLoading] = useState(true);
   const [liveCensusBanner, setLiveCensusBanner] = useState(null);
   const [liveFooterArtwork, setLiveFooterArtwork] = useState(null);
@@ -186,6 +187,9 @@ const HomePage = () => {
           if (Array.isArray(res.data.data.subLeaders) && res.data.data.subLeaders.length > 0) {
             setLiveSubLeaders(res.data.data.subLeaders);
           }
+          const communityGroups = Array.isArray(res.data.data.homeVisibleCommunityGroups) ? res.data.data.homeVisibleCommunityGroups : [];
+          const localGroups = Array.isArray(res.data.data.homeVisibleLocalGroups) ? res.data.data.homeVisibleLocalGroups : [];
+          setHomeVisibleGroups([...communityGroups, ...localGroups]);
         }
       })
       .catch(() => {});
@@ -1269,34 +1273,19 @@ const HomePage = () => {
       <div className="mx-3 mt-6 mb-6 h-[1px] bg-gradient-to-r from-transparent via-purple-200/40 to-transparent" />
 
       {/* ─── YOUR LEADERS (Samaj Netrutva) ─── */}
+      {/* Shows every Community Head / Local Head group the admin toggled "Yes" for
+          on the Home page — "View All" always shows every group, visible or not. */}
       <div className="px-3 mb-8">
         {(() => {
-          const rawRole = liveCommunityHead?.designation || liveCommunityHead?.role;
-          const headRole = (!rawRole || rawRole.toLowerCase() === 'member') ? 'Community Head' : rawRole;
-
-          const president = liveCommunityHead ? {
-            id: liveCommunityHead._id,
-            name: liveCommunityHead.name,
-            role: headRole,
-            city: liveCommunityHead.city || '',
-            state: liveCommunityHead.state || '',
-            phone: liveCommunityHead.phone || '',
-            avatar: liveCommunityHead.avatar || liveCommunityHead.cover || (currentUser?.role === 'head' ? currentUser?.avatar : '')
-          } : null;
-
           const defaultLeaderPhoto = 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=800&q=80';
-          const leaderAvatarPhoto = (president?.avatar && !president.avatar.includes('ui-avatars.com'))
-            ? president.avatar
-            : defaultLeaderPhoto;
 
-          const coreCommittee = (liveSubLeaders && liveSubLeaders.length > 0) ? liveSubLeaders.map(sl => ({
-            id: sl._id || sl.id,
-            name: sl.name,
-            role: sl.designation || sl.role || 'Executive Member',
-            city: sl.city || '',
-            phone: sl.phone || '',
-            avatar: sl.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(sl.name)}&background=6C3BFF&color=ffffff&bold=true`
-          })) : [];
+          const badgeColorFor = (role) => {
+            const r = (role || '').toLowerCase();
+            if (r.includes('vice')) return 'bg-[#7c3aed]';
+            if (r.includes('secretary') || r.includes('सचिव')) return 'bg-[#ff3b68]';
+            if (r.includes('treasurer') || r.includes('कोषाध्यक्ष')) return 'bg-[#00a651]';
+            return 'bg-amber-500';
+          };
 
           return (
             <div className="flex flex-col gap-5">
@@ -1311,7 +1300,6 @@ const HomePage = () => {
                 </button>
               </div>
 
-              {/* President / Community Head Section */}
               {leadershipLoading ? (
                 <div className="relative w-full rounded-[24px] bg-gradient-to-r from-[#1e1145] via-[#2d1b69] to-[#4C1D95] border border-purple-400/10 p-5 shrink-0 min-h-[170px] flex flex-col justify-between animate-pulse">
                   <div className="flex items-center gap-2">
@@ -1327,7 +1315,7 @@ const HomePage = () => {
                     <div className="flex-1 h-7 bg-white/15 rounded-xl" />
                   </div>
                 </div>
-              ) : !president ? (
+              ) : homeVisibleGroups.length === 0 ? (
                 <div className="relative w-full rounded-[24px] bg-gradient-to-r from-[#1e1145] via-[#2d1b69] to-[#4C1D95] border border-purple-400/10 p-5 shrink-0 min-h-[170px] flex flex-col justify-center items-start shadow-xl shadow-purple-500/10">
                   <div className="flex items-center gap-2 mb-2">
                     <div className="w-9 h-9 rounded-full border-2 border-amber-400/60 flex items-center justify-center bg-black/20 shrink-0">
@@ -1341,140 +1329,145 @@ const HomePage = () => {
                   <p className="text-purple-200/70 text-[11px] font-medium mt-1">Community head appointment is currently pending.</p>
                 </div>
               ) : (
-                <div
-                  onClick={() => navigate('/member/leadership', { state: { selectedId: president.id } })}
-                  className="relative w-full rounded-[24px] shadow-xl shadow-sky-500/10 border border-sky-200 overflow-hidden p-5 shrink-0 cursor-pointer active:scale-[0.99] transition-all duration-300 min-h-[170px]"
-                  style={{ background: '#FFFFFF' }}
-                >
-                  {/* Full-height portrait photo on right, unmodified */}
-                  <img
-                    src={leaderAvatarPhoto}
-                    className="absolute right-0 top-0 bottom-0 w-[58%] h-full object-cover object-[center_20%] pointer-events-none z-0"
-                    alt={president.name}
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.src = defaultLeaderPhoto;
-                    }}
-                  />
+                homeVisibleGroups.map((g, gIdx) => {
+                  const head = g.head || {};
+                  const headId = head._id || head.id;
+                  const leaderAvatarPhoto = (head.avatar && !head.avatar.includes('ui-avatars.com')) ? head.avatar : defaultLeaderPhoto;
+                  const scopeLabel = g.scope === 'local_head' ? 'Local Community Head' : 'Community Head';
+                  const subLabel = g.scope === 'local_head' ? 'Local Sub-Head' : 'Sub-Community Head';
+                  const groupSubHeads = g.subHeads || [];
 
-                  {/* Left content */}
-                  <div className="relative z-10 flex flex-col justify-between h-full max-w-[55%]">
-                    <div className="flex items-center gap-2">
-                      <div className="w-9 h-9 rounded-full border-2 border-amber-400 flex items-center justify-center bg-white shadow-sm shrink-0">
-                        <Crown size={16} className="text-amber-500 fill-amber-500" />
+                  return (
+                    <div key={`${g.scope}-${g.group}-${gIdx}`} className="flex flex-col gap-3">
+                      {/* Group label */}
+                      <div className="flex items-center gap-2 px-0.5">
+                        <div className="w-1 h-4 bg-sky-500 rounded-full" />
+                        <span className="text-[12px] font-black text-slate-700 uppercase tracking-wide">{g.group}</span>
+                        <span className="text-[11px] font-bold text-slate-400">· {scopeLabel}</span>
                       </div>
-                      <span className="bg-sky-600 text-white text-[9px] font-bold px-3 py-0.5 rounded-full uppercase tracking-wider truncate">
-                        {president.role || 'Community Head'}
-                      </span>
-                    </div>
 
-                    <div className="mt-3.5">
-                      <h4 className="text-slate-900 text-[18px] font-bold leading-tight tracking-tight">
-                        {president.name}
-                      </h4>
-                      <p className="text-sky-700 text-[11px] font-bold mt-0.5 uppercase tracking-wide">
-                        {president.role || 'Community Head'}
-                      </p>
-                    </div>
-
-                    {/* Golden Separator */}
-                    <div className="flex items-center gap-1.5 my-3 w-28">
-                      <div className="h-[1px] flex-1 bg-amber-400/40" />
-                      <div className="w-1 h-1 rotate-45 bg-amber-400" />
-                      <div className="h-[1px] flex-1 bg-amber-400/40" />
-                    </div>
-
-                    {/* Location */}
-                    <div className="flex items-center gap-2 text-slate-600 text-[10px] font-medium mb-3.5">
-                      <MapPin size={11} className="text-slate-500 shrink-0" />
-                      <span>{[president.city, president.state].filter(Boolean).join(', ') || 'Community Head'}</span>
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="flex gap-2 w-full" onClick={(e) => e.stopPropagation()}>
-                      <a
-                        href={`tel:${president.phone || ''}`}
-                        className="flex-1 py-1.5 rounded-xl bg-sky-600 text-white text-[10px] font-bold flex items-center justify-center gap-1.5 active:scale-95 transition-transform text-center shadow-sm"
+                      {/* Head banner card */}
+                      <div
+                        onClick={() => navigate('/member/leadership', { state: { selectedId: headId } })}
+                        className="relative w-full rounded-[24px] shadow-xl shadow-sky-500/10 border border-sky-200 overflow-hidden p-5 shrink-0 cursor-pointer active:scale-[0.99] transition-all duration-300 min-h-[170px]"
+                        style={{ background: '#FFFFFF' }}
                       >
-                        <Phone size={11} /> Call
-                      </a>
-                      <button
-                        onClick={() => {
-                          const targetId = president.id || president._id;
-                          if (targetId && /^[0-9a-fA-F]{24}$/.test(targetId.toString())) {
-                            navigate(`/member/chat/member/${targetId}`);
-                          } else {
-                            navigate('/member/leadership');
-                          }
-                        }}
-                        className="flex-1 py-1.5 rounded-xl bg-white border border-sky-300 text-sky-700 text-[10px] font-bold flex items-center justify-center gap-1.5 active:scale-95 transition-transform shadow-sm"
-                      >
-                        <MessageCircle size={11} /> Chat
-                      </button>
+                        <img
+                          src={leaderAvatarPhoto}
+                          className="absolute right-0 top-0 bottom-0 w-[58%] h-full object-cover object-[center_20%] pointer-events-none z-0"
+                          alt={head.name}
+                          onError={(e) => { e.target.onerror = null; e.target.src = defaultLeaderPhoto; }}
+                        />
+
+                        <div className="relative z-10 flex flex-col justify-between h-full max-w-[55%]">
+                          <div className="flex items-center gap-2">
+                            <div className="w-9 h-9 rounded-full border-2 border-amber-400 flex items-center justify-center bg-white shadow-sm shrink-0">
+                              <Crown size={16} className="text-amber-500 fill-amber-500" />
+                            </div>
+                            <span className="bg-sky-600 text-white text-[9px] font-bold px-3 py-0.5 rounded-full uppercase tracking-wider truncate">
+                              {head.designation || scopeLabel}
+                            </span>
+                          </div>
+
+                          <div className="mt-3.5">
+                            <h4 className="text-slate-900 text-[18px] font-bold leading-tight tracking-tight">
+                              {head.name}
+                            </h4>
+                            <p className="text-sky-700 text-[11px] font-bold mt-0.5 uppercase tracking-wide">
+                              {head.designation || scopeLabel}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 my-3 w-28">
+                            <div className="h-[1px] flex-1 bg-amber-400/40" />
+                            <div className="w-1 h-1 rotate-45 bg-amber-400" />
+                            <div className="h-[1px] flex-1 bg-amber-400/40" />
+                          </div>
+
+                          <div className="flex items-center gap-2 text-slate-600 text-[10px] font-medium mb-3.5">
+                            <MapPin size={11} className="text-slate-500 shrink-0" />
+                            <span>{[head.city, head.state].filter(Boolean).join(', ') || scopeLabel}</span>
+                          </div>
+
+                          <div className="flex gap-2 w-full" onClick={(e) => e.stopPropagation()}>
+                            <a
+                              href={`tel:${head.phone || ''}`}
+                              className="flex-1 py-1.5 rounded-xl bg-sky-600 text-white text-[10px] font-bold flex items-center justify-center gap-1.5 active:scale-95 transition-transform text-center shadow-sm"
+                            >
+                              <Phone size={11} /> Call
+                            </a>
+                            <button
+                              onClick={() => {
+                                if (headId && /^[0-9a-fA-F]{24}$/.test(headId.toString())) {
+                                  navigate(`/member/chat/member/${headId}`);
+                                } else {
+                                  navigate('/member/leadership');
+                                }
+                              }}
+                              className="flex-1 py-1.5 rounded-xl bg-white border border-sky-300 text-sky-700 text-[10px] font-bold flex items-center justify-center gap-1.5 active:scale-95 transition-transform shadow-sm"
+                            >
+                              <MessageCircle size={11} /> Chat
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* This group's sub-heads */}
+                      {groupSubHeads.length > 0 && (
+                        <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-3 px-3">
+                          {groupSubHeads.map((member, idx) => {
+                            const badgeColor = badgeColorFor(member.designation || member.role);
+                            const avatar = member.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name)}&background=6C3BFF&color=ffffff&bold=true`;
+                            const displayRole = (member.designation && member.designation !== 'user') ? member.designation : (member.role && member.role !== 'user' ? member.role : subLabel);
+                            const memberId = member._id || member.id;
+
+                            return (
+                              <div
+                                key={memberId || `sub-${gIdx}-${idx}`}
+                                onClick={() => navigate('/member/leadership', { state: { selectedId: memberId } })}
+                                className="shrink-0 w-[calc((100vw-56px)/3.1)] max-w-[130px] bg-white rounded-3xl flex flex-col items-center cursor-pointer transition-all duration-300 pb-2.5 shadow-[0_4px_16px_rgba(0,0,0,0.03)] border border-purple-50 hover:border-purple-200 overflow-hidden"
+                              >
+                                <div className="w-full aspect-[4/3.8] overflow-hidden bg-gray-50 shrink-0 mb-1.5 pointer-events-none rounded-t-3xl">
+                                  <img src={avatar} className="w-full h-full object-cover" alt={member.name} />
+                                </div>
+
+                                <span className={`text-white text-[7.5px] font-black px-1.5 py-0.5 rounded-md shadow-sm leading-none mb-1.5 shrink-0 ${badgeColor}`}>
+                                  {displayRole}
+                                </span>
+
+                                <h4 className="text-slate-900 text-[9.5px] font-extrabold text-center leading-tight mb-2 px-1 h-5 flex items-center justify-center truncate w-full">
+                                  {member.name}
+                                </h4>
+
+                                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                  <a
+                                    href={`tel:${member.phone || ''}`}
+                                    className="w-6 h-6 rounded-full bg-purple-50 flex items-center justify-center text-purple-600 hover:bg-purple-600 hover:text-white transition-colors"
+                                  >
+                                    <Phone size={10} />
+                                  </a>
+                                  <button
+                                    onClick={() => {
+                                      if (memberId && /^[0-9a-fA-F]{24}$/.test(memberId.toString())) {
+                                        navigate(`/member/chat/member/${memberId}`);
+                                      } else {
+                                        navigate('/member/leadership');
+                                      }
+                                    }}
+                                    className="w-6 h-6 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 hover:bg-emerald-600 hover:text-white transition-colors"
+                                  >
+                                    <MessageCircle size={10} />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                </div>
+                  );
+                })
               )}
-                
-              <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-4 -mx-3 px-3">
-                {coreCommittee.map((member, idx) => {
-                    const badgeColor = member.role?.toLowerCase().includes('vice') 
-                      ? 'bg-[#7c3aed]' 
-                      : member.role?.toLowerCase().includes('secretary') || member.role?.toLowerCase().includes('सचिव')
-                      ? 'bg-[#ff3b68]' 
-                      : member.role?.toLowerCase().includes('treasurer') || member.role?.toLowerCase().includes('कोषाध्यक्ष')
-                      ? 'bg-[#00a651]'
-                      : 'bg-amber-500';
-                      
-                    const displayRole = member.role && member.role !== 'user' ? member.role : 'Executive Member';
-
-                    return (
-                      <div 
-                        key={member.id || `core-${idx}`} 
-                        onClick={() => navigate('/member/leadership', { state: { selectedId: member.id } })}
-                        className={`shrink-0 w-[calc((100vw-56px)/3.1)] max-w-[130px] bg-white rounded-3xl flex flex-col items-center cursor-pointer transition-all duration-300 pb-2.5 shadow-[0_4px_16px_rgba(0,0,0,0.03)] border border-purple-50 hover:border-purple-200 overflow-hidden`}
-                      >
-                        {/* Full Width Portrait Photo */}
-                        <div className="w-full aspect-[4/3.8] overflow-hidden bg-gray-50 shrink-0 mb-1.5 pointer-events-none rounded-t-3xl">
-                          <img src={member.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name)}&background=6C3BFF&color=ffffff&bold=true`} className="w-full h-full object-cover" alt={member.name} />
-                        </div>
-                        
-                        {/* Role Badge - below photo */}
-                        <span className={`text-white text-[7.5px] font-black px-1.5 py-0.5 rounded-md shadow-sm leading-none mb-1.5 shrink-0 ${badgeColor}`}>
-                          {displayRole}
-                        </span>
-                        
-                        {/* Office Bearer Name */}
-                        <h4 className="text-slate-900 text-[9.5px] font-extrabold text-center leading-tight mb-2 px-1 h-5 flex items-center justify-center truncate w-full">
-                          {member.name}
-                        </h4>
-                        
-                        {/* Interactive Buttons: Call & Chat */}
-                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                          <a 
-                            href={`tel:${member.phone || ''}`}
-                            className="w-6 h-6 rounded-full bg-purple-50 flex items-center justify-center text-purple-600 hover:bg-purple-600 hover:text-white transition-colors"
-                          >
-                            <Phone size={10} />
-                          </a>
-                          <button 
-                            onClick={() => {
-                              const targetId = member.id || member._id;
-                              if (targetId && /^[0-9a-fA-F]{24}$/.test(targetId.toString())) {
-                                navigate(`/member/chat/member/${targetId}`);
-                              } else {
-                                navigate('/member/leadership');
-                              }
-                            }}
-                            className="w-6 h-6 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 hover:bg-emerald-600 hover:text-white transition-colors"
-                          >
-                            <MessageCircle size={10} />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                })}
-              </div>
             </div>
           );
         })()}

@@ -4,9 +4,24 @@ import { matrimonialService } from '../../services/matrimonialService';
 
 const EMPTY_PLAN = {
   name: '', price: 0, originalPrice: 0, durationInDays: 30,
-  description: '', isActive: true, isMostPopular: false,
+  description: '', isActive: true, isFeatured: false,
   badge: '', themeColor: '#f43f5e',
-  features: { interestsPerDay: 10, photoUploadLimit: 3, contactsPerMonth: 10, canChat: true, profileBoost: false }
+  features: {
+    profileViewsPerDay: 10,
+    interestLimit: 5,
+    messageLimit: -1,
+    profileBoosts: 0,
+    advancedFilters: false,
+    visitorHistory: false,
+    chat: false,
+    highlightProfile: false,
+    priorityListing: false,
+    contactDetailsAccess: false,
+    unlimitedShortlist: false,
+    readReceipts: false,
+    profileBadge: false,
+    crossCommunityVisibility: false
+  }
 };
 
 const PlanModal = ({ plan, onClose, onSaved }) => {
@@ -35,7 +50,7 @@ const PlanModal = ({ plan, onClose, onSaved }) => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70" onClick={onClose} />
-      <div className="bg-[#1a1a2e] border border-white/10 rounded-2xl p-6 z-10 w-full max-w-lg shadow-2xl max-h-[85vh] overflow-y-auto space-y-4">
+      <div className="dark-modal-form bg-[#1a1a2e] border border-white/10 rounded-2xl p-6 z-10 w-full max-w-lg shadow-2xl max-h-[85vh] overflow-y-auto space-y-4">
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-base font-black text-white">{plan?._id ? 'Edit Plan' : 'New Plan'}</h3>
           <button onClick={onClose} className="text-gray-500 hover:text-white"><X size={18} /></button>
@@ -88,28 +103,42 @@ const PlanModal = ({ plan, onClose, onSaved }) => {
           <p className="text-[10px] text-gray-500 font-black uppercase tracking-wider">Features</p>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-[10px] text-gray-400 font-bold block mb-1">Interests/Day (-1 = ∞)</label>
-              <input type="number" value={form.features.interestsPerDay}
-                onChange={e => setFeature('interestsPerDay', Number(e.target.value))}
+              <label className="text-[10px] text-gray-400 font-bold block mb-1">Profile Views/Day (-1 = ∞)</label>
+              <input type="number" value={form.features.profileViewsPerDay}
+                onChange={e => setFeature('profileViewsPerDay', Number(e.target.value))}
                 className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none" />
             </div>
             <div>
-              <label className="text-[10px] text-gray-400 font-bold block mb-1">Photos</label>
-              <input type="number" value={form.features.photoUploadLimit}
-                onChange={e => setFeature('photoUploadLimit', Number(e.target.value))}
+              <label className="text-[10px] text-gray-400 font-bold block mb-1">Interests/Month (-1 = ∞)</label>
+              <input type="number" value={form.features.interestLimit}
+                onChange={e => setFeature('interestLimit', Number(e.target.value))}
                 className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none" />
             </div>
             <div>
-              <label className="text-[10px] text-gray-400 font-bold block mb-1">Contacts/Month (-1=∞)</label>
-              <input type="number" value={form.features.contactsPerMonth}
-                onChange={e => setFeature('contactsPerMonth', Number(e.target.value))}
+              <label className="text-[10px] text-gray-400 font-bold block mb-1">Messages (-1 = ∞)</label>
+              <input type="number" value={form.features.messageLimit}
+                onChange={e => setFeature('messageLimit', Number(e.target.value))}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none" />
+            </div>
+            <div>
+              <label className="text-[10px] text-gray-400 font-bold block mb-1">Profile Boosts/Month</label>
+              <input type="number" value={form.features.profileBoosts}
+                onChange={e => setFeature('profileBoosts', Number(e.target.value))}
                 className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none" />
             </div>
           </div>
           <div className="flex flex-wrap gap-4">
             {[
-              { key: 'canChat', label: 'Chat Enabled' },
-              { key: 'profileBoost', label: 'Profile Boost' },
+              { key: 'chat', label: 'Chat Enabled' },
+              { key: 'advancedFilters', label: 'Advanced Filters' },
+              { key: 'visitorHistory', label: 'Visitor History' },
+              { key: 'highlightProfile', label: 'Highlight Profile' },
+              { key: 'priorityListing', label: 'Priority Listing' },
+              { key: 'contactDetailsAccess', label: 'Contact Details Access' },
+              { key: 'unlimitedShortlist', label: 'Unlimited Shortlist' },
+              { key: 'readReceipts', label: 'Read Receipts' },
+              { key: 'profileBadge', label: 'Premium Badge' },
+              { key: 'crossCommunityVisibility', label: 'See Other-Community Profiles' },
             ].map(({ key, label }) => (
               <label key={key} className="flex items-center gap-2 cursor-pointer">
                 <div onClick={() => setFeature(key, !form.features[key])}
@@ -120,9 +149,9 @@ const PlanModal = ({ plan, onClose, onSaved }) => {
               </label>
             ))}
             <label className="flex items-center gap-2 cursor-pointer">
-              <div onClick={() => set('isMostPopular', !form.isMostPopular)}
-                className={`w-9 h-5 rounded-full relative transition-all cursor-pointer ${form.isMostPopular ? 'bg-amber-500' : 'bg-white/10'}`}>
-                <div className={`w-4 h-4 bg-white rounded-full absolute top-0.5 transition-transform ${form.isMostPopular ? 'translate-x-4' : 'translate-x-0.5'}`} />
+              <div onClick={() => set('isFeatured', !form.isFeatured)}
+                className={`w-9 h-5 rounded-full relative transition-all cursor-pointer ${form.isFeatured ? 'bg-amber-500' : 'bg-white/10'}`}>
+                <div className={`w-4 h-4 bg-white rounded-full absolute top-0.5 transition-transform ${form.isFeatured ? 'translate-x-4' : 'translate-x-0.5'}`} />
               </div>
               <span className="text-xs text-gray-400 font-semibold">Most Popular Badge</span>
             </label>
@@ -170,7 +199,7 @@ const GrantModal = ({ plans, onClose }) => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70" onClick={onClose} />
-      <div className="bg-[#1a1a2e] border border-white/10 rounded-2xl p-6 z-10 w-full max-w-md shadow-2xl space-y-4">
+      <div className="dark-modal-form bg-[#1a1a2e] border border-white/10 rounded-2xl p-6 z-10 w-full max-w-md shadow-2xl space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-black text-white flex items-center gap-2"><Gift size={16} className="text-amber-400" /> Grant Subscription</h3>
           <button onClick={onClose} className="text-gray-500 hover:text-white"><X size={18} /></button>
@@ -246,7 +275,7 @@ export const SubscriptionPlans = ({ data }) => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {plans.map(plan => (
           <div key={plan._id} className="card-neo p-5 space-y-3 relative overflow-hidden">
-            {plan.isMostPopular && (
+            {plan.isFeatured && (
               <div className="absolute top-0 right-0 bg-amber-500 text-white text-[8px] font-black px-3 py-1 rounded-bl-xl uppercase">
                 Popular
               </div>
@@ -269,11 +298,13 @@ export const SubscriptionPlans = ({ data }) => {
             </div>
 
             <div className="space-y-1.5 text-[11px] text-gray-400">
-              <p>• {plan.features?.interestsPerDay === -1 ? 'Unlimited' : plan.features?.interestsPerDay} interests/day</p>
-              <p>• {plan.features?.photoUploadLimit} photos</p>
-              <p>• {plan.features?.contactsPerMonth === -1 ? 'Unlimited' : plan.features?.contactsPerMonth} contacts/month</p>
-              {plan.features?.canChat && <p>• Chat enabled</p>}
-              {plan.features?.profileBoost && <p>• Profile boost</p>}
+              <p>• {plan.features?.profileViewsPerDay === -1 ? 'Unlimited' : plan.features?.profileViewsPerDay} profile views/day</p>
+              <p>• {plan.features?.interestLimit === -1 ? 'Unlimited' : plan.features?.interestLimit} interests/month</p>
+              {plan.features?.chat && <p>• Chat enabled</p>}
+              {plan.features?.advancedFilters && <p>• Advanced filters</p>}
+              {plan.features?.visitorHistory && <p>• Visitor history</p>}
+              {plan.features?.contactDetailsAccess && <p>• Contact details access</p>}
+              {plan.features?.crossCommunityVisibility && <p>• Sees other-community profiles</p>}
             </div>
 
             <div className="flex gap-2 pt-2 border-t border-white/5">

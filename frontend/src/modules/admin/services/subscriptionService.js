@@ -1,97 +1,9 @@
-// Mock data for Enterprise Subscription Management
+// Plans, communities & assignment are wired to the real backend (see bottom of file).
+// Subscribers/coupons/invoices/audit/overview-stats below remain mock — a separate,
+// much larger billing/metering build that wasn't part of this request.
+import { axiosPrivate } from '../../../core/api/axiosPrivate';
 
-const MOCK_PLANS = [
-  {
-    id: 'plan_1',
-    name: 'Basic Edition',
-    description: 'Perfect for small communities starting their digital journey.',
-    monthlyPrice: 999,
-    quarterlyPrice: 2700,
-    yearlyPrice: 9999,
-    currency: 'INR',
-    billingCycle: 'monthly',
-    trialDays: 14,
-    status: 'active',
-    badge: 'Popular',
-    displayOrder: 1,
-    features: {
-      maxMembers: 500,
-      maxHeads: 3,
-      maxEvents: 5,
-      professionalDirectory: false,
-      matrimonial: false,
-      announcements: true,
-      notifications: true,
-      broadcast: false,
-      reports: 'basic',
-      analytics: false,
-      storage: '5GB',
-      apiAccess: false,
-      prioritySupport: false,
-      customBranding: false,
-    }
-  },
-  {
-    id: 'plan_2',
-    name: 'Premium Edition',
-    description: 'Advanced features for growing and active communities.',
-    monthlyPrice: 2499,
-    quarterlyPrice: 6999,
-    yearlyPrice: 24999,
-    currency: 'INR',
-    billingCycle: 'monthly',
-    trialDays: 14,
-    status: 'active',
-    badge: 'Recommended',
-    displayOrder: 2,
-    features: {
-      maxMembers: 2000,
-      maxHeads: 10,
-      maxEvents: 'unlimited',
-      professionalDirectory: true,
-      matrimonial: true,
-      announcements: true,
-      notifications: true,
-      broadcast: true,
-      reports: 'advanced',
-      analytics: true,
-      storage: '25GB',
-      apiAccess: false,
-      prioritySupport: true,
-      customBranding: false,
-    }
-  },
-  {
-    id: 'plan_3',
-    name: 'Enterprise Edition',
-    description: 'Unlimited scale and dedicated support for large organizations.',
-    monthlyPrice: 5999,
-    quarterlyPrice: 16999,
-    yearlyPrice: 59999,
-    currency: 'INR',
-    billingCycle: 'yearly',
-    trialDays: 30,
-    status: 'active',
-    badge: 'Enterprise',
-    displayOrder: 3,
-    features: {
-      maxMembers: 'unlimited',
-      maxHeads: 'unlimited',
-      maxEvents: 'unlimited',
-      professionalDirectory: true,
-      matrimonial: true,
-      announcements: true,
-      notifications: true,
-      broadcast: true,
-      reports: 'custom',
-      analytics: true,
-      storage: '100GB',
-      apiAccess: true,
-      prioritySupport: true,
-      customBranding: true,
-    }
-  }
-];
+const BASE = '/admin/subscriptions';
 
 const MOCK_SUBSCRIBERS = [
   {
@@ -261,7 +173,18 @@ class SubscriptionService {
   }
 
   async getPlans() {
-    return new Promise(resolve => setTimeout(() => resolve([...MOCK_PLANS]), 600));
+    const res = await axiosPrivate.get(`${BASE}/plans`);
+    return res.data?.data?.plans || [];
+  }
+
+  async getCommunities() {
+    const res = await axiosPrivate.get(`${BASE}/communities`);
+    return res.data?.data?.communities || [];
+  }
+
+  async assignPlan(communityId, planId) {
+    const res = await axiosPrivate.post(`${BASE}/assign`, { communityId, planId });
+    return res.data;
   }
 
   async getSubscribers() {
@@ -280,13 +203,19 @@ class SubscriptionService {
     return new Promise(resolve => setTimeout(() => resolve([...MOCK_AUDIT_LOGS]), 400));
   }
 
-  // Future API mutation hooks
   async createPlan(data) {
-    return new Promise(resolve => setTimeout(() => resolve({ success: true, data }), 1000));
+    const res = await axiosPrivate.post(`${BASE}/plans`, data);
+    return res.data;
   }
-  
+
   async updatePlan(id, data) {
-    return new Promise(resolve => setTimeout(() => resolve({ success: true, data }), 1000));
+    const res = await axiosPrivate.put(`${BASE}/plans/${id}`, data);
+    return res.data;
+  }
+
+  async deletePlan(id) {
+    const res = await axiosPrivate.delete(`${BASE}/plans/${id}`);
+    return res.data;
   }
 }
 

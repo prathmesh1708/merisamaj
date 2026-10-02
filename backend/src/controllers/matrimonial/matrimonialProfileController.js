@@ -191,13 +191,14 @@ exports.getUserProfile = async (req, res) => {
       return res.status(403).json({ status: 'error', message: 'You cannot view this profile.' });
     }
 
-    // ─── Cross-community Privacy Check ──────────────────────────────────────
+    // ─── Cross-community Privacy Check (bypassed by a plan with crossCommunityVisibility) ──
+    const { features } = await getEffectiveFeatures(viewerId);
     const viewerCommunity = (req.user?.community || '').trim().toLowerCase();
     const profileCommunity = (profile.personal?.community || '').trim().toLowerCase();
     const isCrossCommunity = viewerCommunity && profileCommunity && viewerCommunity !== profileCommunity;
     const isAllMembers = profile.visibility === 'all_members' || profile.visibility === 'public';
 
-    if (isCrossCommunity && !isAllMembers && !profileOwnerUserId.equals(viewerId)) {
+    if (isCrossCommunity && !isAllMembers && !profileOwnerUserId.equals(viewerId) && !features.crossCommunityVisibility) {
       const hasConnection = await InterestRequest.findOne({
         $or: [
           { senderId: viewerId, receiverId: profileOwnerUserId },
@@ -205,11 +206,9 @@ exports.getUserProfile = async (req, res) => {
         ]
       });
       if (!hasConnection) {
-        return res.status(403).json({ status: 'error', message: 'This profile is only visible to members of the same community.' });
+        return res.status(403).json({ status: 'error', message: 'This profile is only visible to members of the same community. Upgrade your plan to see other-community profiles.' });
       }
     }
-
-    const { features } = await getEffectiveFeatures(viewerId);
 
     // ─── Record Visit (Premium feature) ────────────────────────────────────
     if (!profileOwnerUserId.equals(viewerId)) {
@@ -403,22 +402,27 @@ exports.searchProfiles = async (req, res) => {
     const exactRegex  = (val) => new RegExp('^' + escapeRegex(val.trim()) + '$', 'i');
 
     // ─── Community & Cross-Community Visibility Scope Filter ──────────────────
+    // A plan with `crossCommunityVisibility` lifts the "other community profiles
+    // must be public/all_members" restriction entirely for that viewer.
+    const hasCrossCommunityAccess = !!req.userFeatures?.crossCommunityVisibility;
     const userCommunity = (myProfile?.personal?.community || req.user?.community || '').trim();
     if (req.query.communityScope === 'other') {
       if (userCommunity) {
         query['personal.community'] = { $not: new RegExp('^' + escapeRegex(userCommunity) + '$', 'i') };
       }
-      query.visibility = { $in: ['all_members', 'public'] };
+      if (!hasCrossCommunityAccess) {
+        query.visibility = { $in: ['all_members', 'public'] };
+      }
     } else if (req.query.communityScope === 'my') {
       if (userCommunity) {
         query['personal.community'] = new RegExp('^' + escapeRegex(userCommunity) + '$', 'i');
       }
     } else if (community && community.trim()) {
       query['personal.community'] = prefixRegex(community);
-      if (userCommunity && !community.trim().toLowerCase().includes(userCommunity.toLowerCase())) {
+      if (userCommunity && !community.trim().toLowerCase().includes(userCommunity.toLowerCase()) && !hasCrossCommunityAccess) {
         query.visibility = { $in: ['all_members', 'public'] };
       }
-    } else {
+    } else if (!hasCrossCommunityAccess) {
       if (userCommunity) {
         const communityCondition = [
           { 'personal.community': new RegExp('^' + escapeRegex(userCommunity) + '$', 'i') },
@@ -439,6 +443,7 @@ exports.searchProfiles = async (req, res) => {
         query.visibility = { $in: ['all_members', 'public'] };
       }
     }
+    // else: viewer has crossCommunityVisibility — no community/visibility restriction applied at all.
     if (religion)      query['personal.religion']                = prefixRegex(religion);
     if (gotra)         query['personal.gotra']                   = prefixRegex(gotra);
     if (profession)    query['education.profession']             = prefixRegex(profession);
@@ -576,11 +581,91 @@ exports.getAvailableCommunities = async (req, res) => {
       if (c.name) communitySet.add(c.name.trim());
     });
 
-    const standardCommunities = ['Agrawal', 'Jain', 'Brahmin', 'Maheshwari', 'Maratha', 'Khandelwal', 'Rajput', 'Gupta', 'Patel', 'Sikh', 'Punjabi', 'Yadav', 'Sindhi'];
-    standardCommunities.forEach(c => communitySet.add(c));
-
     const list = Array.from(communitySet).sort((a, b) => a.localeCompare(b));
     res.json({ status: 'success', data: list });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+// ─── Get Available Communities with real profile counts (richer, for selector screens) ──
+exports.getAvailableCommunitiesWithCounts = async (req, res) => {
+  try {
+    const Community = require('../../models/Community');
+    const [communityCounts, registeredCommunities] = await Promise.all([
+      MatrimonialProfile.aggregate([
+        { $match: { isDeleted: false, status: 'active', 'personal.community': { $nin: [null, ''] } } },
+        { $group: { _id: '$personal.community', count: { $sum: 1 } } }
+      ]),
+      Community.find({ isActive: true }).select('name').lean()
+    ]);
+
+    const countMap = new Map();
+    communityCounts.forEach(c => countMap.set(c._id.trim(), c.count));
+    registeredCommunities.forEach(c => {
+      const name = (c.name || '').trim();
+      if (name && !countMap.has(name)) countMap.set(name, 0);
+    });
+
+    const list = Array.from(countMap.entries())
+      .map(([name, count]) => ({ id: name.toLowerCase().replace(/\s+/g, '-'), name, count }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    res.json({ status: 'success', data: list });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+// ─── Get Available Locations in Matrimonial (with real profile counts) ──────
+exports.getAvailableLocations = async (req, res) => {
+  try {
+    const [cityCounts, stateCounts] = await Promise.all([
+      MatrimonialProfile.aggregate([
+        { $match: { isDeleted: false, status: 'active', 'location.city': { $nin: [null, ''] } } },
+        { $group: { _id: { city: '$location.city', state: '$location.state' }, count: { $sum: 1 } } }
+      ]),
+      MatrimonialProfile.aggregate([
+        { $match: { isDeleted: false, status: 'active', 'location.state': { $nin: [null, ''] } } },
+        { $group: { _id: '$location.state', count: { $sum: 1 } } }
+      ])
+    ]);
+
+    const cities = cityCounts
+      .map(c => ({
+        id: `${c._id.city}-${c._id.state || ''}`.toLowerCase().replace(/\s+/g, '-'),
+        name: c._id.state ? `${c._id.city}, ${c._id.state}` : c._id.city,
+        type: 'city',
+        count: c.count
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    const states = stateCounts
+      .map(s => ({ id: s._id.toLowerCase().replace(/\s+/g, '-'), name: s._id, type: 'state', count: s.count }))
+      .sort((a, b) => b.count - a.count);
+
+    res.json({ status: 'success', data: { cities, states } });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+// ─── Self-Service Account Status (active/hidden only — not the full admin enum) ──
+exports.setAccountStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!['active', 'hidden'].includes(status)) {
+      return res.status(400).json({ status: 'error', message: 'status must be "active" or "hidden".' });
+    }
+    const profile = await MatrimonialProfile.findOne({ userId: req.user._id, isDeleted: false });
+    if (!profile) return res.status(404).json({ status: 'error', message: 'Profile not found.' });
+    if (['married', 'suspended', 'deleted'].includes(profile.status)) {
+      return res.status(400).json({ status: 'error', message: `Cannot change status while profile is ${profile.status}.` });
+    }
+    profile.status = status;
+    profile.updatedBy = req.user._id;
+    await profile.save();
+    res.json({ status: 'success', message: 'Account status updated.', data: { status: profile.status } });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }
@@ -594,7 +679,7 @@ exports.getVisibilitySettings = async (req, res) => {
       otherCommunities: {
         enabled: true,
         scope: 'all',
-        selectedCommunities: ['Marathi', 'Gujarati', 'Punjabi', 'Tamil']
+        selectedCommunities: []
       },
       myCommunity: {
         enabled: true,
@@ -608,7 +693,7 @@ exports.getVisibilitySettings = async (req, res) => {
       communityVerifiedOnly: true,
       selectedLocations: {
         enabled: true,
-        locations: ['Mumbai, Maharashtra', 'Pune, Maharashtra', 'Delhi']
+        locations: []
       },
       visibleOnlyAfterAccept: true
     };

@@ -426,3 +426,100 @@ exports.deleteSubHead = async (req, res) => {
     res.status(500).json({ status: 'error', message: error.message });
   }
 };
+
+// ─────────────────────────────────────────────
+// Mantri Mandal (मंत्री मंडल) — a display-only committee the logged-in Head
+// curates themselves by picking EXISTING community members. No role/account
+// change, no headPermissions — purely a recognition list shown under their
+// Sub-Heads on the member-facing leadership directory.
+// ─────────────────────────────────────────────
+
+// @desc    Get my own Mantri Mandal list
+// @route   GET /api/v1/head/sub-heads/mantri-mandal
+exports.getMyMantriMandal = async (req, res) => {
+  try {
+    const me = await User.findById(req.user._id)
+      .select('mantriMandal')
+      .populate('mantriMandal.userId', 'name phone avatar city')
+      .lean();
+    const list = (me?.mantriMandal || []).map(m => ({
+      userId: m.userId?._id || m.userId,
+      name: m.userId?.name || 'Unknown',
+      phone: m.userId?.phone || '',
+      avatar: m.userId?.avatar || '',
+      city: m.userId?.city || '',
+      designation: m.designation || ''
+    }));
+    res.json({ status: 'success', data: list });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
+// @desc    Search existing community members to add to my Mantri Mandal
+// @route   GET /api/v1/head/sub-heads/mantri-mandal/search?q=...
+exports.searchMantriMandalCandidates = async (req, res) => {
+  try {
+    const communityId = req.user.communityId || (req.user.assignedCommunityIds && req.user.assignedCommunityIds[0]);
+    if (!communityId) {
+      return res.status(400).json({ status: 'error', message: 'No community context found.' });
+    }
+    const q = (req.query.q || '').trim();
+    const query = { communityId, role: 'user', accountStatus: { $ne: 'deleted' } };
+    if (q) {
+      const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      query.$or = [{ name: regex }, { phone: regex }, { email: regex }];
+    }
+    const users = await User.find(query)
+      .select('name phone email avatar city')
+      .sort({ name: 1 })
+      .limit(30)
+      .lean();
+    res.json({ status: 'success', data: users });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
+// @desc    Add an existing member to my own Mantri Mandal
+// @route   POST /api/v1/head/sub-heads/mantri-mandal
+exports.addMantriMandalMember = async (req, res) => {
+  try {
+    const { userId, designation } = req.body;
+    if (!userId) return res.status(400).json({ status: 'error', message: 'userId is required.' });
+
+    const me = await User.findById(req.user._id);
+    const member = await User.findById(userId).select('name phone avatar city');
+    if (!member) return res.status(404).json({ status: 'error', message: 'Member not found.' });
+
+    const alreadyIn = (me.mantriMandal || []).some(m => m.userId?.toString() === userId);
+    if (alreadyIn) {
+      return res.status(400).json({ status: 'error', message: `${member.name} is already in the Mantri Mandal.` });
+    }
+
+    me.mantriMandal = [...(me.mantriMandal || []), { userId, designation: (designation || '').trim() }];
+    await me.save();
+
+    res.status(201).json({
+      status: 'success',
+      message: `${member.name} added to Mantri Mandal.`,
+      data: { userId, name: member.name, phone: member.phone, avatar: member.avatar, city: member.city, designation: (designation || '').trim() }
+    });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
+// @desc    Remove a member from my own Mantri Mandal
+// @route   DELETE /api/v1/head/sub-heads/mantri-mandal/:userId
+exports.removeMantriMandalMember = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const me = await User.findById(req.user._id);
+    me.mantriMandal = (me.mantriMandal || []).filter(m => m.userId?.toString() !== userId);
+    await me.save();
+    res.json({ status: 'success', message: 'Removed from Mantri Mandal.' });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+};

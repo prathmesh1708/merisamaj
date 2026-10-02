@@ -62,13 +62,15 @@ router.use('/chat',           memberChatRoutes);
 router.use('/groups',         groupRoutes);
 
 
-// ─── Matrimonial Module ───────────────────────────────────────────────────────
+// ─── Matrimonial Module (gated by the community's assigned plan) ─────────────
 const matrimonialProfileRoutes      = require('./matrimonial/matrimonialProfileRoutes');
 const matrimonialSubscriptionRoutes = require('./matrimonial/matrimonialSubscriptionRoutes');
 const matrimonialInterestRoutes     = require('./matrimonial/matrimonialInterestRoutes');
 const matrimonialChatRoutes         = require('./matrimonial/matrimonialChatRoutes');
 const matrimonialAuxRoutes          = require('./matrimonial/matrimonialAuxRoutes');
+const { checkModuleEnabled }        = require('../../middleware/moduleAccessMiddleware');
 
+router.use('/matrimonial', checkModuleEnabled('matrimonialEnabled'));
 router.use('/matrimonial/profile',       matrimonialProfileRoutes);
 router.use('/matrimonial/subscription',  matrimonialSubscriptionRoutes);
 router.use('/matrimonial/interests',     matrimonialInterestRoutes);

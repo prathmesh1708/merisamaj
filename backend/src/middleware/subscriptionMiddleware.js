@@ -40,7 +40,8 @@ const getEffectiveFeatures = async (userId) => {
       contactDetailsAccess: false,
       unlimitedShortlist:   false,
       readReceipts:         false,
-      profileBadge:         false
+      profileBadge:         false,
+      crossCommunityVisibility: false
     },
     subscription: null
   };

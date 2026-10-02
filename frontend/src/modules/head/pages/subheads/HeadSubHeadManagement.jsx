@@ -96,6 +96,68 @@ export const HeadSubHeadManagement = () => {
   const [revealedPasswords, setRevealedPasswords] = useState({});
   const [copiedId, setCopiedId] = useState(null);
 
+  // Mantri Mandal (मंत्री मंडल) — display-only committee this Head curates
+  // from existing members, shown below Sub-Heads on the leadership directory.
+  const [mantriMandal, setMantriMandal] = useState([]);
+  const [mantriMandalLoading, setMantriMandalLoading] = useState(false);
+  const [mmPickerOpen, setMmPickerOpen] = useState(false);
+  const [mmSearch, setMmSearch] = useState('');
+  const [mmResults, setMmResults] = useState([]);
+  const [mmSearching, setMmSearching] = useState(false);
+  const [mmBusyId, setMmBusyId] = useState(null);
+
+  const fetchMantriMandal = async () => {
+    setMantriMandalLoading(true);
+    try {
+      const res = await axiosPrivate.get('/head/sub-heads/mantri-mandal');
+      if (res.data?.status === 'success') setMantriMandal(res.data.data || []);
+    } catch (err) {
+      console.error('Failed to load Mantri Mandal:', err);
+    } finally {
+      setMantriMandalLoading(false);
+    }
+  };
+
+  const runMmSearch = async (query) => {
+    setMmSearching(true);
+    try {
+      const res = await axiosPrivate.get('/head/sub-heads/mantri-mandal/search', { params: { q: query } });
+      setMmResults(res.data?.data || []);
+    } catch (err) {
+      console.error('Mantri Mandal search failed:', err);
+    } finally {
+      setMmSearching(false);
+    }
+  };
+
+  const handleAddMantriMandal = async (user) => {
+    setMmBusyId(user._id);
+    try {
+      await axiosPrivate.post('/head/sub-heads/mantri-mandal', { userId: user._id, designation: '' });
+      showToast(`${user.name} added to Mantri Mandal!`, 'success');
+      setMmPickerOpen(false);
+      fetchMantriMandal();
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Failed to add', 'error');
+    } finally {
+      setMmBusyId(null);
+    }
+  };
+
+  const handleRemoveMantriMandal = async (userId) => {
+    if (!window.confirm('Remove this member from the Mantri Mandal?')) return;
+    setMmBusyId(userId);
+    try {
+      await axiosPrivate.delete(`/head/sub-heads/mantri-mandal/${userId}`);
+      showToast('Removed from Mantri Mandal', 'success');
+      fetchMantriMandal();
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Failed to remove', 'error');
+    } finally {
+      setMmBusyId(null);
+    }
+  };
+
   // Form State
   const [form, setForm] = useState({
     name: '',
@@ -151,6 +213,10 @@ export const HeadSubHeadManagement = () => {
   useEffect(() => {
     fetchSubHeads();
   }, [searchQuery, statusFilter]);
+
+  useEffect(() => {
+    if (isLocalHead) fetchMantriMandal();
+  }, [isLocalHead]);
 
   const parentPermissions = headUser?.headPermissions || {};
 
@@ -674,8 +740,118 @@ export const HeadSubHeadManagement = () => {
           })}
         </div>
       )}
+
+      {/* ─── MANTRI MANDAL (मंत्री मंडल) — below Sub-Heads, Local Head only ─── */}
+      {isLocalHead && (
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-5">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <h3 className="text-lg font-black text-gray-900 flex items-center gap-2">
+                <HeartHandshake size={20} className="text-purple-600" /> मंत्री मंडल (Mantri Mandal)
+              </h3>
+              <p className="text-gray-500 text-sm mt-0.5">Pick existing members to display here — they keep their normal member account, no extra access is granted.</p>
+            </div>
+            <button
+              onClick={() => { setMmPickerOpen(true); setMmSearch(''); setMmResults([]); }}
+              className="flex items-center gap-2 px-4 py-2.5 bg-purple-600 text-white text-sm font-bold rounded-xl hover:bg-purple-700 transition-all shadow-sm active:scale-95 cursor-pointer"
+            >
+              <Plus size={16} /> Add to Mantri Mandal
+            </button>
+          </div>
+
+          {mantriMandalLoading ? (
+            <p className="text-sm text-gray-400">Loading...</p>
+          ) : mantriMandal.length === 0 ? (
+            <p className="text-sm text-gray-400">No Mantri Mandal members yet.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {mantriMandal.map(m => (
+                <div key={m.userId} className="flex items-center justify-between gap-3 p-3.5 rounded-xl bg-purple-50/50 border border-purple-100">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-black shrink-0 overflow-hidden">
+                      {m.avatar ? <img src={m.avatar} className="w-full h-full object-cover" alt={m.name} /> : m.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-gray-900 truncate">{m.name}</p>
+                      <p className="text-xs text-gray-500 truncate">{m.phone}{m.designation ? ` • ${m.designation}` : ''}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleRemoveMantriMandal(m.userId)}
+                    disabled={mmBusyId === m.userId}
+                    className="p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors shrink-0 cursor-pointer disabled:opacity-40"
+                    title="Remove"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       </>
       )}
+
+      {/* ─── MANTRI MANDAL PICKER MODAL ─── */}
+      <AnimatePresence>
+        {mmPickerOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setMmPickerOpen(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden z-10 flex flex-col max-h-[80vh]"
+            >
+              <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between shrink-0">
+                <h3 className="text-base font-black text-gray-900">Add to Mantri Mandal</h3>
+                <button onClick={() => setMmPickerOpen(false)} className="text-gray-400 hover:text-gray-700 cursor-pointer"><XCircle size={20} /></button>
+              </div>
+              <div className="p-5 overflow-y-auto">
+                <div className="relative mb-4">
+                  <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    autoFocus
+                    type="text"
+                    placeholder="Search by name or phone..."
+                    value={mmSearch}
+                    onChange={(e) => { setMmSearch(e.target.value); runMmSearch(e.target.value); }}
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-purple-600 transition-colors"
+                  />
+                </div>
+                {mmSearching ? (
+                  <p className="text-sm text-gray-400 text-center py-6">Searching...</p>
+                ) : mmResults.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-6">
+                    {mmSearch ? 'No matching members found.' : 'Type a name or phone number to search.'}
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {mmResults.map(user => (
+                      <div key={user._id} className="flex items-center justify-between gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100">
+                        <div>
+                          <p className="text-sm font-bold text-gray-900">{user.name}</p>
+                          <p className="text-xs text-gray-500">{user.phone}{user.city ? ` • ${user.city}` : ''}</p>
+                        </div>
+                        <button
+                          onClick={() => handleAddMantriMandal(user)}
+                          disabled={mmBusyId === user._id}
+                          className="px-3 py-1.5 bg-purple-600 text-white text-xs font-bold rounded-lg hover:bg-purple-700 transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                          {mmBusyId === user._id ? 'Adding...' : 'Add'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* ─── CREATE / EDIT MODAL ─── */}
       <AnimatePresence>

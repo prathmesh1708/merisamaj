@@ -11,40 +11,6 @@ import {
 import { matrimonialProfileService } from '../../../../../core/api/matrimonialService';
 import { useData } from '../../../context/DataProvider';
 
-// Sample community data with profile counts
-const COMMUNITY_OPTIONS = [
-  { id: 'marathi', name: 'Marathi', count: 320 },
-  { id: 'gujarati', name: 'Gujarati', count: 280 },
-  { id: 'punjabi', name: 'Punjabi', count: 240 },
-  { id: 'rajasthani', name: 'Rajasthani', count: 180 },
-  { id: 'bengali', name: 'Bengali', count: 150 },
-  { id: 'tamil', name: 'Tamil', count: 210 },
-  { id: 'telugu', name: 'Telugu', count: 190 },
-  { id: 'kannada', name: 'Kannada', count: 170 },
-  { id: 'malayalam', name: 'Malayalam', count: 160 },
-  { id: 'odia', name: 'Odia', count: 140 },
-  { id: 'bhojpuri', name: 'Bhojpuri', count: 120 },
-  { id: 'sindhi', name: 'Sindhi', count: 100 },
-  { id: 'agrawal', name: 'Agrawal', count: 310 },
-  { id: 'brahmin', name: 'Brahmin', count: 420 },
-  { id: 'rajput', name: 'Rajput', count: 290 },
-  { id: 'jain', name: 'Jain', count: 260 },
-];
-
-// Sample location data with profile counts
-const LOCATION_OPTIONS = [
-  { id: 'mumbai', name: 'Mumbai, Maharashtra', type: 'city', count: 320 },
-  { id: 'pune', name: 'Pune, Maharashtra', type: 'city', count: 210 },
-  { id: 'nagpur', name: 'Nagpur, Maharashtra', type: 'city', count: 98 },
-  { id: 'delhi', name: 'Delhi', type: 'city', count: 450 },
-  { id: 'bangalore', name: 'Bangalore, Karnataka', type: 'city', count: 380 },
-  { id: 'hyderabad', name: 'Hyderabad, Telangana', type: 'city', count: 290 },
-  { id: 'ahmedabad', name: 'Ahmedabad, Gujarat', type: 'city', count: 220 },
-  { id: 'jaipur', name: 'Jaipur, Rajasthan', type: 'city', count: 180 },
-  { id: 'indore', name: 'Indore, Madhya Pradesh', type: 'city', count: 240 },
-  { id: 'bhopal', name: 'Bhopal, Madhya Pradesh', type: 'city', count: 160 },
-];
-
 export const MatrimonialVisibilityManager = ({
   onClose,
   initialScreen = 'menu', // 'menu' | 'visibility' | 'select-communities' | 'select-locations' | 'preview' | 'edit-profile' | 'photos' | 'preferences' | 'privacy' | 'subscription' | 'help'
@@ -67,50 +33,63 @@ export const MatrimonialVisibilityManager = ({
   const [communitySearch, setCommunitySearch] = useState('');
   const [locationSearch, setLocationSearch] = useState('');
 
-  // Form states for Edit Profile
+  // Real matrimonial profile, loaded from the server — used to populate every form below
+  const [myProfile, setMyProfile] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+
+  // Real community/location lists with real profile counts (no sample data)
+  const [availableCommunities, setAvailableCommunities] = useState([]);
+  const [communitiesLoading, setCommunitiesLoading] = useState(true);
+  const [availableCities, setAvailableCities] = useState([]);
+  const [availableStates, setAvailableStates] = useState([]);
+  const [locationsLoading, setLocationsLoading] = useState(true);
+
+  // Form states for Edit Profile — blank until the real profile loads, no sample fallback values
   const [editForm, setEditForm] = useState({
-    fullName: user?.name || profile?.personal?.fullName || 'Rahul Sharma',
-    age: user?.age || 28,
-    gender: user?.gender || profile?.personal?.gender || 'male',
-    height: user?.height || profile?.personal?.height || "5'8\"",
-    weight: user?.weight || "68 kg",
-    maritalStatus: user?.maritalStatus || 'Never Married',
-    education: user?.education || profile?.education?.highestQualification || 'B.Tech / MBA',
-    profession: user?.profession || profile?.education?.profession || 'Software Engineer',
-    annualIncome: user?.income || user?.annualIncome || '₹15-20 Lacs p.a',
-    community: user?.community || profile?.personal?.community || 'Agrawal',
-    subCommunity: user?.subCommunity || 'Garg',
-    gotra: user?.gotra || 'Garg',
-    diet: user?.diet || 'Vegetarian',
-    city: user?.city || profile?.location?.city || 'Mumbai, Maharashtra',
-    bio: user?.matrimonialBio || user?.bio || profile?.about?.summary || 'Passionate professional looking for a like-minded life partner with good family values.'
+    fullName: user?.name || '',
+    dateOfBirth: '',
+    gender: user?.gender || '',
+    height: '',
+    weight: '',
+    maritalStatus: '',
+    education: '',
+    profession: '',
+    annualIncome: '',
+    community: user?.community || '',
+    gotra: '',
+    diet: '',
+    city: user?.city || '',
+    state: '',
+    bio: ''
   });
 
-  // Partner Preferences State
+  // Partner Preferences State — blank until the real profile.preferences loads
   const [preferences, setPreferences] = useState({
-    minAge: 22,
-    maxAge: 30,
-    preferredDiet: 'Vegetarian',
-    preferredMaritalStatus: 'Never Married',
-    preferredCommunity: 'Same Community',
-    preferredGotra: 'Different Gotra',
-    minIncome: '₹10+ Lacs p.a'
+    minAge: '',
+    maxAge: '',
+    preferredMaritalStatus: '',
+    preferredCommunity: '',
+    preferredReligion: '',
+    preferredOccupation: '',
+    preferredEducation: '',
+    minIncome: '',
+    preferredCity: ''
   });
 
-  // Privacy Settings State
+  // Privacy Settings State — matches MatrimonialProfile.privacy schema defaults until real data loads
   const [privacySettings, setPrivacySettings] = useState({
     showPhoneOnlyAfterAccept: true,
     incognitoMode: false,
     protectPhotosScreenshot: true,
-    accountStatus: 'active' // 'active' | 'hidden' | 'paused'
+    accountStatus: 'active' // 'active' | 'hidden'
   });
 
-  // Visibility Settings State (Matches Screen 2 in reference image)
+  // Visibility Settings State (Matches Screen 2 in reference image) — overwritten by real data on load
   const [settings, setSettings] = useState({
     otherCommunities: {
       enabled: true,
       scope: 'all', // 'all' | 'selected'
-      selectedCommunities: ['Marathi', 'Gujarati', 'Punjabi', 'Tamil']
+      selectedCommunities: []
     },
     myCommunity: {
       enabled: true,
@@ -124,17 +103,16 @@ export const MatrimonialVisibilityManager = ({
     communityVerifiedOnly: true,
     selectedLocations: {
       enabled: true,
-      locations: ['Mumbai, Maharashtra', 'Pune, Maharashtra', 'Delhi']
+      locations: []
     },
     visibleOnlyAfterAccept: true
   });
 
-  // Photos State
-  const [photosList, setPhotosList] = useState([
-    { id: 1, url: profile?.photos?.[0]?.url || user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500&auto=format&fit=crop&q=80', isPrimary: true },
-    { id: 2, url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=500&auto=format&fit=crop&q=80', isPrimary: false },
-    { id: 3, url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=500&auto=format&fit=crop&q=80', isPrimary: false },
-  ]);
+  // Photos State — loaded from the real matrimonial profile, not sample data
+  const [photosList, setPhotosList] = useState([]);
+  const [photosLoading, setPhotosLoading] = useState(true);
+  const [photoActionId, setPhotoActionId] = useState(null); // _id of photo currently being acted on (primary/delete/reorder)
+  const [photoUploading, setPhotoUploading] = useState(false);
 
   const [saving, setSaving] = useState(false);
 
@@ -161,6 +139,175 @@ export const MatrimonialVisibilityManager = ({
     loadSettings();
   }, []);
 
+  // Load real profile photos on mount
+  useEffect(() => {
+    const loadPhotos = async () => {
+      setPhotosLoading(true);
+      try {
+        const res = await matrimonialProfileService.getPhotos();
+        setPhotosList(res.data?.data?.photos || []);
+      } catch (err) {
+        setPhotosList([]);
+      } finally {
+        setPhotosLoading(false);
+      }
+    };
+    loadPhotos();
+  }, []);
+
+  // Load the real matrimonial profile and populate every form from it — no sample defaults
+  useEffect(() => {
+    const loadProfile = async () => {
+      setProfileLoading(true);
+      try {
+        const res = await matrimonialProfileService.getMyProfile();
+        const p = res.data?.data?.profile || null;
+        setMyProfile(p);
+        if (p) {
+          setEditForm({
+            fullName: p.personal?.fullName || user?.name || '',
+            dateOfBirth: p.personal?.dateOfBirth ? String(p.personal.dateOfBirth).slice(0, 10) : '',
+            gender: p.personal?.gender || user?.gender || '',
+            height: p.personal?.height || '',
+            weight: p.personal?.weight || '',
+            maritalStatus: p.personal?.maritalStatus || '',
+            education: p.education?.highestQualification || '',
+            profession: p.education?.profession || '',
+            annualIncome: p.education?.annualIncome || '',
+            community: p.personal?.community || user?.community || '',
+            gotra: p.personal?.gotra || '',
+            diet: p.lifestyle?.diet || '',
+            city: p.location?.city || user?.city || '',
+            state: p.location?.state || '',
+            bio: p.about?.biography || ''
+          });
+          setPreferences({
+            minAge: p.preferences?.ageMin ?? '',
+            maxAge: p.preferences?.ageMax ?? '',
+            preferredMaritalStatus: p.preferences?.maritalStatus || '',
+            preferredCommunity: p.preferences?.community || '',
+            preferredReligion: p.preferences?.religion || '',
+            preferredOccupation: p.preferences?.occupation || '',
+            preferredEducation: p.preferences?.education || '',
+            minIncome: p.preferences?.incomeMin || '',
+            preferredCity: p.preferences?.city || ''
+          });
+          setPrivacySettings({
+            showPhoneOnlyAfterAccept: p.privacy?.showPhoneOnlyAfterAccept ?? true,
+            incognitoMode: p.privacy?.incognitoMode ?? false,
+            protectPhotosScreenshot: p.privacy?.protectPhotosScreenshot ?? true,
+            accountStatus: p.status === 'hidden' ? 'hidden' : 'active'
+          });
+        }
+      } catch (err) {
+        setMyProfile(null);
+      } finally {
+        setProfileLoading(false);
+      }
+    };
+    loadProfile();
+  }, []);
+
+  // Load real community list (with real profile counts) for the community selector screen
+  useEffect(() => {
+    const loadCommunities = async () => {
+      setCommunitiesLoading(true);
+      try {
+        const res = await matrimonialProfileService.getAvailableCommunitiesWithCounts();
+        setAvailableCommunities(res.data?.data || []);
+      } catch (err) {
+        setAvailableCommunities([]);
+      } finally {
+        setCommunitiesLoading(false);
+      }
+    };
+    loadCommunities();
+  }, []);
+
+  // Load real city/state lists (with real profile counts) for the location selector screen
+  useEffect(() => {
+    const loadLocations = async () => {
+      setLocationsLoading(true);
+      try {
+        const res = await matrimonialProfileService.getAvailableLocations();
+        setAvailableCities(res.data?.data?.cities || []);
+        setAvailableStates(res.data?.data?.states || []);
+      } catch (err) {
+        setAvailableCities([]);
+        setAvailableStates([]);
+      } finally {
+        setLocationsLoading(false);
+      }
+    };
+    loadLocations();
+  }, []);
+
+  const handleMakePrimary = async (photo) => {
+    setPhotoActionId(photo._id);
+    try {
+      await matrimonialProfileService.setPrimaryPhoto(photo._id);
+      setPhotosList(prev => prev.map(p => ({ ...p, isPrimary: p._id === photo._id })));
+      showToast('Primary photo updated! 🌟');
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Could not update primary photo');
+    } finally {
+      setPhotoActionId(null);
+    }
+  };
+
+  const handleDeletePhoto = async (photo) => {
+    if (photosList.length <= 1) {
+      showToast('Must keep at least 1 photo');
+      return;
+    }
+    setPhotoActionId(photo._id);
+    try {
+      await matrimonialProfileService.deletePhoto(photo._id);
+      setPhotosList(prev => prev.filter(p => p._id !== photo._id));
+      showToast('Photo removed');
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Could not delete photo');
+    } finally {
+      setPhotoActionId(null);
+    }
+  };
+
+  const handleAddPhoto = async (files) => {
+    if (!files || files.length === 0) return;
+    setPhotoUploading(true);
+    try {
+      const formData = new FormData();
+      Array.from(files).forEach(file => formData.append('photos', file));
+      const res = await matrimonialProfileService.uploadPhotos(formData);
+      setPhotosList(res.data?.data?.photos || []);
+      showToast('New photo added! 📸');
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Could not upload photo');
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
+
+  // Move a photo earlier/later in display order (direction: -1 = up/earlier, +1 = down/later)
+  const movePhoto = async (index, direction) => {
+    const newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= photosList.length) return;
+
+    const reordered = [...photosList];
+    [reordered[index], reordered[newIndex]] = [reordered[newIndex], reordered[index]];
+    setPhotosList(reordered);
+
+    const movedPhoto = reordered[newIndex];
+    setPhotoActionId(movedPhoto._id);
+    try {
+      await matrimonialProfileService.reorderPhotos(reordered.map(p => p._id));
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Could not save photo order');
+    } finally {
+      setPhotoActionId(null);
+    }
+  };
+
   const handleSaveVisibilitySettings = async () => {
     setSaving(true);
     try {
@@ -173,38 +320,107 @@ export const MatrimonialVisibilityManager = ({
     }
   };
 
-  const handleSaveProfileForm = (e) => {
+  const handleSaveProfileForm = async (e) => {
     e.preventDefault();
     setSaving(true);
-    if (updateProfile) {
-      updateProfile({
-        name: editForm.fullName,
-        age: editForm.age,
-        gender: editForm.gender,
-        height: editForm.height,
-        diet: editForm.diet,
-        gotra: editForm.gotra,
-        income: editForm.annualIncome,
-        maritalStatus: editForm.maritalStatus,
-        matrimonialBio: editForm.bio,
-        city: editForm.city
-      });
-    }
-    setTimeout(() => {
-      setSaving(false);
+    const payload = {
+      personal: {
+        fullName: editForm.fullName,
+        dateOfBirth: editForm.dateOfBirth || undefined,
+        gender: editForm.gender || undefined,
+        height: editForm.height ? Number(editForm.height) : undefined,
+        weight: editForm.weight ? Number(editForm.weight) : undefined,
+        maritalStatus: editForm.maritalStatus || undefined,
+        community: editForm.community || undefined,
+        gotra: editForm.gotra || undefined
+      },
+      education: {
+        highestQualification: editForm.education || undefined,
+        profession: editForm.profession || undefined,
+        annualIncome: editForm.annualIncome || undefined
+      },
+      lifestyle: {
+        diet: editForm.diet || undefined
+      },
+      location: {
+        city: editForm.city || undefined,
+        state: editForm.state || undefined
+      },
+      about: {
+        biography: editForm.bio || undefined
+      }
+    };
+    try {
+      const res = myProfile
+        ? await matrimonialProfileService.updateProfile(payload)
+        : await matrimonialProfileService.createProfile(payload);
+      setMyProfile(res.data?.data?.profile || null);
+      if (updateProfile) {
+        updateProfile({ name: editForm.fullName, city: editForm.city });
+      }
       showToast('Matrimonial profile updated successfully! 💖');
       setCurrentScreen('menu');
-    }, 600);
+    } catch (err) {
+      const apiMsg = err.response?.data?.errors?.[0]?.msg || err.response?.data?.message;
+      showToast(apiMsg || 'Could not save profile');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleSavePreferences = () => {
-    showToast('Partner preferences updated! 💍');
-    setCurrentScreen('menu');
+  const handleSavePreferences = async () => {
+    if (!myProfile) {
+      showToast('Please save your profile details first.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await matrimonialProfileService.updateProfile({
+        preferences: {
+          ageMin: preferences.minAge ? Number(preferences.minAge) : undefined,
+          ageMax: preferences.maxAge ? Number(preferences.maxAge) : undefined,
+          maritalStatus: preferences.preferredMaritalStatus || undefined,
+          community: preferences.preferredCommunity || undefined,
+          religion: preferences.preferredReligion || undefined,
+          occupation: preferences.preferredOccupation || undefined,
+          education: preferences.preferredEducation || undefined,
+          incomeMin: preferences.minIncome || undefined,
+          city: preferences.preferredCity || undefined
+        }
+      });
+      setMyProfile(res.data?.data?.profile || null);
+      showToast('Partner preferences updated! 💍');
+      setCurrentScreen('menu');
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Could not update preferences');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleSavePrivacy = () => {
-    showToast('Privacy & Security configurations saved! 🛡️');
-    setCurrentScreen('menu');
+  const handleSavePrivacy = async () => {
+    if (!myProfile) {
+      showToast('Please save your profile details first.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await matrimonialProfileService.updateProfile({
+        privacy: {
+          showPhoneOnlyAfterAccept: privacySettings.showPhoneOnlyAfterAccept,
+          incognitoMode: privacySettings.incognitoMode,
+          protectPhotosScreenshot: privacySettings.protectPhotosScreenshot
+        }
+      });
+      setMyProfile(res.data?.data?.profile || null);
+      await matrimonialProfileService.setAccountStatus(privacySettings.accountStatus);
+      showToast('Privacy & Security configurations saved! 🛡️');
+      setCurrentScreen('menu');
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Could not update privacy settings');
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Toggle helpers
@@ -259,47 +475,44 @@ export const MatrimonialVisibilityManager = ({
     });
   };
 
-  // Filtered lists
+  // Filtered lists — drawn from real data loaded above, never sample data
   const filteredCommunities = useMemo(() => {
-    if (!communitySearch.trim()) return COMMUNITY_OPTIONS;
-    return COMMUNITY_OPTIONS.filter(c =>
+    if (!communitySearch.trim()) return availableCommunities;
+    return availableCommunities.filter(c =>
       c.name.toLowerCase().includes(communitySearch.toLowerCase())
     );
-  }, [communitySearch]);
+  }, [communitySearch, availableCommunities]);
 
   const filteredLocations = useMemo(() => {
-    let list = LOCATION_OPTIONS;
-    if (locationTab === 'cities') {
-      list = LOCATION_OPTIONS.filter(l => l.type === 'city');
-    } else if (locationTab === 'states') {
-      list = [
-        { id: 'mh', name: 'Maharashtra', count: 680 },
-        { id: 'gj', name: 'Gujarat', count: 520 },
-        { id: 'rj', name: 'Rajasthan', count: 390 },
-        { id: 'dl', name: 'Delhi NCR', count: 450 },
-        { id: 'ka', name: 'Karnataka', count: 410 },
-        { id: 'mp', name: 'Madhya Pradesh', count: 350 },
-      ];
-    } else if (locationTab === 'nearby') {
-      list = LOCATION_OPTIONS.slice(0, 4);
-    }
+    const list = locationTab === 'states' ? availableStates : availableCities;
     if (!locationSearch.trim()) return list;
     return list.filter(l =>
       l.name.toLowerCase().includes(locationSearch.toLowerCase())
     );
-  }, [locationTab, locationSearch]);
+  }, [locationTab, locationSearch, availableCities, availableStates]);
+
+  const calcAge = (dob) => {
+    if (!dob) return null;
+    const today = new Date();
+    const birth = new Date(dob);
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) age--;
+    return age;
+  };
 
   const previewUser = {
-    name: editForm.fullName || user?.name || 'Rahul Sharma',
-    id: user?.memberId || (user?._id ? `MP${user._id.slice(-6).toUpperCase()}` : 'MP123456'),
-    age: editForm.age || 28,
-    height: editForm.height || "5'8\"",
-    education: editForm.education || 'B.Com',
-    city: editForm.city || 'Mumbai, Maharashtra',
-    religion: 'Hindu',
-    caste: editForm.community || 'Bania',
-    photo: photosList.find(p => p.isPrimary)?.url || photosList[0]?.url || user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500&auto=format&fit=crop&q=80',
-    completionPercentage: profile?.profileCompletion?.percentage || 63,
+    name: editForm.fullName || user?.name || 'Your Name',
+    id: user?.memberId || (user?._id ? `MP${user._id.slice(-6).toUpperCase()}` : ''),
+    age: myProfile?.age ?? calcAge(editForm.dateOfBirth) ?? null,
+    height: editForm.height ? `${editForm.height} cm` : '',
+    education: editForm.education || '',
+    city: editForm.city || '',
+    religion: myProfile?.personal?.religion || '',
+    caste: editForm.community || '',
+    photo: photosList.find(p => p.isPrimary)?.url || photosList[0]?.url || user?.avatar
+      || `https://ui-avatars.com/api/?name=${encodeURIComponent(editForm.fullName || user?.name || 'U')}&background=F43F5E&color=ffffff&bold=true`,
+    completionPercentage: myProfile?.profileCompletion?.percentage ?? 0,
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -598,7 +811,7 @@ export const MatrimonialVisibilityManager = ({
                       className="w-4 h-4 text-rose-600 focus:ring-rose-500 border-slate-300"
                     />
                     <span className="text-[12px] font-semibold text-slate-700">
-                      All Other Communities <span className="text-slate-400 text-[11px]">(1,345 profiles)</span>
+                      All Other Communities
                     </span>
                   </label>
 
@@ -657,7 +870,7 @@ export const MatrimonialVisibilityManager = ({
                 <div className="mt-3 pt-2.5 border-t border-slate-100 pl-11 flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-rose-500"></span>
                   <span className="text-[12px] font-semibold text-slate-700">
-                    All Members <span className="text-slate-400 text-[11px]">(460 profiles)</span>
+                    All Members
                   </span>
                 </div>
               )}
@@ -693,7 +906,7 @@ export const MatrimonialVisibilityManager = ({
                 <div className="mt-3 pt-2.5 border-t border-slate-100 pl-11 flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-rose-500"></span>
                   <span className="text-[12px] font-semibold text-slate-700">
-                    All Sub Communities <span className="text-slate-400 text-[11px]">(300 profiles)</span>
+                    All Sub Communities
                   </span>
                 </div>
               )}
@@ -973,9 +1186,8 @@ export const MatrimonialVisibilityManager = ({
           {/* Segmented Location Tabs */}
           <div className="flex border-b border-slate-200">
             {[
-              { id: 'cities', label: 'Popular Cities' },
+              { id: 'cities', label: 'Cities' },
               { id: 'states', label: 'States' },
-              { id: 'nearby', label: 'Nearby' },
             ].map(tab => (
               <button
                 key={tab.id}
@@ -1068,12 +1280,13 @@ export const MatrimonialVisibilityManager = ({
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Age</label>
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Date of Birth</label>
                 <input
-                  type="number"
-                  value={editForm.age}
-                  onChange={e => setEditForm({ ...editForm, age: e.target.value })}
+                  type="date"
+                  value={editForm.dateOfBirth}
+                  onChange={e => setEditForm({ ...editForm, dateOfBirth: e.target.value })}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-rose-500"
+                  required
                 />
               </div>
               <div>
@@ -1082,7 +1295,9 @@ export const MatrimonialVisibilityManager = ({
                   value={editForm.gender}
                   onChange={e => setEditForm({ ...editForm, gender: e.target.value })}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-rose-500"
+                  required
                 >
+                  <option value="">Select</option>
                   <option value="male">Male (Groom)</option>
                   <option value="female">Female (Bride)</option>
                 </select>
@@ -1091,27 +1306,39 @@ export const MatrimonialVisibilityManager = ({
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Height</label>
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Height (cm)</label>
                 <input
-                  type="text"
+                  type="number"
                   value={editForm.height}
                   onChange={e => setEditForm({ ...editForm, height: e.target.value })}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-rose-500"
-                  placeholder="e.g. 5'8&quot;"
+                  placeholder="e.g. 173"
                 />
               </div>
               <div>
-                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Marital Status</label>
-                <select
-                  value={editForm.maritalStatus}
-                  onChange={e => setEditForm({ ...editForm, maritalStatus: e.target.value })}
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Weight (kg)</label>
+                <input
+                  type="number"
+                  value={editForm.weight}
+                  onChange={e => setEditForm({ ...editForm, weight: e.target.value })}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-rose-500"
-                >
-                  <option value="Never Married">Never Married</option>
-                  <option value="Divorced">Divorced</option>
-                  <option value="Widowed">Widowed</option>
-                </select>
+                  placeholder="e.g. 68"
+                />
               </div>
+            </div>
+
+            <div>
+              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Marital Status</label>
+              <select
+                value={editForm.maritalStatus}
+                onChange={e => setEditForm({ ...editForm, maritalStatus: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-rose-500"
+              >
+                <option value="">Select</option>
+                <option value="Never Married">Never Married</option>
+                <option value="Divorced">Divorced</option>
+                <option value="Widowed">Widowed</option>
+              </select>
             </div>
           </div>
 
@@ -1162,6 +1389,16 @@ export const MatrimonialVisibilityManager = ({
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-rose-500"
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">State</label>
+              <input
+                type="text"
+                value={editForm.state}
+                onChange={e => setEditForm({ ...editForm, state: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-rose-500"
+              />
             </div>
           </div>
 
@@ -1250,66 +1487,115 @@ export const MatrimonialVisibilityManager = ({
             </p>
           </div>
 
-          {/* Photos Grid */}
-          <div className="grid grid-cols-2 gap-3.5">
-            {photosList.map((photo, index) => (
-              <div key={photo.id} className="relative aspect-[3/4] bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-xs group">
-                <img src={photo.url} alt={`Upload ${index + 1}`} className="w-full h-full object-cover" />
-                {photo.isPrimary && (
-                  <div className="absolute top-2 left-2 bg-rose-500 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full shadow-md">
-                    Primary
-                  </div>
-                )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2.5 justify-between">
-                  {!photo.isPrimary && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPhotosList(photosList.map(p => ({ ...p, isPrimary: p.id === photo.id })));
-                        showToast('Primary photo updated! 🌟');
-                      }}
-                      className="px-2 py-1 bg-white text-slate-800 text-[10px] font-bold rounded-lg shadow-sm"
-                    >
-                      Make Primary
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (photosList.length > 1) {
-                        setPhotosList(photosList.filter(p => p.id !== photo.id));
-                        showToast('Photo removed');
-                      } else {
-                        showToast('Must keep at least 1 photo');
-                      }
-                    }}
-                    className="p-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 shadow-sm"
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-              </div>
-            ))}
-
-            {/* Add photo card */}
-            <label className="aspect-[3/4] border-2 border-dashed border-rose-300 hover:border-rose-500 bg-rose-50/30 hover:bg-rose-50/60 rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-all active:scale-95 text-center p-3">
-              <Upload size={24} className="text-rose-500 mb-1.5" />
-              <span className="text-xs font-black text-rose-700">Add New Photo</span>
-              <span className="text-[10px] text-slate-400 font-medium mt-0.5">JPG, PNG up to 10MB</span>
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  if (e.target.files?.[0]) {
-                    const url = URL.createObjectURL(e.target.files[0]);
-                    setPhotosList([...photosList, { id: Date.now(), url, isPrimary: false }]);
-                    showToast('New photo added! 📸');
-                  }
-                }}
-              />
-            </label>
+          {/* Order hint banner */}
+          <div className="bg-slate-100 border border-slate-200 rounded-2xl p-3.5 flex items-center gap-3">
+            <SlidersHorizontal size={18} className="text-slate-500 shrink-0" />
+            <p className="text-[11.5px] text-slate-600 font-bold leading-tight">
+              Use the arrows to set display order — Photo 1 is shown first on your profile. "Make Primary" sets your main photo shown across the app.
+            </p>
           </div>
+
+          {photosLoading ? (
+            <div className="grid grid-cols-2 gap-3.5">
+              {[0, 1].map(i => (
+                <div key={i} className="aspect-[3/4] bg-slate-100 rounded-2xl animate-pulse" />
+              ))}
+            </div>
+          ) : (
+            /* Photos Grid */
+            <div className="grid grid-cols-2 gap-3.5">
+              {photosList.map((photo, index) => {
+                const isBusy = photoActionId === photo._id;
+                return (
+                  <div key={photo._id} className="relative aspect-[3/4] bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-xs group">
+                    <img src={photo.url} alt={`Upload ${index + 1}`} className="w-full h-full object-cover" />
+
+                    {/* Order number badge */}
+                    <div className="absolute top-2 right-2 bg-slate-900/80 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center shadow-md">
+                      {index + 1}
+                    </div>
+
+                    {photo.isPrimary && (
+                      <div className="absolute top-2 left-2 bg-rose-500 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full shadow-md">
+                        Primary
+                      </div>
+                    )}
+
+                    {isBusy && (
+                      <div className="absolute inset-0 bg-white/60 flex items-center justify-center">
+                        <div className="w-5 h-5 border-2 border-rose-500 border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    )}
+
+                    {/* Reorder arrows */}
+                    <div className="absolute top-2 left-1/2 -translate-x-1/2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        type="button"
+                        disabled={index === 0}
+                        onClick={() => movePhoto(index, -1)}
+                        className="p-1 bg-white text-slate-700 rounded-md shadow-sm disabled:opacity-30 disabled:cursor-not-allowed"
+                        title="Move earlier"
+                      >
+                        <ChevronUp size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={index === photosList.length - 1}
+                        onClick={() => movePhoto(index, 1)}
+                        className="p-1 bg-white text-slate-700 rounded-md shadow-sm disabled:opacity-30 disabled:cursor-not-allowed"
+                        title="Move later"
+                      >
+                        <ChevronDown size={13} />
+                      </button>
+                    </div>
+
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2.5 justify-between">
+                      {!photo.isPrimary && (
+                        <button
+                          type="button"
+                          onClick={() => handleMakePrimary(photo)}
+                          className="px-2 py-1 bg-white text-slate-800 text-[10px] font-bold rounded-lg shadow-sm"
+                        >
+                          Make Primary
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleDeletePhoto(photo)}
+                        className="p-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 shadow-sm"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Add photo card */}
+              <label className="aspect-[3/4] border-2 border-dashed border-rose-300 hover:border-rose-500 bg-rose-50/30 hover:bg-rose-50/60 rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-all active:scale-95 text-center p-3">
+                {photoUploading ? (
+                  <div className="w-6 h-6 border-2 border-rose-500 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Upload size={24} className="text-rose-500 mb-1.5" />
+                    <span className="text-xs font-black text-rose-700">Add New Photo</span>
+                    <span className="text-[10px] text-slate-400 font-medium mt-0.5">JPG, PNG up to 10MB</span>
+                  </>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  disabled={photoUploading}
+                  onChange={(e) => {
+                    handleAddPhoto(e.target.files);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+            </div>
+          )}
 
           <button
             type="button"
@@ -1345,40 +1631,26 @@ export const MatrimonialVisibilityManager = ({
           <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-4">
             <div>
               <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
-                Preferred Age Range: {preferences.minAge} - {preferences.maxAge} Years
+                Preferred Age Range: {preferences.minAge || 18} - {preferences.maxAge || 35} Years
               </label>
               <div className="flex items-center gap-3">
                 <input
                   type="range"
                   min={18}
                   max={45}
-                  value={preferences.minAge}
+                  value={preferences.minAge || 18}
                   onChange={e => setPreferences({ ...preferences, minAge: Number(e.target.value) })}
                   className="w-full accent-rose-500"
                 />
                 <input
                   type="range"
-                  min={preferences.minAge}
+                  min={preferences.minAge || 18}
                   max={55}
-                  value={preferences.maxAge}
+                  value={preferences.maxAge || 35}
                   onChange={e => setPreferences({ ...preferences, maxAge: Number(e.target.value) })}
                   className="w-full accent-rose-500"
                 />
               </div>
-            </div>
-
-            <div>
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Preferred Diet</label>
-              <select
-                value={preferences.preferredDiet}
-                onChange={e => setPreferences({ ...preferences, preferredDiet: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-rose-500"
-              >
-                <option value="Vegetarian">Vegetarian Only</option>
-                <option value="Non-Vegetarian">Non-Vegetarian Allowed</option>
-                <option value="Eggetarian">Eggetarian Allowed</option>
-                <option value="All">Any Diet Preference</option>
-              </select>
             </div>
 
             <div>
@@ -1388,23 +1660,75 @@ export const MatrimonialVisibilityManager = ({
                 onChange={e => setPreferences({ ...preferences, preferredMaritalStatus: e.target.value })}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-rose-500"
               >
+                <option value="">Doesn't Matter</option>
                 <option value="Never Married">Never Married Only</option>
                 <option value="Divorced Allowed">Divorced / Widowed Allowed</option>
-                <option value="All">Doesn't Matter</option>
               </select>
             </div>
 
-            <div>
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Community Scope</label>
-              <select
-                value={preferences.preferredCommunity}
-                onChange={e => setPreferences({ ...preferences, preferredCommunity: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-rose-500"
-              >
-                <option value="Same Community">My Community Only ({user?.community || 'Agrawal'})</option>
-                <option value="Selected Communities">Selected Communities</option>
-                <option value="All">All Communities Welcome</option>
-              </select>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Preferred Community</label>
+                <input
+                  type="text"
+                  value={preferences.preferredCommunity}
+                  onChange={e => setPreferences({ ...preferences, preferredCommunity: e.target.value })}
+                  placeholder={user?.community ? `e.g. ${user.community}` : 'Any community'}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-rose-500"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Preferred Religion</label>
+                <input
+                  type="text"
+                  value={preferences.preferredReligion}
+                  onChange={e => setPreferences({ ...preferences, preferredReligion: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-rose-500"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Preferred Occupation</label>
+                <input
+                  type="text"
+                  value={preferences.preferredOccupation}
+                  onChange={e => setPreferences({ ...preferences, preferredOccupation: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-rose-500"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Preferred Education</label>
+                <input
+                  type="text"
+                  value={preferences.preferredEducation}
+                  onChange={e => setPreferences({ ...preferences, preferredEducation: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-rose-500"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Minimum Income</label>
+                <input
+                  type="text"
+                  value={preferences.minIncome}
+                  onChange={e => setPreferences({ ...preferences, minIncome: e.target.value })}
+                  placeholder="e.g. ₹10+ Lacs p.a"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-rose-500"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Preferred City</label>
+                <input
+                  type="text"
+                  value={preferences.preferredCity}
+                  onChange={e => setPreferences({ ...preferences, preferredCity: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-rose-500"
+                />
+              </div>
             </div>
           </div>
 
@@ -1486,6 +1810,35 @@ export const MatrimonialVisibilityManager = ({
                 />
                 <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-emerald-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
               </label>
+            </div>
+
+            <div className="pt-3 border-t border-slate-100">
+              <h4 className="text-[13px] font-bold text-slate-800 mb-0.5">Profile Visibility</h4>
+              <p className="text-[11px] text-slate-400 mb-2">Hide your profile from all matchmaking search &amp; discovery</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPrivacySettings({ ...privacySettings, accountStatus: 'active' })}
+                  className={`flex-1 py-2 rounded-xl text-[12px] font-bold border transition-all ${
+                    privacySettings.accountStatus === 'active'
+                      ? 'bg-emerald-500 border-emerald-500 text-white'
+                      : 'bg-white border-slate-200 text-slate-600'
+                  }`}
+                >
+                  Active
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPrivacySettings({ ...privacySettings, accountStatus: 'hidden' })}
+                  className={`flex-1 py-2 rounded-xl text-[12px] font-bold border transition-all ${
+                    privacySettings.accountStatus === 'hidden'
+                      ? 'bg-slate-700 border-slate-700 text-white'
+                      : 'bg-white border-slate-200 text-slate-600'
+                  }`}
+                >
+                  Hidden
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1734,19 +2087,24 @@ export const MatrimonialVisibilityManager = ({
             <div>
               <h3 className="text-[18px] font-black text-slate-800">{previewUser.name}</h3>
               <p className="text-[12.5px] text-slate-500 font-bold mt-0.5">
-                {previewUser.age} Years | {previewUser.height} | {previewUser.education}
+                {[previewUser.age ? `${previewUser.age} Years` : null, previewUser.height, previewUser.education]
+                  .filter(Boolean).join(' | ') || 'Complete your profile to see this here'}
               </p>
             </div>
 
             <div className="space-y-1.5 pt-1">
-              <div className="flex items-center gap-2 text-[12px] text-slate-600 font-semibold">
-                <MapPin size={14} className="text-rose-500 shrink-0" />
-                <span>{previewUser.city}</span>
-              </div>
-              <div className="flex items-center gap-2 text-[12px] text-slate-600 font-semibold">
-                <User size={14} className="text-rose-500 shrink-0" />
-                <span>{previewUser.religion} | {previewUser.caste}</span>
-              </div>
+              {previewUser.city && (
+                <div className="flex items-center gap-2 text-[12px] text-slate-600 font-semibold">
+                  <MapPin size={14} className="text-rose-500 shrink-0" />
+                  <span>{previewUser.city}</span>
+                </div>
+              )}
+              {(previewUser.religion || previewUser.caste) && (
+                <div className="flex items-center gap-2 text-[12px] text-slate-600 font-semibold">
+                  <User size={14} className="text-rose-500 shrink-0" />
+                  <span>{[previewUser.religion, previewUser.caste].filter(Boolean).join(' | ')}</span>
+                </div>
+              )}
             </div>
 
             {/* Action Buttons */}

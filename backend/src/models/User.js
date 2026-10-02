@@ -175,6 +175,16 @@ const userSchema = new mongoose.Schema({
   // by several controllers without being declared here, so it was silently
   // dropped by Mongoose's strict mode on every save.
   group: { type: String, default: 'Group 1', trim: true },
+
+  // "Mantri Mandal" (मंत्री मंडल) — a display-only committee a Head curates by
+  // picking EXISTING members. Listed under their Sub-Heads on the leadership
+  // directory, but these are plain members with no role/accountType change and
+  // no headPermissions — purely a recognition list, not a hierarchy level.
+  mantriMandal: [{
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    designation: { type: String, default: '' },
+    addedAt: { type: Date, default: Date.now }
+  }],
   // Whether this Group's section (this Head + their Sub-Heads) is shown on the
   // member-facing Home/Leadership directory. Lives on every member of the group
   // (set together via the "rename/visibility" group action) so any of them can be
