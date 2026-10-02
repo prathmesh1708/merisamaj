@@ -30,7 +30,17 @@ const formatLeaderUser = (u, { isHead = false, fallbackDesignation = 'Executive 
     socialLinks: u.socialLinks || {},
     termYears: u.termYears || (isHead ? '' : '2024-2027'),
     joiningDate: u.joiningDate,
-    isHead
+    isHead,
+    // Mantri Mandal (मंत्री मंडल) — display-only committee this Head curated from
+    // existing members; shown nested under the Head, separate from real Sub-Heads.
+    mantriMandal: (u.mantriMandal || []).map(m => ({
+      _id: m.userId?._id || m.userId,
+      name: m.userId?.name || 'Unknown',
+      phone: m.userId?.phone || '',
+      avatar: m.userId?.avatar || '',
+      city: m.userId?.city || '',
+      designation: m.designation || ''
+    }))
   };
 };
 
@@ -40,7 +50,7 @@ const groupSortValue = (label) => {
   return match ? parseInt(match[1], 10) : 0;
 };
 
-const LEADER_SELECT = 'name email phone city state role accountType designation department group groupVisibleOnHome bio avatar cover socialLinks termYears joiningDate parentHeadId createdAt';
+const LEADER_SELECT = 'name email phone city state role accountType designation department group groupVisibleOnHome bio avatar cover socialLinks termYears joiningDate parentHeadId createdAt mantriMandal';
 
 // @desc    Get grouped leadership directory for member's community
 //          (Community Head groups + Local Head groups, each with their own sub-heads)
@@ -73,6 +83,7 @@ exports.getCommunityLeadership = async (req, res) => {
       ]
     })
       .select(LEADER_SELECT)
+      .populate('mantriMandal.userId', 'name phone avatar city')
       .sort({ group: 1, createdAt: 1 })
       .lean();
 
@@ -122,11 +133,20 @@ exports.getCommunityLeadership = async (req, res) => {
       localHeadGroups.map(g => g.head.city).filter(Boolean)
     ));
 
-    // Back-compat single-head fields, used by the Home widget's compact card —
-    // the first group that's actually set to show on Home. If every group has been
-    // hidden, Home correctly shows its "No Head Assigned" empty state rather than
-    // showing a hidden group anyway.
-    const homeVisibleGroup = communityHeadGroups.find(g => g.head.groupVisibleOnHome !== false);
+    // Every group (Community Head AND Local Head) whose admin-controlled "Show on
+    // Home Page" toggle is on — the Home widget renders ALL of these, tagged with
+    // their scope so it can label "Community Head" vs "Local Community Head".
+    const homeVisibleCommunityGroups = communityHeadGroups
+      .filter(g => g.head.groupVisibleOnHome !== false)
+      .map(g => ({ ...g, scope: 'community_head' }));
+    const homeVisibleLocalGroups = localHeadGroups
+      .filter(g => g.head.groupVisibleOnHome !== false)
+      .map(g => ({ ...g, scope: 'local_head' }));
+
+    // Back-compat single-head fields, used by older consumers of this endpoint —
+    // the first visible community-head group. If every group has been hidden,
+    // this (and the Home widget) correctly fall back to an empty state.
+    const homeVisibleGroup = homeVisibleCommunityGroups[0] || null;
     const formattedHead = homeVisibleGroup?.head || null;
     const allSubLeaders = [...(homeVisibleGroup?.subHeads || [])];
 
@@ -210,11 +230,16 @@ exports.getCommunityLeadership = async (req, res) => {
       success: true,
       status: 'success',
       data: {
-        // New grouped shape — used by the redesigned leadership directory.
+        // New grouped shape — used by the redesigned leadership directory ("View All" —
+        // always the full unfiltered list, regardless of the Home-page visibility toggle).
         communityHeadGroups,
         localHeadGroups,
         availableLocalCities,
-        // Back-compat flat shape — still used by the Home page's compact card.
+        // Groups the admin has switched "Yes" for on the Home page — the Home widget
+        // renders every one of these, both Community Head and Local Head groups.
+        homeVisibleCommunityGroups,
+        homeVisibleLocalGroups,
+        // Back-compat flat shape — still used by older consumers of this endpoint.
         communityHead: formattedHead,
         subLeaders: allSubLeaders,
         designations: Array.from(designationsSet),

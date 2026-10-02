@@ -10,11 +10,13 @@ import { matrimonialSubscriptionService } from '../../../../core/api/matrimonial
 
 // ─── Feature Keys for Matrix ──────────────────────────────────────────────────
 const FEATURE_ROWS = [
-  { label: 'Interests per Day', key: 'interestsPerDay', type: 'value', tooltip: 'Number of interests you can send daily (-1 for unlimited).' },
-  { label: 'Photo Uploads', key: 'photoUploadLimit', type: 'value', tooltip: 'Maximum number of photos allowed on your profile.' },
-  { label: 'Contacts / Month', key: 'contactsPerMonth', type: 'value', tooltip: 'Number of direct contact details you can view monthly.' },
-  { label: 'Chat Access', key: 'canChat', type: 'boolean', tooltip: 'Enables real-time messaging with your accepted matches.' },
-  { label: 'Profile Boost', key: 'profileBoost', type: 'boolean', tooltip: 'Prioritizes your profile in search results.' },
+  { label: 'Profile Views / Day', key: 'profileViewsPerDay', type: 'value', tooltip: 'Number of member profiles you can view daily (-1 for unlimited).' },
+  { label: 'Interests / Month', key: 'interestLimit', type: 'value', tooltip: 'Number of interests you can send monthly (-1 for unlimited).' },
+  { label: 'Chat Access', key: 'chat', type: 'boolean', tooltip: 'Enables real-time messaging with your accepted matches.' },
+  { label: 'Advanced Filters', key: 'advancedFilters', type: 'boolean', tooltip: 'Search with more detailed filters.' },
+  { label: 'Visitor History', key: 'visitorHistory', type: 'boolean', tooltip: 'See who viewed your profile.' },
+  { label: 'Contact Details Access', key: 'contactDetailsAccess', type: 'boolean', tooltip: 'View phone/email after a match accepts.' },
+  { label: 'Other-Community Profiles', key: 'crossCommunityVisibility', type: 'boolean', tooltip: 'See and be matched with profiles outside your own community.' },
 ];
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -63,7 +65,7 @@ const MatrimonialSubscriptionPage = () => {
         setPlans(planList);
         if (planList.length > 0 && !selectedPlan) {
           // Select the first popular plan, or just the first plan
-          const popular = planList.find(p => p.isMostPopular || p.badge);
+          const popular = planList.find(p => p.isFeatured || p.badge);
           setSelectedPlan(popular || planList[0]);
         }
       }
@@ -205,9 +207,9 @@ const MatrimonialSubscriptionPage = () => {
 
               <div className="mt-5 pt-4 border-t border-white/15 grid grid-cols-3 gap-4 text-center">
                 {[
-                  { label: 'Interests', value: mySubscription.featuresSnapshot?.interestsPerDay === -1 ? '∞' : mySubscription.featuresSnapshot?.interestsPerDay || '–' },
-                  { label: 'Photos', value: mySubscription.featuresSnapshot?.photoUploadLimit || '–' },
-                  { label: 'Contacts', value: mySubscription.featuresSnapshot?.contactsPerMonth === -1 ? '∞' : mySubscription.featuresSnapshot?.contactsPerMonth || '–' },
+                  { label: 'Profile Views', value: mySubscription.featuresSnapshot?.profileViewsPerDay === -1 ? '∞' : mySubscription.featuresSnapshot?.profileViewsPerDay ?? '–' },
+                  { label: 'Interests', value: mySubscription.featuresSnapshot?.interestLimit === -1 ? '∞' : mySubscription.featuresSnapshot?.interestLimit ?? '–' },
+                  { label: 'Other Communities', value: mySubscription.featuresSnapshot?.crossCommunityVisibility ? 'Yes' : 'No' },
                 ].map(({ label, value }) => (
                   <div key={label}>
                     <p className="text-[9px] text-rose-200 uppercase tracking-wider font-bold">{label}</p>
@@ -341,7 +343,7 @@ const MatrimonialSubscriptionPage = () => {
                                 selectedPlan?._id === plan._id ? 'bg-rose-50/50 rounded-t-xl' : ''
                               }`}
                             >
-                              {(plan.badge || plan.isMostPopular) && (
+                              {(plan.badge || plan.isFeatured) && (
                                 <span className="absolute -top-3.5 bg-emerald-500 text-white text-[7px] font-black uppercase px-1.5 py-0.5 rounded-md tracking-wider shadow-sm"
                                       style={{ backgroundColor: plan.themeColor || '#10b981' }}>
                                   {plan.badge || 'Popular'}

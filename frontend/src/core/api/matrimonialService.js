@@ -18,12 +18,16 @@ export const matrimonialProfileService = {
   getVisibilitySettings: ()           => axiosPrivate.get(`${BASE}/profile/visibility`),
   updateVisibilitySettings: (data)   => axiosPrivate.put(`${BASE}/profile/visibility`, data),
   getAvailableCommunities: ()        => axiosPrivate.get(`${BASE}/profile/communities`),
+  getAvailableCommunitiesWithCounts: () => axiosPrivate.get(`${BASE}/profile/communities-with-counts`),
+  getAvailableLocations:   ()        => axiosPrivate.get(`${BASE}/profile/locations`),
+  setAccountStatus:        (status)  => axiosPrivate.put(`${BASE}/profile/account-status`, { status }),
   // Photos
   uploadPhotos:    (formData)   => axiosPrivate.post(`${BASE}/profile/photos/upload`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
   getPhotos:       ()           => axiosPrivate.get(`${BASE}/profile/photos/all`),
   setPrimaryPhoto: (photoId)    => axiosPrivate.put(`${BASE}/profile/photos/${photoId}/primary`),
+  reorderPhotos:   (photoIds)   => axiosPrivate.put(`${BASE}/profile/photos/reorder`, { photoIds }),
   deletePhoto:     (photoId)    => axiosPrivate.delete(`${BASE}/profile/photos/${photoId}`),
 };
 

@@ -21,6 +21,9 @@ import {
   deleteSubCommunity,
   getSubCommunityLocationBreakdown,
   assignLocalHeadToLocationGroup,
+  searchMantriMandalCandidates,
+  addMantriMandalMember,
+  removeMantriMandalMember,
 } from '../../services/communityService';
 import { axiosPrivate } from '../../../../core/api/axiosPrivate';
 
@@ -127,6 +130,11 @@ const FULL_HEAD_MODULES = [
     keys: ['canViewHomeContent', 'canManageHomeContent']
   }
 ];
+
+// Auto-assigned designation labels — when a leader's designation matches one of
+// these, the edit form leaves the field blank (shows the placeholder) instead of
+// pre-filling it, so the admin can tell a real custom title from the generic default.
+const GENERIC_DESIGNATIONS = new Set(['Community Head', 'Sub-Community Head', 'Local Head', 'Local Sub-Head', 'Member']);
 
 const DEFAULT_HEAD_PERMISSIONS = {
   canViewDashboard: true,
@@ -1419,6 +1427,58 @@ const SubLocalHeadLocationWiseView = ({
   const [editPowersModal, setEditPowersModal] = useState(null);
   const [updatingPowers, setUpdatingPowers] = useState(false);
 
+  // Mantri Mandal picker — search existing members to add to a Local Head's committee
+  const [mantriMandalPicker, setMantriMandalPicker] = useState(null); // { headId, headName }
+  const [mantriMandalSearch, setMantriMandalSearch] = useState('');
+  const [mantriMandalResults, setMantriMandalResults] = useState([]);
+  const [mantriMandalSearching, setMantriMandalSearching] = useState(false);
+  const [mantriMandalBusyId, setMantriMandalBusyId] = useState(null);
+
+  const openMantriMandalPicker = (headId, headName) => {
+    setMantriMandalPicker({ headId, headName });
+    setMantriMandalSearch('');
+    setMantriMandalResults([]);
+  };
+
+  const runMantriMandalSearch = async (query) => {
+    setMantriMandalSearching(true);
+    try {
+      const res = await searchMantriMandalCandidates(commId, query);
+      setMantriMandalResults(res.data || []);
+    } catch (err) {
+      console.error('Mantri Mandal search failed:', err);
+    } finally {
+      setMantriMandalSearching(false);
+    }
+  };
+
+  const handleAddMantriMandal = async (user) => {
+    if (!mantriMandalPicker) return;
+    setMantriMandalBusyId(user._id);
+    try {
+      await addMantriMandalMember(mantriMandalPicker.headId, user._id, '');
+      setMantriMandalPicker(null);
+      fetchLocationData();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to add to Mantri Mandal');
+    } finally {
+      setMantriMandalBusyId(null);
+    }
+  };
+
+  const handleRemoveMantriMandal = async (headId, userId) => {
+    if (!window.confirm('Remove this member from the Mantri Mandal?')) return;
+    setMantriMandalBusyId(userId);
+    try {
+      await removeMantriMandalMember(headId, userId);
+      fetchLocationData();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to remove');
+    } finally {
+      setMantriMandalBusyId(null);
+    }
+  };
+
   // Fetch real data from backend
   const fetchLocationData = async () => {
     if (!commId) return;
@@ -1521,6 +1581,7 @@ const SubLocalHeadLocationWiseView = ({
       phone: '',
       email: '',
       password: '',
+      designation: '',
       city: loc.name,
       group: grp.name,
       accountType,
@@ -1613,6 +1674,7 @@ const SubLocalHeadLocationWiseView = ({
       phone: head.phone || '',
       email: head.email || '',
       password: '',
+      designation: GENERIC_DESIGNATIONS.has(head.designation) ? '' : (head.designation || ''),
       city: head.city || loc?.name || '',
       group: head.group || grp?.name || 'Group 1',
       accountType,
@@ -2183,6 +2245,50 @@ const SubLocalHeadLocationWiseView = ({
                     ))}
                   </div>
                 )}
+
+                {/* Mantri Mandal (मंत्री मंडल) — existing members displayed under this
+                    Local Head's team, with no role/permission change of their own. */}
+                {gdHeads.length > 0 && (() => {
+                  const primaryHead = gdHeads[0];
+                  const mandal = primaryHead.mantriMandal || [];
+                  return (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '20px 0 8px' }}>
+                        <p style={{ fontSize: '0.72rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', margin: 0 }}>मंत्री मंडल (Mantri Mandal)</p>
+                        <button
+                          type="button"
+                          onClick={() => openMantriMandalPicker(primaryHead.id, primaryHead.name)}
+                          style={{ fontSize: '0.72rem', fontWeight: 800, color: '#7e22ce', background: '#f3e8ff', border: '1px solid #e9d5ff', padding: '3px 10px', borderRadius: '8px', cursor: 'pointer' }}
+                        >
+                          + Add
+                        </button>
+                      </div>
+                      {mandal.length === 0 ? (
+                        <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: 0 }}>No Mantri Mandal members yet — pick existing users to display here.</p>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {mandal.map((m, idx) => (
+                            <div key={m.userId || idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#faf5ff', border: '1.5px solid #e9d5ff', borderRadius: '12px' }}>
+                              <div>
+                                <p style={{ margin: 0, fontWeight: 700, fontSize: '0.88rem', color: '#1e293b' }}>{m.name}</p>
+                                <p style={{ margin: 0, fontSize: '0.76rem', color: '#64748b' }}>📞 {m.phone || '—'}{m.designation ? ` • ${m.designation}` : ''}</p>
+                              </div>
+                              <button
+                                type="button"
+                                title="Remove"
+                                disabled={mantriMandalBusyId === m.userId}
+                                onClick={() => handleRemoveMantriMandal(primaryHead.id, m.userId)}
+                                style={{ width: '30px', height: '30px', borderRadius: '8px', border: '1px solid #fecaca', background: '#fff1f2', color: '#dc2626', cursor: 'pointer' }}
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
 
               <div className="community-modal-actions">
@@ -2192,6 +2298,62 @@ const SubLocalHeadLocationWiseView = ({
           </div>
         );
       })()}
+
+      {/* Mantri Mandal picker — search existing members and add them */}
+      {mantriMandalPicker && (
+        <div className="community-modal-overlay" onClick={() => setMantriMandalPicker(null)}>
+          <div className="community-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '440px' }}>
+            <div className="community-modal-header">
+              <div>
+                <h3>➕ Add to Mantri Mandal</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Under {mantriMandalPicker.headName}'s team</p>
+              </div>
+              <button type="button" className="community-modal-close" onClick={() => setMantriMandalPicker(null)}>✕</button>
+            </div>
+            <div className="community-modal-body" style={{ maxHeight: '55vh', overflowY: 'auto' }}>
+              <input
+                autoFocus
+                type="text"
+                placeholder="Search by name or phone..."
+                value={mantriMandalSearch}
+                onChange={e => {
+                  const val = e.target.value;
+                  setMantriMandalSearch(val);
+                  runMantriMandalSearch(val);
+                }}
+                className="community-input"
+                style={{ marginBottom: '14px' }}
+              />
+              {mantriMandalSearching ? (
+                <p style={{ fontSize: '0.82rem', color: '#94a3b8', textAlign: 'center', padding: '16px 0' }}>Searching...</p>
+              ) : mantriMandalResults.length === 0 ? (
+                <p style={{ fontSize: '0.82rem', color: '#94a3b8', textAlign: 'center', padding: '16px 0' }}>
+                  {mantriMandalSearch ? 'No matching members found.' : 'Type a name or phone number to search existing members.'}
+                </p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {mantriMandalResults.map(user => (
+                    <div key={user._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: '12px' }}>
+                      <div>
+                        <p style={{ margin: 0, fontWeight: 700, fontSize: '0.88rem', color: '#1e293b' }}>{user.name}</p>
+                        <p style={{ margin: 0, fontSize: '0.76rem', color: '#64748b' }}>📞 {user.phone}{user.city ? ` • ${user.city}` : ''}</p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={mantriMandalBusyId === user._id}
+                        onClick={() => handleAddMantriMandal(user)}
+                        style={{ fontSize: '0.74rem', fontWeight: 800, color: '#fff', background: '#7e22ce', border: 'none', padding: '6px 14px', borderRadius: '8px', cursor: 'pointer' }}
+                      >
+                        {mantriMandalBusyId === user._id ? 'Adding...' : 'Add'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* View Created Local Heads Modal */}
       {viewHeadsModal && (
@@ -2474,6 +2636,18 @@ const SubLocalHeadLocationWiseView = ({
                     onChange={e => setAssignForm(f => ({ ...f, email: e.target.value }))}
                     className="community-input"
                   />
+                </div>
+
+                <div className="community-form-group">
+                  <label>Designation (Optional)</label>
+                  <input
+                    type="text"
+                    placeholder={`e.g. Adhyaksh, President — leave blank for default`}
+                    value={assignForm.designation || ''}
+                    onChange={e => setAssignForm(f => ({ ...f, designation: e.target.value }))}
+                    className="community-input"
+                  />
+                  <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '4px', margin: 0 }}>Shown as their title across the app instead of the default role name.</p>
                 </div>
 
                 <div className="community-form-group">
@@ -2903,6 +3077,7 @@ const SubCommunityLocationView = ({
       email: '',
       loginId: '',
       password: '',
+      designation: '',
       city: comm.city || 'Indore',
       state: comm.state || 'Madhya Pradesh',
       group: grp.name,
@@ -2926,6 +3101,7 @@ const SubCommunityLocationView = ({
       email: leader.email || '',
       loginId: leader.loginId || '',
       password: '',
+      designation: GENERIC_DESIGNATIONS.has(leader.designation) ? '' : (leader.designation || ''),
       city: leader.city || comm.city || 'Indore',
       state: leader.state || comm.state || 'Madhya Pradesh',
       group: leader.group || 'Group 1',
@@ -3729,6 +3905,21 @@ const SubCommunityLocationView = ({
                           style={{ padding: '10px 14px', borderRadius: '12px', border: '1.5px solid #e2e8f0', fontSize: '0.88rem' }}
                         />
                         <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '4px', margin: 0 }}>Official contact email for notifications and alerts.</p>
+                      </div>
+
+                      <div className="community-form-group" style={{ gridColumn: 'span 2', marginBottom: 0 }}>
+                        <label style={{ fontSize: '0.74rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Designation (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder={`e.g. Adhyaksh, President — leave blank for "${assignLeaderForm.accountType === 'community_head' ? 'Community Head' : 'Sub-Community Head'}"`}
+                          value={assignLeaderForm.designation || ''}
+                          onChange={e => setAssignLeaderForm({ ...assignLeaderForm, designation: e.target.value })}
+                          className="community-input"
+                          style={{ padding: '10px 14px', borderRadius: '12px', border: '1.5px solid #e2e8f0', fontSize: '0.88rem' }}
+                        />
+                        <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '4px', margin: 0 }}>Shown as their title across the app instead of the default role name.</p>
                       </div>
                     </div>
                   </div>

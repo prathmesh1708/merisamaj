@@ -77,6 +77,15 @@ const communitySchema = new mongoose.Schema(
       default: true,
     },
 
+    // Assigned platform-tier plan (member cap, storage cap, module access) —
+    // null means no plan assigned yet / unrestricted (back-compat for existing communities).
+    planId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'CommunityPlan',
+      default: null,
+    },
+    planAssignedAt: { type: Date, default: null },
+
     // Audit
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,

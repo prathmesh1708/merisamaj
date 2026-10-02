@@ -138,3 +138,19 @@ export const assignLocalHeadToLocationGroup = async (communityId, subName, data)
   return response.data;
 };
 
+// ── Mantri Mandal ────────────────────────────────────────────────────────────
+export const searchMantriMandalCandidates = async (communityId, q) => {
+  const response = await axiosPrivate.get(`${API_BASE}/${communityId}/mantri-mandal/search`, { params: { q } });
+  return response.data;
+};
+
+export const addMantriMandalMember = async (headId, userId, designation) => {
+  const response = await axiosPrivate.post(`${API_BASE}/heads/${headId}/mantri-mandal`, { userId, designation });
+  return response.data;
+};
+
+export const removeMantriMandalMember = async (headId, userId) => {
+  const response = await axiosPrivate.delete(`${API_BASE}/heads/${headId}/mantri-mandal/${userId}`);
+  return response.data;
+};
+

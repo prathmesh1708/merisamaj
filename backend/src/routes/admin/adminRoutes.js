@@ -100,6 +100,10 @@ router.use('/shortcuts', authorizeAdminModule('canManageShortcuts'), adminShortc
 const adminAppContentRoutes = require('./adminAppContentRoutes');
 router.use('/user-app-edits', authorizeAdminModule('canManageAppContent'), adminAppContentRoutes);
 
+// Platform-tier Community Plans (member cap, storage cap, module access per community)
+const adminCommunityPlanRoutes = require('./adminCommunityPlanRoutes');
+router.use('/subscriptions', authorizeAdminModule('canManageCommunities'), adminCommunityPlanRoutes);
+
 module.exports = router;
 
 

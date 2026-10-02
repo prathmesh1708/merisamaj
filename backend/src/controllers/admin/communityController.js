@@ -988,7 +988,8 @@ exports.getSubCommunityLocationBreakdown = async (req, res) => {
       ],
       accountStatus: { $ne: 'deleted' }
     })
-      .select('name email phone role accountType subHeadType city state gotra subCommunity avatar joiningDate plainPassword accountStatus createdAt headPermissions group groupVisibleOnHome')
+      .select('name email phone role accountType subHeadType city state gotra subCommunity avatar joiningDate plainPassword accountStatus createdAt headPermissions group groupVisibleOnHome designation mantriMandal')
+      .populate('mantriMandal.userId', 'name phone avatar city')
       .sort({ createdAt: -1 })
       .lean();
 
@@ -1118,7 +1119,16 @@ exports.getSubCommunityLocationBreakdown = async (req, res) => {
             avatar: h.avatar,
             accountStatus: h.accountStatus || 'active',
             plainPassword: h.plainPassword || '******',
-            headPermissions: h.headPermissions || {}
+            headPermissions: h.headPermissions || {},
+            designation: h.designation,
+            mantriMandal: (h.mantriMandal || []).map(m => ({
+              userId: m.userId?._id || m.userId,
+              name: m.userId?.name || 'Unknown',
+              phone: m.userId?.phone || '',
+              avatar: m.userId?.avatar || '',
+              city: m.userId?.city || '',
+              designation: m.designation || ''
+            }))
           })),
           subHeadsList: grpSubHeads.map(sh => ({
             id: sh._id,
@@ -1226,7 +1236,7 @@ exports.getSubCommunityLocationBreakdown = async (req, res) => {
 exports.assignLocalHeadToLocationGroup = async (req, res) => {
   try {
     const { id, subName } = req.params;
-    const { userId, name, email, phone, password, city, state, group, accountType } = req.body;
+    const { userId, name, email, phone, password, city, state, group, accountType, designation } = req.body;
     // headPermissions arrives as a JSON string when the form is submitted as
     // multipart/form-data (i.e. a profile photo was attached).
     let { headPermissions } = req.body;
@@ -1332,6 +1342,9 @@ exports.assignLocalHeadToLocationGroup = async (req, res) => {
     }
 
     const roleTitle = targetRole === 'head' ? 'Community Head' : (targetAccountType === 'community_sub_head' ? 'Sub-Community Head' : (targetAccountType === 'local_sub_head' ? 'Local Sub-Head' : 'Local Head'));
+    // Admin can set a custom designation (e.g. "Adhyaksh", "President") instead of
+    // the generic role title — falls back to the generic title when left blank.
+    const effectiveDesignation = (designation && designation.trim()) || roleTitle;
 
     // Heads created before the Group field existed have no `group` stored at all
     // (not even "Group 1") — so a strict { group: "Group 1" } match would never find
@@ -1396,7 +1409,7 @@ exports.assignLocalHeadToLocationGroup = async (req, res) => {
       user.role = targetRole;
       user.accountType = targetAccountType;
       user.subHeadType = subHeadType;
-      user.designation = roleTitle;
+      user.designation = effectiveDesignation;
       user.accountStatus = 'active';
       user.group = effectiveGroup;
       if (parentHead) user.parentHeadId = parentHead._id;
@@ -1428,7 +1441,7 @@ exports.assignLocalHeadToLocationGroup = async (req, res) => {
 
       return res.status(200).json({
         success: true,
-        message: `${user.name} has been assigned as ${roleTitle} successfully.`,
+        message: `${user.name} has been assigned as ${effectiveDesignation} successfully.`,
         data: user
       });
     }
@@ -1466,7 +1479,7 @@ exports.assignLocalHeadToLocationGroup = async (req, res) => {
       role: targetRole,
       accountType: targetAccountType,
       subHeadType: subHeadType,
-      designation: roleTitle,
+      designation: effectiveDesignation,
       accountStatus: 'active',
       verificationStatus: 'verified',
       isPhoneVerified: true,
@@ -1491,12 +1504,90 @@ exports.assignLocalHeadToLocationGroup = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: `${newUser.name} created as ${roleTitle} successfully.`,
+      message: `${newUser.name} created as ${effectiveDesignation} successfully.`,
       data: newUser
     });
   } catch (error) {
     console.error('assignLocalHeadToLocationGroup error:', error);
     res.status(500).json({ status: 'error', message: error.message || 'Server error' });
+  }
+};
+
+// ─────────────────────────────────────────────
+// @desc    Search existing community members to add to a Head's Mantri Mandal —
+//          excludes anyone already a Head/Sub-Head so only plain members show up.
+// @route   GET /admin/communities/:id/mantri-mandal/search?q=...
+exports.searchMantriMandalCandidates = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const q = (req.query.q || '').trim();
+    const query = {
+      communityId: id,
+      role: 'user',
+      accountStatus: { $ne: 'deleted' }
+    };
+    if (q) {
+      const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      query.$or = [{ name: regex }, { phone: regex }, { email: regex }];
+    }
+    const users = await User.find(query)
+      .select('name phone email avatar city')
+      .sort({ name: 1 })
+      .limit(30)
+      .lean();
+    res.json({ status: 'success', data: users });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
+// @desc    Add an existing member to a Head's Mantri Mandal (display-only — no
+//          role/permission change for that member).
+// @route   POST /admin/communities/heads/:headId/mantri-mandal
+exports.addMantriMandalMember = async (req, res) => {
+  try {
+    const { headId } = req.params;
+    const { userId, designation } = req.body;
+    if (!userId) return res.status(400).json({ status: 'error', message: 'userId is required.' });
+
+    const head = await User.findById(headId);
+    if (!head) return res.status(404).json({ status: 'error', message: 'Head not found.' });
+
+    const member = await User.findById(userId).select('name phone avatar city');
+    if (!member) return res.status(404).json({ status: 'error', message: 'Member not found.' });
+
+    const alreadyIn = (head.mantriMandal || []).some(m => m.userId?.toString() === userId);
+    if (alreadyIn) {
+      return res.status(400).json({ status: 'error', message: `${member.name} is already in the Mantri Mandal.` });
+    }
+
+    head.mantriMandal = [...(head.mantriMandal || []), { userId, designation: (designation || '').trim() }];
+    await head.save();
+
+    res.status(201).json({
+      status: 'success',
+      message: `${member.name} added to Mantri Mandal.`,
+      data: { userId, name: member.name, phone: member.phone, avatar: member.avatar, city: member.city, designation: (designation || '').trim() }
+    });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
+// @desc    Remove a member from a Head's Mantri Mandal.
+// @route   DELETE /admin/communities/heads/:headId/mantri-mandal/:userId
+exports.removeMantriMandalMember = async (req, res) => {
+  try {
+    const { headId, userId } = req.params;
+    const head = await User.findById(headId);
+    if (!head) return res.status(404).json({ status: 'error', message: 'Head not found.' });
+
+    head.mantriMandal = (head.mantriMandal || []).filter(m => m.userId?.toString() !== userId);
+    await head.save();
+
+    res.json({ status: 'success', message: 'Removed from Mantri Mandal.' });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
   }
 };
 

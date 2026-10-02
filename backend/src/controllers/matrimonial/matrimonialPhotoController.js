@@ -133,6 +133,34 @@ exports.deletePhoto = async (req, res) => {
   }
 };
 
+// ─── Reorder Photos ───────────────────────────────────────────────────────────
+exports.reorderPhotos = async (req, res) => {
+  try {
+    const { photoIds } = req.body;
+    if (!Array.isArray(photoIds) || photoIds.length === 0) {
+      return res.status(400).json({ status: 'error', message: 'photoIds array is required.' });
+    }
+
+    const profile = await MatrimonialProfile.findOne({ userId: req.user._id, isDeleted: false });
+    if (!profile) return res.status(404).json({ status: 'error', message: 'Profile not found.' });
+
+    const photoMap = new Map(profile.photos.map(p => [p._id.toString(), p]));
+    const isValidReorder = photoIds.length === profile.photos.length
+      && photoIds.every(id => photoMap.has(id));
+    if (!isValidReorder) {
+      return res.status(400).json({ status: 'error', message: 'photoIds must include every existing photo exactly once.' });
+    }
+
+    profile.photos = photoIds.map(id => photoMap.get(id));
+    profile.updatedBy = req.user._id;
+    await profile.save();
+
+    res.json({ status: 'success', message: 'Photo order updated.', data: { photos: profile.photos } });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
 // ─── Get Photos ───────────────────────────────────────────────────────────────
 exports.getPhotos = async (req, res) => {
   try {

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Phone, MessageCircle, Crown, ChevronRight, ChevronDown, MapPin,
-  Users, Globe, Landmark, Home, Loader
+  Users, Globe, Landmark, Home, Loader, Search
 } from 'lucide-react';
 import { useData } from '../../context/DataProvider';
 import { axiosPrivate } from '../../../../core/api/axiosPrivate';
@@ -248,6 +248,31 @@ const LeaderGroupBlock = ({ groupLabel, showGroupLabel = true, subHeadsLabel, gr
         </div>
       </div>
     )}
+    {group.head.mantriMandal?.length > 0 && (
+      <div>
+        <div className="flex items-baseline gap-2 mb-2.5 mt-2">
+          <div className="w-1 h-4 rounded-full bg-gradient-to-b from-[#6C3BFF] to-[#8B5CFF] shrink-0" />
+          <h4 className="text-[14.5px] font-black text-slate-800 tracking-tight">मंत्री मंडल</h4>
+          <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider">Mantri Mandal</span>
+        </div>
+        <div className="relative">
+          <div
+            ref={(el) => { sliderRefs.current[`${sliderKey}-mm`] = el; }}
+            className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 scroll-smooth"
+          >
+            {group.head.mantriMandal.map(m => <MemberSliderCard key={m._id} member={m} navigate={navigate} />)}
+          </div>
+          {group.head.mantriMandal.length > 3 && (
+            <button
+              onClick={() => scrollSlider(`${sliderKey}-mm`)}
+              className="absolute -right-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white border border-gray-200 shadow-md flex items-center justify-center text-gray-500 hover:text-[#6C3BFF] hover:border-purple-200 active:scale-90 transition-all z-20"
+            >
+              <ChevronRight size={14} strokeWidth={2.5} />
+            </button>
+          )}
+        </div>
+      </div>
+    )}
   </div>
 );
 
@@ -270,6 +295,7 @@ const LeadershipPage = () => {
   // Local Head location filter — defaults to the member's own city, switchable
   const [selectedLocalCity, setSelectedLocalCity] = useState(null);
   const [showCityPicker, setShowCityPicker] = useState(false);
+  const [citySearch, setCitySearch] = useState('');
 
   const sliderRefs = useRef({});
   const scrollSlider = (key) => {
@@ -310,6 +336,10 @@ const LeadershipPage = () => {
   const visibleLocalHeadGroups = effectiveLocalCity
     ? localHeadGroups.filter(g => g.head.city === effectiveLocalCity)
     : localHeadGroups;
+
+  const filteredLocalCities = citySearch.trim()
+    ? availableLocalCities.filter(c => c.toLowerCase().includes(citySearch.trim().toLowerCase()))
+    : availableLocalCities;
 
   if (loading) {
     return (
@@ -368,24 +398,42 @@ const LeadershipPage = () => {
           {availableLocalCities.length > 0 && (
             <div className="relative -mt-2">
               <button
-                onClick={() => setShowCityPicker(s => !s)}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-purple-100 shadow-sm text-[12px] font-bold text-purple-700 active:scale-95 transition-all"
+                onClick={() => { setShowCityPicker(s => !s); setCitySearch(''); }}
+                className="w-full min-w-[260px] sm:w-auto flex items-center gap-2 px-5 py-3 rounded-xl bg-white border border-purple-100 shadow-sm text-[13.5px] font-bold text-purple-700 active:scale-95 transition-all"
               >
-                <MapPin size={13} />
-                {effectiveLocalCity || 'Select Location'}
-                <ChevronDown size={13} className={`transition-transform ${showCityPicker ? 'rotate-180' : ''}`} />
+                <MapPin size={16} className="shrink-0" />
+                <span className="flex-1 text-left truncate">{effectiveLocalCity || 'Select Location'}</span>
+                <Search size={14} className="text-slate-400 shrink-0" />
+                <ChevronDown size={15} className={`shrink-0 transition-transform ${showCityPicker ? 'rotate-180' : ''}`} />
               </button>
               {showCityPicker && (
-                <div className="absolute z-20 mt-1.5 bg-white border border-purple-100 rounded-xl shadow-lg overflow-hidden min-w-[170px]">
-                  {availableLocalCities.map(c => (
-                    <button
-                      key={c}
-                      onClick={() => { setSelectedLocalCity(c); setShowCityPicker(false); }}
-                      className={`w-full text-left px-4 py-2.5 text-[12.5px] font-semibold hover:bg-purple-50 transition-colors ${c === effectiveLocalCity ? 'text-purple-700 bg-purple-50/70' : 'text-slate-700'}`}
-                    >
-                      {c}
-                    </button>
-                  ))}
+                <div className="absolute z-20 mt-1.5 w-full min-w-[260px] bg-white border border-purple-100 rounded-xl shadow-lg overflow-hidden max-h-[320px] flex flex-col">
+                  <div className="relative shrink-0 p-2 border-b border-purple-50">
+                    <Search size={13} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      autoFocus
+                      value={citySearch}
+                      onChange={e => setCitySearch(e.target.value)}
+                      placeholder="Search location..."
+                      className="w-full pl-7 pr-2 py-2 text-[12.5px] font-semibold text-slate-700 bg-purple-50/50 rounded-lg focus:outline-none"
+                    />
+                  </div>
+                  <div className="overflow-y-auto">
+                    {filteredLocalCities.length === 0 ? (
+                      <p className="px-4 py-3 text-[12px] text-slate-400 font-semibold">No matching location</p>
+                    ) : (
+                      filteredLocalCities.map(c => (
+                        <button
+                          key={c}
+                          onClick={() => { setSelectedLocalCity(c); setShowCityPicker(false); setCitySearch(''); }}
+                          className={`w-full text-left px-4 py-2.5 text-[12.5px] font-semibold hover:bg-purple-50 transition-colors ${c === effectiveLocalCity ? 'text-purple-700 bg-purple-50/70' : 'text-slate-700'}`}
+                        >
+                          {c}
+                        </button>
+                      ))
+                    )}
+                  </div>
                 </div>
               )}
             </div>
