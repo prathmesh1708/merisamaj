@@ -70,6 +70,7 @@ const matrimonialSubscriptionRoutes = require('./matrimonial/matrimonialSubscrip
 const matrimonialInterestRoutes     = require('./matrimonial/matrimonialInterestRoutes');
 const matrimonialChatRoutes         = require('./matrimonial/matrimonialChatRoutes');
 const matrimonialAuxRoutes          = require('./matrimonial/matrimonialAuxRoutes');
+const { checkModuleEnabled }        = require('../../middleware/moduleAccessMiddleware');
 
 router.use('/matrimonial', checkModuleEnabled('matrimonialEnabled'));
 router.use('/matrimonial/profile',       matrimonialProfileRoutes);

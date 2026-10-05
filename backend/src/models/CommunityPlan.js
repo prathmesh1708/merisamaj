@@ -2,8 +2,13 @@ const mongoose = require('mongoose');
 
 /**
  * CommunityPlan — a platform-tier plan an admin creates/edits/deletes and
+<<<<<<< HEAD
  * assigns to a Community (tenant). Controls member cap and which whole app
  * modules are switched on for every member of that community.
+=======
+ * assigns to a Community (tenant). Controls member cap, storage cap, and
+ * which whole app modules are switched on for every member of that community.
+>>>>>>> 6df05ea0bf3c06dad40be9ce99bf21932ed04631
  */
 const communityPlanSchema = new mongoose.Schema(
   {
@@ -23,6 +28,10 @@ const communityPlanSchema = new mongoose.Schema(
       maxMembers:            { type: Number, default: 500 },   // -1 = unlimited
       maxHeads:               { type: Number, default: 3 },     // -1 = unlimited
       maxEvents:               { type: Number, default: 5 },     // -1 = unlimited
+<<<<<<< HEAD
+=======
+      storageGB:               { type: Number, default: 5 },     // -1 = unlimited
+>>>>>>> 6df05ea0bf3c06dad40be9ce99bf21932ed04631
       professionalDirectory:   { type: Boolean, default: false },
       matrimonial:             { type: Boolean, default: false },
       broadcast:                { type: Boolean, default: false },
