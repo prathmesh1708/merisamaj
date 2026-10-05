@@ -463,6 +463,7 @@ const MyProfilePage = () => {
 
   // Block/follow status checks for the target profileUser
   const isBlocked = blockedUsers?.some(b => (b.blockerId === myId && b.blockedId === profileUser.id) || (b.blockerId === profileUser.id && b.blockedId === myId)) || profileUser.isBlocked === true;
+  const isMaritalRestricted = profileUser.isMaritalRestricted === true;
   const isFollowing = followRelations?.some(r => r.followerId === myId && r.followingId === profileUser.id && r.status === 'accepted') || (followRelations?.some(r => r.followerId === myId && r.followingId === profileUser._id && r.status === 'accepted'));
   const hasRequested = followRelations?.some(r => r.followerId === myId && r.followingId === profileUser.id && r.status === 'pending') || (followRelations?.some(r => r.followerId === myId && r.followingId === profileUser._id && r.status === 'pending'));
   const privacySetting = profilePrivacy?.[profileUser.id] || profilePrivacy?.[profileUser._id] || (profileUser.isPrivate ? 'private' : 'public');
@@ -849,7 +850,7 @@ const MyProfilePage = () => {
           </div>
 
           {/* Action buttons (Follow/Message) for other user */}
-          {!isMe && (
+          {!isMe && !isMaritalRestricted && (
             <div className="flex gap-2.5 px-4.5 pb-4 pt-2 border-t border-purple-100/10 bg-slate-50/20">
               {isBlocked ? (
                 <button
@@ -925,6 +926,16 @@ const MyProfilePage = () => {
             <h3 className="text-[15px] font-bold text-slate-800">Member is Blocked</h3>
             <p className="text-xs text-slate-500 mt-2 max-w-xs leading-relaxed">
               You have blocked this member or they have blocked you. Unblock them first to view their profile details.
+            </p>
+          </div>
+        ) : isMaritalRestricted ? (
+          <div className="flex flex-col items-center justify-center py-20 px-4 text-center bg-white rounded-3xl border border-purple-100/10 shadow-sm mx-3.5 sm:mx-0">
+            <div className="w-16 h-16 rounded-full border border-purple-100/10 flex items-center justify-center mb-4 bg-purple-50 text-brand-primary">
+              <Lock size={28} />
+            </div>
+            <h3 className="text-[15px] font-bold text-slate-800">Profile Not Available</h3>
+            <p className="text-xs text-slate-500 mt-2 max-w-xs leading-relaxed">
+              Full profiles are only viewable for married community members.
             </p>
           </div>
         ) : !canAccess ? (

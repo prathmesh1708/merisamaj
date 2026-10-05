@@ -60,6 +60,26 @@ const headDonationService = {
     return response.data.data;
   },
 
+  getPendingCashDonations: async () => {
+    const response = await axiosPrivate.get('/head/donations/cash-pending');
+    return response.data.data;
+  },
+
+  collectCashDonation: async (id) => {
+    const response = await axiosPrivate.put(`/head/donations/${id}/collect-cash`);
+    return response.data.data;
+  },
+
+  getCampaignCollectors: async (campaignId) => {
+    const response = await axiosPrivate.get(`/head/donations/campaigns/${campaignId}/collectors`);
+    return response.data.data;
+  },
+
+  updateCampaignCollectors: async (campaignId, subHeadId, grant) => {
+    const response = await axiosPrivate.put(`/head/donations/campaigns/${campaignId}/collectors`, { subHeadId, grant });
+    return response.data.data;
+  },
+
   getCategories: async () => {
     const response = await axiosPrivate.get('/head/donations/categories');
     return response.data.data || response.data;
@@ -72,6 +92,17 @@ const headDonationService = {
 
   deleteCategory: async (id) => {
     const response = await axiosPrivate.delete(`/head/donations/categories/${id}`);
+    return response.data;
+  },
+
+  // Campaign-level cash collector management
+  getCampaignCollectors: async (campaignId) => {
+    const response = await axiosPrivate.get(`/head/donations/campaigns/${campaignId}/collectors`);
+    return response.data.data;
+  },
+
+  updateCampaignCollectors: async (campaignId, subHeadId, grant) => {
+    const response = await axiosPrivate.put(`/head/donations/campaigns/${campaignId}/collectors`, { subHeadId, grant });
     return response.data;
   }
 };

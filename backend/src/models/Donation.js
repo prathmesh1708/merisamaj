@@ -77,6 +77,12 @@ const donationSchema = new mongoose.Schema({
   isDeleted: { type: Boolean, default: false, index: true },
   deletedAt: { type: Date, default: null },
 
+  // ─── Campaign-level Cash Collection Access ────────────────────────────────
+  // The creator of a campaign automatically has the right to collect cash for it.
+  // They can also delegate this right to specific sub-heads under them.
+  creatorCanCollect: { type: Boolean, default: true },
+  cashCollectors: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+
   // Individual payment transaction fields
   txnId: { type: String, sparse: true, index: true },
   orderId: { type: String, sparse: true, index: true },
@@ -89,6 +95,16 @@ const donationSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   campaign: { type: mongoose.Schema.Types.ObjectId, ref: 'Donation' },
   amount: { type: Number, default: 0 },
+
+  // ─── Cash Collection (for paymentMethod === 'Cash' transactions only) ──────
+  // A cash pledge starts 'pending' until an eligible Head/Sub-Head (per the
+  // donor's Community Head / Local Head hierarchy, and only if they hold the
+  // canCollectCashDonations permission) marks it collected.
+  collectionStatus: { type: String, enum: ['not_applicable', 'pending', 'collected'], default: 'not_applicable' },
+  collectedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  collectedByName: { type: String, default: '' },
+  collectedByRole: { type: String, default: '' },
+  collectedAt: { type: Date, default: null },
   recentDonations: [
     {
       donorName: { type: String, default: 'Anonymous' },

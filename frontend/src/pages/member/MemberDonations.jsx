@@ -7,6 +7,7 @@ import DonateModal from '../../components/member/DonateModal';
 import { useData } from '../../modules/member/context/DataProvider';
 import { useAuth } from '../../core/auth/useAuth';
 import { loadRazorpayScript } from '../../core/utils/razorpayLoader';
+import { axiosPrivate } from '../../core/api/axiosPrivate';
 
 export const MemberDonations = () => {
   const navigate = useNavigate();
@@ -32,6 +33,28 @@ export const MemberDonations = () => {
   const [isDonateModalOpen, setIsDonateModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successToast, setSuccessToast] = useState(null);
+
+  // Donation page banner — editable by Admin, Community Head & Local Head.
+  const [donationBanner, setDonationBanner] = useState({
+    badge: 'Community Welfare',
+    title: 'Empower & Support Community Causes',
+    subtitle: 'Your generous contributions directly fund medical emergencies, education scholarships, temple development, and social welfare initiatives.',
+    enabled: true
+  });
+
+  useEffect(() => {
+    const loadDonationBanner = async () => {
+      try {
+        const res = await axiosPrivate.get('/member/app-content');
+        if (res.data?.data?.donationBanner) {
+          setDonationBanner(res.data.data.donationBanner);
+        }
+      } catch (err) {
+        // Keep the default banner on failure — non-critical content.
+      }
+    };
+    loadDonationBanner();
+  }, []);
 
   useEffect(() => {
     const loadCategories = async () => {
@@ -273,11 +296,11 @@ export const MemberDonations = () => {
 
         <div className="relative z-10 max-w-xl space-y-1.5">
           <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-white/15 border border-white/20 backdrop-blur-md text-amber-300">
-            <Sparkles size={11} className="text-amber-300" /> Community Welfare
+            <Sparkles size={11} className="text-amber-300" /> {donationBanner.badge}
           </div>
-          <h1 className="text-[17px] sm:text-xl font-extrabold tracking-tight leading-snug">Empower & Support Community Causes</h1>
+          <h1 className="text-[17px] sm:text-xl font-extrabold tracking-tight leading-snug">{donationBanner.title}</h1>
           <p className="text-purple-100/90 text-[11px] sm:text-xs font-medium leading-relaxed">
-            Your generous contributions directly fund medical emergencies, education scholarships, temple development, and social welfare initiatives.
+            {donationBanner.subtitle}
           </p>
         </div>
       </div>

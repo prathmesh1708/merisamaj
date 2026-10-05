@@ -10,6 +10,28 @@ const STORAGE_KEYS = {
   SESSION: 'admin_has_session',
 };
 
+// localStorage can fill up from unrelated large payloads on this origin (e.g.
+// base64 image previews cached by other screens) and start throwing
+// QuotaExceededError on every setItem — which must never be allowed to block
+// login, since the backend login itself already succeeded by this point.
+const safeSetItem = (key, value) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch (err) {
+    console.warn(`[AdminAuth] localStorage quota exceeded writing "${key}" — clearing known large caches and retrying.`, err);
+    try {
+      Object.keys(localStorage).forEach(k => {
+        if (k.startsWith('community_settings_') || k === 'merisamaj_global_homepage_content') {
+          localStorage.removeItem(k);
+        }
+      });
+      localStorage.setItem(key, value);
+    } catch (retryErr) {
+      console.warn(`[AdminAuth] Still unable to persist "${key}" after cleanup — continuing without persisted session storage.`, retryErr);
+    }
+  }
+};
+
 export const AdminAuthProvider = ({ children }) => {
   const [adminAuth, setAdminAuth] = useState({
     adminUser: null,
@@ -67,9 +89,9 @@ export const AdminAuthProvider = ({ children }) => {
         throw new Error('Access denied. You do not have Admin permissions.');
       }
 
-      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
-      localStorage.setItem(STORAGE_KEYS.TOKEN, accessToken);
-      localStorage.setItem(STORAGE_KEYS.SESSION, '1');
+      safeSetItem(STORAGE_KEYS.USER, JSON.stringify(user));
+      safeSetItem(STORAGE_KEYS.TOKEN, accessToken);
+      safeSetItem(STORAGE_KEYS.SESSION, '1');
 
       setAdminAuth({
         adminUser: user,
@@ -109,7 +131,7 @@ export const AdminAuthProvider = ({ children }) => {
   const updateAdminUser = (updatedUserFields) => {
     setAdminAuth(prev => {
       const merged = { ...(prev.adminUser || {}), ...updatedUserFields };
-      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(merged));
+      safeSetItem(STORAGE_KEYS.USER, JSON.stringify(merged));
       return {
         ...prev,
         adminUser: merged

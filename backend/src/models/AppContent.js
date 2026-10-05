@@ -48,6 +48,22 @@ const committeeMemberSchema = new mongoose.Schema({
   enabled: { type: Boolean, default: true }
 }, { _id: false });
 
+// A Local Head's per-city override of the home hero banner — lets members in
+// that specific city see a banner their own Local Head set, instead of the
+// community-wide default below. Looked up by matching `city` to the viewing
+// member's own `city` field (see memberAppContentController.getMemberAppContent).
+const locationHeroBannerSchema = new mongoose.Schema({
+  city: { type: String, required: true, trim: true },
+  backgroundImage: { type: String, default: '' },
+  title: { type: String, default: '' },
+  subtitle: { type: String, default: '' },
+  buttonText: { type: String, default: '' },
+  buttonLink: { type: String, default: '/member/directory' },
+  enabled: { type: Boolean, default: true },
+  updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  updatedAt: { type: Date, default: Date.now }
+}, { _id: false });
+
 const promotionalBannerSchema = new mongoose.Schema({
   id: { type: String, required: true },
   tag: { type: String, default: 'Announcement', trim: true },
@@ -89,6 +105,10 @@ const appContentSchema = new mongoose.Schema({
     buttonLink: { type: String, default: '/member/directory' },
     enabled: { type: Boolean, default: true }
   },
+  locationHeroBanners: {
+    type: [locationHeroBannerSchema],
+    default: []
+  },
   exclusiveFeatures: {
     type: [exclusiveFeatureSchema],
     default: []
@@ -116,6 +136,16 @@ const appContentSchema = new mongoose.Schema({
       type: [committeeMemberSchema],
       default: []
     }
+  },
+  donationBanner: {
+    badge: { type: String, default: 'Community Welfare' },
+    title: { type: String, default: 'Empower & Support Community Causes' },
+    subtitle: {
+      type: String,
+      default: 'Your generous contributions directly fund medical emergencies, education scholarships, temple development, and social welfare initiatives.'
+    },
+    bannerImage: { type: String, default: '' },
+    enabled: { type: Boolean, default: true }
   },
   censusBanner: {
     backgroundImage: {

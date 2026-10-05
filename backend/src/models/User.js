@@ -272,6 +272,10 @@ const userSchema = new mongoose.Schema({
     canViewDonations: { type: Boolean, default: true },
     canCreateDonationCampaigns: { type: Boolean, default: false },
     canManageExpenses: { type: Boolean, default: false },
+    // Can mark a pending Cash donation as physically collected — only within
+    // the donor's own Community Head / Local Head hierarchy (checked at
+    // request time, not just this flag). Admin always bypasses via authorizeModule.
+    canCollectCashDonations: { type: Boolean, default: false },
 
     // Funds
     canViewFunds: { type: Boolean, default: true },

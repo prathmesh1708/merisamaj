@@ -62,7 +62,7 @@ exports.getCommunityMembers = async (req, res) => {
 
     const [members, total] = await Promise.all([
       User.find(filter)
-        .select('name avatar city profession phone email gender gotra community communityId assignedCommunityIds accountStatus verificationStatus isAadharVerified area familyMembers role createdAt')
+        .select('name avatar city profession phone email gender gotra community communityId assignedCommunityIds accountStatus verificationStatus isAadharVerified area familyMembers role maritalStatus createdAt')
         .sort({ name: 1 })
         .skip(skip)
         .limit(Number(limit))
@@ -146,7 +146,24 @@ exports.getMemberProfile = async (req, res) => {
       }
     }
 
-    // 2. Follow / Privacy Check
+    // 2. Marital Status Gate — directory listing shows everyone, but opening an
+    //    individual profile is only allowed for Married members (or yourself).
+    //    A member who never set maritalStatus is treated as viewable, not blocked —
+    //    otherwise almost every profile would be unopenable (most haven't set it).
+    if (!isMe && member.maritalStatus === 'Single') {
+      return res.json({
+        success: true,
+        data: {
+          _id: member._id,
+          id: member._id,
+          name: member.name,
+          avatar: member.avatar,
+          isMaritalRestricted: true
+        }
+      });
+    }
+
+    // 2b. Follow / Privacy Check
     let isFollowing = false;
     if (!isMe) {
       const followRel = await Follower.findOne({

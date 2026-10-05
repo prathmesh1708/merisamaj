@@ -7,7 +7,7 @@ const EMPTY_PLAN = {
   name: '', description: '', monthlyPrice: 0, badge: '', displayOrder: 0, isActive: true,
   customFeatures: [],
   features: {
-    maxMembers: 500, maxHeads: 3, maxEvents: 5, storageGB: 5,
+    maxMembers: 500, maxHeads: 3, maxEvents: 5,
     professionalDirectory: false, matrimonial: false, broadcast: false,
     analytics: false, apiAccess: false, prioritySupport: false, customBranding: false
   }
@@ -112,12 +112,6 @@ const PlanModal = ({ plan, onClose, onSaved }) => {
               <label className="text-[10px] text-gray-400 font-bold block mb-1">Max Events (-1 = ∞)</label>
               <input type="number" value={form.features.maxEvents}
                 onChange={e => setFeature('maxEvents', Number(e.target.value))}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none" />
-            </div>
-            <div>
-              <label className="text-[10px] text-gray-400 font-bold block mb-1">Storage GB (-1 = ∞)</label>
-              <input type="number" value={form.features.storageGB}
-                onChange={e => setFeature('storageGB', Number(e.target.value))}
                 className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none" />
             </div>
           </div>
@@ -342,10 +336,6 @@ export const PlanList = ({ data }) => {
                 <div className="flex items-center gap-3">
                   <Check size={14} className="text-brand-primary" />
                   <span className="text-sm text-gray-300">Max Members: <strong className="text-white">{plan.features?.maxMembers === -1 ? 'Unlimited' : plan.features?.maxMembers}</strong></span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Check size={14} className="text-brand-primary" />
-                  <span className="text-sm text-gray-300">Storage: <strong className="text-white">{plan.features?.storageGB === -1 ? 'Unlimited' : `${plan.features?.storageGB}GB`}</strong></span>
                 </div>
                 {plan.features?.professionalDirectory && (
                   <div className="flex items-center gap-3">

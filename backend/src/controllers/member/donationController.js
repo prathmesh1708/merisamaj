@@ -339,8 +339,13 @@ exports.createDonation = async (req, res) => {
     }
 
     const txnId = req.body.txnId || `TXN${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+    const isCash = req.body.paymentMethod === 'Cash';
+    const paymentMode = isCash ? 'Cash' : (type === 'One-time' ? 'Online (UPI)' : 'Bank Transfer');
 
-    // Save individual payment record in DB with full title & purpose
+    // A cash pledge isn't real money yet — it only counts once someone with
+    // cash-collection access physically collects it (see collectCashDonation
+    // below). Online/bank-transfer pledges keep the existing immediate-approve
+    // behavior since that money has already moved.
     const paymentRecord = new Donation({
       user: req.user._id,
       campaign: campaign._id,
@@ -348,27 +353,34 @@ exports.createDonation = async (req, res) => {
       purpose: campaign.title || campaign.purpose,
       description: campaign.description || campaign.shortDescription,
       communityId: campaign.communityId || req.communityId,
+      city: req.user?.city,
       amount,
       donorName: donorName,
-      paymentMode: type === 'One-time' ? 'Online (UPI)' : 'Bank Transfer',
+      paymentMode,
+      paymentMethod: paymentMode,
       txnId,
-      status: 'Approved'
+      status: isCash ? 'Pending' : 'Approved',
+      collectionStatus: isCash ? 'pending' : 'not_applicable'
     });
     await paymentRecord.save().catch((err) => console.warn('Payment record save notice:', err.message));
 
-    // Update target campaign collected amount and donor count
-    campaign.raisedAmount = (campaign.raisedAmount || 0) + amount;
-    campaign.donorCount = (campaign.donorCount || 0) + 1;
-    if (!Array.isArray(campaign.recentDonations)) {
-      campaign.recentDonations = [];
+    // A pending cash pledge isn't counted toward the campaign total until it's
+    // actually collected — only update the campaign totals for non-cash (or
+    // already-collected) payments.
+    if (!isCash) {
+      campaign.raisedAmount = (campaign.raisedAmount || 0) + amount;
+      campaign.donorCount = (campaign.donorCount || 0) + 1;
+      if (!Array.isArray(campaign.recentDonations)) {
+        campaign.recentDonations = [];
+      }
+      campaign.recentDonations.unshift({
+        donorName,
+        amount,
+        date: new Date(),
+        paymentStatus: 'success'
+      });
+      await campaign.save();
     }
-    campaign.recentDonations.unshift({
-      donorName,
-      amount,
-      date: new Date(),
-      paymentStatus: 'success'
-    });
-    await campaign.save();
 
     // Process Referral Side-Effect (Non-blocking)
     if (req.user?._id) {

@@ -15,7 +15,10 @@ exports.getMemberAppContent = async (req, res) => {
       targetCommunityId = firstComm ? firstComm._id : new mongoose.Types.ObjectId('000000000000000000000001');
     }
 
-    const cacheKey = `app_content_${targetCommunityId.toString()}`;
+    // City-scoped so a Local Head's location banner never leaks to another
+    // city's members (or vice versa) via a shared community-wide cache entry.
+    const memberCityKey = (req.user?.city || '').trim().toLowerCase() || 'default';
+    const cacheKey = `app_content_${targetCommunityId.toString()}_${memberCityKey}`;
     const cached = cacheService.get(cacheKey);
     if (cached) {
       return res.status(200).json(cached);
@@ -176,6 +179,12 @@ exports.getMemberAppContent = async (req, res) => {
             }
           ]
         },
+        donationBanner: {
+          badge: 'Community Welfare',
+          title: 'Empower & Support Community Causes',
+          subtitle: 'Your generous contributions directly fund medical emergencies, education scholarships, temple development, and social welfare initiatives.',
+          enabled: true
+        },
         censusBanner: {
           backgroundImage: 'https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?auto=format&fit=crop&w=1200&q=80',
           overlayOpacity: 75,
@@ -191,6 +200,31 @@ exports.getMemberAppContent = async (req, res) => {
           enabled: true
         }
       };
+    }
+
+    // If the viewing member's own city has a Local Head-set hero banner
+    // override, it takes priority over the community-wide default below —
+    // it's the most specific setting for them.
+    try {
+      const memberCity = (req.user?.city || '').trim();
+      if (memberCity && Array.isArray(doc.locationHeroBanners)) {
+        const cityEntry = doc.locationHeroBanners.find(
+          b => b.enabled !== false && b.backgroundImage && b.city && b.city.toLowerCase() === memberCity.toLowerCase()
+        );
+        if (cityEntry) {
+          doc.heroBanner = {
+            ...(doc.heroBanner || {}),
+            backgroundImage: cityEntry.backgroundImage,
+            title: cityEntry.title || doc.heroBanner?.title || '',
+            subtitle: cityEntry.subtitle || doc.heroBanner?.subtitle || '',
+            buttonText: cityEntry.buttonText || doc.heroBanner?.buttonText || '',
+            buttonLink: cityEntry.buttonLink || doc.heroBanner?.buttonLink || '/member/directory',
+            enabled: true
+          };
+        }
+      }
+    } catch (locErr) {
+      console.warn('[getMemberAppContent] Failed to resolve location hero banner:', locErr.message);
     }
 
     // Fallback heroBanner background image to Community bannerUrl if not specifically customized
@@ -277,6 +311,12 @@ exports.getMemberAppContent = async (req, res) => {
         coreMembers: {
           communityHead: dynamicHead,
           committee: activeCommittee
+        },
+        donationBanner: doc.donationBanner || {
+          badge: 'Community Welfare',
+          title: 'Empower & Support Community Causes',
+          subtitle: 'Your generous contributions directly fund medical emergencies, education scholarships, temple development, and social welfare initiatives.',
+          enabled: true
         },
         censusBanner: doc.censusBanner || {
           backgroundImage: 'https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?auto=format&fit=crop&w=1200&q=80',

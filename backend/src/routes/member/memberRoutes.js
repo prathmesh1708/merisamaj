@@ -15,6 +15,8 @@ const fundRoutes = require('./fundRoutes');
 const memberChatRoutes = require('./memberChatRoutes');
 const groupRoutes      = require('./groupRoutes');
 
+const { checkModuleEnabled } = require('../../middleware/moduleAccessMiddleware');
+
 
 // Test Route
 router.get('/test', (req, res) => {
@@ -53,9 +55,9 @@ router.use('/events', eventRoutes);
 // Samaj Fund Module
 router.use('/fund', fundRoutes);
 
-// Professional Directory
+// Professional Directory (gated by the community's assigned plan)
 const professionalRoutes = require('./professionalRoutes');
-router.use('/professional', professionalRoutes);
+router.use('/professional', checkModuleEnabled('directoryEnabled'), professionalRoutes);
 
 // ─── Community Chat ──────────────────────────────────────────────────────────
 router.use('/chat',           memberChatRoutes);
@@ -68,7 +70,6 @@ const matrimonialSubscriptionRoutes = require('./matrimonial/matrimonialSubscrip
 const matrimonialInterestRoutes     = require('./matrimonial/matrimonialInterestRoutes');
 const matrimonialChatRoutes         = require('./matrimonial/matrimonialChatRoutes');
 const matrimonialAuxRoutes          = require('./matrimonial/matrimonialAuxRoutes');
-const { checkModuleEnabled }        = require('../../middleware/moduleAccessMiddleware');
 
 router.use('/matrimonial', checkModuleEnabled('matrimonialEnabled'));
 router.use('/matrimonial/profile',       matrimonialProfileRoutes);

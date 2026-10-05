@@ -67,6 +67,32 @@ export const DonationDetails = () => {
   }, [fetchDetails]);
 
   const handleConfirmDonation = async (donationId, payload) => {
+    const targetId = donationId || id;
+
+    if (payload.paymentMethod === 'Cash') {
+      try {
+        setIsSubmitting(true);
+        const res = await memberDonationApi.handleDonationPayment(targetId, {
+          amount: payload.amount,
+          donorName: payload.donorName,
+          paymentMethod: 'Cash'
+        });
+        if (res.success || res.status === 'success') {
+          setIsDonateModalOpen(false);
+          setSuccessToast(`Thank you! Your cash pledge of ₹${payload.amount.toLocaleString()} is recorded as Pending — a Head from your community will collect it and confirm.`);
+          setTimeout(() => setSuccessToast(null), 6000);
+          await fetchDetails();
+        } else {
+          alert(res.message || 'Failed to record cash pledge.');
+        }
+      } catch (err) {
+        alert(err.response?.data?.message || err.message || 'Failed to record cash pledge.');
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
     try {
       setIsSubmitting(true);
 
@@ -77,7 +103,6 @@ export const DonationDetails = () => {
         return;
       }
 
-      const targetId = donationId || id;
       const orderRes = await memberDonationApi.createRazorpayOrder(targetId, {
         amount: payload.amount,
         donorName: payload.donorName

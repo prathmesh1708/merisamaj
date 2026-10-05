@@ -5,6 +5,7 @@ const dharmashalaRoutes = require('./dharmashalaRoutes');
 const votingRoutes = require('./votingRoutes');
 const eventRoutes = require('./eventRoutes');
 const headFundRoutes = require('./headFundRoutes');
+const headAppContentRoutes = require('./headAppContentRoutes');
 
 // Test Route
 router.get('/test', (req, res) => {
@@ -15,6 +16,7 @@ router.get('/test', (req, res) => {
 });
 
 router.use('/donations', donationRoutes);
+router.use('/app-content', headAppContentRoutes);
 router.use('/dharmashala', dharmashalaRoutes);
 router.use('/voting', votingRoutes);
 router.use('/events', eventRoutes);

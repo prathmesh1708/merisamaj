@@ -274,6 +274,12 @@ const getOrCreateAppContent = async (communityId) => {
       exclusiveFeatures: getDefaultFeatures(),
       successStories: getDefaultStories(),
       coreMembers: getDefaultCoreMembers(),
+      donationBanner: {
+        badge: 'Community Welfare',
+        title: 'Empower & Support Community Causes',
+        subtitle: 'Your generous contributions directly fund medical emergencies, education scholarships, temple development, and social welfare initiatives.',
+        enabled: true
+      },
       censusBanner: {
         backgroundImage: 'https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?auto=format&fit=crop&w=1200&q=80',
         overlayOpacity: 75,
@@ -294,6 +300,15 @@ const getOrCreateAppContent = async (communityId) => {
     await saveAndInvalidate(doc);
   } else {
     let modified = false;
+    if (!doc.donationBanner) {
+      doc.donationBanner = {
+        badge: 'Community Welfare',
+        title: 'Empower & Support Community Causes',
+        subtitle: 'Your generous contributions directly fund medical emergencies, education scholarships, temple development, and social welfare initiatives.',
+        enabled: true
+      };
+      modified = true;
+    }
     if (!doc.censusBanner) {
       doc.censusBanner = {
         backgroundImage: 'https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?auto=format&fit=crop&w=1200&q=80',
@@ -348,8 +363,21 @@ exports.updateHeroBanner = async (req, res) => {
     const targetCommunityId = req.body.communityId || req.communityId || req.user?.communityId;
     const doc = await getOrCreateAppContent(targetCommunityId);
 
+    // Prefer a real uploaded file (goes to Cloudinary, returns a URL) over a
+    // raw `backgroundImage` string — a base64 data URL must never be stored
+    // here, since every consumer of this value (including a legacy
+    // localStorage-only mirror on the frontend) would then be holding a
+    // multi-MB string, which is exactly what previously exhausted the
+    // browser's localStorage quota and broke unrelated login flows.
+    const { resolveAvatarUpload } = require('../../utils/avatarUploadHelper');
+    const uploadedImageUrl = await resolveAvatarUpload(req, `community_${targetCommunityId}`);
+
     const { backgroundImage, title, subtitle, buttonText, buttonLink, enabled } = req.body;
-    if (backgroundImage !== undefined) doc.heroBanner.backgroundImage = backgroundImage;
+    if (uploadedImageUrl) {
+      doc.heroBanner.backgroundImage = uploadedImageUrl;
+    } else if (backgroundImage !== undefined && !backgroundImage.startsWith('data:')) {
+      doc.heroBanner.backgroundImage = backgroundImage;
+    }
     if (title !== undefined) doc.heroBanner.title = title;
     if (subtitle !== undefined) doc.heroBanner.subtitle = subtitle;
     if (buttonText !== undefined) doc.heroBanner.buttonText = buttonText;
@@ -363,10 +391,122 @@ exports.updateHeroBanner = async (req, res) => {
       data: doc.heroBanner
     });
   } catch (error) {
-    console.error('Error updating hero banner:', error);
+    console.error('Error in updateHeroBanner:', error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// @desc    Update the Donations page banner (badge, title, subtitle, bannerImage). Reused by
+//          both the Admin panel and the Head panel (Community Head + Local Head) —
+//          a Head request never sends `communityId`, so it always scopes to
+//          their own `req.user.communityId`, never another community's content.
+// @route   PUT /api/v1/admin/user-app-edits/donation-banner
+// @route   PUT /api/v1/head/app-content/donation-banner
+// @access  Admin, Head, Sub-Head (Local Head)
+exports.updateDonationBanner = async (req, res) => {
+  try {
+    const { resolveAvatarUpload } = require('../../utils/avatarUploadHelper');
+    const targetCommunityId = req.body.communityId || req.communityId || req.user?.communityId;
+    const doc = await getOrCreateAppContent(targetCommunityId);
+
+    // Resolve uploaded banner image file (if provided)
+    const uploadedImageUrl = await resolveAvatarUpload(req, `community_${targetCommunityId}`);
+    if (uploadedImageUrl) {
+      doc.donationBanner.bannerImage = uploadedImageUrl;
+    }
+
+    const { badge, title, subtitle, enabled } = req.body;
+    if (badge !== undefined) doc.donationBanner.badge = badge;
+    if (title !== undefined) doc.donationBanner.title = title;
+    if (subtitle !== undefined) doc.donationBanner.subtitle = subtitle;
+    if (enabled !== undefined) doc.donationBanner.enabled = enabled;
+
+    await saveAndInvalidate(doc);
+    return res.status(200).json({
+      success: true,
+      message: 'Donation banner updated successfully',
+      data: doc.donationBanner
+    });
+  } catch (error) {
+    console.error('Error in updateDonationBanner:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Get the requesting Local Head's own per-city home hero banner
+//          override (so their edit form can be pre-filled). Only a Local
+//          Head/Local Sub-Head account (one that has its own `city`) may
+//          use this — a Community Head manages the community-wide hero
+//          banner instead, not a location-specific one.
+// @route   GET /api/v1/head/app-content/location-hero
+// @access  Head (Local Head / Local Sub-Head only)
+exports.getLocationHeroBanner = async (req, res) => {
+  try {
+    const city = (req.user?.city || '').trim();
+    if (!city) {
+      return res.status(403).json({ success: false, message: 'Only Local Heads (accounts with their own city/location) can manage a location-specific home banner.' });
+    }
+    const targetCommunityId = req.communityId || req.user?.communityId;
+    const doc = await getOrCreateAppContent(targetCommunityId);
+    const entry = (doc.locationHeroBanners || []).find(b => b.city.toLowerCase() === city.toLowerCase());
+    return res.status(200).json({
+      success: true,
+      data: entry || { city, backgroundImage: '', title: '', subtitle: '', buttonText: '', buttonLink: '/member/directory', enabled: true }
+    });
+  } catch (error) {
+    console.error('Error in getLocationHeroBanner:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Create/update the requesting Local Head's own per-city home hero
+//          banner override. Scoped strictly to `req.user.city` — a Local
+//          Head can never touch another location's banner.
+// @route   PUT /api/v1/head/app-content/location-hero
+// @access  Head (Local Head / Local Sub-Head only)
+exports.updateLocationHeroBanner = async (req, res) => {
+  try {
+    const city = (req.user?.city || '').trim();
+    if (!city) {
+      return res.status(403).json({ success: false, message: 'Only Local Heads (accounts with their own city/location) can manage a location-specific home banner.' });
+    }
+    const { resolveAvatarUpload } = require('../../utils/avatarUploadHelper');
+    const targetCommunityId = req.communityId || req.user?.communityId;
+    const doc = await getOrCreateAppContent(targetCommunityId);
+
+    if (!Array.isArray(doc.locationHeroBanners)) doc.locationHeroBanners = [];
+    let entry = doc.locationHeroBanners.find(b => b.city.toLowerCase() === city.toLowerCase());
+    if (!entry) {
+      entry = { city, backgroundImage: '', title: '', subtitle: '', buttonText: '', buttonLink: '/member/directory', enabled: true };
+      doc.locationHeroBanners.push(entry);
+      entry = doc.locationHeroBanners[doc.locationHeroBanners.length - 1];
+    }
+
+    const uploadedImageUrl = await resolveAvatarUpload(req, `location_hero_${targetCommunityId}_${city}`);
+    if (uploadedImageUrl) entry.backgroundImage = uploadedImageUrl;
+
+    const { title, subtitle, buttonText, buttonLink, enabled } = req.body;
+    if (title !== undefined) entry.title = title;
+    if (subtitle !== undefined) entry.subtitle = subtitle;
+    if (buttonText !== undefined) entry.buttonText = buttonText;
+    if (buttonLink !== undefined) entry.buttonLink = buttonLink;
+    if (enabled !== undefined) entry.enabled = enabled;
+    entry.updatedBy = req.user._id;
+    entry.updatedAt = new Date();
+
+    doc.markModified('locationHeroBanners');
+    await saveAndInvalidate(doc);
+    return res.status(200).json({
+      success: true,
+      message: `Home banner for ${city} updated successfully`,
+      data: entry
+    });
+  } catch (error) {
+    console.error('Error in updateLocationHeroBanner:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 
 // @desc    Update Community Census Banner
 // @route   PUT /api/v1/admin/user-app-edits/census

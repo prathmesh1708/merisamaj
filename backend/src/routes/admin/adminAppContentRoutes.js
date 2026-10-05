@@ -12,6 +12,9 @@ router.get('/', adminAppContentController.getAppContent);
 // Hero banner update
 router.put('/hero', adminAppContentController.updateHeroBanner);
 
+// Donations page banner update
+router.put('/donation-banner', adminAppContentController.updateDonationBanner);
+
 // Community Census banner update
 router.put('/census', adminAppContentController.updateCensusBanner);
 

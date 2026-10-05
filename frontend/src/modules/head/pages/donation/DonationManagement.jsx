@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Search, Filter, RefreshCw, Eye, Edit, Trash2, Users, HeartHandshake, AlertCircle, IndianRupee } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Plus, Search, Filter, RefreshCw, Eye, Edit, Trash2, Users, HeartHandshake, AlertCircle, IndianRupee, Image as ImageIcon, X, Check, UploadCloud, Wallet } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import headDonationService from '../../../../core/api/headDonationService';
+import { axiosPrivate } from '../../../../core/api/axiosPrivate';
 import { useHeadAuth } from '../../auth/useHeadAuth';
 
 import DonationFormModal from './components/DonationFormModal';
@@ -10,9 +11,18 @@ import DonorManagementModal from './components/DonorManagementModal';
 import DeleteConfirmationModal from './components/DeleteConfirmationModal';
 import ExpenseManagementModal from './components/ExpenseManagementModal';
 import LedgerView from './components/LedgerView';
+import CashCollectionView from './components/CashCollectionView';
+import CampaignCollectorsModal from './components/CampaignCollectorsModal';
 
 const DonationManagement = () => {
   const { headAuth } = useHeadAuth();
+  const headUser = headAuth.headUser || headAuth.user;
+  const isAdmin = headUser?.role === 'admin';
+  // Visible to every Head/Sub-Head — the backend list self-filters to what
+  // they're actually eligible to collect (hierarchy+permission, OR being the
+  // creator of that campaign, OR an explicit per-campaign grant from its
+  // creator), so there's no single flag that correctly gates this tab.
+  const canCollectCash = true;
   const [campaigns, setCampaigns] = useState([]);
   const [stats, setStats] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -27,8 +37,65 @@ const DonationManagement = () => {
   const [isDonorOpen, setIsDonorOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isExpenseOpen, setIsExpenseOpen] = useState(false);
+  const [isCollectorsOpen, setIsCollectorsOpen] = useState(false);
   
   const [selectedCampaign, setSelectedCampaign] = useState(null);
+
+  // Donations page banner — image upload
+  const [isBannerEditOpen, setIsBannerEditOpen] = useState(false);
+  const [bannerImage, setBannerImage] = useState(null);       // File object
+  const [bannerPreview, setBannerPreview] = useState(null);   // data-URL for preview
+  const [currentBannerUrl, setCurrentBannerUrl] = useState(''); // URL from server
+  const [bannerDragging, setBannerDragging] = useState(false);
+  const [bannerSaving, setBannerSaving] = useState(false);
+  const [bannerToast, setBannerToast] = useState(null);
+  const bannerFileRef = useRef(null);
+
+  const fetchDonationBanner = async () => {
+    try {
+      const res = await axiosPrivate.get('/head/app-content');
+      const banner = res.data?.data?.donationBanner;
+      if (banner?.bannerImage) setCurrentBannerUrl(banner.bannerImage);
+    } catch (err) {
+      console.error('Failed to load donation banner:', err);
+    }
+  };
+
+  const handleBannerFileChange = (file) => {
+    if (!file) return;
+    setBannerImage(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => setBannerPreview(ev.target.result);
+    reader.readAsDataURL(file);
+  };
+
+  const saveDonationBanner = async (e) => {
+    e.preventDefault();
+    if (!bannerImage) {
+      setBannerToast('Please select a banner image first.');
+      setTimeout(() => setBannerToast(null), 3000);
+      return;
+    }
+    setBannerSaving(true);
+    try {
+      const fd = new FormData();
+      fd.append('bannerImage', bannerImage);
+      const res = await axiosPrivate.put('/head/app-content/donation-banner', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      setCurrentBannerUrl(res.data?.data?.bannerImage || bannerPreview || '');
+      setBannerPreview(null);
+      setBannerImage(null);
+      setBannerToast('Donation banner image updated!');
+      setTimeout(() => setBannerToast(null), 3000);
+      setIsBannerEditOpen(false);
+    } catch (err) {
+      setBannerToast(err.response?.data?.message || 'Failed to update banner');
+      setTimeout(() => setBannerToast(null), 3000);
+    } finally {
+      setBannerSaving(false);
+    }
+  };
 
   const fetchDashboardData = async () => {
     setIsLoading(true);
@@ -50,6 +117,7 @@ const DonationManagement = () => {
   useEffect(() => {
     if (headAuth.isAuthenticated) {
       fetchDashboardData();
+      fetchDonationBanner();
     }
   }, [headAuth.isAuthenticated]);
 
@@ -68,6 +136,8 @@ const DonationManagement = () => {
       setIsDeleteOpen(true);
     } else if (action === 'expense') {
       setIsExpenseOpen(true);
+    } else if (action === 'collectors') {
+      setIsCollectorsOpen(true);
     }
   };
 
@@ -165,13 +235,133 @@ const DonationManagement = () => {
           </h1>
           <p className="text-sm text-gray-500 mt-1">Manage and track all community fund collections</p>
         </div>
-        <button 
-          onClick={() => handleAction('create')}
-          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-primary hover:bg-brand-secondary text-white rounded-xl font-bold transition-colors shadow-sm cursor-pointer"
-        >
-          <Plus size={18} /> New Campaign
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsBannerEditOpen(true)}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl font-bold transition-colors shadow-sm cursor-pointer"
+          >
+            <ImageIcon size={18} /> Edit Page Banner
+          </button>
+          <button
+            onClick={() => handleAction('create')}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-primary hover:bg-brand-secondary text-white rounded-xl font-bold transition-colors shadow-sm cursor-pointer"
+          >
+            <Plus size={18} /> New Campaign
+          </button>
+        </div>
       </div>
+
+      {/* ─── Toast ─── */}
+      <AnimatePresence>
+        {bannerToast && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-6 right-6 z-50 px-5 py-3 rounded-2xl shadow-xl bg-emerald-600 text-white text-sm font-bold flex items-center gap-2"
+          >
+            <Check size={16} /> {bannerToast}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── Upload Donation Page Banner Modal ─── */}
+      <AnimatePresence>
+        {isBannerEditOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden"
+            >
+              {/* Header */}
+              <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-black text-gray-900">Upload Donations Page Banner</h3>
+                  <p className="text-[11px] text-gray-400 mt-0.5">Replaces the banner image members see at the top of the Donations page.</p>
+                </div>
+                <button onClick={() => { setIsBannerEditOpen(false); setBannerPreview(null); setBannerImage(null); }} className="text-gray-400 hover:text-gray-700 cursor-pointer">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={saveDonationBanner} className="p-6 space-y-5">
+                {/* Drop zone */}
+                <div
+                  onClick={() => bannerFileRef.current?.click()}
+                  onDragOver={(e) => { e.preventDefault(); setBannerDragging(true); }}
+                  onDragLeave={() => setBannerDragging(false)}
+                  onDrop={(e) => { e.preventDefault(); setBannerDragging(false); const f = e.dataTransfer.files?.[0]; if (f) handleBannerFileChange(f); }}
+                  className={`relative w-full rounded-2xl border-2 border-dashed transition-all cursor-pointer overflow-hidden ${
+                    bannerDragging ? 'border-purple-400 bg-purple-50' : 'border-gray-200 bg-gray-50 hover:border-purple-300 hover:bg-purple-50/40'
+                  }`}
+                  style={{ minHeight: '200px' }}
+                >
+                  {bannerPreview ? (
+                    <>
+                      <img src={bannerPreview} alt="Banner preview" className="w-full h-52 object-cover" />
+                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                        <p className="text-white text-sm font-bold">Click to change</p>
+                      </div>
+                    </>
+                  ) : currentBannerUrl ? (
+                    <>
+                      <img src={currentBannerUrl} alt="Current banner" className="w-full h-52 object-cover opacity-60" />
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+                        <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center shadow">
+                          <UploadCloud size={20} className="text-purple-600" />
+                        </div>
+                        <p className="text-white text-sm font-bold drop-shadow">Click or drag to replace</p>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center gap-3 py-12">
+                      <div className="w-14 h-14 rounded-2xl bg-purple-100 flex items-center justify-center">
+                        <UploadCloud size={26} className="text-purple-600" />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm font-bold text-gray-700">Click to upload or drag &amp; drop</p>
+                        <p className="text-xs text-gray-400 mt-0.5">JPG, PNG, WEBP — max 5 MB</p>
+                      </div>
+                    </div>
+                  )}
+                  <input
+                    ref={bannerFileRef}
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/webp"
+                    className="hidden"
+                    onChange={(e) => handleBannerFileChange(e.target.files?.[0])}
+                  />
+                </div>
+
+                {/* Selected file info */}
+                {bannerImage && (
+                  <div className="flex items-center gap-3 px-4 py-2.5 bg-purple-50 border border-purple-100 rounded-xl">
+                    <ImageIcon size={16} className="text-purple-500 shrink-0" />
+                    <p className="text-xs text-purple-700 font-semibold truncate flex-1">{bannerImage.name}</p>
+                    <button type="button" onClick={() => { setBannerImage(null); setBannerPreview(null); }} className="text-purple-400 hover:text-purple-700 cursor-pointer shrink-0">
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={bannerSaving || !bannerImage}
+                  className="w-full py-3 bg-brand-primary hover:bg-brand-secondary text-white rounded-xl font-bold text-sm shadow-sm transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {bannerSaving ? (
+                    <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Uploading...</>
+                  ) : (
+                    <><UploadCloud size={16} /> Upload Banner</>
+                  )}
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Dashboard Stats */}
       {stats && (
@@ -220,7 +410,7 @@ const DonationManagement = () => {
         {/* Toolbar */}
         <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gray-50/50">
           <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0 hide-scrollbar">
-            {['All', 'Active', 'Published', 'Draft', 'Completed', 'Scheduled', 'Ledger'].map(tab => (
+            {['All', 'Active', 'Published', 'Draft', 'Completed', 'Scheduled', 'Ledger', ...(canCollectCash ? ['Cash Collection'] : [])].map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -261,6 +451,10 @@ const DonationManagement = () => {
           {activeTab === 'Ledger' ? (
             <div className="p-6 bg-gray-50/30">
               <LedgerView />
+            </div>
+          ) : activeTab === 'Cash Collection' ? (
+            <div className="p-6 bg-gray-50/30">
+              <CashCollectionView />
             </div>
           ) : isLoading ? (
             <div className="h-full flex flex-col items-center justify-center p-12 space-y-4">
@@ -358,6 +552,11 @@ const DonationManagement = () => {
                           <button onClick={() => handleAction('donors', campaign)} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer" title="Manage Donors">
                             <Users size={18} />
                           </button>
+                          {(isAdmin || String(campaign.createdById || '') === String(headUser?._id || headUser?.id || '')) && (
+                            <button onClick={() => handleAction('collectors', campaign)} className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer" title="Cash Collection Access">
+                              <Wallet size={18} />
+                            </button>
+                          )}
                           <button onClick={() => handleAction('edit', campaign)} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer" title="Edit Campaign">
                             <Edit size={18} />
                           </button>
@@ -404,6 +603,15 @@ const DonationManagement = () => {
         />
       )}
       
+      {isCollectorsOpen && selectedCampaign && (
+        <CampaignCollectorsModal
+          isOpen={isCollectorsOpen}
+          onClose={() => setIsCollectorsOpen(false)}
+          campaignId={selectedCampaign.id || selectedCampaign._id}
+          campaignTitle={selectedCampaign.title}
+        />
+      )}
+
       {isDeleteOpen && selectedCampaign && (
         <DeleteConfirmationModal 
           isOpen={isDeleteOpen} 

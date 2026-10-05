@@ -316,15 +316,18 @@ const HomePage = () => {
     };
   }, [loadHomepageSettings]);
 
+  // Professional Directory is hidden when the member's community plan has that
+  // module switched off (Admin → Subscriptions → assign a plan without it).
+  const directoryEnabled = currentUser?.communityId?.settings?.directoryEnabled !== false;
+
   const mergedFeatures = useMemo(() => {
     const content = homepageContentSettings?.exclusiveFeatures;
-    if (!Array.isArray(content) || content.length === 0) {
-      return quickActions;
-    }
-    return [...content]
-      .filter(f => f.enabled)
-      .sort((a, b) => (a.displayOrder || 99) - (b.displayOrder || 99))
-      .map(f => {
+    const base = (!Array.isArray(content) || content.length === 0)
+      ? quickActions
+      : [...content]
+        .filter(f => f.enabled)
+        .sort((a, b) => (a.displayOrder || 99) - (b.displayOrder || 99))
+        .map(f => {
         const matchedStatic = quickActions.find(qa => qa.path === f.path || qa.label.toLowerCase().includes(f.label.toLowerCase().substring(0, 4)));
         const isGroupFeature = f.path === '/member/groups' || f.label?.toLowerCase() === 'groups';
         const isFundFeature = f.path === '/member/fund' || f.id === 'feature_fund' || (f.label && f.label.toLowerCase().includes('fund'));
@@ -348,8 +351,9 @@ const HomePage = () => {
           icon: LucideIcons[f.icon] || Briefcase,
           bgImage: f.bgImage || matchedStatic?.bgImage || 'https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?auto=format&fit=crop&w=400&q=80'
         };
-      });
-  }, [homepageContentSettings, quickActions]);
+        });
+    return directoryEnabled ? base : base.filter(f => f.path !== '/member/professional');
+  }, [homepageContentSettings, quickActions, directoryEnabled]);
 
   const communityPosts = [...mockPosts].sort((a, b) => {
     const aMatch = a.community === userCommunity ? 1 : 0;
@@ -411,14 +415,18 @@ const HomePage = () => {
     return url;
   };
 
-  const rawHeroBannerSrc = 
-    effectiveUser?.communityId?.bannerUrl || 
-    effectiveUser?.communityBanner || 
-    currentUser?.communityId?.bannerUrl || 
-    currentUser?.communityBanner || 
-    (homepageContentSettings?.hero?.backgroundImage && !homepageContentSettings.hero.backgroundImage.includes('photo-1590050752117-238cb0fb12b1') 
-      ? homepageContentSettings.hero.backgroundImage 
-      : null) || 
+  // The AppContent-resolved banner is checked first since it already accounts
+  // for a Local Head's per-city override (most specific); the plain
+  // Community.bannerUrl is a community-wide fallback used only when nothing
+  // more specific has been customized.
+  const rawHeroBannerSrc =
+    (homepageContentSettings?.hero?.backgroundImage && !homepageContentSettings.hero.backgroundImage.includes('photo-1590050752117-238cb0fb12b1')
+      ? homepageContentSettings.hero.backgroundImage
+      : null) ||
+    effectiveUser?.communityId?.bannerUrl ||
+    effectiveUser?.communityBanner ||
+    currentUser?.communityId?.bannerUrl ||
+    currentUser?.communityBanner ||
     getSamajImage(userCommunity);
 
   const heroBannerSrc = resolveBannerUrl(rawHeroBannerSrc);
@@ -472,9 +480,9 @@ const HomePage = () => {
             <h1 className="text-[16px] sm:text-[18px] font-black text-slate-900 tracking-tight leading-tight truncate">
               {currentUser?.name || 'Member'}
             </h1>
-            {(userCommunity || currentUser?.city) && (
+            {((currentUser?.subCommunity || userCommunity) || currentUser?.city) && (
               <p className="text-[11px] font-semibold text-slate-500 truncate mt-0.5">
-                📍 {[userCommunity, currentUser?.city].filter(Boolean).join(' · ')}
+                📍 {[currentUser?.subCommunity || userCommunity, currentUser?.city].filter(Boolean).join(' · ')}
               </p>
             )}
           </div>

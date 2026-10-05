@@ -52,7 +52,8 @@ const HEAD_PERMISSION_CATEGORIES = [
       { key: 'canManageFunds', label: 'Manage Samaj Funds', desc: 'Can record fund transactions and collections' },
       { key: 'canViewDonations', label: 'View Donations', desc: 'Can inspect donation drives and receipts' },
       { key: 'canCreateDonationCampaigns', label: 'Create Donation Campaigns', desc: 'Can launch fundraising appeals' },
-      { key: 'canManageExpenses', label: 'Manage Expenses', desc: 'Can record and approve expenditure' }
+      { key: 'canManageExpenses', label: 'Manage Expenses', desc: 'Can record and approve expenditure' },
+      { key: 'canCollectCashDonations', label: 'Collect Cash Donations', desc: 'Can mark pending cash donations as collected, for donors within their hierarchy' }
     ]
   },
   {

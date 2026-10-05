@@ -126,6 +126,7 @@ exports.createSubHead = async (req, res) => {
       canViewDonations: false,
       canCreateDonationCampaigns: false,
       canManageExpenses: false,
+      canCollectCashDonations: false,
       canViewFunds: false,
       canManageFunds: false,
       canViewLeadership: false,

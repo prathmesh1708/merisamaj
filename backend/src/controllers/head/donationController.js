@@ -93,10 +93,13 @@ exports.getAllCampaigns = async (req, res) => {
       visibility: c.visibility || 'All Members',
       status: c.status || 'Active',
       createdBy: c.createdBy ? c.createdBy.name : 'Admin',
+      createdById: c.createdBy ? c.createdBy._id : null,
       createdDate: c.createdAt,
       lastUpdated: c.updatedAt,
       coverImage: c.coverImage || '',
-      bannerImage: c.coverImage || ''
+      bannerImage: c.coverImage || '',
+      creatorCanCollect: c.creatorCanCollect !== false,
+      cashCollectors: c.cashCollectors || []
     }));
 
     res.status(200).json({ status: 'success', data: formatted });
@@ -505,4 +508,223 @@ exports.deleteCategory = async (req, res) => {
   }
 };
 
+// ─────────────────────────────────────────────
+// Cash Payment Collection — scoped to the donor's own Community Head / Local
+// Head hierarchy (see utils/donationCollectorHelper.js), never a flat
+// "anyone with the permission" check. Admin bypasses via authorizeModule.
+// ─────────────────────────────────────────────
+const { isEligibleCollector, getEligibleCollectors, describeRole } = require('../../utils/donationCollectorHelper');
 
+
+// @desc    List pending cash donations the requesting Head/Sub-Head is eligible to collect
+// @route   GET /api/v1/head/donations/cash-pending
+exports.getPendingCashDonations = async (req, res) => {
+  try {
+    const isAdmin = req.user.role === 'admin';
+    const pending = await Donation.find({
+      paymentMode: 'Cash',
+      collectionStatus: 'pending',
+      isDeleted: { $ne: true },
+      ...(isAdmin ? {} : { communityId: req.communityId || req.user?.communityId?._id || req.user?.communityId })
+    })
+      .populate('user', 'name city communityId')
+      .populate('campaign', 'title createdBy creatorCanCollect cashCollectors')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const visible = [];
+    for (const d of pending) {
+      const eligible = isAdmin || (d.user && await isEligibleCollector(req.user, d.user, d.campaign));
+      if (eligible) {
+        visible.push({
+          id: d._id,
+          donationId: d._id,
+          donorName: d.donorName || d.user?.name || 'Anonymous',
+          donorCity: d.user?.city || '',
+          campaignTitle: d.campaign?.title || d.title || d.purpose || '',
+          amount: d.amount || 0,
+          paymentMethod: 'Cash',
+          collectionStatus: d.collectionStatus,
+          createdAt: d.createdAt
+        });
+      }
+    }
+
+    res.status(200).json({ status: 'success', data: visible });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
+// @desc    Mark a pending cash donation as collected
+// @route   PUT /api/v1/head/donations/:id/collect-cash
+exports.collectCashDonation = async (req, res) => {
+  try {
+    const donation = await Donation.findById(req.params.id).populate('user', 'name city communityId');
+    if (!donation) return res.status(404).json({ status: 'error', message: 'Donation not found.' });
+    if (donation.paymentMode !== 'Cash') {
+      return res.status(400).json({ status: 'error', message: 'This donation is not a cash payment.' });
+    }
+    if (donation.collectionStatus === 'collected') {
+      return res.status(400).json({ status: 'error', message: 'This donation has already been collected.' });
+    }
+    if (!donation.user) {
+      return res.status(400).json({ status: 'error', message: 'This donation has no linked donor to verify hierarchy against.' });
+    }
+
+    const isAdmin = req.user.role === 'admin';
+    if (!isAdmin) {
+      // Fetch the campaign so we can check campaign-level collector access
+      const campaign = donation.campaign
+        ? await Donation.findById(donation.campaign).select('createdBy creatorCanCollect cashCollectors').lean()
+        : null;
+
+      const eligible = await isEligibleCollector(req.user, donation.user, campaign);
+      if (!eligible) {
+        return res.status(403).json({
+          status: 'error',
+          message: 'You are not authorized to collect this donation — either it is outside your hierarchy, or you do not have Cash Collection access.'
+        });
+      }
+    }
+
+    donation.collectionStatus = 'collected';
+    donation.status = 'Approved';
+    donation.collectedBy = req.user._id;
+    donation.collectedByName = req.user.name;
+    donation.collectedByRole = isAdmin ? 'Admin' : describeRole(req.user);
+    donation.collectedAt = new Date();
+    await donation.save();
+
+    // Now that cash is actually in hand, count it toward the campaign total.
+    if (donation.campaign) {
+      const campaign = await Donation.findById(donation.campaign);
+      if (campaign) {
+        campaign.raisedAmount = (campaign.raisedAmount || 0) + (donation.amount || 0);
+        campaign.donorCount = (campaign.donorCount || 0) + 1;
+        if (!Array.isArray(campaign.recentDonations)) campaign.recentDonations = [];
+        campaign.recentDonations.unshift({
+          donorName: donation.donorName,
+          amount: donation.amount,
+          date: new Date(),
+          paymentStatus: 'success'
+        });
+        await campaign.save();
+      }
+    }
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Cash donation marked as collected.',
+      data: {
+        id: donation._id,
+        collectionStatus: donation.collectionStatus,
+        collectedByName: donation.collectedByName,
+        collectedByRole: donation.collectedByRole,
+        collectedAt: donation.collectedAt,
+        amount: donation.amount,
+        donationId: donation._id
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
+// @desc    Get sub-heads under the requester + their campaign-level cash-collector grant status
+// @route   GET /api/v1/head/donations/campaigns/:id/collectors
+exports.getCampaignCollectors = async (req, res) => {
+  try {
+    const campaign = await Donation.findById(req.params.id).select('createdBy creatorCanCollect cashCollectors').lean();
+    if (!campaign) return res.status(404).json({ status: 'error', message: 'Campaign not found.' });
+
+    // Only the creator or an admin may manage collectors
+    const isAdmin = req.user.role === 'admin';
+    const isCreator = campaign.createdBy && campaign.createdBy.toString() === req.user._id.toString();
+    if (!isAdmin && !isCreator) {
+      return res.status(403).json({ status: 'error', message: 'Only the campaign creator or an admin can manage collectors.' });
+    }
+
+    // Fetch sub-heads created by this head
+    const subHeads = await User.find({
+      parentHeadId: req.user._id,
+      role: 'sub_head',
+      accountStatus: { $ne: 'deleted' }
+    }).select('_id name designation accountType city headPermissions accountStatus').lean();
+
+    const grantedIds = (campaign.cashCollectors || []).map(id => id.toString());
+
+    const result = subHeads.map(s => ({
+      id: s._id,
+      name: s.name,
+      designation: s.designation || 'Sub-Head',
+      accountType: s.accountType,
+      city: s.city || '',
+      accountStatus: s.accountStatus,
+      hasGlobalPermission: s.headPermissions?.canCollectCashDonations === true,
+      grantedForCampaign: grantedIds.includes(s._id.toString())
+    }));
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        creatorCanCollect: campaign.creatorCanCollect !== false,
+        subHeads: result
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
+// @desc    Grant or revoke cash-collection access for a sub-head on a specific campaign
+// @route   PUT /api/v1/head/donations/campaigns/:id/collectors
+// @body    { subHeadId, grant: true|false }
+exports.updateCampaignCollectors = async (req, res) => {
+  try {
+    const campaign = await Donation.findById(req.params.id);
+    if (!campaign) return res.status(404).json({ status: 'error', message: 'Campaign not found.' });
+
+    const isAdmin = req.user.role === 'admin';
+    const isCreator = campaign.createdBy && campaign.createdBy.toString() === req.user._id.toString();
+    if (!isAdmin && !isCreator) {
+      return res.status(403).json({ status: 'error', message: 'Only the campaign creator or an admin can manage collectors.' });
+    }
+
+    const { subHeadId, grant } = req.body;
+    if (!subHeadId) return res.status(400).json({ status: 'error', message: 'subHeadId is required.' });
+
+    // Verify the sub-head actually belongs to this head
+    const subHead = await User.findOne({
+      _id: subHeadId,
+      parentHeadId: req.user._id,
+      role: 'sub_head',
+      accountStatus: { $ne: 'deleted' }
+    }).lean();
+
+    if (!subHead && !isAdmin) {
+      return res.status(403).json({ status: 'error', message: 'This sub-head does not belong to you.' });
+    }
+
+    if (!Array.isArray(campaign.cashCollectors)) campaign.cashCollectors = [];
+
+    const idStr = subHeadId.toString();
+    const alreadyGranted = campaign.cashCollectors.some(id => id.toString() === idStr);
+
+    if (grant === true || grant === 'true') {
+      if (!alreadyGranted) campaign.cashCollectors.push(subHeadId);
+    } else {
+      campaign.cashCollectors = campaign.cashCollectors.filter(id => id.toString() !== idStr);
+    }
+
+    await campaign.save();
+
+    res.status(200).json({
+      status: 'success',
+      message: grant ? 'Cash collection access granted.' : 'Cash collection access revoked.',
+      data: { cashCollectors: campaign.cashCollectors }
+    });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+};

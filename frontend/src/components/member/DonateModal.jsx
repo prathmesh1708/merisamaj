@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Heart, ShieldCheck, CheckCircle2, Landmark, Copy, Check } from 'lucide-react';
+import { X, Heart, ShieldCheck, CheckCircle2, Landmark, Copy, Check, Wallet, Smartphone } from 'lucide-react';
 
 export const DonateModal = ({
   isOpen,
@@ -12,6 +12,7 @@ export const DonateModal = ({
   const [donorName, setDonorName] = useState('');
   const [presetAmounts] = useState(['100', '500', '1000', '2500', '5000']);
   const [copiedField, setCopiedField] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState('Online');
 
   if (!isOpen || !donation) return null;
 
@@ -26,7 +27,7 @@ export const DonateModal = ({
     e.preventDefault();
     const num = Number(amount);
     if (!num || num <= 0) return;
-    onConfirmDonation(donation._id, { amount: num, donorName });
+    onConfirmDonation(donation._id, { amount: num, donorName, paymentMethod });
   };
 
   const acc = donation.accountDetails || donation.communityId?.accountDetails || donation.createdBy?.accountDetails;
@@ -108,6 +109,44 @@ export const DonateModal = ({
                   className="w-full pl-8 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
                 />
               </div>
+            </div>
+
+            {/* Payment Method */}
+            <div>
+              <label className="block text-[10.5px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                Payment Method
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('Online')}
+                  className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                    paymentMethod === 'Online'
+                      ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs'
+                      : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <Smartphone size={15} className={paymentMethod === 'Online' ? 'text-white' : 'text-indigo-500'} />
+                  <span className="text-[11px] font-bold">Online (UPI / Card)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('Cash')}
+                  className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                    paymentMethod === 'Cash'
+                      ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs'
+                      : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <Wallet size={15} className={paymentMethod === 'Cash' ? 'text-white' : 'text-indigo-500'} />
+                  <span className="text-[11px] font-bold">Pay by Cash</span>
+                </button>
+              </div>
+              {paymentMethod === 'Cash' && (
+                <p className="mt-1.5 text-[10.5px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 font-semibold leading-relaxed">
+                  Your pledge will be marked "Pending" until a Head/Local Head from your community collects the cash in person and confirms it.
+                </p>
+              )}
             </div>
 
             {/* Optional Donor Name Input */}
@@ -245,7 +284,7 @@ export const DonateModal = ({
               disabled={isSubmitting}
               className="flex-1 sm:flex-initial px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md shadow-indigo-500/20 flex items-center justify-center gap-1.5"
             >
-              <Heart size={14} className="fill-white" /> {isSubmitting ? 'Processing...' : `Pay ₹${Number(amount || 0).toLocaleString()}`}
+              <Heart size={14} className="fill-white" /> {isSubmitting ? 'Processing...' : paymentMethod === 'Cash' ? `Pledge ₹${Number(amount || 0).toLocaleString()} (Cash)` : `Pay ₹${Number(amount || 0).toLocaleString()}`}
             </button>
           </div>
         </form>
