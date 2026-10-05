@@ -652,13 +652,6 @@ const MatrimonialHomePage = () => {
                         </button>
                       )}
                     </div>
-                    <p 
-                      className="text-[11px] font-bold text-slate-400 mt-0.5 flex items-center gap-1 cursor-pointer hover:text-rose-500 transition-colors"
-                      onClick={() => navigate('/member/matrimonial/setup')}
-                    >
-                      as per <span className="text-rose-500 font-extrabold">partner preferences</span>
-                      <Pencil size={10} className="text-slate-400 stroke-[2.5]" />
-                    </p>
                   </div>
                 </div>
                 
