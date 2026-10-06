@@ -53,6 +53,11 @@ export const headFundService = {
     return res.data;
   },
 
+  getIncomeSources: async () => {
+    const res = await axiosPrivate.get(`${API_BASE}/income-sources`);
+    return res.data;
+  },
+
   recordCashPayment: async (fundId, paymentData) => {
     const res = await axiosPrivate.post(`${API_BASE}/${fundId}/record-cash-payment`, paymentData);
     return res.data;

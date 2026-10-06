@@ -2,6 +2,9 @@ const Fund = require('../../models/Fund');
 const Contribution = require('../../models/Contribution');
 const FundExpense = require('../../models/FundExpense');
 const User = require('../../models/User');
+const Dharmashala = require('../../models/Dharmashala');
+const DharmashalaBooking = require('../../models/DharmashalaBooking');
+const Donation = require('../../models/Donation');
 const { notifyFundCreated, createNotification, createBroadcastNotification } = require('../../services/notificationService');
 const { applyScopeFilter, inheritTenantPayload } = require('../../utils/queryScopeHelper');
 
@@ -703,6 +706,122 @@ exports.getStats = async (req, res) => {
     });
   } catch (error) {
     console.error('getHeadFundStats error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// Samaj Income breakdown — pulls together every module that generates money
+// for the community (Fund/membership contributions, Donations, Dharmashala
+// bookings) into one "where is our income coming from" view, scoped the same
+// way as the rest of this controller (community-wide for Community Head,
+// community+city for Local Head, global/optionally filtered for Admin).
+// Nothing here writes to any other module — it's a read-only aggregation.
+exports.getIncomeSources = async (req, res) => {
+  try {
+    const communityId = getCommunityId(req);
+    if (!communityId) {
+      return res.status(403).json({ success: false, message: 'Access Denied.' });
+    }
+
+    // ── 1. Fund / Membership contributions (reuses the same scoping as getStats) ──
+    const userRole = (req.user?.role || '').toLowerCase();
+    const isLocalHead = userRole === 'sub_head' || req.user?.accountType === 'local_head';
+    const isAdmin = ['admin', 'super_admin', 'master_admin', 'master'].includes(userRole);
+
+    let fundQuery = {};
+    if (isAdmin) {
+      if (req.query.communityId) fundQuery.communityId = req.query.communityId;
+    } else if (isLocalHead) {
+      fundQuery = {
+        communityId,
+        $or: [
+          { scope: 'COMMUNITY' },
+          { scope: 'LOCAL', createdBy: req.user._id },
+          { scope: 'LOCAL', localHeadId: req.user._id }
+        ]
+      };
+    } else {
+      fundQuery = { communityId };
+    }
+    const scopedFunds = await Fund.find(fundQuery).select('_id');
+    const fundIds = scopedFunds.map(f => f._id);
+    const fundContributions = fundIds.length ? await Contribution.find({ fundId: { $in: fundIds } }) : [];
+    const fundIncome = fundContributions.reduce((sum, c) => sum + (c.paidAmount || 0), 0);
+
+    // ── 2. Donations — individual transactions (txnId present) with a
+    // successful/collected status, same community+city scope as everything else ──
+    const donationFilter = applyScopeFilter(req, {
+      $or: [{ txnId: { $exists: true, $ne: null } }, { orderId: { $exists: true, $ne: null } }],
+      status: 'Approved',
+      isDeleted: { $ne: true }
+    });
+    const donationTxns = await Donation.find(donationFilter).select('amount city createdAt').lean();
+    const donationIncome = donationTxns.reduce((sum, d) => sum + (d.amount || 0), 0);
+
+    // ── 3. Dharmashala bookings — scoped to properties this requester can see
+    // (same applyScopeFilter used by the Dharmashala controller itself) ──
+    const scopedProperties = await Dharmashala.find(applyScopeFilter(req, {})).select('_id name city').lean();
+    const propertyIds = scopedProperties.map(p => p._id);
+    const propertyById = Object.fromEntries(scopedProperties.map(p => [p._id.toString(), p]));
+
+    const bookings = propertyIds.length
+      ? await DharmashalaBooking.find({ dharmashala: { $in: propertyIds }, isDeleted: { $ne: true } })
+          .select('dharmashala amountReceived totalAmount paymentStatus bookingSource createdAt')
+          .lean()
+      : [];
+
+    const dharmashalaIncome = bookings.reduce((sum, b) => sum + (b.amountReceived || 0), 0);
+    const dharmashalaOnline = bookings.filter(b => b.bookingSource !== 'Offline').reduce((sum, b) => sum + (b.amountReceived || 0), 0);
+    const dharmashalaOffline = bookings.filter(b => b.bookingSource === 'Offline').reduce((sum, b) => sum + (b.amountReceived || 0), 0);
+    const dharmashalaPending = bookings.reduce((sum, b) => sum + Math.max(0, (b.totalAmount || 0) - (b.amountReceived || 0)), 0);
+
+    const byLocationMap = {};
+    const byPropertyMap = {};
+    const byMonthMap = {};
+    bookings.forEach(b => {
+      const prop = propertyById[b.dharmashala?.toString()];
+      const city = prop?.city || 'Unknown';
+      const received = b.amountReceived || 0;
+
+      byLocationMap[city] = (byLocationMap[city] || 0) + received;
+
+      const propKey = b.dharmashala?.toString();
+      if (propKey) {
+        if (!byPropertyMap[propKey]) byPropertyMap[propKey] = { propertyId: propKey, name: prop?.name || 'Unknown', city, amount: 0 };
+        byPropertyMap[propKey].amount += received;
+      }
+
+      const monthKey = b.createdAt ? new Date(b.createdAt).toISOString().slice(0, 7) : 'unknown';
+      byMonthMap[monthKey] = (byMonthMap[monthKey] || 0) + received;
+    });
+
+    const grandTotal = fundIncome + donationIncome + dharmashalaIncome;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        totals: {
+          fund: fundIncome,
+          donations: donationIncome,
+          dharmashala: dharmashalaIncome,
+          grandTotal
+        },
+        dharmashala: {
+          total: dharmashalaIncome,
+          online: dharmashalaOnline,
+          offline: dharmashalaOffline,
+          pendingAmount: dharmashalaPending,
+          bookingCount: bookings.length,
+          byLocation: Object.entries(byLocationMap).map(([city, amount]) => ({ city, amount })),
+          byProperty: Object.values(byPropertyMap),
+          byMonth: Object.entries(byMonthMap).map(([month, amount]) => ({ month, amount })).sort((a, b) => a.month.localeCompare(b.month))
+        },
+        donations: { total: donationIncome, transactionCount: donationTxns.length },
+        fund: { total: fundIncome }
+      }
+    });
+  } catch (error) {
+    console.error('getIncomeSources error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };

@@ -14,7 +14,14 @@ const dharmashalaBookingSchema = new mongoose.Schema({
   bookingId: { type: String, required: true, unique: true },
   dharmashala: { type: mongoose.Schema.Types.ObjectId, ref: 'Dharmashala', required: true },
   rooms: [{ type: mongoose.Schema.Types.ObjectId, ref: 'DharmashalaRoom' }],
-  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  // Not required — a manually/offline-created booking for a walk-in guest
+  // often has no registered member account; bookedBy/phone are the
+  // authoritative customer identity in that case.
+  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  // Who originated this booking — the online member-request flow (createBooking)
+  // always sets 'Online'; a Head/Admin creating it directly for a walk-in/phone
+  // guest sets 'Offline'.
+  bookingSource: { type: String, enum: ['Online', 'Offline'], default: 'Online' },
   status: { 
     type: String, 
     enum: [
@@ -48,8 +55,19 @@ const dharmashalaBookingSchema = new mongoose.Schema({
   purpose: { type: String },
   memberNotes: { type: String },
   specialRequests: { type: String },
-  paymentStatus: { type: String, enum: ['Pending', 'Paid', 'Failed', 'Refunded'], default: 'Pending' },
-  
+  paymentStatus: { type: String, enum: ['Pending', 'Partial', 'Paid', 'Failed', 'Refunded'], default: 'Pending' },
+
+  // How this booking's payment was/is being collected, and by whom (for
+  // offline/manual bookings — mirrors Contribution's transaction audit fields).
+  paymentMode: { type: String, default: 'Online' }, // 'Cash' | 'UPI' | 'Card' | 'Bank Transfer' | 'Online' | 'Cheque'
+  amountReceived: { type: Number, default: 0 },      // running total actually collected so far
+  advanceAmount: { type: Number, default: 0 },        // what was collected at booking time (offline flow)
+  receiptNo: { type: String },
+  collectedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  collectedByName: { type: String },
+  collectedByRole: { type: String },
+  staffNotes: { type: String }, // internal note added by the Head/Admin who created/handled the booking
+
   // 15-Minute Temporary Reservation Lock
   reservedUntil: { type: Date },
 
@@ -67,7 +85,7 @@ const dharmashalaBookingSchema = new mongoose.Schema({
 
   // Approval & Rejection Audit
   approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  approvedByRole: { type: String, enum: ['ADMIN', 'HEAD', 'SUPER_ADMIN', 'MASTER_ADMIN', 'MASTER', 'HEAD_ADMIN'] },
+  approvedByRole: { type: String, enum: ['ADMIN', 'HEAD', 'SUB_HEAD', 'LOCAL_HEAD', 'COMMUNITY_HEAD', 'SUPER_ADMIN', 'MASTER_ADMIN', 'MASTER', 'HEAD_ADMIN'] },
   approvedAt: { type: Date },
   rejectedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   rejectedAt: { type: Date },

@@ -24,6 +24,7 @@ export const FundGovernance = () => {
   // Data States
   const [funds, setFunds] = useState([]);
   const [stats, setStats] = useState(null);
+  const [incomeSources, setIncomeSources] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [headCommunityName, setHeadCommunityName] = useState('My Chapter');
@@ -106,6 +107,13 @@ export const FundGovernance = () => {
       const statRes = await headFundService.getStats();
       if (statRes.success) {
         setStats(statRes.data);
+      }
+
+      try {
+        const incomeRes = await headFundService.getIncomeSources();
+        if (incomeRes.success) setIncomeSources(incomeRes.data);
+      } catch (incomeErr) {
+        console.error('Failed to fetch income sources breakdown', incomeErr);
       }
 
       // Fetch head's community name from localStorage session
@@ -434,6 +442,52 @@ export const FundGovernance = () => {
             <p className="text-2xl font-black text-indigo-950">₹ {stats.availableBalance.toLocaleString('en-IN')}</p>
             <p className="text-[10px] text-rose-500 font-bold mt-2">₹ {stats.overallPending.toLocaleString('en-IN')} Remaining Dues</p>
           </div>
+        </div>
+      )}
+
+      {/* Samaj Income Sources — where the community's money comes from */}
+      {incomeSources && (
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-xs p-5 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-sm font-black text-slate-800">Samaj Income Sources</h3>
+              <p className="text-[10.5px] text-slate-400 font-semibold mt-0.5">Where the Samaj's income is coming from, all in one place</p>
+            </div>
+            <p className="text-lg font-black text-slate-900">₹ {incomeSources.totals.grandTotal.toLocaleString('en-IN')}</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="bg-indigo-50/60 border border-indigo-100 rounded-xl p-4">
+              <p className="text-[10px] font-bold text-indigo-700 uppercase tracking-wider mb-1">Fund / Membership</p>
+              <p className="text-lg font-black text-indigo-950">₹ {incomeSources.totals.fund.toLocaleString('en-IN')}</p>
+            </div>
+            <div className="bg-rose-50/60 border border-rose-100 rounded-xl p-4">
+              <p className="text-[10px] font-bold text-rose-700 uppercase tracking-wider mb-1">Donations</p>
+              <p className="text-lg font-black text-rose-950">₹ {incomeSources.totals.donations.toLocaleString('en-IN')}</p>
+              <p className="text-[9.5px] text-rose-600/70 font-semibold mt-1">{incomeSources.donations.transactionCount} transactions</p>
+            </div>
+            <div className="bg-amber-50/60 border border-amber-100 rounded-xl p-4">
+              <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider mb-1">Dharmashala Bookings</p>
+              <p className="text-lg font-black text-amber-950">₹ {incomeSources.totals.dharmashala.toLocaleString('en-IN')}</p>
+              <p className="text-[9.5px] text-amber-600/70 font-semibold mt-1">
+                Online ₹{incomeSources.dharmashala.online.toLocaleString('en-IN')} · Offline ₹{incomeSources.dharmashala.offline.toLocaleString('en-IN')}
+                {incomeSources.dharmashala.pendingAmount > 0 && ` · ₹${incomeSources.dharmashala.pendingAmount.toLocaleString('en-IN')} pending`}
+              </p>
+            </div>
+          </div>
+
+          {incomeSources.dharmashala.byLocation?.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-slate-100">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Dharmashala Income by Location</p>
+              <div className="flex flex-wrap gap-2">
+                {incomeSources.dharmashala.byLocation.map(loc => (
+                  <span key={loc.city} className="px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-lg text-[11px] font-bold text-slate-600">
+                    {loc.city}: <span className="text-amber-700">₹{loc.amount.toLocaleString('en-IN')}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

@@ -24,6 +24,10 @@ const dharmashalaSchema = new mongoose.Schema({
   rules: { type: String },
   checkInTime: { type: String, default: '10:00' },
   checkOutTime: { type: String, default: '10:00' },
+  // Room counters — maintained by the room controllers (createRoom/updateRoom/deleteRoom)
+  totalRooms: { type: Number, default: 0 },
+  acRooms: { type: Number, default: 0 },
+  generalRooms: { type: Number, default: 0 },
   /**
    * communityId — PRIMARY community isolation key (ObjectId).
    * @deprecated `community` String field below — will be removed after migration.

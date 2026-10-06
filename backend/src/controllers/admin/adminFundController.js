@@ -413,3 +413,90 @@ exports.getFundStats = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
+
+// Samaj Income breakdown — platform-wide (or filtered to one community via
+// ?communityId=), mirrors headFundController.getIncomeSources but with no
+// community/city scope restriction, since Admin can see everything.
+exports.getIncomeSources = async (req, res) => {
+  try {
+    const Dharmashala = require('../../models/Dharmashala');
+    const DharmashalaBooking = require('../../models/DharmashalaBooking');
+    const Donation = require('../../models/Donation');
+
+    const { communityId, city } = req.query;
+    const commFilter = communityId && communityId !== 'All' ? { communityId } : {};
+    const cityFilter = (city && city !== 'All') ? { city: new RegExp(`^${city.trim()}$`, 'i') } : {};
+
+    const funds = await Fund.find(commFilter).select('_id');
+    const fundIds = funds.map(f => f._id);
+    const fundContributions = fundIds.length ? await Contribution.find({ fundId: { $in: fundIds } }) : [];
+    const fundIncome = fundContributions.reduce((sum, c) => sum + (c.paidAmount || 0), 0);
+
+    const donationTxns = await Donation.find({
+      ...commFilter,
+      ...cityFilter,
+      $or: [{ txnId: { $exists: true, $ne: null } }, { orderId: { $exists: true, $ne: null } }],
+      status: 'Approved',
+      isDeleted: { $ne: true }
+    }).select('amount city createdAt').lean();
+    const donationIncome = donationTxns.reduce((sum, d) => sum + (d.amount || 0), 0);
+
+    const scopedProperties = await Dharmashala.find({ ...commFilter, ...cityFilter }).select('_id name city').lean();
+    const propertyIds = scopedProperties.map(p => p._id);
+    const propertyById = Object.fromEntries(scopedProperties.map(p => [p._id.toString(), p]));
+
+    const bookings = propertyIds.length
+      ? await DharmashalaBooking.find({ dharmashala: { $in: propertyIds }, isDeleted: { $ne: true } })
+          .select('dharmashala amountReceived totalAmount paymentStatus bookingSource createdAt')
+          .lean()
+      : [];
+
+    const dharmashalaIncome = bookings.reduce((sum, b) => sum + (b.amountReceived || 0), 0);
+    const dharmashalaOnline = bookings.filter(b => b.bookingSource !== 'Offline').reduce((sum, b) => sum + (b.amountReceived || 0), 0);
+    const dharmashalaOffline = bookings.filter(b => b.bookingSource === 'Offline').reduce((sum, b) => sum + (b.amountReceived || 0), 0);
+    const dharmashalaPending = bookings.reduce((sum, b) => sum + Math.max(0, (b.totalAmount || 0) - (b.amountReceived || 0)), 0);
+
+    const byLocationMap = {};
+    const byPropertyMap = {};
+    const byMonthMap = {};
+    bookings.forEach(b => {
+      const prop = propertyById[b.dharmashala?.toString()];
+      const bCity = prop?.city || 'Unknown';
+      const received = b.amountReceived || 0;
+      byLocationMap[bCity] = (byLocationMap[bCity] || 0) + received;
+
+      const propKey = b.dharmashala?.toString();
+      if (propKey) {
+        if (!byPropertyMap[propKey]) byPropertyMap[propKey] = { propertyId: propKey, name: prop?.name || 'Unknown', city: bCity, amount: 0 };
+        byPropertyMap[propKey].amount += received;
+      }
+
+      const monthKey = b.createdAt ? new Date(b.createdAt).toISOString().slice(0, 7) : 'unknown';
+      byMonthMap[monthKey] = (byMonthMap[monthKey] || 0) + received;
+    });
+
+    const grandTotal = fundIncome + donationIncome + dharmashalaIncome;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        totals: { fund: fundIncome, donations: donationIncome, dharmashala: dharmashalaIncome, grandTotal },
+        dharmashala: {
+          total: dharmashalaIncome,
+          online: dharmashalaOnline,
+          offline: dharmashalaOffline,
+          pendingAmount: dharmashalaPending,
+          bookingCount: bookings.length,
+          byLocation: Object.entries(byLocationMap).map(([c, amount]) => ({ city: c, amount })),
+          byProperty: Object.values(byPropertyMap),
+          byMonth: Object.entries(byMonthMap).map(([month, amount]) => ({ month, amount })).sort((a, b) => a.month.localeCompare(b.month))
+        },
+        donations: { total: donationIncome, transactionCount: donationTxns.length },
+        fund: { total: fundIncome }
+      }
+    });
+  } catch (error) {
+    console.error('admin getIncomeSources error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};

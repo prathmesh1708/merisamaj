@@ -580,6 +580,167 @@ exports.updateBookingStatus = async (req, res) => {
   }
 };
 
+// 5. Manual / Offline Booking — a Head/Admin creates a booking directly on
+// behalf of a walk-in or phone customer. Reuses the same overlap/maintenance
+// conflict checks as the member-request and approval flows above, but skips
+// pending_approval entirely since the Head is the one confirming it.
+exports.createManualBooking = async (req, res) => {
+  try {
+    const {
+      dharmashalaId, roomId, checkIn, checkOut, checkInTime, checkOutTime,
+      bookedBy, phone, guestCount, purpose, specialRequests, staffNotes,
+      totalAmount, advanceAmount, paymentMode, paymentStatus
+    } = req.body;
+
+    if (!dharmashalaId || !roomId || !checkIn || !checkOut || !bookedBy || !phone || !totalAmount) {
+      return res.status(400).json({ status: 'error', message: 'Property, room, dates, customer name, phone and amount are required.' });
+    }
+
+    const parentProp = await Dharmashala.findOne(applyScopeFilter(req, { _id: dharmashalaId }));
+    if (!parentProp) return res.status(404).json({ status: 'error', message: 'Property not found or unauthorized.' });
+
+    const room = await DharmashalaRoom.findOne({ _id: roomId, dharmashala: dharmashalaId });
+    if (!room) return res.status(404).json({ status: 'error', message: 'Room not found for this property.' });
+
+    const checkInDate = new Date(checkIn);
+    const checkOutDate = new Date(checkOut);
+    const nights = Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 3600 * 24));
+    if (nights <= 0) {
+      return res.status(400).json({ status: 'error', message: 'Check-out date must be after check-in date.' });
+    }
+
+    const activeStatuses = ['pending_approval', 'approved', 'reserved', 'payment_pending', 'paid', 'confirmed', 'upcoming', 'checked_in'];
+    const conflict = await DharmashalaBooking.findOne({
+      rooms: roomId,
+      status: { $in: activeStatuses },
+      checkIn: { $lt: checkOutDate },
+      checkOut: { $gt: checkInDate }
+    });
+    if (conflict) {
+      return res.status(400).json({ status: 'error', message: 'This room is already booked for the selected dates.' });
+    }
+
+    const maintenanceBlock = await DharmashalaMaintenance.findOne({
+      dharmashala: dharmashalaId,
+      $or: [{ room: roomId }, { room: null }],
+      startDate: { $lt: checkOutDate },
+      endDate: { $gt: checkInDate }
+    });
+    if (maintenanceBlock) {
+      return res.status(400).json({ status: 'error', message: 'This room/property is blocked for maintenance during the selected dates.' });
+    }
+
+    const amount = Number(totalAmount);
+    const advance = advanceAmount !== undefined && advanceAmount !== null && advanceAmount !== '' ? Number(advanceAmount) : 0;
+    const resolvedPaymentStatus = paymentStatus || (advance >= amount && amount > 0 ? 'Paid' : advance > 0 ? 'Partial' : 'Pending');
+
+    const bookingId = `DH${Date.now().toString().slice(-8)}`;
+    const receiptNo = `RCPT${Date.now().toString().slice(-8)}`;
+    const roleTag = (req.user.role === 'head' ? 'HEAD' : req.user.accountType === 'local_head' ? 'LOCAL_HEAD' : (req.user.role || 'HEAD')).toUpperCase();
+
+    const booking = new DharmashalaBooking({
+      bookingId,
+      dharmashala: dharmashalaId,
+      communityId: parentProp.communityId || req.communityId,
+      rooms: [roomId],
+      user: null,
+      bookingSource: 'Offline',
+      checkIn: checkInDate,
+      checkOut: checkOutDate,
+      nights,
+      roomType: room.isAc ? 'AC' : 'General',
+      checkInTime: checkInTime || parentProp.checkInTime,
+      checkOutTime: checkOutTime || parentProp.checkOutTime,
+      totalAmount: amount,
+      bookedBy,
+      phone,
+      guestCount: guestCount ? Number(guestCount) : 1,
+      purpose: purpose || '',
+      specialRequests: specialRequests || '',
+      staffNotes: staffNotes || '',
+      status: 'confirmed',
+      paymentStatus: resolvedPaymentStatus,
+      paymentMode: paymentMode || 'Cash',
+      amountReceived: advance,
+      advanceAmount: advance,
+      receiptNo,
+      collectedBy: req.user._id,
+      collectedByName: req.user.name,
+      collectedByRole: roleTag,
+      approvedBy: req.user._id,
+      approvedByRole: roleTag,
+      approvedAt: new Date(),
+      statusHistory: [{
+        action: 'MANUAL_BOOKING_CREATED',
+        previousStatus: null,
+        newStatus: 'confirmed',
+        status: 'confirmed',
+        performedBy: req.user._id,
+        performedByRole: roleTag,
+        amount,
+        notes: `Offline booking created manually by ${req.user.name || 'Head'}`,
+        updatedAt: new Date(),
+        updatedBy: req.user.name || 'Head'
+      }]
+    });
+
+    await booking.save();
+    await DharmashalaRoom.findByIdAndUpdate(roomId, { status: 'Booked' });
+
+    const populated = await DharmashalaBooking.findById(booking._id).populate('dharmashala').populate('rooms');
+    res.status(201).json({ status: 'success', data: populated });
+  } catch (error) {
+    console.error('createManualBooking error:', error);
+    res.status(400).json({ status: 'error', message: error.message || 'Failed to create manual booking.' });
+  }
+};
+
+// Record an additional payment against an existing booking (e.g. collecting
+// the remaining balance later, or the full amount for a booking that was
+// confirmed with payment still pending).
+exports.recordBookingPayment = async (req, res) => {
+  try {
+    const { amount, paymentMode, notes } = req.body;
+    const booking = await DharmashalaBooking.findById(req.params.id).populate('dharmashala');
+    if (!booking) return res.status(404).json({ status: 'error', message: 'Booking not found.' });
+
+    const parentProp = await Dharmashala.findOne(applyScopeFilter(req, { _id: booking.dharmashala?._id || booking.dharmashala }));
+    if (!parentProp) return res.status(404).json({ status: 'error', message: 'Booking not found or unauthorized.' });
+
+    const payAmount = Number(amount);
+    if (!payAmount || payAmount <= 0) {
+      return res.status(400).json({ status: 'error', message: 'A valid payment amount is required.' });
+    }
+
+    const roleTag = (req.user.role === 'head' ? 'HEAD' : req.user.accountType === 'local_head' ? 'LOCAL_HEAD' : (req.user.role || 'HEAD')).toUpperCase();
+
+    booking.amountReceived = (booking.amountReceived || 0) + payAmount;
+    booking.paymentMode = paymentMode || booking.paymentMode || 'Cash';
+    booking.collectedBy = req.user._id;
+    booking.collectedByName = req.user.name;
+    booking.collectedByRole = roleTag;
+    booking.paymentStatus = booking.amountReceived >= booking.totalAmount ? 'Paid' : 'Partial';
+
+    booking.statusHistory.push({
+      action: 'PAYMENT_RECORDED',
+      previousStatus: booking.status,
+      newStatus: booking.status,
+      status: booking.status,
+      performedBy: req.user._id,
+      performedByRole: roleTag,
+      amount: payAmount,
+      notes: notes || `Payment of ₹${payAmount} collected`,
+      updatedAt: new Date(),
+      updatedBy: req.user.name || 'Head'
+    });
+
+    await booking.save();
+    res.status(200).json({ status: 'success', data: booking });
+  } catch (error) {
+    res.status(400).json({ status: 'error', message: error.message });
+  }
+};
+
 // 5. Maintenance Operations
 exports.logMaintenance = async (req, res) => {
   try {

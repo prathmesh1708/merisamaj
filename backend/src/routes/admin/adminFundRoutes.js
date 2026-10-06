@@ -10,6 +10,7 @@ router.use(protect, authorize('admin'));
 router.get('/', adminFundController.getAllFunds);
 router.post('/', adminFundController.createFund);
 router.get('/stats', adminFundController.getFundStats);
+router.get('/income-sources', adminFundController.getIncomeSources);
 
 router.get('/:id', adminFundController.getFundById);
 router.put('/:id', adminFundController.updateFund);

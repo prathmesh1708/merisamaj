@@ -66,6 +66,16 @@ const headDharmashalaService = {
     return response.data;
   },
 
+  createManualBooking: async (data) => {
+    const response = await axiosPrivate.post(`${BASE_URL}/bookings/manual`, data);
+    return response.data;
+  },
+
+  recordBookingPayment: async (bookingId, data) => {
+    const response = await axiosPrivate.post(`${BASE_URL}/bookings/${bookingId}/payment`, data);
+    return response.data;
+  },
+
   logMaintenance: async (data) => {
     const response = await axiosPrivate.post(`${BASE_URL}/maintenance`, data);
     return response.data;

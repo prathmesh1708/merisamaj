@@ -13,10 +13,10 @@ const dharmashalaRoomSchema = new mongoose.Schema({
   price: { type: Number, required: true },
   weekendPrice: { type: Number },
   images: [{ type: String }],
-  status: { 
-    type: String, 
-    enum: ['Available', 'Booked', 'Maintenance', 'Blocked'], 
-    default: 'Available' 
+  status: {
+    type: String,
+    enum: ['Available', 'Booked', 'Occupied', 'Maintenance', 'Blocked'],
+    default: 'Available'
   }
 }, {
   timestamps: true

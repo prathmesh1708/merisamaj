@@ -7,6 +7,7 @@ const { authorizeModule } = require('../../middleware/authorizeModule');
 router.get('/', authorizeModule('canViewFunds'), headFundController.getFunds);
 router.post('/', authorizeModule('canManageFunds'), headFundController.createFund);
 router.get('/stats', authorizeModule('canViewFunds'), headFundController.getStats);
+router.get('/income-sources', authorizeModule('canViewFunds'), headFundController.getIncomeSources);
 
 router.get('/:id', authorizeModule('canViewFunds'), headFundController.getFundById);
 router.put('/:id', authorizeModule('canManageFunds'), headFundController.updateFund);
