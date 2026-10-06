@@ -68,62 +68,17 @@ export const VotingProvider = ({ children }) => {
     }
   }, [auth.isAuthenticated, userId, fetchVotings]);
 
+  // The server enforces eligibility, the open window and one-vote-per-user; the
+  // UI only reflects the outcome. Errors are rethrown so the confirm dialog can show them.
   const castVote = async (electionId, candidateId) => {
-    // Prevent double voting early in UI
-    if (votedElections[electionId]) return;
-
-    try {
-      const res = await votingService.castVote(electionId, candidateId);
-      if (res.status === 'success') {
-        // Optimistically update
-        setVotedElections(prev => ({
-          ...prev,
-          [electionId]: candidateId
-        }));
-
-        setElections(prevElections =>
-          prevElections.map(election => {
-            if (election.id === electionId) {
-              const updatedCandidates = election.candidates.map(candidate => {
-                if (candidate.id === candidateId) {
-                  return {
-                    ...candidate,
-                    initialVotes: (candidate.initialVotes || 0) + 1
-                  };
-                }
-                return candidate;
-              });
-              return {
-                ...election,
-                totalVotesCast: (election.totalVotesCast || 0) + 1,
-                candidates: updatedCandidates
-              };
-            }
-            return election;
-          })
-        );
-      }
-    } catch (err) {
-      console.error('Error casting vote:', err);
-      throw err; // allow component to catch and show error toast
+    const res = await votingService.castVote(electionId, candidateId);
+    if (res.status === 'success') {
+      setVotedElections(prev => ({ ...prev, [electionId]: candidateId }));
+      setElections(prev => prev.map(e => (
+        e.id === electionId ? { ...e, hasVoted: true, userVotedCandidateId: candidateId } : e
+      )));
     }
-  };
-
-  const getElectionResult = (electionId) => {
-    const election = elections.find(e => e.id === electionId);
-    if (!election) return [];
-
-    const total = election.candidates.reduce((sum, c) => sum + (c.initialVotes || 0), 0);
-
-    return election.candidates.map(candidate => {
-      const votes = candidate.initialVotes || 0;
-      const percentage = total > 0 ? Math.round((votes / total) * 100) : 0;
-      return {
-        ...candidate,
-        votes,
-        percentage
-      };
-    });
+    return res;
   };
 
   return (
@@ -131,7 +86,6 @@ export const VotingProvider = ({ children }) => {
       elections, 
       votedElections, 
       castVote, 
-      getElectionResult,
       loading,
       error,
       refresh: fetchVotings

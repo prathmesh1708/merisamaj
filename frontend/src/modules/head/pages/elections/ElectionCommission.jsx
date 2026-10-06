@@ -5,6 +5,7 @@ import {
   Users, MapPin, Shield, Search, Check, Edit3, Filter, Building2, UserCheck, ChevronRight
 } from 'lucide-react';
 import headVotingService from '../../../../core/api/headVotingService';
+import ElectionEligibilityFields, { electionFieldDefaults, electionFieldsFromElection } from '../../../../components/election/ElectionEligibilityFields';
 
 export const ElectionCommission = () => {
   const [activeModal, setActiveModal] = useState(false);
@@ -43,6 +44,7 @@ export const ElectionCommission = () => {
     targetAudience: 'ALL_MEMBERS',
     targetCity: '',
     targetUsers: [],
+    ...electionFieldDefaults,
     candidates: [
       { name: '', age: '', profession: '', shortIntro: '' },
       { name: '', age: '', profession: '', shortIntro: '' }
@@ -130,6 +132,7 @@ export const ElectionCommission = () => {
       targetAudience: el.targetAudience || (targetOptions.isLocalHead ? 'ALL_LOCAL_USERS' : 'ALL_MEMBERS'),
       targetCity: el.targetCity || el.city || '',
       targetUsers: Array.isArray(el.targetUsers) ? el.targetUsers.map(u => u._id || u.id || u) : [],
+      ...electionFieldsFromElection(el),
       candidates: Array.isArray(el.candidates) && el.candidates.length >= 2 
         ? el.candidates.map(c => ({
             _id: c._id || c.id,
@@ -153,6 +156,14 @@ export const ElectionCommission = () => {
     e.preventDefault();
     if (!formData.title || !formData.startDate || !formData.endDate || formData.candidates.some(c => !c.name.trim())) {
       showToast('Please fill in all required fields (including candidate names)', true);
+      return;
+    }
+    if (new Date(formData.endDate) <= new Date(formData.startDate)) {
+      showToast('End time must be after the start time', true);
+      return;
+    }
+    if (formData.resultDate && new Date(formData.resultDate) < new Date(formData.endDate)) {
+      showToast('Result time cannot be before the voting end time', true);
       return;
     }
 
@@ -620,6 +631,12 @@ export const ElectionCommission = () => {
                       />
                     </div>
                   </div>
+                  <ElectionEligibilityFields
+                    formData={formData}
+                    setFormData={setFormData}
+                    cities={targetOptions.cities}
+                    lockedCity={targetOptions.isLocalHead ? targetOptions.userCity : ''}
+                  />
                 </div>
 
                 {/* Section 2: Target Audience / Whom to Send */}

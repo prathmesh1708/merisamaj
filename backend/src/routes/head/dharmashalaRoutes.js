@@ -13,42 +13,47 @@ const { authorizeModule } = require('../../middleware/authorizeModule');
 // inside each controller function (community + city scoping).
 const headOrSubHead = authorize('head', 'sub_head', 'admin', 'super_admin', 'master_admin');
 
-const canView = authorizeModule('canViewDharmashala');
+const { canViewDharmashala } = require('../../middleware/dharmashalaAccess');
+const canView = canViewDharmashala;
 const canManage = authorizeModule('canManageDharmashala');
+// Creating properties/rooms and making manual bookings are NOT granted by
+// canManageDharmashala — only by the Admin-set access policy (per role, per location).
+const { requireDharmashalaAccess } = require('../../middleware/dharmashalaAccess');
+const dharmashalaAccessController = require('../../controllers/admin/dharmashalaAccessController');
+const canCreateProperty = requireDharmashalaAccess('createProperty');
+const canManualBook = requireDharmashalaAccess('manualBooking');
+
+router.get('/my-access', headOrSubHead, dharmashalaAccessController.getMyAccess);
 
 // READ: Dashboard Stats & Property Listings
 router.get('/dashboard-stats', headOrSubHead, canView, dharmashalaController.getDashboardStats);
 router.get('/properties', headOrSubHead, canView, dharmashalaController.getProperties);
-router.get('/properties/:id/rooms', headOrSubHead, canView, dharmashalaController.getDharmashalaRooms);
 router.get('/bookings', headOrSubHead, canView, dharmashalaController.getAllBookings);
 router.get('/maintenance', headOrSubHead, canView, dharmashalaController.getMaintenanceLogs);
 
 // WRITE/MUTATING: Property, Room, Booking & Maintenance management — any Head
 // or Sub-Head (Local Head, Local Sub-Head, Community Head) who holds
 // canManageDharmashala, scoped to their own community/city.
-router.post('/properties', headOrSubHead, canManage, upload.fields([
+router.post('/properties', headOrSubHead, canCreateProperty, upload.fields([
   { name: 'image', maxCount: 1 },
   { name: 'galleryImages', maxCount: 10 }
 ]), dharmashalaController.createProperty);
 
-router.put('/properties/:id', headOrSubHead, canManage, upload.fields([
+router.put('/properties/:id', headOrSubHead, canCreateProperty, upload.fields([
   { name: 'image', maxCount: 1 },
   { name: 'galleryImages', maxCount: 10 }
 ]), dharmashalaController.updateProperty);
 
-router.delete('/properties/:id', headOrSubHead, canManage, dharmashalaController.deleteProperty);
+router.delete('/properties/:id', headOrSubHead, canCreateProperty, dharmashalaController.deleteProperty);
 
-router.post('/rooms', headOrSubHead, canManage, upload.fields([{ name: 'images', maxCount: 5 }]), dharmashalaController.createRoom);
-router.put('/rooms/:roomId', headOrSubHead, canManage, upload.fields([{ name: 'images', maxCount: 5 }]), dharmashalaController.updateRoom);
-router.delete('/rooms/:roomId', headOrSubHead, canManage, dharmashalaController.deleteRoom);
 
 // Online booking management — accept/reject/confirm/complete/cancel
 router.patch('/bookings/:id/status', headOrSubHead, canManage, dharmashalaController.updateBookingStatus);
 
 // Offline/manual booking — create directly for a walk-in/phone guest, and
 // record later payments (e.g. collecting the remaining balance) against it.
-router.post('/bookings/manual', headOrSubHead, canManage, dharmashalaController.createManualBooking);
-router.post('/bookings/:id/payment', headOrSubHead, canManage, dharmashalaController.recordBookingPayment);
+router.post('/bookings/manual', headOrSubHead, canManualBook, dharmashalaController.createManualBooking);
+router.post('/bookings/:id/payment', headOrSubHead, canManualBook, dharmashalaController.recordBookingPayment);
 
 router.post('/maintenance', headOrSubHead, canManage, dharmashalaController.logMaintenance);
 

@@ -422,6 +422,7 @@ exports.getIncomeSources = async (req, res) => {
     const Dharmashala = require('../../models/Dharmashala');
     const DharmashalaBooking = require('../../models/DharmashalaBooking');
     const Donation = require('../../models/Donation');
+    const SamajIncome = require('../../models/SamajIncome');
 
     const { communityId, city } = req.query;
     const commFilter = communityId && communityId !== 'All' ? { communityId } : {};
@@ -475,12 +476,21 @@ exports.getIncomeSources = async (req, res) => {
       byMonthMap[monthKey] = (byMonthMap[monthKey] || 0) + received;
     });
 
-    const grandTotal = fundIncome + donationIncome + dharmashalaIncome;
+    const manualEntries = await SamajIncome.find({ ...commFilter, ...cityFilter, status: 'Recorded' })
+      .select('amount incomeCategory').lean();
+    const manualIncome = manualEntries.reduce((sum, m) => sum + (m.amount || 0), 0);
+    const manualByCategoryMap = {};
+    manualEntries.forEach(m => {
+      const cat = m.incomeCategory || 'Other Income';
+      manualByCategoryMap[cat] = (manualByCategoryMap[cat] || 0) + (m.amount || 0);
+    });
+
+    const grandTotal = fundIncome + donationIncome + dharmashalaIncome + manualIncome;
 
     res.status(200).json({
       success: true,
       data: {
-        totals: { fund: fundIncome, donations: donationIncome, dharmashala: dharmashalaIncome, grandTotal },
+        totals: { fund: fundIncome, donations: donationIncome, dharmashala: dharmashalaIncome, manual: manualIncome, grandTotal },
         dharmashala: {
           total: dharmashalaIncome,
           online: dharmashalaOnline,
@@ -492,7 +502,12 @@ exports.getIncomeSources = async (req, res) => {
           byMonth: Object.entries(byMonthMap).map(([month, amount]) => ({ month, amount })).sort((a, b) => a.month.localeCompare(b.month))
         },
         donations: { total: donationIncome, transactionCount: donationTxns.length },
-        fund: { total: fundIncome }
+        fund: { total: fundIncome },
+        manual: {
+          total: manualIncome,
+          entryCount: manualEntries.length,
+          byCategory: Object.entries(manualByCategoryMap).map(([category, amount]) => ({ category, amount }))
+        }
       }
     });
   } catch (error) {

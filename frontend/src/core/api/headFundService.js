@@ -58,6 +58,31 @@ export const headFundService = {
     return res.data;
   },
 
+  getManualCollections: async (params = {}) => {
+    const res = await axiosPrivate.get(`${API_BASE}/manual-collections`, { params });
+    return res.data;
+  },
+
+  createManualCollection: async (data) => {
+    const res = await axiosPrivate.post(`${API_BASE}/manual-collections`, data);
+    return res.data;
+  },
+
+  cancelManualCollection: async (id, reason) => {
+    const res = await axiosPrivate.patch(`${API_BASE}/manual-collections/${id}/cancel`, { reason });
+    return res.data;
+  },
+
+  getWhoGaveReport: async () => {
+    const res = await axiosPrivate.get(`${API_BASE}/reports/who-gave`);
+    return res.data;
+  },
+
+  getWhoCollectedReport: async () => {
+    const res = await axiosPrivate.get(`${API_BASE}/reports/who-collected`);
+    return res.data;
+  },
+
   recordCashPayment: async (fundId, paymentData) => {
     const res = await axiosPrivate.post(`${API_BASE}/${fundId}/record-cash-payment`, paymentData);
     return res.data;

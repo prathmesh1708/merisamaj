@@ -130,6 +130,10 @@ exports.createProperty = async (req, res) => {
     if (!payload.communityId) {
       return res.status(400).json({ status: 'error', message: 'Community context missing for property creation' });
     }
+    // Local-level heads can only create properties in their own location.
+    if (req.user?.city && (req.user.accountType === 'local_head' || req.user.accountType === 'local_sub_head' || req.user.subHeadType === 'local')) {
+      payload.city = req.user.city;
+    }
     
     // Parse amenities list if passed as stringified JSON array
     let amenities = payload.amenities;
@@ -592,15 +596,20 @@ exports.createManualBooking = async (req, res) => {
       totalAmount, advanceAmount, paymentMode, paymentStatus
     } = req.body;
 
-    if (!dharmashalaId || !roomId || !checkIn || !checkOut || !bookedBy || !phone || !totalAmount) {
-      return res.status(400).json({ status: 'error', message: 'Property, room, dates, customer name, phone and amount are required.' });
+    if (!dharmashalaId || !checkIn || !checkOut || !bookedBy || !phone || !totalAmount) {
+      return res.status(400).json({ status: 'error', message: 'Property, dates, customer name, phone and amount are required.' });
     }
 
     const parentProp = await Dharmashala.findOne(applyScopeFilter(req, { _id: dharmashalaId }));
     if (!parentProp) return res.status(404).json({ status: 'error', message: 'Property not found or unauthorized.' });
 
-    const room = await DharmashalaRoom.findOne({ _id: roomId, dharmashala: dharmashalaId });
-    if (!room) return res.status(404).json({ status: 'error', message: 'Room not found for this property.' });
+    // Rooms are no longer part of the head/admin booking flow; roomId is optional
+    // and only honoured for legacy callers that still send one.
+    let room = null;
+    if (roomId) {
+      room = await DharmashalaRoom.findOne({ _id: roomId, dharmashala: dharmashalaId });
+      if (!room) return res.status(404).json({ status: 'error', message: 'Room not found for this property.' });
+    }
 
     const checkInDate = new Date(checkIn);
     const checkOutDate = new Date(checkOut);
@@ -610,19 +619,19 @@ exports.createManualBooking = async (req, res) => {
     }
 
     const activeStatuses = ['pending_approval', 'approved', 'reserved', 'payment_pending', 'paid', 'confirmed', 'upcoming', 'checked_in'];
-    const conflict = await DharmashalaBooking.findOne({
+    const conflict = roomId ? await DharmashalaBooking.findOne({
       rooms: roomId,
       status: { $in: activeStatuses },
       checkIn: { $lt: checkOutDate },
       checkOut: { $gt: checkInDate }
-    });
+    }) : null;
     if (conflict) {
       return res.status(400).json({ status: 'error', message: 'This room is already booked for the selected dates.' });
     }
 
     const maintenanceBlock = await DharmashalaMaintenance.findOne({
       dharmashala: dharmashalaId,
-      $or: [{ room: roomId }, { room: null }],
+      $or: roomId ? [{ room: roomId }, { room: null }] : [{ room: null }],
       startDate: { $lt: checkOutDate },
       endDate: { $gt: checkInDate }
     });
@@ -642,13 +651,13 @@ exports.createManualBooking = async (req, res) => {
       bookingId,
       dharmashala: dharmashalaId,
       communityId: parentProp.communityId || req.communityId,
-      rooms: [roomId],
+      rooms: roomId ? [roomId] : [],
       user: null,
       bookingSource: 'Offline',
       checkIn: checkInDate,
       checkOut: checkOutDate,
       nights,
-      roomType: room.isAc ? 'AC' : 'General',
+      roomType: room ? (room.isAc ? 'AC' : 'General') : undefined,
       checkInTime: checkInTime || parentProp.checkInTime,
       checkOutTime: checkOutTime || parentProp.checkOutTime,
       totalAmount: amount,
@@ -685,7 +694,7 @@ exports.createManualBooking = async (req, res) => {
     });
 
     await booking.save();
-    await DharmashalaRoom.findByIdAndUpdate(roomId, { status: 'Booked' });
+    if (roomId) await DharmashalaRoom.findByIdAndUpdate(roomId, { status: 'Booked' });
 
     const populated = await DharmashalaBooking.findById(booking._id).populate('dharmashala').populate('rooms');
     res.status(201).json({ status: 'success', data: populated });

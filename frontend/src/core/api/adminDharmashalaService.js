@@ -26,6 +26,16 @@ const adminDharmashalaService = {
   togglePropertyStatus: async (propertyId) => {
     const response = await axiosPrivate.patch(`${BASE_URL}/properties/${propertyId}/toggle-status`);
     return response.data;
+  },
+
+  createManualBooking: async (data) => {
+    const response = await axiosPrivate.post(`${BASE_URL}/bookings/manual`, data);
+    return response.data;
+  },
+
+  recordBookingPayment: async (bookingId, data) => {
+    const response = await axiosPrivate.post(`${BASE_URL}/bookings/${bookingId}/payment`, data);
+    return response.data;
   }
 };
 

@@ -8,6 +8,11 @@ const headDharmashalaService = {
     return response.data;
   },
 
+  getMyAccess: async () => {
+    const response = await axiosPrivate.get(`${BASE_URL}/my-access`);
+    return response.data;
+  },
+
   getProperties: async () => {
     const response = await axiosPrivate.get(`${BASE_URL}/properties`);
     return response.data;

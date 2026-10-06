@@ -3,6 +3,7 @@ const Vote = require('../../models/Vote');
 const Community = require('../../models/Community');
 const User = require('../../models/User');
 const mongoose = require('mongoose');
+const { electionFieldsFromBody, normaliseCandidates, publishAndNotify } = require('../../utils/electionAdmin');
 const { applyScopeFilter } = require('../../utils/queryScopeHelper');
 const { createBroadcastNotification } = require('../../services/notificationService');
 
@@ -412,15 +413,21 @@ exports.createElection = async (req, res) => {
       status: initialStatus,
       startDate: start,
       endDate: end,
-      candidates: processedCandidates,
+      candidates: normaliseCandidates(processedCandidates),
       communityId: finalCommunityId,
       city: finalCity,
       scope: finalScope,
       targetAudience: finalTargetAudience,
       targetCity: finalCity,
       targetUsers: Array.isArray(targetUsers) ? targetUsers : [],
+      ...electionFieldsFromBody(req.body, req.user),
       createdBy: req.user._id
     });
+
+    if (newVoting.resultDate && newVoting.resultDate < newVoting.endDate) {
+      newVoting.resultDate = newVoting.endDate;
+      await newVoting.save();
+    }
 
     // Real-time broadcast
     try {
@@ -438,24 +445,11 @@ exports.createElection = async (req, res) => {
       console.warn('[Socket.io] Admin election:created broadcast warning:', socketErr.message);
     }
 
-    // Broadcast notifications to relevant members
+    // Notify only the users who are eligible for this election (skipped for drafts)
     try {
-      if (finalCommunityId) {
-        createBroadcastNotification({
-          communityId: finalCommunityId,
-          module: 'voting',
-          type: 'election_created',
-          title: 'New Election 🗳️',
-          message: `A new election "${title}" has been launched. Cast your vote!`,
-          icon: '🗳️',
-          priority: 'high',
-          actionUrl: `/member/voting/${newVoting._id}`,
-          referenceId: newVoting._id,
-          referenceType: 'Voting'
-        });
-      }
+      await publishAndNotify(newVoting, req);
     } catch (notifErr) {
-      console.warn('[Notify] Admin createElection notification warning:', notifErr.message);
+      console.warn('[Notify] Admin createElection publish failed:', notifErr.message);
     }
 
     res.status(201).json({
@@ -552,7 +546,9 @@ exports.updateElection = async (req, res) => {
       election.scope = election.communityId ? 'COMMUNITY' : 'GLOBAL';
     }
 
+    Object.assign(election, electionFieldsFromBody(req.body, req.user));
     await election.save();
+    try { await publishAndNotify(election, req); } catch (e) { console.warn('[Notify] Admin updateElection publish failed:', e.message); }
 
     // Broadcast socket event
     try {

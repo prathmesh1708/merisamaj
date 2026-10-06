@@ -5,6 +5,7 @@ const User = require('../../models/User');
 const Dharmashala = require('../../models/Dharmashala');
 const DharmashalaBooking = require('../../models/DharmashalaBooking');
 const Donation = require('../../models/Donation');
+const SamajIncome = require('../../models/SamajIncome');
 const { notifyFundCreated, createNotification, createBroadcastNotification } = require('../../services/notificationService');
 const { applyScopeFilter, inheritTenantPayload } = require('../../utils/queryScopeHelper');
 
@@ -26,6 +27,22 @@ const getCommunityId = (req) => {
   return null;
 };
 
+// What a Local Head can see: community-wide funds, funds they created or run, and
+// every LOCAL fund created for their own city (by them or another local head there).
+const localFundScopeOr = (req) => {
+  const clauses = [
+    { scope: 'COMMUNITY' },
+    { scope: 'LOCAL', createdBy: req.user._id },
+    { scope: 'LOCAL', localHeadId: req.user._id }
+  ];
+  const city = (req.user?.city || '').trim();
+  if (city) {
+    const escaped = city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    clauses.push({ scope: 'LOCAL', city: new RegExp(`^${escaped}$`, 'i') });
+  }
+  return clauses;
+};
+
 // 1. Get Head Panel Funds (Scoped by role: Community Head vs Local Head vs Admin)
 exports.getFunds = async (req, res) => {
   try {
@@ -44,9 +61,7 @@ exports.getFunds = async (req, res) => {
       query = {
         communityId,
         $or: [
-          { scope: 'COMMUNITY' },
-          { scope: 'LOCAL', createdBy: req.user._id },
-          { scope: 'LOCAL', localHeadId: req.user._id }
+          ...localFundScopeOr(req)
         ]
       };
     } else {
@@ -118,9 +133,7 @@ exports.getFundById = async (req, res) => {
       query.communityId = communityId;
       if (isLocalHead) {
         query.$or = [
-          { scope: 'COMMUNITY' },
-          { scope: 'LOCAL', createdBy: req.user._id },
-          { scope: 'LOCAL', localHeadId: req.user._id }
+          ...localFundScopeOr(req)
         ];
       }
     }
@@ -253,10 +266,7 @@ exports.createFund = async (req, res) => {
     }
 
     let members = await User.find(memberQuery);
-    // If no members in that specific city query, seed with all community members so ledger is usable
-    if (members.length === 0 && scope === 'LOCAL') {
-      members = await User.find({ communityId, role: 'user', accountStatus: { $ne: 'deleted' } });
-    }
+    // A LOCAL fund belongs only to its own location: members from other cities are never added.
 
     const contributions = members.map(m => ({
       fundId: fund._id,
@@ -664,9 +674,7 @@ exports.getStats = async (req, res) => {
       query = {
         communityId,
         $or: [
-          { scope: 'COMMUNITY' },
-          { scope: 'LOCAL', createdBy: req.user._id },
-          { scope: 'LOCAL', localHeadId: req.user._id }
+          ...localFundScopeOr(req)
         ]
       };
     } else {
@@ -735,18 +743,23 @@ exports.getIncomeSources = async (req, res) => {
       fundQuery = {
         communityId,
         $or: [
-          { scope: 'COMMUNITY' },
-          { scope: 'LOCAL', createdBy: req.user._id },
-          { scope: 'LOCAL', localHeadId: req.user._id }
+          ...localFundScopeOr(req)
         ]
       };
     } else {
       fundQuery = { communityId };
     }
-    const scopedFunds = await Fund.find(fundQuery).select('_id');
+    const scopedFunds = await Fund.find(fundQuery).select('_id city');
     const fundIds = scopedFunds.map(f => f._id);
+    const fundCityById = Object.fromEntries(scopedFunds.map(f => [f._id.toString(), f.city || 'Unknown']));
     const fundContributions = fundIds.length ? await Contribution.find({ fundId: { $in: fundIds } }) : [];
     const fundIncome = fundContributions.reduce((sum, c) => sum + (c.paidAmount || 0), 0);
+
+    const fundByLocationMap = {};
+    fundContributions.forEach(c => {
+      const city = fundCityById[c.fundId?.toString()] || 'Unknown';
+      fundByLocationMap[city] = (fundByLocationMap[city] || 0) + (c.paidAmount || 0);
+    });
 
     // ── 2. Donations — individual transactions (txnId present) with a
     // successful/collected status, same community+city scope as everything else ──
@@ -757,6 +770,11 @@ exports.getIncomeSources = async (req, res) => {
     });
     const donationTxns = await Donation.find(donationFilter).select('amount city createdAt').lean();
     const donationIncome = donationTxns.reduce((sum, d) => sum + (d.amount || 0), 0);
+    const donationByLocationMap = {};
+    donationTxns.forEach(d => {
+      const city = d.city || 'Unknown';
+      donationByLocationMap[city] = (donationByLocationMap[city] || 0) + (d.amount || 0);
+    });
 
     // ── 3. Dharmashala bookings — scoped to properties this requester can see
     // (same applyScopeFilter used by the Dharmashala controller itself) ──
@@ -795,7 +813,36 @@ exports.getIncomeSources = async (req, res) => {
       byMonthMap[monthKey] = (byMonthMap[monthKey] || 0) + received;
     });
 
-    const grandTotal = fundIncome + donationIncome + dharmashalaIncome;
+    // ── 4. Manual collections — generic income not tied to any Fund/Donation/
+    // Dharmashala entity (e.g. a cash donation with no campaign behind it) ──
+    const manualFilter = applyScopeFilter(req, { status: 'Recorded' });
+    const manualEntries = await SamajIncome.find(manualFilter).select('amount city incomeCategory createdAt').lean();
+    const manualIncome = manualEntries.reduce((sum, m) => sum + (m.amount || 0), 0);
+    const manualByLocationMap = {};
+    const manualByCategoryMap = {};
+    manualEntries.forEach(m => {
+      const city = m.city || 'Unknown';
+      manualByLocationMap[city] = (manualByLocationMap[city] || 0) + (m.amount || 0);
+      const cat = m.incomeCategory || 'Other Income';
+      manualByCategoryMap[cat] = (manualByCategoryMap[cat] || 0) + (m.amount || 0);
+    });
+
+    // ── Unified location breakdown across all four sources ──
+    const allCities = new Set([
+      ...Object.keys(fundByLocationMap),
+      ...Object.keys(donationByLocationMap),
+      ...Object.keys(byLocationMap),
+      ...Object.keys(manualByLocationMap)
+    ]);
+    const overallByLocation = Array.from(allCities).map(city => {
+      const fund = fundByLocationMap[city] || 0;
+      const donations = donationByLocationMap[city] || 0;
+      const dharmashala = byLocationMap[city] || 0;
+      const manual = manualByLocationMap[city] || 0;
+      return { city, fund, donations, dharmashala, manual, total: fund + donations + dharmashala + manual };
+    }).sort((a, b) => b.total - a.total);
+
+    const grandTotal = fundIncome + donationIncome + dharmashalaIncome + manualIncome;
 
     res.status(200).json({
       success: true,
@@ -804,6 +851,7 @@ exports.getIncomeSources = async (req, res) => {
           fund: fundIncome,
           donations: donationIncome,
           dharmashala: dharmashalaIncome,
+          manual: manualIncome,
           grandTotal
         },
         dharmashala: {
@@ -817,11 +865,257 @@ exports.getIncomeSources = async (req, res) => {
           byMonth: Object.entries(byMonthMap).map(([month, amount]) => ({ month, amount })).sort((a, b) => a.month.localeCompare(b.month))
         },
         donations: { total: donationIncome, transactionCount: donationTxns.length },
-        fund: { total: fundIncome }
+        fund: { total: fundIncome },
+        manual: {
+          total: manualIncome,
+          entryCount: manualEntries.length,
+          byCategory: Object.entries(manualByCategoryMap).map(([category, amount]) => ({ category, amount }))
+        },
+        byLocation: overallByLocation
       }
     });
   } catch (error) {
     console.error('getIncomeSources error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// ─────────────────────────────────────────────
+// Manual Collection — a generic cash/other-payment-mode income entry not
+// tied to any specific Fund/Donation/Dharmashala entity. Scoped the same
+// way as everything else (community-wide for Community Head, community+city
+// for Local Head), and feeds straight into getIncomeSources above.
+// ─────────────────────────────────────────────
+exports.createManualCollection = async (req, res) => {
+  try {
+    const { payerName, payerPhone, payerAddress, amount, paymentMode, purpose, incomeCategory, date, notes, documentUrl } = req.body;
+
+    if (!payerName || !amount || Number(amount) <= 0) {
+      return res.status(400).json({ success: false, message: 'Payer name and a valid amount are required.' });
+    }
+
+    const payload = inheritTenantPayload(req, {});
+    if (!payload.communityId) {
+      return res.status(403).json({ success: false, message: 'Community context missing.' });
+    }
+
+    const roleTag = (req.user.role === 'head' ? 'HEAD' : req.user.accountType === 'local_head' ? 'LOCAL_HEAD' : (req.user.role || 'HEAD')).toUpperCase();
+    const receiptNo = `SAM-${Date.now().toString().slice(-9)}`;
+
+    const entry = await SamajIncome.create({
+      communityId: payload.communityId,
+      city: payload.city || req.user.city || '',
+      payerName: payerName.trim(),
+      payerPhone: payerPhone || '',
+      payerAddress: payerAddress || '',
+      amount: Number(amount),
+      paymentMode: paymentMode || 'Cash',
+      purpose: purpose || '',
+      incomeCategory: incomeCategory || 'Other Income',
+      date: date ? new Date(date) : new Date(),
+      notes: notes || '',
+      documentUrl: documentUrl || '',
+      receiptNo,
+      collectedBy: req.user._id,
+      collectedByName: req.user.name,
+      collectedByRole: roleTag
+    });
+
+    res.status(201).json({ success: true, data: entry });
+  } catch (error) {
+    console.error('createManualCollection error:', error);
+    res.status(400).json({ success: false, message: error.message || 'Failed to record collection.' });
+  }
+};
+
+exports.getManualCollections = async (req, res) => {
+  try {
+    const { category, paymentMode, search, startDate, endDate } = req.query;
+    let filter = applyScopeFilter(req, { status: 'Recorded' });
+    if (category && category !== 'all') filter.incomeCategory = category;
+    if (paymentMode && paymentMode !== 'all') filter.paymentMode = paymentMode;
+    if (search) {
+      filter.$or = [
+        { payerName: { $regex: search, $options: 'i' } },
+        { payerPhone: { $regex: search, $options: 'i' } },
+        { receiptNo: { $regex: search, $options: 'i' } }
+      ];
+    }
+    if (startDate || endDate) {
+      filter.date = {};
+      if (startDate) filter.date.$gte = new Date(startDate);
+      if (endDate) filter.date.$lte = new Date(endDate);
+    }
+
+    const entries = await SamajIncome.find(filter).populate('collectedBy', 'name').sort({ date: -1 });
+    res.status(200).json({ success: true, data: entries });
+  } catch (error) {
+    console.error('getManualCollections error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+exports.cancelManualCollection = async (req, res) => {
+  try {
+    const entry = await SamajIncome.findOne(applyScopeFilter(req, { _id: req.params.id }));
+    if (!entry) return res.status(404).json({ success: false, message: 'Collection entry not found.' });
+    if (entry.status === 'Cancelled') {
+      return res.status(400).json({ success: false, message: 'This collection is already cancelled.' });
+    }
+
+    entry.status = 'Cancelled';
+    entry.cancelledBy = req.user._id;
+    entry.cancelledAt = new Date();
+    entry.cancellationReason = req.body.reason || '';
+    await entry.save();
+
+    res.status(200).json({ success: true, data: entry });
+  } catch (error) {
+    console.error('cancelManualCollection error:', error);
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+// "Who gave how much?" — a unified donor/payer ledger merging Donation
+// transactions, Fund/Contribution payments, and manual SamajIncome entries
+// into one normalized list, scoped exactly like getIncomeSources.
+exports.getWhoGaveReport = async (req, res) => {
+  try {
+    const communityId = getCommunityId(req);
+    if (!communityId) return res.status(403).json({ success: false, message: 'Access Denied.' });
+
+    const rows = [];
+
+    // Donations
+    const donationFilter = applyScopeFilter(req, {
+      $or: [{ txnId: { $exists: true, $ne: null } }, { orderId: { $exists: true, $ne: null } }],
+      status: 'Approved',
+      isDeleted: { $ne: true }
+    });
+    const donationTxns = await Donation.find(donationFilter)
+      .populate('user', 'name phone')
+      .select('amount city createdAt donorName paymentMode user').lean();
+    donationTxns.forEach(d => rows.push({
+      source: 'Donation',
+      payerName: d.donorName || d.user?.name || 'Anonymous',
+      payerPhone: d.user?.phone || '',
+      location: d.city || '',
+      purpose: 'Donation',
+      amount: d.amount || 0,
+      paymentMode: d.paymentMode || 'Online',
+      date: d.createdAt
+    }));
+
+    // Fund contributions
+    const userRole = (req.user?.role || '').toLowerCase();
+    const isLocalHead = userRole === 'sub_head' || req.user?.accountType === 'local_head';
+    const isAdmin = ['admin', 'super_admin', 'master_admin', 'master'].includes(userRole);
+    let fundQuery = {};
+    if (isAdmin) { if (req.query.communityId) fundQuery.communityId = req.query.communityId; }
+    else if (isLocalHead) {
+      fundQuery = { communityId, $or: [...localFundScopeOr(req)] };
+    } else { fundQuery = { communityId }; }
+    const scopedFunds = await Fund.find(fundQuery).select('_id city name');
+    const fundIds = scopedFunds.map(f => f._id);
+    const fundById = Object.fromEntries(scopedFunds.map(f => [f._id.toString(), f]));
+    const contributions = fundIds.length
+      ? await Contribution.find({ fundId: { $in: fundIds } }).populate('memberId', 'name phone').lean()
+      : [];
+    contributions.forEach(c => {
+      const fund = fundById[c.fundId?.toString()];
+      (c.transactions || []).filter(t => t.status === 'Approved').forEach(t => rows.push({
+        source: 'Fund',
+        payerName: c.memberId?.name || 'Member',
+        payerPhone: c.memberId?.phone || '',
+        location: fund?.city || '',
+        purpose: fund?.name || 'Fund Contribution',
+        amount: t.amount || 0,
+        paymentMode: t.paymentMode || 'Online',
+        date: t.date
+      }));
+    });
+
+    // Manual collections
+    const manualFilter = applyScopeFilter(req, { status: 'Recorded' });
+    const manualEntries = await SamajIncome.find(manualFilter).lean();
+    manualEntries.forEach(m => rows.push({
+      source: 'Manual Collection',
+      payerName: m.payerName,
+      payerPhone: m.payerPhone || '',
+      location: m.city || '',
+      purpose: m.purpose || m.incomeCategory,
+      amount: m.amount || 0,
+      paymentMode: m.paymentMode || 'Cash',
+      date: m.date
+    }));
+
+    rows.sort((a, b) => new Date(b.date) - new Date(a.date));
+    res.status(200).json({ success: true, data: rows, total: rows.reduce((s, r) => s + r.amount, 0) });
+  } catch (error) {
+    console.error('getWhoGaveReport error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// "Who collected how much?" — aggregates every collectedBy field across
+// Donation (cash collections), Fund/Contribution transactions, Dharmashala
+// bookings, and manual SamajIncome entries, grouped by collector.
+exports.getWhoCollectedReport = async (req, res) => {
+  try {
+    const communityId = getCommunityId(req);
+    if (!communityId) return res.status(403).json({ success: false, message: 'Access Denied.' });
+
+    const collectorMap = {};
+    const bump = (id, name, role, amount, isCash) => {
+      if (!id) return;
+      const key = id.toString();
+      if (!collectorMap[key]) collectorMap[key] = { collectorId: key, name, role, collectionsCount: 0, totalAmount: 0, cashAmount: 0, onlineAmount: 0 };
+      collectorMap[key].collectionsCount += 1;
+      collectorMap[key].totalAmount += amount;
+      if (isCash) collectorMap[key].cashAmount += amount; else collectorMap[key].onlineAmount += amount;
+    };
+
+    // Donations collected as cash
+    const donationFilter = applyScopeFilter(req, { paymentMode: 'Cash', collectionStatus: 'collected', isDeleted: { $ne: true } });
+    const collectedDonations = await Donation.find(donationFilter).select('amount collectedBy collectedByName collectedByRole').lean();
+    collectedDonations.forEach(d => bump(d.collectedBy, d.collectedByName, d.collectedByRole, d.amount || 0, true));
+
+    // Fund cash-collected transactions
+    const userRole = (req.user?.role || '').toLowerCase();
+    const isLocalHead = userRole === 'sub_head' || req.user?.accountType === 'local_head';
+    const isAdmin = ['admin', 'super_admin', 'master_admin', 'master'].includes(userRole);
+    let fundQuery = {};
+    if (isAdmin) { if (req.query.communityId) fundQuery.communityId = req.query.communityId; }
+    else if (isLocalHead) {
+      fundQuery = { communityId, $or: [...localFundScopeOr(req)] };
+    } else { fundQuery = { communityId }; }
+    const scopedFunds = await Fund.find(fundQuery).select('_id');
+    const fundIds = scopedFunds.map(f => f._id);
+    const contributions = fundIds.length ? await Contribution.find({ fundId: { $in: fundIds } }).lean() : [];
+    contributions.forEach(c => {
+      (c.transactions || []).filter(t => t.status === 'Approved' && t.collectedBy).forEach(t => {
+        bump(t.collectedBy, t.collectedByName, 'HEAD', t.amount || 0, (t.paymentMode || '').toLowerCase() === 'cash');
+      });
+    });
+
+    // Dharmashala bookings
+    const scopedProperties = await Dharmashala.find(applyScopeFilter(req, {})).select('_id').lean();
+    const propertyIds = scopedProperties.map(p => p._id);
+    const bookings = propertyIds.length
+      ? await DharmashalaBooking.find({ dharmashala: { $in: propertyIds }, isDeleted: { $ne: true }, amountReceived: { $gt: 0 } })
+          .select('amountReceived collectedBy collectedByName collectedByRole paymentMode').lean()
+      : [];
+    bookings.forEach(b => bump(b.collectedBy, b.collectedByName, b.collectedByRole, b.amountReceived || 0, (b.paymentMode || '').toLowerCase() === 'cash'));
+
+    // Manual collections
+    const manualFilter = applyScopeFilter(req, { status: 'Recorded' });
+    const manualEntries = await SamajIncome.find(manualFilter).select('amount collectedBy collectedByName collectedByRole paymentMode').lean();
+    manualEntries.forEach(m => bump(m.collectedBy, m.collectedByName, m.collectedByRole, m.amount || 0, (m.paymentMode || '').toLowerCase() === 'cash'));
+
+    const data = Object.values(collectorMap).sort((a, b) => b.totalAmount - a.totalAmount);
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    console.error('getWhoCollectedReport error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import { 
   Wallet, Search, RefreshCw, Plus, Eye, Edit3, 
   Trash2, CheckCircle2, MapPin, Calendar, 
@@ -19,6 +19,7 @@ export default function GlobalFundManagement() {
   const [funds, setFunds] = useState([]);
   const [communities, setCommunities] = useState([]);
   const [stats, setStats] = useState(null);
+  const [incomeSources, setIncomeSources] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -87,6 +88,15 @@ export default function GlobalFundManagement() {
       const statRes = await adminFundService.getStats();
       if (statRes.success) {
         setStats(statRes.data);
+      }
+
+      try {
+        const incomeRes = await adminFundService.getIncomeSources(
+          filters.communityId && filters.communityId !== 'All' ? { communityId: filters.communityId } : {}
+        );
+        if (incomeRes.success) setIncomeSources(incomeRes.data);
+      } catch (incomeErr) {
+        console.error('Failed to fetch income sources breakdown', incomeErr);
       }
 
     } catch (err) {
@@ -232,6 +242,7 @@ export default function GlobalFundManagement() {
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Control and audit member-wise contribution ledgers</p>
         </div>
         <div className="flex gap-3">
+          <Link to="accounts" className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 flex items-center hover:bg-slate-50">Accounts &amp; Cash</Link>
           <button 
             onClick={loadData}
             className="w-10 h-10 rounded-xl bg-white border border-slate-200 text-slate-600 flex items-center justify-center hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-pointer"
@@ -270,6 +281,59 @@ export default function GlobalFundManagement() {
             <p className="text-2xl font-black text-indigo-950">₹ {stats.availableBalance.toLocaleString('en-IN')}</p>
             <p className="text-[10px] text-indigo-400 font-semibold mt-2">{stats.globalCount} Global / {stats.communityCount} Chapter Funds</p>
           </div>
+        </div>
+      )}
+
+      {/* Samaj Income Sources — where the platform's income is coming from */}
+      {incomeSources && (
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-sm font-black text-slate-800">Samaj Income Sources</h3>
+              <p className="text-[10.5px] text-slate-400 font-semibold mt-0.5">
+                {filters.communityId !== 'All' ? 'Filtered to selected community' : 'Platform-wide, across every community'}
+              </p>
+            </div>
+            <p className="text-lg font-black text-slate-900">₹ {incomeSources.totals.grandTotal.toLocaleString('en-IN')}</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="bg-indigo-50/60 border border-indigo-100 rounded-xl p-4">
+              <p className="text-[10px] font-bold text-indigo-700 uppercase tracking-wider mb-1">Fund / Membership</p>
+              <p className="text-lg font-black text-indigo-950">₹ {incomeSources.totals.fund.toLocaleString('en-IN')}</p>
+            </div>
+            <div className="bg-rose-50/60 border border-rose-100 rounded-xl p-4">
+              <p className="text-[10px] font-bold text-rose-700 uppercase tracking-wider mb-1">Donations</p>
+              <p className="text-lg font-black text-rose-950">₹ {incomeSources.totals.donations.toLocaleString('en-IN')}</p>
+              <p className="text-[9.5px] text-rose-600/70 font-semibold mt-1">{incomeSources.donations.transactionCount} transactions</p>
+            </div>
+            <div className="bg-amber-50/60 border border-amber-100 rounded-xl p-4">
+              <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider mb-1">Dharmashala Bookings</p>
+              <p className="text-lg font-black text-amber-950">₹ {incomeSources.totals.dharmashala.toLocaleString('en-IN')}</p>
+              <p className="text-[9.5px] text-amber-600/70 font-semibold mt-1">
+                Online ₹{incomeSources.dharmashala.online.toLocaleString('en-IN')} · Offline ₹{incomeSources.dharmashala.offline.toLocaleString('en-IN')}
+                {incomeSources.dharmashala.pendingAmount > 0 && ` · ₹${incomeSources.dharmashala.pendingAmount.toLocaleString('en-IN')} pending`}
+              </p>
+            </div>
+            <div className="bg-emerald-50/60 border border-emerald-100 rounded-xl p-4">
+              <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider mb-1">Manual / Cash Collections</p>
+              <p className="text-lg font-black text-emerald-950">₹ {(incomeSources.totals.manual || 0).toLocaleString('en-IN')}</p>
+              <p className="text-[9.5px] text-emerald-600/70 font-semibold mt-1">{incomeSources.manual?.entryCount || 0} entries</p>
+            </div>
+          </div>
+
+          {incomeSources.dharmashala.byLocation?.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-slate-100">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Dharmashala Income by Location</p>
+              <div className="flex flex-wrap gap-2">
+                {incomeSources.dharmashala.byLocation.map(loc => (
+                  <span key={loc.city} className="px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-lg text-[11px] font-bold text-slate-600">
+                    {loc.city}: <span className="text-amber-700">₹{loc.amount.toLocaleString('en-IN')}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

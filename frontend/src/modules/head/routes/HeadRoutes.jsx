@@ -4,6 +4,7 @@ import HeadLayout from '../components/HeadLayout';
 import HeadDashboard from '../pages/dashboard/HeadDashboard';
 import MemberManagement from '../pages/members/MemberManagement';
 import FundGovernance from '../pages/funds/FundGovernance';
+import FundAccountsPage from '../../../components/fund/FundAccountsPage';
 import ElectionCommission from '../pages/elections/ElectionCommission';
 import HomepageContentManager from '../pages/home/HomepageContentManager';
 import EventManagement from '../pages/events/EventManagement';
@@ -72,6 +73,7 @@ export const HeadRoutes = () => {
           <Route path="dharmashala" element={<DharmashalaManagement />} />
           <Route path="matrimonial" element={<MatrimonialManagement />} />
           <Route path="funds" element={<FundGovernance />} />
+          <Route path="funds/accounts" element={<FundAccountsPage base="/head/fund-accounts" backTo="../funds" />} />
           <Route path="elections" element={<ElectionCommission />} />
 
           <Route path="notifications" element={<HeadNotificationCenter />} />

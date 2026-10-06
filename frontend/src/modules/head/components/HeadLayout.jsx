@@ -37,6 +37,8 @@ export const HeadLayout = () => {
   const isModuleAllowed = (permKey) => {
     if (isSuperAdmin) return true;
     if (!permKey) return true;
+    // Every Local Head always gets Samaj Funds (scoped to their location by the server)
+    if (headUser?.accountType === 'local_head' && (permKey === 'canViewFunds' || permKey === 'canManageFunds')) return true;
     if (permKey === 'canManageSubHeads' || permKey === 'canManageLocalCommunity') {
       if (isMainHead || isLocalHeadLeader) return true;
       return permissions[permKey] === true;

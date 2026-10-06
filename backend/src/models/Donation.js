@@ -105,6 +105,13 @@ const donationSchema = new mongoose.Schema({
   collectedByName: { type: String, default: '' },
   collectedByRole: { type: String, default: '' },
   collectedAt: { type: Date, default: null },
+
+  // Manual (in-person) donation entered by a Head / Admin
+  isManual: { type: Boolean, default: false },
+  donorPhone: { type: String, trim: true },
+  donorAddress: { type: String, trim: true },
+  receiptNo: { type: String, sparse: true, index: true },
+  manualNotes: { type: String },
   recentDonations: [
     {
       donorName: { type: String, default: 'Anonymous' },

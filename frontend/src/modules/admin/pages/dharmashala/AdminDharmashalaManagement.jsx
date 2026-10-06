@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Building, MapPin, Phone, Shield, Search, Filter, Loader, 
-  CheckCircle2, XCircle, AlertTriangle, DollarSign, Calendar, RefreshCw, Eye
+import {
+  Building, MapPin, Phone, Shield, Search, Filter, Loader,
+  CheckCircle2, XCircle, AlertTriangle, DollarSign, Calendar, RefreshCw, Eye,
+  ClipboardList, Wallet, Globe, X
 } from 'lucide-react';
+import DharmashalaAccessPanel from './DharmashalaAccessPanel';
 import adminDharmashalaService from '../../../../core/api/adminDharmashalaService';
 
 export default function AdminDharmashalaManagement() {
@@ -31,6 +33,21 @@ export default function AdminDharmashalaManagement() {
   const [discount, setDiscount] = useState(0);
   const [finalAmount, setFinalAmount] = useState(0);
   const [pricingNote, setPricingNote] = useState('');
+
+  // Manual / Offline Booking
+  const [showManualBookingModal, setShowManualBookingModal] = useState(false);
+  const [manualBookingSaving, setManualBookingSaving] = useState(false);
+  const [manualBookingForm, setManualBookingForm] = useState({
+    dharmashalaId: '', checkIn: '', checkOut: '', checkInTime: '', checkOutTime: '',
+    bookedBy: '', phone: '', guestCount: 1, purpose: '', specialRequests: '', staffNotes: '',
+    totalAmount: '', advanceAmount: '', paymentMode: 'Cash'
+  });
+
+  // Record payment on an existing booking
+  const [showRecordPaymentModal, setShowRecordPaymentModal] = useState(false);
+  const [recordPaymentBooking, setRecordPaymentBooking] = useState(null);
+  const [recordPaymentForm, setRecordPaymentForm] = useState({ amount: '', paymentMode: 'Cash', notes: '' });
+  const [recordPaymentSaving, setRecordPaymentSaving] = useState(false);
 
   const fetchDashboardData = async () => {
     setLoading(true);
@@ -122,6 +139,67 @@ export default function AdminDharmashalaManagement() {
     }
   };
 
+  // Manual / Offline Booking
+  const openManualBookingForm = () => {
+    setManualBookingForm({
+      dharmashalaId: properties[0]?._id || '', checkIn: '', checkOut: '', checkInTime: '', checkOutTime: '',
+      bookedBy: '', phone: '', guestCount: 1, purpose: '', specialRequests: '', staffNotes: '',
+      totalAmount: '', advanceAmount: '', paymentMode: 'Cash'
+    });
+    setShowManualBookingModal(true);
+  };
+
+  const handleManualBookingSubmit = async (e) => {
+    e.preventDefault();
+    if (!manualBookingForm.dharmashalaId) {
+      alert('Please select a property.');
+      return;
+    }
+    setManualBookingSaving(true);
+    try {
+      const res = await adminDharmashalaService.createManualBooking(manualBookingForm);
+      if (res.status === 'success') {
+        setShowManualBookingModal(false);
+        fetchDashboardData();
+      } else {
+        alert(res?.message || 'Failed to create booking.');
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || err.message || 'Failed to create booking.');
+    } finally {
+      setManualBookingSaving(false);
+    }
+  };
+
+  // Record (remaining) payment
+  const openRecordPaymentModal = (booking) => {
+    setRecordPaymentBooking(booking);
+    setRecordPaymentForm({ amount: '', paymentMode: booking.paymentMode || 'Cash', notes: '' });
+    setShowRecordPaymentModal(true);
+  };
+
+  const handleRecordPaymentSubmit = async (e) => {
+    e.preventDefault();
+    if (!recordPaymentForm.amount || Number(recordPaymentForm.amount) <= 0) {
+      alert('Please enter a valid payment amount.');
+      return;
+    }
+    setRecordPaymentSaving(true);
+    try {
+      const res = await adminDharmashalaService.recordBookingPayment(recordPaymentBooking._id, recordPaymentForm);
+      if (res.status === 'success') {
+        setShowRecordPaymentModal(false);
+        fetchDashboardData();
+      } else {
+        alert(res?.message || 'Failed to record payment.');
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || err.message || 'Failed to record payment.');
+    } finally {
+      setRecordPaymentSaving(false);
+    }
+  };
+
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 font-sans">
       {/* Top Header */}
@@ -133,26 +211,29 @@ export default function AdminDharmashalaManagement() {
           <h1 className="text-2xl font-black text-slate-800 tracking-tight">Global Dharmashala Management</h1>
           <p className="text-xs text-slate-500 font-medium">Cross-community oversight, revenue stats, and emergency overrides.</p>
         </div>
-        <button 
-          onClick={fetchDashboardData}
-          className="px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold text-xs rounded-xl flex items-center gap-2 transition-all active:scale-95"
-        >
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh Sync
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={openManualBookingForm}
+            disabled={properties.length === 0}
+            className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl flex items-center gap-2 transition-all active:scale-95 shadow-sm"
+          >
+            <ClipboardList size={14} /> Create Manual Booking
+          </button>
+          <button
+            onClick={fetchDashboardData}
+            className="px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold text-xs rounded-xl flex items-center gap-2 transition-all active:scale-95"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh Sync
+          </button>
+        </div>
       </div>
 
       {/* Analytics Metric Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
           <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Total Properties</p>
           <p className="text-2xl font-black text-slate-800 mt-1">{analytics.totalProperties || 0}</p>
           <span className="text-[10px] font-bold text-emerald-600">{analytics.activeProperties || 0} Active</span>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-          <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Total Rooms</p>
-          <p className="text-2xl font-black text-indigo-600 mt-1">{analytics.totalRooms || 0}</p>
-          <span className="text-[10px] font-bold text-slate-400">Inventory</span>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
@@ -182,7 +263,17 @@ export default function AdminDharmashalaManagement() {
         >
           Global Bookings ({bookings.length})
         </button>
+        <button 
+          onClick={() => setActiveTab('access')}
+          className={`pb-3 border-b-2 transition-colors ${activeTab === 'access' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+        >
+          Access &amp; Permissions
+        </button>
       </div>
+
+      {activeTab === 'access' && (
+        <DharmashalaAccessPanel cities={[...new Set(properties.map(p => p.city).filter(Boolean))]} />
+      )}
 
       {/* Filter Toolbar */}
       <div className="flex flex-wrap gap-3 items-center justify-between bg-white p-4 rounded-2xl border border-slate-100">
@@ -268,16 +359,17 @@ export default function AdminDharmashalaManagement() {
                   <th className="p-4">Dharmashala</th>
                   <th className="p-4">Guest Name</th>
                   <th className="p-4">Dates</th>
-                  <th className="p-4">Amount</th>
+                  <th className="p-4">Amount / Payment</th>
+                  <th className="p-4">Source</th>
                   <th className="p-4">Status</th>
                   <th className="p-4 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-700">
                 {loading ? (
-                  <tr><td colSpan="7" className="p-8 text-center"><Loader className="animate-spin text-indigo-600 inline" /></td></tr>
+                  <tr><td colSpan="8" className="p-8 text-center"><Loader className="animate-spin text-indigo-600 inline" /></td></tr>
                 ) : bookings.length === 0 ? (
-                  <tr><td colSpan="7" className="p-8 text-center text-slate-400 font-bold">No global bookings found.</td></tr>
+                  <tr><td colSpan="8" className="p-8 text-center text-slate-400 font-bold">No global bookings found.</td></tr>
                 ) : (
                   bookings.map(b => (
                     <tr key={b._id} className="hover:bg-slate-50/50">
@@ -285,19 +377,44 @@ export default function AdminDharmashalaManagement() {
                       <td className="p-4 font-bold">{b.dharmashala?.name || 'N/A'}</td>
                       <td className="p-4">{b.bookedBy}<span className="block text-[10px] text-slate-400">{b.phone}</span></td>
                       <td className="p-4">{new Date(b.checkIn).toLocaleDateString()} - {new Date(b.checkOut).toLocaleDateString()}</td>
-                      <td className="p-4 font-bold text-slate-900">₹{b.totalAmount}</td>
+                      <td className="p-4">
+                        <span className="font-bold text-slate-900 block">₹{b.totalAmount}</span>
+                        <span className={`text-[9px] font-black uppercase block mt-0.5 ${
+                          b.paymentStatus === 'Paid' ? 'text-emerald-600' : b.paymentStatus === 'Partial' ? 'text-amber-600' : 'text-slate-400'
+                        }`}>
+                          {b.paymentStatus === 'Paid' ? 'Paid in full' : b.paymentStatus === 'Partial' ? `₹${b.amountReceived || 0} received` : 'Payment pending'}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                          b.bookingSource === 'Offline' ? 'bg-slate-100 text-slate-600 border border-slate-200' : 'bg-blue-50 text-blue-700 border border-blue-100'
+                        }`}>
+                          {b.bookingSource === 'Offline' ? <ClipboardList size={10} /> : <Globe size={10} />}
+                          {b.bookingSource === 'Offline' ? 'Offline' : 'Online'}
+                        </span>
+                      </td>
                       <td className="p-4">
                         <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${b.status === 'confirmed' ? 'bg-emerald-100 text-emerald-700' : b.status === 'rejected' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
                           {b.status}
                         </span>
                       </td>
                       <td className="p-4 text-right">
-                        <button 
-                          onClick={() => openOverrideModal(b)}
-                          className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold rounded-lg text-[11px] cursor-pointer"
-                        >
-                          Review & Action
-                        </button>
+                        <div className="flex gap-2 justify-end">
+                          {(b.paymentStatus === 'Pending' || b.paymentStatus === 'Partial') && !['cancelled', 'rejected', 'expired'].includes(b.status) && (
+                            <button
+                              onClick={() => openRecordPaymentModal(b)}
+                              className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold rounded-lg text-[11px] cursor-pointer flex items-center gap-1"
+                            >
+                              <Wallet size={11} /> Payment
+                            </button>
+                          )}
+                          <button
+                            onClick={() => openOverrideModal(b)}
+                            className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold rounded-lg text-[11px] cursor-pointer"
+                          >
+                            Review & Action
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -445,11 +562,175 @@ export default function AdminDharmashalaManagement() {
                 >
                   Cancel
                 </button>
-                <button 
+                <button
                   type="submit"
                   className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-md shadow-indigo-600/20"
                 >
                   Submit Action
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MANUAL / OFFLINE BOOKING MODAL */}
+      {showManualBookingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white w-full max-w-2xl rounded-3xl p-6 shadow-2xl space-y-4 my-8 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-start border-b border-slate-100 pb-3">
+              <div>
+                <span className="text-[10px] font-extrabold text-indigo-600 uppercase tracking-wider">Any Community</span>
+                <h3 className="text-lg font-black text-slate-800 flex items-center gap-2"><ClipboardList size={18} className="text-indigo-600" /> Create Manual / Offline Booking</h3>
+                <p className="text-[11px] text-slate-450 font-semibold mt-1">For a walk-in or phone booking — confirms the booking immediately.</p>
+              </div>
+              <button onClick={() => setShowManualBookingModal(false)} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-700"><X size={16} /></button>
+            </div>
+
+            <form onSubmit={handleManualBookingSubmit} className="space-y-4 text-xs font-bold text-slate-600">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Dharmashala / Property *</label>
+                  <select
+                    required
+                    value={manualBookingForm.dharmashalaId}
+                    onChange={(e) => {
+                      const propId = e.target.value;
+                      setManualBookingForm(prev => ({ ...prev, dharmashalaId: propId }));
+                    }}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500"
+                  >
+                    <option value="">Select property</option>
+                    {properties.map(p => <option key={p._id} value={p._id}>{p.name} ({p.city}) — {p.communityId?.name || p.community || 'General'}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Customer Name *</label>
+                  <input required type="text" value={manualBookingForm.bookedBy}
+                    onChange={(e) => setManualBookingForm(prev => ({ ...prev, bookedBy: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Contact Number *</label>
+                  <input required type="tel" maxLength={10} value={manualBookingForm.phone}
+                    onChange={(e) => setManualBookingForm(prev => ({ ...prev, phone: e.target.value.replace(/[^0-9]/g, '').slice(0, 10) }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500" />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Check-in Date *</label>
+                  <input required type="date" value={manualBookingForm.checkIn}
+                    onChange={(e) => setManualBookingForm(prev => ({ ...prev, checkIn: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Check-out Date *</label>
+                  <input required type="date" value={manualBookingForm.checkOut}
+                    onChange={(e) => setManualBookingForm(prev => ({ ...prev, checkOut: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500" />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Number of Guests</label>
+                  <input type="number" min="1" value={manualBookingForm.guestCount}
+                    onChange={(e) => setManualBookingForm(prev => ({ ...prev, guestCount: Number(e.target.value) || 1 }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Booking Amount (₹) *</label>
+                  <input required type="number" min="0" value={manualBookingForm.totalAmount}
+                    onChange={(e) => setManualBookingForm(prev => ({ ...prev, totalAmount: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 font-black" />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Advance Payment Received (₹)</label>
+                  <input type="number" min="0" value={manualBookingForm.advanceAmount}
+                    onChange={(e) => setManualBookingForm(prev => ({ ...prev, advanceAmount: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500" />
+                  <p className="text-[9px] text-slate-400 font-medium mt-1 normal-case">
+                    Remaining: ₹{Math.max(0, Number(manualBookingForm.totalAmount || 0) - Number(manualBookingForm.advanceAmount || 0))}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Payment Mode</label>
+                  <select value={manualBookingForm.paymentMode}
+                    onChange={(e) => setManualBookingForm(prev => ({ ...prev, paymentMode: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500">
+                    <option value="Cash">Cash</option>
+                    <option value="UPI">UPI</option>
+                    <option value="Card">Card</option>
+                    <option value="Bank Transfer">Bank Transfer</option>
+                    <option value="Cheque">Cheque</option>
+                  </select>
+                </div>
+
+                <div className="col-span-1 sm:col-span-2">
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Additional Notes (internal)</label>
+                  <textarea rows="2" value={manualBookingForm.staffNotes}
+                    onChange={(e) => setManualBookingForm(prev => ({ ...prev, staffNotes: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500" />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowManualBookingModal(false)} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-xs">Cancel</button>
+                <button type="submit" disabled={manualBookingSaving} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs shadow-md shadow-indigo-600/20">
+                  {manualBookingSaving ? 'Creating Booking...' : 'Create Booking & Generate Receipt'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* RECORD PAYMENT MODAL */}
+      {showRecordPaymentModal && recordPaymentBooking && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-4">
+            <div className="flex justify-between items-start border-b border-slate-100 pb-3">
+              <h3 className="text-lg font-black text-slate-800 flex items-center gap-2"><Wallet size={18} className="text-amber-600" /> Record Payment</h3>
+              <button onClick={() => setShowRecordPaymentModal(false)} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-700"><X size={16} /></button>
+            </div>
+
+            <form onSubmit={handleRecordPaymentSubmit} className="space-y-3.5 text-xs font-bold text-slate-600">
+              <div className="bg-slate-50 border border-slate-150 p-3.5 rounded-xl space-y-1">
+                <p className="text-slate-800">{recordPaymentBooking.bookedBy} — {recordPaymentBooking.bookingId}</p>
+                <p className="text-[10px] text-slate-450 font-medium normal-case">
+                  Total ₹{recordPaymentBooking.totalAmount} · Received ₹{recordPaymentBooking.amountReceived || 0} · Remaining ₹{Math.max(0, (recordPaymentBooking.totalAmount || 0) - (recordPaymentBooking.amountReceived || 0))}
+                </p>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Amount Received Now (₹) *</label>
+                <input required type="number" min="1" value={recordPaymentForm.amount}
+                  onChange={(e) => setRecordPaymentForm(prev => ({ ...prev, amount: e.target.value }))}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 font-black" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Payment Mode</label>
+                <select value={recordPaymentForm.paymentMode}
+                  onChange={(e) => setRecordPaymentForm(prev => ({ ...prev, paymentMode: e.target.value }))}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500">
+                  <option value="Cash">Cash</option>
+                  <option value="UPI">UPI</option>
+                  <option value="Card">Card</option>
+                  <option value="Bank Transfer">Bank Transfer</option>
+                  <option value="Cheque">Cheque</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Note (optional)</label>
+                <input type="text" value={recordPaymentForm.notes}
+                  onChange={(e) => setRecordPaymentForm(prev => ({ ...prev, notes: e.target.value }))}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500" />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowRecordPaymentModal(false)} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-xs">Cancel</button>
+                <button type="submit" disabled={recordPaymentSaving} className="flex-1 py-3 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs shadow-md">
+                  {recordPaymentSaving ? 'Saving...' : 'Record Payment'}
                 </button>
               </div>
             </form>
