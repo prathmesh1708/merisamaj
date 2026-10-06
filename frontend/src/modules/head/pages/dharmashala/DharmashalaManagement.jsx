@@ -9,18 +9,22 @@ import { useData } from '../../../member/context/DataProvider';
 
 export default function DharmashalaManagement() {
   const { addNotification } = useData();
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'properties' | 'rooms' | 'bookings' | 'maintenance'
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'properties' | 'bookings' | 'maintenance'
 
   // Loading states
   const [loading, setLoading] = useState(false);
   const [properties, setProperties] = useState([]);
-  const [rooms, setRooms] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [stats, setStats] = useState({});
   const [selectedPropertyId, setSelectedPropertyId] = useState('all');
 
   // Form modals & fields
   const [showPropertyModal, setShowPropertyModal] = useState(false);
+  // Admin-granted powers: creating Dharmashalas and manual bookings.
+  const [access, setAccess] = useState({ createProperty: false, manualBooking: false });
+  useEffect(() => {
+    headDharmashalaService.getMyAccess().then(r => { if (r?.data) setAccess(r.data); }).catch(() => {});
+  }, []);
   const [propertyEditId, setPropertyEditId] = useState(null);
   const [propertyForm, setPropertyForm] = useState({
     name: '', description: '', address: '', city: '', state: '', pincode: '',
@@ -33,18 +37,9 @@ export default function DharmashalaManagement() {
     galleryFiles: []
   });
 
-  const [showRoomModal, setShowRoomModal] = useState(false);
-  const [roomEditId, setRoomEditId] = useState(null);
-  const [roomForm, setRoomForm] = useState({
-    dharmashala: '', roomNumber: '', roomName: '', floor: '', roomCategory: 'Standard',
-    isAc: false, capacity: 2, extraMattressAllowed: true, maxGuests: 3, price: 1000,
-    weekendPrice: 1200, status: 'Available'
-  });
-
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [activeBooking, setActiveBooking] = useState(null);
   const [bookingRemarks, setBookingRemarks] = useState('');
-  const [assignedRoomIds, setAssignedRoomIds] = useState([]);
 
   // Pricing Approval States
   const [baseAmount, setBaseAmount] = useState(0);
@@ -55,15 +50,14 @@ export default function DharmashalaManagement() {
 
   const [showMaintenanceModal, setShowMaintenanceModal] = useState(false);
   const [maintenanceForm, setMaintenanceForm] = useState({
-    dharmashalaId: '', roomId: '', startDate: '', endDate: '', reason: 'Cleaning', remarks: ''
+    dharmashalaId: '', startDate: '', endDate: '', reason: 'Cleaning', remarks: ''
   });
 
   // Manual / Offline Booking
   const [showManualBookingModal, setShowManualBookingModal] = useState(false);
   const [manualBookingSaving, setManualBookingSaving] = useState(false);
-  const [manualBookingRooms, setManualBookingRooms] = useState([]);
   const [manualBookingForm, setManualBookingForm] = useState({
-    dharmashalaId: '', roomId: '', checkIn: '', checkOut: '', checkInTime: '', checkOutTime: '',
+    dharmashalaId: '', checkIn: '', checkOut: '', checkInTime: '', checkOutTime: '',
     bookedBy: '', phone: '', guestCount: 1, purpose: '', specialRequests: '', staffNotes: '',
     totalAmount: '', advanceAmount: '', paymentMode: 'Cash'
   });
@@ -104,16 +98,6 @@ export default function DharmashalaManagement() {
     }
   };
 
-  const fetchRooms = async (propId) => {
-    if (!propId || propId === 'all') return;
-    try {
-      const res = await headDharmashalaService.getRooms(propId);
-      if (res.status === 'success') setRooms(res.data);
-    } catch (err) {
-      console.error("Failed to load rooms", err);
-    }
-  };
-
   useEffect(() => {
     fetchData();
 
@@ -133,15 +117,11 @@ export default function DharmashalaManagement() {
     } catch (e) {}
   }, []);
 
-  useEffect(() => {
-    if (selectedPropertyId && selectedPropertyId !== 'all') {
-      fetchRooms(selectedPropertyId);
-    }
-  }, [selectedPropertyId]);
-
   // Property Submit with Phone & Email Validation
+  const [propertySaving, setPropertySaving] = useState(false);
   const handlePropertySubmit = async (e) => {
     e.preventDefault();
+    if (propertySaving) return;
 
     // 1. Phone number validation (must be exactly 10 digits)
     const cleanPhone = (propertyForm.contactNumber || '').replace(/[^0-9]/g, '');
@@ -185,6 +165,7 @@ export default function DharmashalaManagement() {
       });
     }
 
+    setPropertySaving(true);
     try {
       let res;
       if (propertyEditId) {
@@ -208,6 +189,8 @@ export default function DharmashalaManagement() {
       console.error("Property action failed", err);
       const serverMsg = err.response?.data?.message || err.message || 'Error occurred while saving property.';
       alert(`Property Save Failed: ${serverMsg}`);
+    } finally {
+      setPropertySaving(false);
     }
   };
 
@@ -244,76 +227,9 @@ export default function DharmashalaManagement() {
   };
 
   const handleDeleteProperty = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this property? This will also remove all rooms and bookings.")) return;
+    if (!window.confirm("Are you sure you want to delete this property? This will also remove all its bookings.")) return;
     try {
       await headDharmashalaService.deleteProperty(id);
-      fetchData();
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  // Room Submission
-  const handleRoomSubmit = async (e) => {
-    e.preventDefault();
-    const formData = new FormData();
-    Object.keys(roomForm).forEach(key => {
-      formData.append(key, roomForm[key]);
-    });
-
-    try {
-      let res;
-      if (roomEditId) {
-        res = await headDharmashalaService.updateRoom(roomEditId, formData);
-      } else {
-        res = await headDharmashalaService.createRoom(formData);
-      }
-
-      if (res.status === 'success') {
-        setShowRoomModal(false);
-        fetchRooms(selectedPropertyId);
-        fetchData();
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const openAddRoom = () => {
-    setRoomEditId(null);
-    setRoomForm({
-      dharmashala: selectedPropertyId,
-      roomNumber: '', roomName: '', floor: '', roomCategory: 'Standard',
-      isAc: false, capacity: 2, extraMattressAllowed: true, maxGuests: 3, price: 1000,
-      weekendPrice: 1200, status: 'Available'
-    });
-    setShowRoomModal(true);
-  };
-
-  const openEditRoom = (room) => {
-    setRoomEditId(room._id);
-    setRoomForm({
-      dharmashala: room.dharmashala,
-      roomNumber: room.roomNumber,
-      roomName: room.roomName || '',
-      floor: room.floor || '',
-      roomCategory: room.roomCategory || 'Standard',
-      isAc: room.isAc || false,
-      capacity: room.capacity || 2,
-      extraMattressAllowed: room.extraMattressAllowed || true,
-      maxGuests: room.maxGuests || 3,
-      price: room.price || 1000,
-      weekendPrice: room.weekendPrice || 1200,
-      status: room.status || 'Available'
-    });
-    setShowRoomModal(true);
-  };
-
-  const handleDeleteRoom = async (roomId) => {
-    if (!window.confirm("Are you sure you want to delete this room?")) return;
-    try {
-      await headDharmashalaService.deleteRoom(roomId);
-      fetchRooms(selectedPropertyId);
       fetchData();
     } catch (err) {
       console.error(err);
@@ -326,7 +242,6 @@ export default function DharmashalaManagement() {
       // Load available rooms for assigning and calculate initial ref price
       setActiveBooking(booking);
       setBookingRemarks('');
-      setAssignedRoomIds([]);
 
       const propRefPrice = booking.dharmashala?.pricePerDay || 1000;
       const calculatedBase = (booking.nights || 1) * propRefPrice;
@@ -347,7 +262,6 @@ export default function DharmashalaManagement() {
       });
       if (res.status === 'success') {
         fetchData();
-        if (selectedPropertyId !== 'all') fetchRooms(selectedPropertyId);
       }
     } catch (err) {
       console.error(err);
@@ -358,7 +272,6 @@ export default function DharmashalaManagement() {
     try {
       const res = await headDharmashalaService.updateBookingStatus(activeBooking._id, {
         status: 'approved',
-        rooms: assignedRoomIds,
         remarks: bookingRemarks,
         baseAmount,
         additionalCharges,
@@ -369,7 +282,6 @@ export default function DharmashalaManagement() {
       if (res.status === 'success') {
         setShowBookingModal(false);
         fetchData();
-        if (selectedPropertyId !== 'all') fetchRooms(selectedPropertyId);
         
         addNotification?.({
           type: 'community',
@@ -390,7 +302,6 @@ export default function DharmashalaManagement() {
       if (res.status === 'success') {
         setShowMaintenanceModal(false);
         fetchData();
-        if (selectedPropertyId !== 'all') fetchRooms(selectedPropertyId);
       }
     } catch (err) {
       console.error(err);
@@ -400,7 +311,6 @@ export default function DharmashalaManagement() {
   const openMaintenanceForm = () => {
     setMaintenanceForm({
       dharmashalaId: selectedPropertyId,
-      roomId: '',
       startDate: '',
       endDate: '',
       reason: 'Cleaning',
@@ -412,29 +322,17 @@ export default function DharmashalaManagement() {
   // Manual / Offline Booking
   const openManualBookingForm = () => {
     setManualBookingForm({
-      dharmashalaId: properties[0]?._id || '', roomId: '', checkIn: '', checkOut: '', checkInTime: '', checkOutTime: '',
+      dharmashalaId: properties[0]?._id || '', checkIn: '', checkOut: '', checkInTime: '', checkOutTime: '',
       bookedBy: '', phone: '', guestCount: 1, purpose: '', specialRequests: '', staffNotes: '',
       totalAmount: '', advanceAmount: '', paymentMode: 'Cash'
     });
-    setManualBookingRooms([]);
     setShowManualBookingModal(true);
-    if (properties[0]?._id) fetchManualBookingRooms(properties[0]._id);
-  };
-
-  const fetchManualBookingRooms = async (propId) => {
-    if (!propId) { setManualBookingRooms([]); return; }
-    try {
-      const res = await headDharmashalaService.getRooms(propId);
-      if (res.status === 'success') setManualBookingRooms(res.data.filter(r => r.status === 'Available'));
-    } catch (err) {
-      console.error('Failed to load rooms for manual booking', err);
-    }
   };
 
   const handleManualBookingSubmit = async (e) => {
     e.preventDefault();
-    if (!manualBookingForm.dharmashalaId || !manualBookingForm.roomId) {
-      alert('Please select a property and an available room.');
+    if (!manualBookingForm.dharmashalaId) {
+      alert('Please select a property.');
       return;
     }
     setManualBookingSaving(true);
@@ -443,7 +341,6 @@ export default function DharmashalaManagement() {
       if (res.status === 'success') {
         setShowManualBookingModal(false);
         fetchData();
-        if (selectedPropertyId !== 'all') fetchRooms(selectedPropertyId);
         addNotification?.({
           type: 'system',
           title: 'Offline Booking Created',
@@ -496,10 +393,10 @@ export default function DharmashalaManagement() {
           <h2 className="text-lg sm:text-xl font-black text-slate-800 tracking-tight flex items-center gap-2">
             <Building className="text-indigo-600 shrink-0" size={20} /> Dharmashala Management Desk
           </h2>
-          <p className="text-slate-500 text-xs font-semibold mt-1">Manage your community properties, room inventory, guest check-ins, and bookings scheduling.</p>
+          <p className="text-slate-500 text-xs font-semibold mt-1">Manage your community properties, guest check-ins, and bookings scheduling.</p>
         </div>
         <div className="flex w-full sm:w-auto">
-          <button 
+          {access.createProperty && <button 
             onClick={() => {
               setPropertyEditId(null);
               setPropertyForm({
@@ -514,7 +411,7 @@ export default function DharmashalaManagement() {
             className="w-full sm:w-auto justify-center px-4 sm:px-5 py-2.5 sm:py-3 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold rounded-xl text-xs sm:text-[12px] transition-all flex items-center gap-2 shadow-sm"
           >
             <Plus size={15} /> Add New Property
-          </button>
+          </button>}
         </div>
       </div>
 
@@ -550,8 +447,6 @@ export default function DharmashalaManagement() {
                 {[
                   { label: 'Total Dharmashalas', val: stats.totalDharmashalas || 0, color: 'text-indigo-600', desc: 'Registered Properties' },
                   { label: 'Active Properties', val: stats.activeDharmashalas || 0, color: 'text-emerald-600', desc: 'Open for Bookings' },
-                  { label: 'Total Rooms', val: stats.totalRooms || 0, color: 'text-blue-600', desc: 'Inventory Capacity' },
-                  { label: 'Occupied Rooms', val: stats.occupiedRooms || 0, color: 'text-rose-600', desc: 'Active Guest Rooms' },
                   { label: 'Pending Requests', val: stats.pendingRequests || 0, color: 'text-amber-600', desc: 'Requires Review' },
                   { label: 'Today Arrivals', val: stats.todayCheckIns || 0, color: 'text-purple-600', desc: 'Scheduled Check-ins' },
                   { label: 'Today Departures', val: stats.todayCheckOuts || 0, color: 'text-slate-650', desc: 'Scheduled Check-outs' },
@@ -563,18 +458,6 @@ export default function DharmashalaManagement() {
                     <span className="text-[8.5px] sm:text-[9.5px] text-slate-450 mt-1 block font-semibold">{s.desc}</span>
                   </div>
                 ))}
-              </div>
-
-              {/* Occupancy Progress Tracker */}
-              <div className="bg-white border border-slate-100 p-4 sm:p-6 rounded-2xl shadow-sm">
-                <div className="flex justify-between items-center mb-3">
-                  <h3 className="text-xs font-black text-slate-700">Property Occupancy Rate</h3>
-                  <span className="text-indigo-600 font-black text-sm">{stats.occupancyRate || 0}%</span>
-                </div>
-                <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
-                  <div className="bg-indigo-600 h-full rounded-full transition-all" style={{ width: `${stats.occupancyRate || 0}%` }}></div>
-                </div>
-                <p className="text-[10px] text-slate-400 mt-2 font-semibold">Percentage of currently booked rooms out of total room inventory.</p>
               </div>
 
               {/* Today's Schedule Live Desk */}
@@ -592,7 +475,7 @@ export default function DharmashalaManagement() {
                         <div key={b._id} className="bg-slate-50 border border-slate-100 p-3 sm:p-4 rounded-xl flex justify-between items-center gap-2">
                           <div className="min-w-0 flex-1">
                             <span className="text-xs font-black text-slate-800 truncate block">{b.bookedBy}</span>
-                            <span className="text-[10px] text-slate-450 block mt-0.5 truncate">ID: {b.bookingId} | Rooms: {b.rooms?.map(r=>r.roomNumber).join(', ') || 'None'}</span>
+                            <span className="text-[10px] text-slate-450 block mt-0.5 truncate">ID: {b.bookingId}</span>
                           </div>
                           <button 
                             onClick={() => handleBookingAction(b, 'checked_in')}
@@ -619,7 +502,7 @@ export default function DharmashalaManagement() {
                         <div key={b._id} className="bg-slate-50 border border-slate-100 p-3 sm:p-4 rounded-xl flex justify-between items-center gap-2">
                           <div className="min-w-0 flex-1">
                             <span className="text-xs font-black text-slate-800 truncate block">{b.bookedBy}</span>
-                            <span className="text-[10px] text-slate-450 block mt-0.5 truncate">ID: {b.bookingId} | Rooms: {b.rooms?.map(r=>r.roomNumber).join(', ') || 'N/A'}</span>
+                            <span className="text-[10px] text-slate-450 block mt-0.5 truncate">ID: {b.bookingId}</span>
                           </div>
                           <button 
                             onClick={() => handleBookingAction(b, 'checked_out')}
@@ -705,106 +588,18 @@ export default function DharmashalaManagement() {
             </div>
           )}
 
-          {/* TAB 3: ROOMS INVENTORY */}
-          {activeTab === 'rooms' && (
-            <div className="space-y-4 sm:space-y-6">
-              {/* Property Select Dropdown */}
-              <div className="bg-white border border-slate-100 p-4 sm:p-5 rounded-2xl shadow-sm flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 sm:gap-4">
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <label className="text-xs font-bold text-slate-500 shrink-0">Select Property:</label>
-                  <select 
-                    value={selectedPropertyId}
-                    onChange={(e) => setSelectedPropertyId(e.target.value)}
-                    className="flex-1 sm:flex-none bg-slate-50 border border-slate-200 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"
-                  >
-                    {properties.map(p => (
-                      <option key={p._id} value={p._id}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button 
-                    onClick={openMaintenanceForm}
-                    className="flex-1 sm:flex-none justify-center px-3.5 sm:px-4 py-2 sm:py-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl text-xs font-black transition-all text-slate-700 flex items-center gap-1.5"
-                  >
-                    <Wrench size={14} className="text-amber-600" /> Maintenance Schedule
-                  </button>
-                  <button 
-                    onClick={openAddRoom}
-                    disabled={properties.length === 0}
-                    className="flex-1 sm:flex-none justify-center px-3.5 sm:px-4 py-2 sm:py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-black rounded-xl transition-all flex items-center gap-1.5 shadow-sm"
-                  >
-                    <Plus size={14} /> Add New Room
-                  </button>
-                </div>
-              </div>
-
-              {/* Rooms Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
-                {rooms.length === 0 ? (
-                  <div className="col-span-full bg-white p-8 sm:p-12 rounded-2xl border border-slate-100 text-center space-y-3 shadow-sm">
-                    <Grid size={40} className="mx-auto text-slate-400" />
-                    <h3 className="text-sm font-black text-slate-800">No rooms registered under this property</h3>
-                    <p className="text-xs text-slate-450">Click 'Add New Room' to configure property inventory details.</p>
-                  </div>
-                ) : (
-                  rooms.map(room => (
-                    <div key={room._id} className="bg-white border border-slate-100 p-4 sm:p-5 rounded-2xl shadow-sm flex flex-col space-y-3 sm:space-y-4">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <span className="text-sm font-black text-slate-800">Room No. {room.roomNumber}</span>
-                          <span className="block text-[10px] font-bold text-slate-450 mt-0.5">{room.roomName} | {room.floor}</span>
-                        </div>
-                        <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase border ${
-                          room.status === 'Available' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
-                          room.status === 'Booked' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' :
-                          room.status === 'Occupied' ? 'bg-purple-50 text-purple-700 border-purple-100' :
-                          'bg-amber-50 text-amber-700 border-amber-100'
-                        }`}>
-                          {room.status === 'Available' ? 'Available' : room.status === 'Booked' ? 'Reserved' : room.status === 'Occupied' ? 'Occupied' : 'Maintenance'}
-                        </span>
-                      </div>
-
-                      <div className="pt-3 border-t border-slate-50 grid grid-cols-2 gap-y-2 text-xs font-bold text-slate-600">
-                        <div>Category: <span className="text-slate-800 font-extrabold">{room.roomCategory}</span></div>
-                        <div>Type: <span className="text-slate-800 font-extrabold">{room.isAc ? 'AC' : 'General'}</span></div>
-                        <div>Price: <span className="text-emerald-600 font-extrabold">₹{room.price}</span></div>
-                        <div>Max Guests: <span className="text-slate-800 font-extrabold">{room.maxGuests}</span></div>
-                      </div>
-
-                      <div className="pt-3 sm:pt-4 border-t border-slate-50 flex gap-2 justify-end">
-                        <button 
-                          onClick={() => openEditRoom(room)}
-                          className="p-2 border border-slate-200 hover:bg-slate-50 rounded-lg text-slate-600 transition-all"
-                        >
-                          <Edit size={13} />
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteRoom(room._id)}
-                          className="p-2 border border-rose-100 hover:bg-rose-50 rounded-lg text-rose-600 transition-all"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
-
           {/* TAB 4: BOOKINGS DESK */}
           {activeTab === 'bookings' && (
             <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
               <div className="p-4 sm:p-5 border-b border-slate-50 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
                 <h3 className="text-xs font-black text-slate-800">Dharmashala Guest Bookings Panel</h3>
-                <button
+                {access.manualBooking && <button
                   onClick={openManualBookingForm}
                   disabled={properties.length === 0}
                   className="w-full sm:w-auto justify-center px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 active:scale-95 text-white font-bold rounded-xl text-xs transition-all flex items-center gap-2 shadow-sm"
                 >
                   <ClipboardList size={14} /> Create Manual / Offline Booking
-                </button>
+                </button>}
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[800px] text-left text-xs font-semibold text-slate-600">
@@ -813,7 +608,6 @@ export default function DharmashalaManagement() {
                       <th className="px-4 sm:px-5 py-3 sm:py-4">Booking ID</th>
                       <th className="px-4 sm:px-5 py-3 sm:py-4">Guest Details</th>
                       <th className="px-4 sm:px-5 py-3 sm:py-4">Check-in / Out</th>
-                      <th className="px-4 sm:px-5 py-3 sm:py-4">Allocated Room</th>
                       <th className="px-4 sm:px-5 py-3 sm:py-4">Amount / Payment</th>
                       <th className="px-4 sm:px-5 py-3 sm:py-4">Source</th>
                       <th className="px-4 sm:px-5 py-3 sm:py-4">Status</th>
@@ -836,12 +630,6 @@ export default function DharmashalaManagement() {
                           <td className="px-4 sm:px-5 py-3 sm:py-4">
                             <span>{new Date(b.checkIn).toLocaleDateString('en-US')} - {new Date(b.checkOut).toLocaleDateString('en-US')}</span>
                             <span className="text-[10px] text-slate-450 block font-medium mt-0.5">({b.nights} Nights)</span>
-                          </td>
-                          <td className="px-4 sm:px-5 py-3 sm:py-4">
-                            <span className="text-slate-700 block">{b.roomType} room</span>
-                            {b.rooms && b.rooms.length > 0 && (
-                              <span className="text-[10px] text-emerald-600 block font-bold mt-0.5">Room No: {b.rooms.map(r=>r.roomNumber).join(', ')}</span>
-                            )}
                           </td>
                           <td className="px-4 sm:px-5 py-3 sm:py-4">
                             <span className="text-emerald-600 font-black block">₹{b.totalAmount}</span>
@@ -946,7 +734,7 @@ export default function DharmashalaManagement() {
 
               <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden p-6 sm:p-8 text-center shadow-sm">
                 <AlertCircle className="mx-auto text-amber-500 mb-3" size={32} />
-                <p className="text-slate-500 text-xs font-bold">Property cleaning, room repairs, and restoration lockouts scheduler records logs will appear here.</p>
+                <p className="text-slate-500 text-xs font-bold">Property cleaning, repairs, and restoration lockouts scheduler records logs will appear here.</p>
               </div>
             </div>
           )}
@@ -1237,103 +1025,7 @@ export default function DharmashalaManagement() {
 
               <div className="pt-4 sm:pt-6 border-t border-slate-100 flex flex-col-reverse sm:flex-row justify-end gap-2">
                 <button type="button" onClick={() => setShowPropertyModal(false)} className="w-full sm:w-auto px-5 py-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl text-xs font-bold text-slate-500">Cancel</button>
-                <button type="submit" className="w-full sm:w-auto px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-sm cursor-pointer">Save Changes</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Room Modal Form */}
-      {showRoomModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white border border-slate-100 w-full max-w-md rounded-2xl sm:rounded-3xl shadow-2xl my-4 max-h-[92vh] flex flex-col">
-            <div className="p-4 sm:p-5 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="text-sm sm:text-base font-black text-slate-800">{roomEditId ? 'Edit Room Configuration' : 'Add New Room'}</h3>
-              <button onClick={() => setShowRoomModal(false)} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer"><X size={16} /></button>
-            </div>
-            
-            <form onSubmit={handleRoomSubmit} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 sm:space-y-4 text-slate-600 text-xs font-bold">
-              <div>
-                <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Room Number</label>
-                <input 
-                  type="text" required
-                  value={roomForm.roomNumber}
-                  onChange={(e) => setRoomForm(prev => ({ ...prev, roomNumber: e.target.value }))}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 focus:bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Room Name / Label</label>
-                <input 
-                  type="text" placeholder="e.g. Deluxe Double Room"
-                  value={roomForm.roomName}
-                  onChange={(e) => setRoomForm(prev => ({ ...prev, roomName: e.target.value }))}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 focus:bg-white"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Room Category</label>
-                  <select 
-                    value={roomForm.roomCategory}
-                    onChange={(e) => setRoomForm(prev => ({ ...prev, roomCategory: e.target.value }))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500"
-                  >
-                    <option value="Standard">Standard</option>
-                    <option value="Deluxe">Deluxe</option>
-                    <option value="Suite">Suite</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Floor</label>
-                  <input 
-                    type="text" placeholder="e.g. 1st Floor"
-                    value={roomForm.floor}
-                    onChange={(e) => setRoomForm(prev => ({ ...prev, floor: e.target.value }))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 focus:bg-white"
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-4 py-1">
-                <label className="flex items-center gap-2 cursor-pointer font-bold">
-                  <input 
-                    type="checkbox"
-                    checked={roomForm.isAc}
-                    onChange={(e) => setRoomForm(prev => ({ ...prev, isAc: e.target.checked }))}
-                    className="accent-indigo-600"
-                  />
-                  Air Conditioned (AC) Room
-                </label>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Price per Night (₹)</label>
-                  <input 
-                    type="number" required
-                    value={roomForm.price}
-                    onChange={(e) => setRoomForm(prev => ({ ...prev, price: parseInt(e.target.value) || 0 }))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 focus:bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Max Guests capacity</label>
-                  <input 
-                    type="number"
-                    value={roomForm.maxGuests}
-                    onChange={(e) => setRoomForm(prev => ({ ...prev, maxGuests: parseInt(e.target.value) || 2 }))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 focus:bg-white"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-slate-100 flex flex-col-reverse sm:flex-row justify-end gap-2">
-                <button type="button" onClick={() => setShowRoomModal(false)} className="w-full sm:w-auto px-4 py-2 border border-slate-200 hover:bg-slate-50 rounded-xl text-slate-500 font-bold">Cancel</button>
-                <button type="submit" className="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-sm font-bold cursor-pointer">Save Room</button>
+                <button type="submit" disabled={propertySaving} className="w-full sm:w-auto px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-sm cursor-pointer">{propertySaving ? 'Saving...' : 'Save Changes'}</button>
               </div>
             </form>
           </div>
@@ -1345,32 +1037,13 @@ export default function DharmashalaManagement() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-sm overflow-y-auto">
           <div className="bg-white border border-slate-100 w-full max-w-md rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl my-4 max-h-[92vh] flex flex-col">
             <div className="p-4 sm:p-5 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="text-sm sm:text-base font-black text-slate-800">Assign Room &amp; Approve</h3>
+              <h3 className="text-sm sm:text-base font-black text-slate-800">Approve Booking</h3>
               <button onClick={() => setShowBookingModal(false)} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer"><X size={16} /></button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 sm:space-y-4 text-xs font-bold text-slate-600">
               <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-2xl">
                 <p className="text-[10px] text-slate-400 font-bold uppercase">Guest Profile</p>
                 <p className="text-slate-800 text-sm font-bold mt-0.5">{activeBooking.bookedBy}</p>
-                <p className="text-[10px] text-indigo-600 mt-1 block">Requested: <span className="font-extrabold text-slate-800">{activeBooking.roomType} room</span></p>
-              </div>
-
-              <div>
-                <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Select Room to Assign</label>
-                <select 
-                  multiple
-                  value={assignedRoomIds}
-                  onChange={(e) => {
-                    const options = [...e.target.selectedOptions].map(o => o.value);
-                    setAssignedRoomIds(options);
-                  }}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none h-28 focus:border-indigo-500"
-                >
-                  {rooms.filter(r => r.status === 'Available').map(r => (
-                    <option key={r._id} value={r._id}>Room {r.roomNumber} - {r.roomCategory} ({r.isAc ? 'AC' : 'Non-AC'})</option>
-                  ))}
-                </select>
-                <span className="text-[9px] text-slate-400 mt-1 block font-semibold">Hold Ctrl key to assign multiple rooms.</span>
               </div>
 
               {/* Pricing & Final Amount Entry */}
@@ -1462,25 +1135,11 @@ export default function DharmashalaManagement() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-sm overflow-y-auto">
           <div className="bg-white border border-slate-100 w-full max-w-md rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl my-4 max-h-[92vh] flex flex-col">
             <div className="p-4 sm:p-5 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="text-sm sm:text-base font-black text-slate-800">Schedule Room Lockout</h3>
+              <h3 className="text-sm sm:text-base font-black text-slate-800">Schedule Property Lockout</h3>
               <button onClick={() => setShowMaintenanceModal(false)} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer"><X size={16} /></button>
             </div>
             
             <form onSubmit={handleMaintenanceSubmit} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 sm:space-y-4 text-xs font-bold text-slate-600">
-              <div>
-                <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Select Room</label>
-                <select 
-                  value={maintenanceForm.roomId}
-                  onChange={(e) => setMaintenanceForm(prev => ({ ...prev, roomId: e.target.value }))}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500"
-                >
-                  <option value="">Block Entire Property</option>
-                  {rooms.map(r => (
-                    <option key={r._id} value={r._id}>Room {r.roomNumber}</option>
-                  ))}
-                </select>
-              </div>
-
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Start Date</label>
@@ -1558,8 +1217,7 @@ export default function DharmashalaManagement() {
                     value={manualBookingForm.dharmashalaId}
                     onChange={(e) => {
                       const propId = e.target.value;
-                      setManualBookingForm(prev => ({ ...prev, dharmashalaId: propId, roomId: '' }));
-                      fetchManualBookingRooms(propId);
+                      setManualBookingForm(prev => ({ ...prev, dharmashalaId: propId }));
                     }}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500"
                   >
@@ -1567,22 +1225,6 @@ export default function DharmashalaManagement() {
                     {properties.map(p => <option key={p._id} value={p._id}>{p.name} ({p.city})</option>)}
                   </select>
                 </div>
-                <div>
-                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Room / Unit *</label>
-                  <select
-                    required
-                    value={manualBookingForm.roomId}
-                    onChange={(e) => setManualBookingForm(prev => ({ ...prev, roomId: e.target.value }))}
-                    disabled={!manualBookingForm.dharmashalaId}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 disabled:opacity-50"
-                  >
-                    <option value="">{manualBookingRooms.length === 0 ? 'No available rooms' : 'Select room'}</option>
-                    {manualBookingRooms.map(r => (
-                      <option key={r._id} value={r._id}>Room {r.roomNumber} — {r.isAc ? 'AC' : 'General'} (₹{r.price}/night)</option>
-                    ))}
-                  </select>
-                </div>
-
                 <div>
                   <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Customer Name *</label>
                   <input required type="text" value={manualBookingForm.bookedBy}

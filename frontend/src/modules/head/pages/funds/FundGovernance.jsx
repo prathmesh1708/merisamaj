@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -25,6 +26,21 @@ export const FundGovernance = () => {
   const [funds, setFunds] = useState([]);
   const [stats, setStats] = useState(null);
   const [incomeSources, setIncomeSources] = useState(null);
+
+  // Manual Collection
+  const [showManualCollectionModal, setShowManualCollectionModal] = useState(false);
+  const [manualCollectionSaving, setManualCollectionSaving] = useState(false);
+  const [manualCollectionForm, setManualCollectionForm] = useState({
+    payerName: '', payerPhone: '', payerAddress: '', amount: '', paymentMode: 'Cash',
+    purpose: '', incomeCategory: 'Donation', date: '', notes: ''
+  });
+
+  // Accountability Reports
+  const [showReports, setShowReports] = useState(false);
+  const [reportTab, setReportTab] = useState('who-gave'); // 'who-gave' | 'who-collected'
+  const [reportsLoading, setReportsLoading] = useState(false);
+  const [whoGaveData, setWhoGaveData] = useState([]);
+  const [whoCollectedData, setWhoCollectedData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [headCommunityName, setHeadCommunityName] = useState('My Chapter');
@@ -175,6 +191,60 @@ export const FundGovernance = () => {
       if (expRes.success) setDrawerExpenses(expRes.data);
     } catch (err) {
       console.error('refreshDrawerData error:', err);
+    }
+  };
+
+  // Manual Collection
+  const openManualCollectionModal = () => {
+    setManualCollectionForm({
+      payerName: '', payerPhone: '', payerAddress: '', amount: '', paymentMode: 'Cash',
+      purpose: '', incomeCategory: 'Donation', date: '', notes: ''
+    });
+    setShowManualCollectionModal(true);
+  };
+
+  const handleManualCollectionSubmit = async (e) => {
+    e.preventDefault();
+    setManualCollectionSaving(true);
+    try {
+      const res = await headFundService.createManualCollection(manualCollectionForm);
+      if (res.success) {
+        setShowManualCollectionModal(false);
+        showToast(`Collection of ₹${manualCollectionForm.amount} recorded — Receipt ${res.data.receiptNo}`);
+        loadData();
+        if (showReports) loadReports();
+      } else {
+        showToast(res.message || 'Failed to record collection.', 'error');
+      }
+    } catch (err) {
+      showToast(err.response?.data?.message || err.message || 'Failed to record collection.', 'error');
+    } finally {
+      setManualCollectionSaving(false);
+    }
+  };
+
+  // Accountability Reports
+  const loadReports = async () => {
+    setReportsLoading(true);
+    try {
+      const [gaveRes, collectedRes] = await Promise.all([
+        headFundService.getWhoGaveReport(),
+        headFundService.getWhoCollectedReport()
+      ]);
+      if (gaveRes.success) setWhoGaveData(gaveRes.data);
+      if (collectedRes.success) setWhoCollectedData(collectedRes.data);
+    } catch (err) {
+      console.error('Failed to load accountability reports', err);
+    } finally {
+      setReportsLoading(false);
+    }
+  };
+
+  const toggleReports = () => {
+    const next = !showReports;
+    setShowReports(next);
+    if (next && whoGaveData.length === 0 && whoCollectedData.length === 0) {
+      loadReports();
     }
   };
 
@@ -402,6 +472,7 @@ export const FundGovernance = () => {
         </div>
         
         <div className="flex items-center gap-3">
+          <Link to="accounts" className="px-4 h-10 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 flex items-center hover:bg-slate-50 shadow-sm">Accounts &amp; Cash</Link>
           <button 
             onClick={loadData}
             title="Refresh Ledger Data"
@@ -410,7 +481,14 @@ export const FundGovernance = () => {
             <RefreshCw size={18} />
           </button>
           
-          <button 
+          <button
+            onClick={openManualCollectionModal}
+            className="bg-amber-500 text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 hover:bg-amber-600 transition-all shadow-md shadow-amber-200 cursor-pointer"
+          >
+            <Banknote size={16} /> Record Collection
+          </button>
+
+          <button
             onClick={openCreateModal}
             className="bg-[#7C3AED] text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 hover:bg-opacity-90 transition-all shadow-md shadow-purple-200 cursor-pointer"
           >
@@ -488,8 +566,135 @@ export const FundGovernance = () => {
               </div>
             </div>
           )}
+
+          {incomeSources.byLocation?.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-slate-100 overflow-x-auto">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Location-Wise Samaj Fund</p>
+              <table className="w-full text-left border-collapse min-w-[480px]">
+                <thead>
+                  <tr className="text-[9.5px] font-bold text-slate-400 uppercase">
+                    <th className="py-1.5 pr-3">Location</th>
+                    <th className="py-1.5 px-3">Fund</th>
+                    <th className="py-1.5 px-3">Donations</th>
+                    <th className="py-1.5 px-3">Dharmashala</th>
+                    <th className="py-1.5 px-3">Manual</th>
+                    <th className="py-1.5 pl-3 text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="text-[11px] font-semibold text-slate-700 divide-y divide-slate-50">
+                  {incomeSources.byLocation.map(loc => (
+                    <tr key={loc.city}>
+                      <td className="py-2 pr-3 font-bold text-slate-800">{loc.city}</td>
+                      <td className="py-2 px-3">₹{loc.fund.toLocaleString('en-IN')}</td>
+                      <td className="py-2 px-3">₹{loc.donations.toLocaleString('en-IN')}</td>
+                      <td className="py-2 px-3">₹{loc.dharmashala.toLocaleString('en-IN')}</td>
+                      <td className="py-2 px-3">₹{loc.manual.toLocaleString('en-IN')}</td>
+                      <td className="py-2 pl-3 text-right font-black text-indigo-700">₹{loc.total.toLocaleString('en-IN')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
+
+      {/* Accountability Reports — Who Gave / Who Collected */}
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-xs mb-6 overflow-hidden">
+        <button
+          onClick={toggleReports}
+          className="w-full flex items-center justify-between p-5 cursor-pointer hover:bg-slate-50/50 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <UserCheck size={16} className="text-indigo-600" />
+            <span className="text-sm font-black text-slate-800">Accountability Reports — Who Gave &amp; Who Collected</span>
+          </div>
+          <span className="text-[10px] font-bold text-indigo-600">{showReports ? 'Hide' : 'Show'}</span>
+        </button>
+
+        {showReports && (
+          <div className="border-t border-slate-100 p-5 space-y-4">
+            <div className="flex gap-2">
+              <button
+                onClick={() => setReportTab('who-gave')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${reportTab === 'who-gave' ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+              >
+                Who Gave How Much
+              </button>
+              <button
+                onClick={() => setReportTab('who-collected')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${reportTab === 'who-collected' ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+              >
+                Who Collected How Much
+              </button>
+            </div>
+
+            {reportsLoading ? (
+              <div className="py-10 text-center text-slate-400 text-xs font-bold">Loading report...</div>
+            ) : reportTab === 'who-gave' ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-[600px]">
+                  <thead>
+                    <tr className="bg-slate-50 text-[9.5px] font-bold text-slate-400 uppercase">
+                      <th className="p-2.5">Person</th>
+                      <th className="p-2.5">Location</th>
+                      <th className="p-2.5">Purpose</th>
+                      <th className="p-2.5">Source</th>
+                      <th className="p-2.5">Payment Mode</th>
+                      <th className="p-2.5">Date</th>
+                      <th className="p-2.5 text-right">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-[11px] font-semibold text-slate-700 divide-y divide-slate-50">
+                    {whoGaveData.length === 0 ? (
+                      <tr><td colSpan="7" className="p-6 text-center text-slate-400 font-bold">No records found.</td></tr>
+                    ) : whoGaveData.map((r, i) => (
+                      <tr key={i}>
+                        <td className="p-2.5 font-bold text-slate-800">{r.payerName}{r.payerPhone && <span className="block text-[10px] text-slate-400 font-medium">{r.payerPhone}</span>}</td>
+                        <td className="p-2.5">{r.location || '—'}</td>
+                        <td className="p-2.5">{r.purpose || '—'}</td>
+                        <td className="p-2.5"><span className="px-2 py-0.5 bg-slate-50 border border-slate-100 rounded text-[10px] font-bold">{r.source}</span></td>
+                        <td className="p-2.5">{r.paymentMode}</td>
+                        <td className="p-2.5">{new Date(r.date).toLocaleDateString('en-IN')}</td>
+                        <td className="p-2.5 text-right font-black text-emerald-600">₹{r.amount.toLocaleString('en-IN')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-[600px]">
+                  <thead>
+                    <tr className="bg-slate-50 text-[9.5px] font-bold text-slate-400 uppercase">
+                      <th className="p-2.5">Collector</th>
+                      <th className="p-2.5">Role</th>
+                      <th className="p-2.5">Collections</th>
+                      <th className="p-2.5">Cash</th>
+                      <th className="p-2.5">Online</th>
+                      <th className="p-2.5 text-right">Total Collected</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-[11px] font-semibold text-slate-700 divide-y divide-slate-50">
+                    {whoCollectedData.length === 0 ? (
+                      <tr><td colSpan="6" className="p-6 text-center text-slate-400 font-bold">No records found.</td></tr>
+                    ) : whoCollectedData.map((c) => (
+                      <tr key={c.collectorId}>
+                        <td className="p-2.5 font-bold text-slate-800">{c.name}</td>
+                        <td className="p-2.5">{c.role}</td>
+                        <td className="p-2.5">{c.collectionsCount}</td>
+                        <td className="p-2.5">₹{c.cashAmount.toLocaleString('en-IN')}</td>
+                        <td className="p-2.5">₹{c.onlineAmount.toLocaleString('en-IN')}</td>
+                        <td className="p-2.5 text-right font-black text-indigo-700">₹{c.totalAmount.toLocaleString('en-IN')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Filter and Search Bar */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4 mb-6">
@@ -1327,6 +1532,108 @@ export const FundGovernance = () => {
                 </>
               ) : null}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manual Collection Modal */}
+      {showManualCollectionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-4 my-8 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-start border-b border-slate-100 pb-3">
+              <div>
+                <span className="text-[10px] font-extrabold text-amber-600 uppercase tracking-wider">Manual Entry</span>
+                <h3 className="text-lg font-black text-slate-800 flex items-center gap-2"><Banknote size={18} className="text-amber-600" /> Record Cash / Manual Collection</h3>
+                <p className="text-[11px] text-slate-450 font-semibold mt-1">For any payment given directly — not tied to a specific fund campaign.</p>
+              </div>
+              <button onClick={() => setShowManualCollectionModal(false)} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-700"><X size={16} /></button>
+            </div>
+
+            <form onSubmit={handleManualCollectionSubmit} className="space-y-3.5 text-xs font-bold text-slate-600">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Donor / Contributor Name *</label>
+                  <input required type="text" value={manualCollectionForm.payerName}
+                    onChange={(e) => setManualCollectionForm(prev => ({ ...prev, payerName: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Mobile Number</label>
+                  <input type="tel" maxLength={10} value={manualCollectionForm.payerPhone}
+                    onChange={(e) => setManualCollectionForm(prev => ({ ...prev, payerPhone: e.target.value.replace(/[^0-9]/g, '').slice(0, 10) }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500" />
+                </div>
+
+                <div className="col-span-1 sm:col-span-2">
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Address / Location (optional)</label>
+                  <input type="text" value={manualCollectionForm.payerAddress}
+                    onChange={(e) => setManualCollectionForm(prev => ({ ...prev, payerAddress: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500" />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Amount (₹) *</label>
+                  <input required type="number" min="1" value={manualCollectionForm.amount}
+                    onChange={(e) => setManualCollectionForm(prev => ({ ...prev, amount: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 font-black" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Payment Mode</label>
+                  <select value={manualCollectionForm.paymentMode}
+                    onChange={(e) => setManualCollectionForm(prev => ({ ...prev, paymentMode: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500">
+                    <option value="Cash">Cash</option>
+                    <option value="UPI">UPI</option>
+                    <option value="Card">Card</option>
+                    <option value="Bank Transfer">Bank Transfer</option>
+                    <option value="Cheque">Cheque</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Income Category</label>
+                  <select value={manualCollectionForm.incomeCategory}
+                    onChange={(e) => setManualCollectionForm(prev => ({ ...prev, incomeCategory: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500">
+                    <option value="Donation">Donation</option>
+                    <option value="Membership">Membership</option>
+                    <option value="Subscription">Subscription</option>
+                    <option value="Event Registration">Event Registration</option>
+                    <option value="Community Contribution">Community Contribution</option>
+                    <option value="Property Income">Property Income</option>
+                    <option value="Interest Income">Interest Income</option>
+                    <option value="Sponsorship">Sponsorship</option>
+                    <option value="Other Income">Other Income</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Date</label>
+                  <input type="date" value={manualCollectionForm.date}
+                    onChange={(e) => setManualCollectionForm(prev => ({ ...prev, date: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500" />
+                </div>
+
+                <div className="col-span-1 sm:col-span-2">
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Purpose</label>
+                  <input type="text" placeholder="e.g. Samaj Donation, Annual Function Contribution" value={manualCollectionForm.purpose}
+                    onChange={(e) => setManualCollectionForm(prev => ({ ...prev, purpose: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500" />
+                </div>
+                <div className="col-span-1 sm:col-span-2">
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Notes</label>
+                  <textarea rows="2" value={manualCollectionForm.notes}
+                    onChange={(e) => setManualCollectionForm(prev => ({ ...prev, notes: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500" />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowManualCollectionModal(false)} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-xs">Cancel</button>
+                <button type="submit" disabled={manualCollectionSaving} className="flex-1 py-3 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs shadow-md">
+                  {manualCollectionSaving ? 'Recording...' : 'Record Collection & Generate Receipt'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -253,7 +253,14 @@ exports.getHistory = async (req, res) => {
         type: d.type,
         date: formattedDate,
         time: formattedTime,
-        txnId: d.txnId
+        txnId: d.txnId,
+        paymentMode: d.paymentMode,
+        isManual: !!d.isManual,
+        receiptNo: d.receiptNo || null,
+        collectionStatus: d.collectionStatus,
+        collectedByName: d.collectedByName || null,
+        collectedByRole: d.collectedByRole || null,
+        notes: d.manualNotes || ''
       };
     });
 

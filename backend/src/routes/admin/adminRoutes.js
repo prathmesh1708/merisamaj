@@ -34,6 +34,7 @@ router.use('/community-heads', authorizeAdminModule('canManageCommunityHeads'), 
 router.use('/users', authorizeAdminModule('canViewUsers'), userRoutes);
 router.use('/events', authorizeAdminModule('canManageEvents'), adminEventRoutes);
 router.use('/funds', authorizeAdminModule('canManageFunds'), adminFundRoutes);
+router.use('/fund-accounts', authorizeAdminModule('canManageFunds'), require('../head/fundAccountRoutes'));
 
 // Professional Directory Management Routes
 const adminProfessionalRoutes = require('./adminProfessionalRoutes');

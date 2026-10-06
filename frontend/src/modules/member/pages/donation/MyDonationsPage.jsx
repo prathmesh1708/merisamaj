@@ -93,8 +93,16 @@ const MyDonationsPage = () => {
                     </p>
                     <p className="flex items-center gap-1 font-mono">
                       <FileText size={11} className="text-gray-400" />
-                      {txn.txnId}
+                      {txn.receiptNo || txn.txnId}
                     </p>
+                    {txn.isManual && (
+                      <p className="text-[10px] font-semibold text-emerald-700">
+                        {txn.paymentMode} · collected by {txn.collectedByName}{txn.collectedByRole ? ` (${txn.collectedByRole})` : ''}
+                      </p>
+                    )}
+                    {!txn.isManual && txn.paymentMode === 'Cash' && txn.collectionStatus === 'pending' && (
+                      <p className="text-[10px] font-semibold text-amber-600">Cash pledge, waiting to be collected</p>
+                    )}
                   </div>
                 </div>
 

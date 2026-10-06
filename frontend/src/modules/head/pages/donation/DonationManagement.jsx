@@ -5,6 +5,7 @@ import headDonationService from '../../../../core/api/headDonationService';
 import { axiosPrivate } from '../../../../core/api/axiosPrivate';
 import { useHeadAuth } from '../../auth/useHeadAuth';
 
+import ManualDonationModal from '../../../../components/donation/ManualDonationModal';
 import DonationFormModal from './components/DonationFormModal';
 import DonationDetailModal from './components/DonationDetailModal';
 import DonorManagementModal from './components/DonorManagementModal';
@@ -24,6 +25,7 @@ const DonationManagement = () => {
   // creator), so there's no single flag that correctly gates this tab.
   const canCollectCash = true;
   const [campaigns, setCampaigns] = useState([]);
+  const [manualOpen, setManualOpen] = useState(false);
   const [stats, setStats] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   
@@ -241,6 +243,12 @@ const DonationManagement = () => {
             className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl font-bold transition-colors shadow-sm cursor-pointer"
           >
             <ImageIcon size={18} /> Edit Page Banner
+          </button>
+          <button
+            onClick={() => setManualOpen(true)}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-800 rounded-xl font-bold transition-colors shadow-sm cursor-pointer"
+          >
+            <Wallet size={18} /> Manual Donation
           </button>
           <button
             onClick={() => handleAction('create')}
@@ -629,6 +637,7 @@ const DonationManagement = () => {
           availableBalance={selectedCampaign.availableBalance || 0}
         />
       )}
+      <ManualDonationModal open={manualOpen} onClose={() => setManualOpen(false)} campaigns={campaigns} onSaved={() => fetchDashboardData()} />
     </div>
   );
 };

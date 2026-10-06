@@ -4,6 +4,7 @@ const Community = require('../../models/Community');
 const User = require('../../models/User');
 const { notifyElectionCreated, createBroadcastNotification } = require('../../services/notificationService');
 const { sendPushNotification } = require('../../services/pushNotificationService');
+const { electionFieldsFromBody, normaliseCandidates, publishAndNotify } = require('../../utils/electionAdmin');
 const { applyScopeFilter, inheritTenantPayload } = require('../../utils/queryScopeHelper');
 
 // Helper to resolve the community ID for write/bind operations
@@ -308,15 +309,21 @@ exports.createElection = async (req, res) => {
       status: initialStatus,
       startDate: start,
       endDate: end,
-      candidates: processedCandidates,
+      candidates: normaliseCandidates(processedCandidates),
       communityId,
       city: finalTargetCity,
       scope: finalScope,
       targetAudience: finalTargetAudience,
       targetCity: finalTargetCity,
       targetUsers: Array.isArray(targetUsers) ? targetUsers : [],
+      ...electionFieldsFromBody(req.body, req.user),
       createdBy
     });
+
+    if (newVoting.resultDate && newVoting.resultDate < newVoting.endDate) {
+      newVoting.resultDate = newVoting.endDate;
+      await newVoting.save();
+    }
 
     // ── Broadcast realtime socket event so members receive updates immediately ──
     try {
@@ -335,22 +342,11 @@ exports.createElection = async (req, res) => {
       console.warn('[Socket.io] election:created broadcast warning:', socketErr.message);
     }
 
-    // ── Notification: notify targeted community members about new election ───────
+    // Notify only the users who are eligible for this election (skipped for drafts)
     try {
-      createBroadcastNotification({
-        communityId,
-        module: 'voting',
-        type: 'election_created',
-        title: 'New Election 🗳️',
-        message: `A new election "${title}" has been launched. Cast your vote!`,
-        icon: '🗳️',
-        priority: 'high',
-        actionUrl: `/member/voting/${newVoting._id}`,
-        referenceId: newVoting._id,
-        referenceType: 'Voting'
-      });
+      await publishAndNotify(newVoting, req);
     } catch (notifErr) {
-      console.warn('[Notify] createElection election_created failed:', notifErr.message);
+      console.warn('[Notify] createElection publish failed:', notifErr.message);
     }
 
     res.status(201).json({
@@ -422,6 +418,7 @@ exports.updateElection = async (req, res) => {
       election.city = targetCity;
     }
     if (Array.isArray(targetUsers)) election.targetUsers = targetUsers;
+    Object.assign(election, electionFieldsFromBody(req.body, req.user));
 
     // Candidates can only be replaced if no votes have been cast yet, or updated in place
     if (Array.isArray(candidates) && candidates.length >= 2) {
@@ -462,6 +459,7 @@ exports.updateElection = async (req, res) => {
     }
 
     await election.save();
+    try { await publishAndNotify(election, req); } catch (e) { console.warn('[Notify] updateElection publish failed:', e.message); }
 
     // Broadcast socket event
     try {

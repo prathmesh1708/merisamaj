@@ -28,6 +28,10 @@ router.post('/campaigns/:id/expenses', headOrAdmin, donationController.addExpens
 // collect action is additionally gated by the canCollectCashDonations flag,
 // then re-verified against the donor's hierarchy inside the controller.
 router.get('/cash-pending', headOrSubHead, donationController.getPendingCashDonations);
+
+// Manual (in-person) donations; the role is checked inside the controller (Community Head, Local Head, Admin)
+router.post('/manual', headOrSubHead, donationController.createManualDonation);
+router.get('/manual', headOrSubHead, donationController.getManualDonations);
 router.put('/:id/collect-cash', headOrSubHead, donationController.collectCashDonation);
 
 // Campaign-level Cash Collector Management — only the campaign creator or admin

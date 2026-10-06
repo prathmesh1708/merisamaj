@@ -33,6 +33,12 @@ const authorizeModule = (permissionKey) => {
           return next();
         }
 
+        // Every Local Head can view and run Samaj Funds for their own location
+        // (what they can reach is still limited to that location by the controllers).
+        if (req.user.accountType === 'local_head' && (permissionKey === 'canViewFunds' || permissionKey === 'canManageFunds')) {
+          return next();
+        }
+
         // Sub-Head requires explicitly granted permission
         if (permissionKey) {
           if (permissions[permissionKey] === true) {

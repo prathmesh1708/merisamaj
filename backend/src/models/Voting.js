@@ -10,7 +10,13 @@ const candidateSchema = new mongoose.Schema({
   bio: { type: String },
   manifesto: [{ type: String }],
   experience: { type: String },
-  education: { type: String }
+  education: { type: String },
+  // Added for the structured election flow
+  memberId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // the real member this candidate is
+  position: { type: String, trim: true },
+  location: { type: String, trim: true },
+  order: { type: Number, default: 0 },
+  isActive: { type: Boolean, default: true }
 });
 
 const votingSchema = new mongoose.Schema({
@@ -30,7 +36,7 @@ const votingSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['Upcoming', 'Active', 'Completed', 'Closed'],
+    enum: ['Upcoming', 'Active', 'Completed', 'Closed', 'Cancelled'],
     default: 'Active'
   },
   startDate: {
@@ -42,6 +48,29 @@ const votingSchema = new mongoose.Schema({
     required: true
   },
   candidates: [candidateSchema],
+
+  bannerImage: { type: String },
+  // When results become visible to voters. Defaults to endDate when not set.
+  resultDate: { type: Date },
+  // Draft elections (false) are invisible to voters. Existing elections default to published.
+  isPublished: { type: Boolean, default: true },
+  publishedAt: { type: Date },
+  notifiedAt: { type: Date },
+  cancelledAt: { type: Date },
+  cancelledBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+
+  /**
+   * Structured eligibility (preferred over the legacy targetAudience enum).
+   * allowedRoles: any of community_head | community_sub_head | local_head | local_sub_head | member
+   *   (empty = every role). targetCities / targetCommunityIds: empty = no restriction.
+   * targetUsers (below) = individually selected members who are always eligible.
+   */
+  allowedRoles: [{
+    type: String,
+    enum: ['community_head', 'community_sub_head', 'local_head', 'local_sub_head', 'member']
+  }],
+  targetCities: [{ type: String, trim: true }],
+  targetCommunityIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Community' }],
   
   /**
    * Community Isolation Key

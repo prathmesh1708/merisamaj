@@ -21,6 +21,7 @@ router.use('/dharmashala', dharmashalaRoutes);
 router.use('/voting', votingRoutes);
 router.use('/events', eventRoutes);
 router.use('/funds', headFundRoutes);
+router.use('/fund-accounts', require('../../middleware/authorizeModule').authorizeModule('canManageFunds'), require('./fundAccountRoutes'));
 
 // Social Moderation Routes
 const headSocialRoutes = require('./headSocialRoutes');

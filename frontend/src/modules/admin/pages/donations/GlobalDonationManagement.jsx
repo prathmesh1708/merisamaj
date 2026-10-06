@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import ManualDonationModal from '../../../../components/donation/ManualDonationModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   HeartHandshake, Search, Sliders, RefreshCw, Download, Plus, Eye, Edit3, 
@@ -28,6 +29,7 @@ export default function GlobalDonationManagement() {
   
   // Data States
   const [campaigns, setCampaigns] = useState([]);
+  const [manualOpen, setManualOpen] = useState(false);
   const [transactions, setTransactions] = useState([]);
   const [analytics, setAnalytics] = useState(null);
   const [auditLogs, setAuditLogs] = useState([]);
@@ -452,6 +454,11 @@ export default function GlobalDonationManagement() {
         <div className="absolute -top-[10%] -left-[10%] w-[500px] h-[500px] rounded-full bg-purple-500/5 filter blur-[80px]" />
         <div className="absolute top-[40%] -right-[10%] w-[600px] h-[600px] rounded-full bg-violet-600/5 filter blur-[100px]" />
       </div>
+
+      <div className="relative z-10 flex justify-end">
+        <button onClick={() => setManualOpen(true)} className="px-4 py-2.5 rounded-xl bg-white/10 border border-white/20 text-sm font-bold hover:bg-white/20 transition-colors">+ Manual Donation</button>
+      </div>
+      <ManualDonationModal open={manualOpen} onClose={() => setManualOpen(false)} campaigns={campaigns} onSaved={() => window.location.reload()} />
 
       {/* ─── TOAST NOTIFICATIONS ─── */}
       <AnimatePresence>

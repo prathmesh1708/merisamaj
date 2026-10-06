@@ -43,11 +43,23 @@ exports.getFundsData = async (req, res) => {
     }
 
     // 1. Fetch all matching funds
-    const fundsList = await Fund.find(fundQuery)
+    let fundsList = await Fund.find(fundQuery)
       .populate('createdBy', 'name role city designation')
       .populate('localHeadId', 'name city designation')
       .sort({ createdAt: -1 })
       .lean();
+
+    // A LOCAL fund belongs to its own location: only members of that city (or the head
+    // who runs it) can see it, so it never leaks to other locations in the community.
+    if (!isAdmin) {
+      const myCity = userCity.trim().toLowerCase();
+      fundsList = fundsList.filter(f => {
+        if (f.scope !== 'LOCAL') return true;
+        const fundCity = (f.city || f.localHeadId?.city || f.createdBy?.city || '').trim().toLowerCase();
+        const mine = [f.createdBy?._id, f.localHeadId?._id].some(id => id && String(id) === String(myId));
+        return mine || !fundCity || fundCity === myCity;
+      });
+    }
 
     const fundIds = fundsList.map(f => f._id);
 

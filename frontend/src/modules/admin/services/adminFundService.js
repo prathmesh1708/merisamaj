@@ -50,5 +50,13 @@ export const adminFundService = {
   getStats: async () => {
     const res = await axiosPrivate.get(`${API_BASE}/stats`);
     return res.data;
+  },
+
+  getIncomeSources: async (filters = {}) => {
+    const params = new URLSearchParams();
+    if (filters.communityId) params.append('communityId', filters.communityId);
+    if (filters.city) params.append('city', filters.city);
+    const res = await axiosPrivate.get(`${API_BASE}/income-sources?${params.toString()}`);
+    return res.data;
   }
 };

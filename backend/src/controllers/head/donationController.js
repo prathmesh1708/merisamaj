@@ -2,7 +2,7 @@ const Donation = require('../../models/Donation');
 const Expense = require('../../models/Expense');
 const DonationCategory = require('../../models/DonationCategory');
 const User = require('../../models/User');
-const { notifyCampaignCreated, createBroadcastNotification } = require('../../services/notificationService');
+const { notifyCampaignCreated, createBroadcastNotification, createNotification } = require('../../services/notificationService');
 const { applyScopeFilter, inheritTenantPayload } = require('../../utils/queryScopeHelper');
 
 // 1. Dashboard Stats
@@ -723,6 +723,134 @@ exports.updateCampaignCollectors = async (req, res) => {
       status: 'success',
       message: grant ? 'Cash collection access granted.' : 'Cash collection access revoked.',
       data: { cashCollectors: campaign.cashCollectors }
+    });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
+// ─── Manual (in-person) donation ──────────────────────────────────────────────
+// A Community Head, Local Head or Admin records a donation handed over in person
+// (cash, UPI, bank transfer, cheque). It is stored already collected, counted
+// toward the campaign total, and, when the donor is a member, linked to their
+// account so it appears in their own donation history with who collected it.
+const MANUAL_MODES = ['Cash', 'UPI', 'Bank Transfer', 'Cheque', 'Other'];
+
+exports.createManualDonation = async (req, res) => {
+  try {
+    const role = (req.user?.role || '').toLowerCase();
+    const isAdmin = ['admin', 'super_admin', 'master_admin', 'master'].includes(role);
+    const isCommunityHead = role === 'head';
+    const isLocalHead = req.user?.accountType === 'local_head';
+    if (!isAdmin && !isCommunityHead && !isLocalHead) {
+      return res.status(403).json({ status: 'error', message: 'Only Community Heads, Local Heads and Admins can record manual donations.' });
+    }
+
+    const { campaignId, donorName, donorPhone, donorAddress, amount, paymentMode, notes, donorUserId, date } = req.body;
+    const amt = Number(amount);
+    if (!campaignId || !donorName || !donorName.trim() || !(amt > 0)) {
+      return res.status(400).json({ status: 'error', message: 'Campaign, donor name and a valid amount are required.' });
+    }
+    const mode = MANUAL_MODES.includes(paymentMode) ? paymentMode : 'Cash';
+
+    const campaign = await Donation.findOne({ _id: campaignId, isDeleted: { $ne: true }, txnId: { $exists: false } });
+    if (!campaign) return res.status(404).json({ status: 'error', message: 'Campaign not found.' });
+    if (!isAdmin) {
+      const mine = new Set([req.communityId, req.user?.communityId, ...(req.user?.assignedCommunityIds || [])]
+        .map(c => (c ? String(c._id || c) : null)).filter(Boolean));
+      const cid = campaign.communityId ? String(campaign.communityId._id || campaign.communityId) : null;
+      if (cid && !mine.has(cid)) {
+        return res.status(403).json({ status: 'error', message: 'This campaign is outside your community.' });
+      }
+    }
+
+    // Link the donor to a member account when we can: an explicit pick, else a matching phone in the community.
+    let donor = null;
+    const communityId = campaign.communityId || req.communityId;
+    if (donorUserId) {
+      donor = await User.findOne({ _id: donorUserId, communityId, accountStatus: { $ne: 'deleted' } }).select('_id name city phone');
+    }
+    const phone = (donorPhone || '').replace(/\D/g, '').slice(-10);
+    if (!donor && phone.length === 10) {
+      donor = await User.findOne({ communityId, phone: new RegExp(`${phone}$`), accountStatus: { $ne: 'deleted' } }).select('_id name city phone');
+    }
+
+    const stamp = Date.now().toString().slice(-8);
+    const txnId = `MAN${stamp}${Math.floor(100 + Math.random() * 900)}`;
+    const receiptNo = `DON-${stamp}`;
+    const collectorRole = isAdmin ? 'Admin' : describeRole(req.user);
+
+    const record = await Donation.create({
+      user: donor ? donor._id : undefined,
+      campaign: campaign._id,
+      title: campaign.title,
+      purpose: campaign.title || campaign.purpose,
+      communityId,
+      city: req.user?.city || donor?.city || campaign.city,
+      amount: amt,
+      donorName: donorName.trim(),
+      donorPhone: donorPhone || donor?.phone || '',
+      donorAddress: donorAddress || '',
+      paymentMode: mode,
+      paymentMethod: mode,
+      txnId,
+      receiptNo,
+      status: 'Approved',
+      collectionStatus: 'collected',
+      collectedBy: req.user._id,
+      collectedByName: req.user.name,
+      collectedByRole: collectorRole,
+      collectedAt: date ? new Date(date) : new Date(),
+      isManual: true,
+      manualNotes: notes || ''
+    });
+
+    campaign.raisedAmount = (campaign.raisedAmount || 0) + amt;
+    campaign.donorCount = (campaign.donorCount || 0) + 1;
+    if (!Array.isArray(campaign.recentDonations)) campaign.recentDonations = [];
+    campaign.recentDonations.unshift({ donorName: record.donorName, amount: amt, date: new Date(), paymentStatus: 'success' });
+    await campaign.save();
+
+    if (donor) {
+      createNotification({
+        userId: donor._id,
+        communityId,
+        module: 'donations',
+        type: 'donation_recorded',
+        title: 'Donation received',
+        message: `Your ${mode.toLowerCase()} donation of ₹${amt.toLocaleString('en-IN')} to "${campaign.title}" was recorded by ${req.user.name}. Receipt ${receiptNo}.`,
+        icon: '🙏',
+        priority: 'normal',
+        actionUrl: '/member/donation',
+        referenceId: record._id,
+        referenceType: 'Donation'
+      });
+    }
+
+    res.status(201).json({
+      status: 'success',
+      message: donor ? 'Donation recorded and linked to the donor account.' : 'Donation recorded.',
+      data: { id: record._id, txnId, receiptNo, amount: amt, donorLinked: !!donor, donorMemberName: donor ? donor.name : null }
+    });
+  } catch (error) {
+    console.error('createManualDonation error:', error);
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
+// Manual donations visible to the requester (Admin: all; Heads: their community; Local Head: their city).
+exports.getManualDonations = async (req, res) => {
+  try {
+    const filter = applyScopeFilter(req, { isManual: true, isDeleted: { $ne: true } });
+    const rows = await Donation.find(filter).sort({ collectedAt: -1 }).limit(300).lean();
+    res.status(200).json({
+      status: 'success',
+      data: rows.map(d => ({
+        id: d._id, receiptNo: d.receiptNo, txnId: d.txnId, donorName: d.donorName, donorPhone: d.donorPhone,
+        campaignTitle: d.title, amount: d.amount, paymentMode: d.paymentMode, city: d.city,
+        collectedByName: d.collectedByName, collectedByRole: d.collectedByRole, collectedAt: d.collectedAt,
+        donorLinked: !!d.user
+      }))
     });
   } catch (error) {
     res.status(500).json({ status: 'error', message: error.message });

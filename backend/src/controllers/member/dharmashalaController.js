@@ -124,7 +124,7 @@ exports.getDharmashalaById = async (req, res) => {
     
     res.status(200).json({ 
       status: 'success', 
-      data: { ...dharamshala.toObject(), rooms } 
+      data: { ...dharamshala, rooms } 
     });
   } catch (error) {
     res.status(500).json({ status: 'error', message: error.message });

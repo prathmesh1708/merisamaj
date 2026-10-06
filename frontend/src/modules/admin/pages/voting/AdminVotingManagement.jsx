@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { adminVotingService } from '../../services/adminVotingService';
 import { axiosPrivate } from '../../../../core/api/axiosPrivate';
+import ElectionEligibilityFields, { electionFieldDefaults, electionFieldsFromElection } from '../../../../components/election/ElectionEligibilityFields';
 
 export const AdminVotingManagement = () => {
   const [elections, setElections] = useState([]);
@@ -60,6 +61,7 @@ export const AdminVotingManagement = () => {
     communityId: '',
     targetCity: '',
     targetUsers: [],
+    ...electionFieldDefaults,
     candidates: [
       { name: '', age: '', profession: '', shortIntro: '' },
       { name: '', age: '', profession: '', shortIntro: '' }
@@ -154,6 +156,7 @@ export const AdminVotingManagement = () => {
       communityId: elec.communityId?._id || elec.communityId || '',
       targetCity: elec.targetCity || elec.city || '',
       targetUsers: Array.isArray(elec.targetUsers) ? elec.targetUsers.map(u => u._id || u.id || u) : [],
+      ...electionFieldsFromElection(elec),
       candidates: Array.isArray(elec.candidates) && elec.candidates.length >= 2
         ? elec.candidates.map(c => ({
             _id: c._id || c.id,
@@ -256,6 +259,14 @@ export const AdminVotingManagement = () => {
 
   const handleFormSubmit = async (e) => {
     e.preventDefault();
+    if (formData.endDate && formData.startDate && new Date(formData.endDate) <= new Date(formData.startDate)) {
+      alert('End time must be after the start time');
+      return;
+    }
+    if (formData.resultDate && new Date(formData.resultDate) < new Date(formData.endDate)) {
+      alert('Result time cannot be before the voting end time');
+      return;
+    }
     if (!formData.title || !formData.startDate || !formData.endDate || formData.candidates.some(c => !c.name.trim())) {
       showToast('Please fill in all required fields (including candidate names)', 'error');
       return;
@@ -655,6 +666,12 @@ export const AdminVotingManagement = () => {
                       />
                     </div>
                   </div>
+                  <ElectionEligibilityFields
+                    formData={formData}
+                    setFormData={setFormData}
+                    cities={targetOptions.cities}
+                    communities={targetOptions.communities}
+                  />
                 </div>
 
                 {/* 2. Target Audience / Whom to Send */}

@@ -714,14 +714,14 @@ const notifyListingRejected = (ownerId, listingTitle, reason, listingId) =>
 
 // ─── Voting / Elections Notification Helpers ──────────────────────────────────
 
-const notifyElectionCreated = (memberIds, title, electionId) => {
+const notifyElectionCreated = (memberIds, title, electionId, options = {}) => {
   const promises = (memberIds || []).map(memberId =>
     createNotification({
       userId:        memberId,
       module:        'voting',
       type:          'election_created',
       title:         'New Election 🗳️',
-      message:       `A new election "${title}" has been created. Cast your vote!`,
+      message:       options.message || `A new election "${title}" has been created. Cast your vote!`,
       icon:          '🗳️',
       priority:      'high',
       actionUrl:     `/member/voting/${electionId}`,

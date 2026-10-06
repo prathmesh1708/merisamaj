@@ -1,643 +1,211 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  ArrowLeft, Calendar, ArrowRight, CheckCircle2, Clock, 
-  Briefcase, GraduationCap, User, Award, Check, X 
-} from 'lucide-react';
+import { ArrowLeft, Calendar, CheckCircle2, Clock, MapPin, Trophy, X } from 'lucide-react';
 import { useVoting } from './VotingContext';
-import { Badge } from '../../components/common/Badge';
-import { Avatar } from '../../components/common/Avatar';
-import { motion, AnimatePresence } from 'framer-motion';
-import { createPortal } from 'react-dom';
+import useCountdown, { formatDateTime } from './useCountdown';
+
+const pad = (n) => String(n).padStart(2, '0');
+
+const CountdownBox = ({ target, label, onDone }) => {
+  const c = useCountdown(target, onDone);
+  return (
+    <div className="bg-purple-50 border border-purple-100 rounded-2xl p-4 text-center">
+      <p className="text-[11px] font-black text-purple-700 uppercase tracking-wider">{label}</p>
+      <div className="mt-2 flex justify-center gap-2">
+        {[['Days', c.days], ['Hours', c.hours], ['Minutes', c.minutes], ['Seconds', c.seconds]].map(([t, v]) => (
+          <div key={t} className="bg-white border border-purple-100 rounded-xl px-3 py-2 min-w-[58px]">
+            <div className="text-xl font-black text-slate-900 tabular-nums">{pad(v)}</div>
+            <div className="text-[9px] font-bold text-slate-400 uppercase">{t}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const Avatar = ({ c, size = 44 }) => (
+  c.avatar
+    ? <img src={c.avatar} alt="" style={{ width: size, height: size }} className="rounded-full object-cover shrink-0" />
+    : <div style={{ width: size, height: size }} className="rounded-full bg-purple-100 text-purple-700 font-black flex items-center justify-center shrink-0 text-sm">{c.initials || c.name?.[0]}</div>
+);
 
 const PollDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { 
-    elections, 
-    votedElections, 
-    castVote, 
-    getElectionResult 
-  } = useVoting();
+  const { elections, castVote, loading, error, refresh } = useVoting();
+
+  const [selectedId, setSelectedId] = useState(null);
+  const [confirming, setConfirming] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [justVoted, setJustVoted] = useState(false);
 
   const election = elections.find(e => e.id === id);
 
-  const [selectedCandidateId, setSelectedCandidateId] = useState(null);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [candidateToShowDetails, setCandidateToShowDetails] = useState(null);
-
-  useEffect(() => {
-    if (candidateToShowDetails || showConfirmModal) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [candidateToShowDetails, showConfirmModal]);
-  
-  // Timer countdown
-  const [timeLeft, setTimeLeft] = useState(15); // 15 seconds countdown
-  const [isVotingEnded, setIsVotingEnded] = useState(false);
-
-  useEffect(() => {
-    if (timeLeft <= 0) {
-      setIsVotingEnded(true);
-      return;
-    }
-    const timer = setInterval(() => {
-      setTimeLeft(prev => prev - 1);
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [timeLeft]);
-
-  const formatTime = (seconds) => {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    return [
-      hrs.toString().padStart(2, '0'),
-      mins.toString().padStart(2, '0'),
-      secs.toString().padStart(2, '0')
-    ].join(':');
-  };
-
-  const { loading, error } = useVoting();
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-surface flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
+  if (loading && !election) {
+    return <div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" /></div>;
   }
-
-  if (error || !election) {
+  if (!election) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
-        <p className="text-sm font-semibold text-text-secondary">{error || 'Election not found'}</p>
-        <button 
-          onClick={() => navigate('/member/voting')}
-          className="mt-4 px-4 py-2 bg-[#7C3AED] text-white text-xs font-bold rounded-xl"
-        >
-          Back to Voting Dashboard
-        </button>
+        <p className="text-sm font-semibold text-slate-600">{error || 'This election is not available for you.'}</p>
+        <button onClick={() => navigate('/member/voting')} className="mt-4 px-4 py-2 bg-purple-600 text-white text-xs font-bold rounded-xl">Back to Voting</button>
       </div>
     );
   }
 
-  const isAlreadyVoted = !!votedElections[election.id];
-  const userChoiceId = votedElections[election.id];
-  const selectedCandidate = election.candidates.find(c => c.id === selectedCandidateId);
+  const { status, hasVoted } = election;
+  const selected = election.candidates.find(c => c.id === selectedId);
+  const refreshSoon = () => refresh(true);
 
-  // Determine current view state: 'details' | 'vote' | 'success' | 'results'
-  // If already voted, go straight to results view
-  const getInitialViewState = () => {
-    if (isAlreadyVoted) return 'results';
-    return 'details';
-  };
-
-  const [viewState, setViewState] = useState(getInitialViewState);
-
-  // Sync state if already voted
-  useEffect(() => {
-    if (isAlreadyVoted && viewState !== 'results') {
-      setViewState('results');
-    }
-  }, [isAlreadyVoted]);
-
-  const handleVoteSubmit = () => {
-    if (selectedCandidateId) {
-      castVote(election.id, selectedCandidateId);
-      setShowConfirmModal(false);
-      setViewState('success');
+  const submitVote = async () => {
+    setSubmitting(true);
+    setSubmitError('');
+    try {
+      await castVote(election.id, selectedId);
+      setConfirming(false);
+      setJustVoted(true);
+    } catch (err) {
+      setSubmitError(err.response?.data?.message || 'Could not record your vote. Please try again.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const results = getElectionResult(election.id);
+  const winnerIds = election.result?.winners || [];
 
   return (
-    <div className="min-h-screen bg-surface flex flex-col pb-16">
-      
-      {/* 1. Top Header Navigation */}
-      <div className="bg-card border-b border-gray-100 flex items-center justify-between px-4 h-14 sticky top-0 z-30">
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={() => {
-              if (viewState === 'vote') {
-                setViewState('details');
-              } else {
-                navigate('/member/voting');
-              }
-            }} 
-            className="p-1 -ml-1 press-scale"
-          >
-            <ArrowLeft size={22} className="text-text-primary" />
-          </button>
-          <h1 className="text-base font-bold text-text-primary">
-            {viewState === 'details' && 'Election Details'}
-            {viewState === 'vote' && 'Cast Vote'}
-            {viewState === 'success' && 'Thank You!'}
-            {viewState === 'results' && 'Election Results'}
-          </h1>
-        </div>
-        <div className="flex items-center gap-1.5 text-xs text-text-secondary bg-gray-100 px-3 py-1 rounded-full font-bold">
-          <span className={`w-2 h-2 rounded-full ${
-            election.status === 'Active' ? 'bg-emerald-500 animate-pulse' : 
-            election.status === 'Upcoming' ? 'bg-amber-500' : 'bg-gray-400'
-          }`} />
-          {election.status === 'Active' ? 'Active' : (election.status === 'Upcoming' ? 'Upcoming' : 'Ended')}
-        </div>
+    <div className="min-h-screen bg-slate-50 pb-20">
+      <div className="bg-white border-b border-slate-100 px-4 h-14 sticky top-0 z-30 flex items-center gap-3">
+        <button onClick={() => navigate('/member/voting')} className="p-1 -ml-1 text-slate-700"><ArrowLeft size={22} /></button>
+        <h1 className="text-base font-extrabold text-slate-800 truncate">{election.title}</h1>
       </div>
 
-      <div className="flex-1 px-4 pt-6 max-w-xl mx-auto w-full space-y-6">
-        
-        {/* ==========================================================
-            SCREEN 2 & 4: ELECTION DETAILS VIEW
-           ========================================================== */}
-        {viewState === 'details' && (
-          <div className="space-y-6">
-            {/* Banner Section */}
-            <div className="bg-gradient-to-r from-purple-800 to-indigo-900 text-white rounded-3xl p-5 border border-purple-700/20 shadow-md">
-              <div className="flex justify-between items-center mb-2">
-                <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
-                  election.status === 'Active' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40' :
-                  election.status === 'Upcoming' ? 'bg-amber-500/20 text-amber-300 border-amber-400/40' :
-                  'bg-white/20 text-white border-white/30'
-                }`}>
-                  {election.status}
-                </span>
-              </div>
-              <h2 className="text-base font-bold text-white">{election.title}</h2>
-              
-              {/* Date Card Grid inside Banner */}
-              <div className="grid grid-cols-2 gap-3 mt-4 pt-4 border-t border-white/10 text-center text-xs">
-                <div className="bg-white/5 p-2.5 rounded-xl border border-white/10">
-                  <div className="text-purple-200 text-[10px] uppercase font-bold tracking-wider mb-1 flex items-center justify-center gap-1">
-                    <Calendar size={11} className="text-amber-400" /> Start Date
-                  </div>
-                  <div className="font-bold text-white">{election.startDate}</div>
-                  <div className="text-[9px] text-purple-300 mt-0.5">
-                    {election.status === 'Upcoming' ? 'Starts' : 'Active'}
-                  </div>
-                </div>
-                <div className="bg-white/5 p-2.5 rounded-xl border border-white/10">
-                  <div className="text-purple-200 text-[10px] uppercase font-bold tracking-wider mb-1 flex items-center justify-center gap-1">
-                    <Calendar size={11} className="text-amber-400" /> End Date
-                  </div>
-                  <div className="font-bold text-white">{election.endDate}</div>
-                  <div className="text-[9px] text-purple-300 mt-0.5">Deadline</div>
-                </div>
-              </div>
+      <div className="max-w-xl mx-auto px-4 pt-4 space-y-4">
+        {election.bannerImage && <img src={election.bannerImage} alt="" className="w-full h-40 object-cover rounded-2xl" />}
 
-              <p className="text-xs text-purple-100/90 leading-relaxed mt-4 pt-1.5 text-center font-medium">
-                {election.description}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-2">
+          <p className="text-sm text-slate-600">{election.description}</p>
+          <div className="text-[11px] font-semibold text-slate-500 space-y-1 pt-1">
+            <div className="flex items-center gap-1.5"><Calendar size={12} /> Voting: {formatDateTime(election.startDate)} → {formatDateTime(election.endDate)}</div>
+            <div className="flex items-center gap-1.5"><Clock size={12} /> Result: {formatDateTime(election.resultDate)}</div>
+            {(election.location || election.communityName) && <div className="flex items-center gap-1.5"><MapPin size={12} /> {election.location || election.communityName}</div>}
+          </div>
+        </div>
+
+        {/* Upcoming */}
+        {status === 'Upcoming' && <CountdownBox target={election.startDate} label="Voting starts in" onDone={refreshSoon} />}
+
+        {/* Vote submitted (just now, or earlier) -> result countdown */}
+        {hasVoted && status !== 'ResultDeclared' && (
+          <div className="space-y-3">
+            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-center">
+              <CheckCircle2 className="mx-auto text-emerald-600" size={30} />
+              <p className="mt-2 text-sm font-extrabold text-emerald-800">
+                {justVoted ? 'Your vote has been successfully recorded.' : 'Vote Submitted'}
               </p>
             </div>
+            <CountdownBox target={election.resultDate} label="Result will be available in" onDone={refreshSoon} />
+          </div>
+        )}
 
-            {/* Candidates Vertically List */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-bold text-text-primary">Candidates ({election.candidates.length})</h3>
-              
-              <div className="space-y-3.5">
-                {election.candidates.map(candidate => (
-                  <div 
-                    key={candidate.id} 
-                    className="bg-card rounded-2xl border border-gray-100 p-4 shadow-sm flex items-center justify-between gap-3"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Avatar initials={candidate.initials} src={candidate.avatar} size="lg" />
-                      <div>
-                        <h4 className="text-xs font-bold text-text-primary">{candidate.name}</h4>
-                        {candidate.age && (
-                          <div className="text-[10px] text-text-secondary mt-1 space-y-0.5">
-                            <p>Age: {candidate.age} Years</p>
-                            <p>Profession: {candidate.profession}</p>
-                          </div>
-                        )}
-                      </div>
+        {/* Voting closed and the user did not vote */}
+        {!hasVoted && status === 'ResultPending' && (
+          <>
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 text-center text-sm font-bold text-slate-600">Voting has closed.</div>
+            <CountdownBox target={election.resultDate} label="Result will be available in" onDone={refreshSoon} />
+          </>
+        )}
+
+        {/* Voting open */}
+        {status === 'Active' && !hasVoted && (
+          <>
+            <CountdownBox target={election.endDate} label="Voting closes in" onDone={refreshSoon} />
+            <h3 className="text-xs font-black text-slate-500 uppercase tracking-wider pt-1">Select a candidate</h3>
+            <div className="space-y-2">
+              {election.candidates.map(c => (
+                <button key={c.id} onClick={() => setSelectedId(c.id)}
+                  className={`w-full text-left bg-white rounded-2xl border-2 p-3 flex items-center gap-3 transition-all ${selectedId === c.id ? 'border-purple-600 bg-purple-50' : 'border-slate-200 hover:border-purple-300'}`}>
+                  <Avatar c={c} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-extrabold text-slate-900 truncate">{c.name}</p>
+                    {(c.position || c.profession) && <p className="text-[11px] font-semibold text-slate-500 truncate">{c.position || c.profession}</p>}
+                    {(c.shortIntro || c.bio) && <p className="text-[11px] text-slate-400 line-clamp-2 mt-0.5">{c.shortIntro || c.bio}</p>}
+                  </div>
+                  <span className={`w-5 h-5 rounded-full border-2 shrink-0 ${selectedId === c.id ? 'border-purple-600 bg-purple-600' : 'border-slate-300'}`} />
+                </button>
+              ))}
+            </div>
+            <button disabled={!selectedId} onClick={() => { setSubmitError(''); setConfirming(true); }}
+              className="w-full py-3 bg-purple-600 disabled:bg-slate-300 text-white font-extrabold text-sm rounded-2xl">
+              Vote
+            </button>
+          </>
+        )}
+
+        {/* Result */}
+        {status === 'ResultDeclared' && election.result && (
+          <div className="space-y-3">
+            {winnerIds.length > 0 && (
+              <div className="bg-gradient-to-br from-purple-700 to-purple-900 text-white rounded-2xl p-4">
+                <p className="text-[11px] font-black uppercase tracking-wider text-purple-200 flex items-center gap-1.5"><Trophy size={13} /> {winnerIds.length > 1 ? 'Tie - winners' : 'Winner'}</p>
+                {election.candidates.filter(c => winnerIds.includes(c.id)).map(c => (
+                  <div key={c.id} className="flex items-center gap-3 mt-2">
+                    <Avatar c={c} size={48} />
+                    <div>
+                      <p className="text-base font-extrabold">{c.name}</p>
+                      <p className="text-xs text-purple-200">{c.position || c.profession} · {c.votes} votes ({c.percentage}%)</p>
                     </div>
-                    
-                    <button 
-                      onClick={() => setCandidateToShowDetails(candidate)}
-                      className="text-[10px] font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200/50 py-2 px-3.5 rounded-xl press-scale shrink-0"
-                    >
-                      View Profile
-                    </button>
                   </div>
                 ))}
               </div>
+            )}
+            {winnerIds.length === 0 && <div className="bg-white border border-slate-200 rounded-2xl p-4 text-center text-sm font-bold text-slate-600">No votes were cast in this election.</div>}
+
+            <div className="grid grid-cols-3 gap-2 text-center">
+              {[['Total votes', election.result.totalVotes], ['Eligible voters', election.result.eligibleVoters], ['Turnout', `${election.result.turnoutPercentage}%`]].map(([t, v]) => (
+                <div key={t} className="bg-white border border-slate-200 rounded-xl p-3">
+                  <div className="text-lg font-black text-slate-900">{v}</div>
+                  <div className="text-[10px] font-bold text-slate-400 uppercase">{t}</div>
+                </div>
+              ))}
             </div>
 
-            {/* Upcoming Information Box */}
-            {election.status === 'Upcoming' && (
-              <div className="bg-amber-50/80 border border-amber-200/80 rounded-2xl p-4 text-center space-y-1">
-                <span className="text-xs font-bold text-amber-800 flex items-center justify-center gap-1.5">
-                  <Clock size={14} className="text-amber-600" /> Voting Starts on {election.startDate}
-                </span>
-                <p className="text-[11px] text-amber-700 font-medium">
-                  Voting will open automatically on the start date. You can review candidate profiles above in advance.
-                </p>
-              </div>
-            )}
-
-            {/* Next Action: Proceed to Vote screen */}
-            {election.status === 'Active' && (
-              <button 
-                onClick={() => setViewState('vote')}
-                className="w-full py-4 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-2xl press-scale shadow-md flex items-center justify-center gap-1.5"
-              >
-                Proceed to Vote
-                <ArrowRight size={14} />
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* ==========================================================
-            SCREEN 5: VOTE SCREEN WITH RADIO BUTTONS
-           ========================================================== */}
-        {viewState === 'vote' && (
-          <div className="space-y-5">
-            <div className="border-b border-gray-100 pb-3">
-              <h2 className="text-sm font-bold text-text-primary">Who do you want to vote for?</h2>
-              <p className="text-[10px] text-text-secondary mt-0.5">Select any one of the candidates below.</p>
-            </div>
-
-            {/* Candidates with Radio Controls */}
-            <div className="space-y-3">
-              {election.candidates.map(candidate => {
-                const isSelected = selectedCandidateId === candidate.id;
-                return (
-                  <div 
-                    key={candidate.id}
-                    onClick={() => setSelectedCandidateId(candidate.id)}
-                    className="bg-card rounded-2xl border p-4.5 flex items-center justify-between cursor-pointer transition-all border-gray-100 hover:border-purple-200"
-                    style={{
-                      borderColor: isSelected ? '#7C3AED' : '',
-                      boxShadow: isSelected ? '0 1px 3px rgba(124,58,237,0.05)' : ''
-                    }}
-                  >
-                    <div className="flex items-center gap-3.5">
-                      {/* Radio dot */}
-                      <div className="w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0"
-                        style={{
-                          borderColor: isSelected ? '#7C3AED' : '#D1D5DB',
-                          backgroundColor: isSelected ? '#7C3AED' : 'transparent'
-                        }}
-                      >
-                        {isSelected && <div className="w-2 h-2 bg-white rounded-full" />}
-                      </div>
-                      
-                      <Avatar initials={candidate.initials} src={candidate.avatar} size="md" />
-                      <span className="text-xs font-bold text-text-primary">{candidate.name}</span>
-                    </div>
-
-                    {candidate.age && (
-                      <span className="text-[10px] text-text-secondary bg-gray-50 px-2 py-0.5 rounded-md border border-gray-100">
-                        {candidate.profession}
-                      </span>
-                    )}
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
+              {[...election.candidates].sort((a, b) => b.votes - a.votes).map(c => (
+                <div key={c.id}>
+                  <div className="flex justify-between text-xs font-bold text-slate-700">
+                    <span className="flex items-center gap-1.5">{c.name}{election.userVotedCandidateId === c.id && <span className="text-[9px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">Your vote</span>}</span>
+                    <span>{c.votes} · {c.percentage}%</span>
                   </div>
-                );
-              })}
+                  <div className="h-2 bg-slate-100 rounded-full mt-1 overflow-hidden"><div className="h-full bg-purple-600 rounded-full" style={{ width: `${c.percentage}%` }} /></div>
+                </div>
+              ))}
+              <p className="text-[10px] text-slate-400 font-semibold pt-1">Declared on {formatDateTime(election.result.declaredAt)}</p>
             </div>
-
-            {/* Submit Selection Button */}
-            <button 
-              onClick={() => {
-                if (selectedCandidateId) {
-                  setShowConfirmModal(true);
-                }
-              }}
-              disabled={!selectedCandidateId}
-              className={`w-full py-4 rounded-2xl text-xs font-bold press-scale shadow-md flex items-center justify-center gap-1.5 transition-colors ${
-                selectedCandidateId 
-                  ? 'bg-purple-700 hover:bg-purple-800 text-white' 
-                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-              }`}
-            >
-              Submit Vote
-            </button>
           </div>
         )}
-
-        {/* ==========================================================
-            SCREEN 7: SUCCESS SCREEN
-           ========================================================== */}
-        {viewState === 'success' && (
-          <div className="min-h-[60vh] flex flex-col items-center justify-center text-center space-y-6 max-w-sm mx-auto animate-fade-in">
-            {/* Green Circle Checkmark */}
-            <div className="w-16 h-16 bg-emerald-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-emerald-100">
-              <Check size={36} strokeWidth={3} />
-            </div>
-
-            <div className="space-y-2">
-              <h2 className="text-lg font-bold text-text-primary">Thank You!</h2>
-              <p className="text-xs text-text-secondary leading-relaxed px-4">
-                Your vote has been submitted successfully.
-              </p>
-            </div>
-
-            <div className="bg-purple-50 rounded-2xl p-4 border border-purple-100 w-full text-left space-y-2">
-              <p className="text-[10px] font-bold text-purple-700 uppercase tracking-wider">Vote Receipt Details</p>
-              <div className="text-[11px] text-text-secondary space-y-1">
-                <p><strong>Election:</strong> {election.title}</p>
-                <p><strong>Status:</strong> Secure & Confidential (Aggregate)</p>
-                <p><strong>Time:</strong> Just now</p>
-              </div>
-            </div>
-
-            <button 
-              onClick={() => setViewState('results')}
-              className="w-full py-3.5 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-2xl press-scale shadow-md"
-            >
-              Done
-            </button>
-          </div>
-        )}
-
-        {/* ==========================================================
-            RESULTS SCREEN: SIMULATED STANDINGS
-           ========================================================== */}
-        {viewState === 'results' && (
-          <div className="space-y-5 animate-fade-in">
-            <div className="bg-card rounded-3xl p-5 border border-gray-100 shadow-sm space-y-3">
-              <div className="flex justify-between items-center">
-                <Badge variant="success" className="text-[9px] uppercase font-bold">Results</Badge>
-              </div>
-              <h3 className="text-base font-bold text-text-primary leading-snug">{election.title}</h3>
-              <p className="text-[11px] text-text-secondary leading-relaxed">
-                Real-time progress and standings of the election.
-              </p>
-            </div>
-
-            {/* Countdown Banner */}
-            {!isVotingEnded ? (
-              <div className="bg-purple-50/50 border border-purple-100/50 rounded-2xl p-4 flex flex-col items-center justify-center text-center space-y-1 shadow-xs">
-                <span className="text-[10px] text-purple-750 font-extrabold uppercase tracking-wider flex items-center gap-1.5 justify-center">
-                  <Clock size={12} className="animate-pulse" /> Time remaining until results
-                </span>
-                <span className="text-[16px] font-black text-purple-950 font-mono tracking-widest">
-                  {formatTime(timeLeft)}
-                </span>
-              </div>
-            ) : (
-              <div className="bg-emerald-50/50 border border-emerald-100/40 rounded-2xl p-3 flex items-center justify-center gap-1.5 text-center text-[10px] text-emerald-700 font-bold shadow-xs">
-                <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
-                <span>Voting has ended. Results are completed.</span>
-              </div>
-            )}
-
-            {/* Results List */}
-            <div className="space-y-3">
-              {results.map((candidate) => {
-                const isUserChoice = userChoiceId === candidate.id;
-                return (
-                  <div 
-                    key={candidate.id} 
-                    className="bg-card rounded-2xl border p-4.5 relative overflow-hidden transition-all border-gray-100"
-                    style={{ borderColor: isUserChoice ? '#10B981' : '' }}
-                  >
-                    {/* Fill - set to 0% to completely hide vote progress overlays */}
-                    <div 
-                      className={`absolute top-0 bottom-0 left-0 ${
-                        isUserChoice ? 'bg-emerald-500/10' : 'bg-purple-600/5'
-                      } z-0 pointer-events-none transition-all duration-1000 ease-out`}
-                      style={{ width: `0%` }}
-                    />
-                    
-                    <div className="relative z-10 flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-3">
-                        <Avatar initials={candidate.initials} src={candidate.avatar} size="md" />
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <h4 className="text-xs font-bold text-text-primary">{candidate.name}</h4>
-                            {isUserChoice && (
-                              <span className="text-[9px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
-                                <Check size={10} /> Your Choice
-                              </span>
-                            )}
-                          </div>
-                          {candidate.age && (
-                            <p className="text-[10px] text-text-secondary mt-0.5">Age: {candidate.age} Years | {candidate.profession}</p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Hiding percentage values and counts next to candidate names */}
-                      <div className="text-right shrink-0">
-                        {isUserChoice && (
-                          <span className="text-emerald-600 font-extrabold text-xs">Voted</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Return Button */}
-            <button 
-              onClick={() => navigate('/member/voting')}
-              className="w-full py-4 bg-gray-900 hover:bg-black text-white text-xs font-bold rounded-2xl press-scale"
-            >
-              Back to Voting Dashboard
-            </button>
-          </div>
-        )}
-
       </div>
 
-      {/* ==========================================================
-          MODAL 1: CANDIDATE DETAIL OVERLAY
-         ========================================================== */}
-      {createPortal(
-        <AnimatePresence>
-          {candidateToShowDetails && (
-            <motion.div 
-              key="modal-candidate" 
-              className="fixed inset-0 z-[9999]" 
-              style={{ touchAction: 'none' }} 
-              onWheel={e => e.stopPropagation()} 
-              onTouchMove={e => e.stopPropagation()}
-            >
-              {/* Backdrop */}
-              <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 0.5 }}
-                exit={{ opacity: 0 }}
-                onClick={() => setCandidateToShowDetails(null)}
-                className="absolute inset-0 bg-black"
-              />
-              {/* Modal Drawer */}
-              <motion.div 
-                initial={{ y: '100%' }}
-                animate={{ y: 0 }}
-                exit={{ y: '100%' }}
-                transition={{ type: 'spring', damping: 25, stiffness: 220 }}
-                className="absolute bottom-0 left-0 right-0 max-w-lg mx-auto bg-card rounded-t-[32px] border-t border-gray-100 shadow-2xl overflow-y-auto max-h-[80vh] scrollbar-hide"
-                style={{ touchAction: 'auto' }}
-              >
-              <div className="p-6 space-y-6">
-                <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-                  <span className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">Candidate Profile Card</span>
-                  <button 
-                    onClick={() => setCandidateToShowDetails(null)}
-                    className="p-1 bg-gray-100 hover:bg-gray-200 rounded-full text-text-secondary transition-colors"
-                  >
-                    <X size={15} />
-                  </button>
-                </div>
-
-                <div className="flex items-center gap-4">
-                  <Avatar initials={candidateToShowDetails.initials} src={candidateToShowDetails.avatar} size="xl" />
-                  <div>
-                    <h3 className="text-base font-bold text-text-primary">{candidateToShowDetails.name}</h3>
-                    {candidateToShowDetails.age && (
-                      <p className="text-[10px] text-purple-700 bg-purple-50 px-2 py-0.5 rounded font-bold mt-1">
-                        Age: {candidateToShowDetails.age} Years • {candidateToShowDetails.profession}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 text-xs">
-                  {candidateToShowDetails.experience && (
-                    <div className="bg-surface p-3 rounded-xl border border-gray-100">
-                      <div className="text-[9px] text-text-secondary uppercase font-bold tracking-wider mb-1 flex items-center gap-1">
-                        <Briefcase size={11} className="text-purple-600" /> Experience
-                      </div>
-                      <div className="font-bold text-text-primary leading-snug">{candidateToShowDetails.experience}</div>
-                    </div>
-                  )}
-                  {candidateToShowDetails.education && (
-                    <div className="bg-surface p-3 rounded-xl border border-gray-100">
-                      <div className="text-[9px] text-text-secondary uppercase font-bold tracking-wider mb-1 flex items-center gap-1">
-                        <GraduationCap size={11} className="text-purple-600" /> Education
-                      </div>
-                      <div className="font-bold text-text-primary leading-snug">{candidateToShowDetails.education}</div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <h4 className="text-[11px] font-bold text-text-primary uppercase tracking-wider flex items-center gap-1">
-                    <User size={12} className="text-amber-500" /> Biography
-                  </h4>
-                  <p className="text-xs text-text-secondary leading-relaxed bg-surface rounded-xl p-3 border border-gray-100">
-                    {candidateToShowDetails.bio}
-                  </p>
-                </div>
-
-                <div className="space-y-2.5">
-                  <h4 className="text-[11px] font-bold text-text-primary uppercase tracking-wider flex items-center gap-1">
-                    <Award size={12} className="text-amber-500" /> Election Manifesto
-                  </h4>
-                  <div className="space-y-2">
-                    {candidateToShowDetails.manifesto.map((point, index) => (
-                      <div key={index} className="flex gap-2 text-xs leading-normal bg-purple-50/20 p-2.5 rounded-xl border border-purple-100/30">
-                        <Check size={12} className="text-purple-700 shrink-0 mt-0.5" />
-                        <span className="text-text-primary">{point}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {election.status === 'Active' && !isAlreadyVoted && (
-                  <button 
-                    onClick={() => {
-                      setSelectedCandidateId(candidateToShowDetails.id);
-                      setCandidateToShowDetails(null);
-                      setViewState('vote');
-                    }}
-                    className="w-full py-3.5 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-xl press-scale flex items-center justify-center gap-1.5"
-                  >
-                    Select to Vote
-                    <ArrowRight size={13} />
-                  </button>
-                )}
-              </div>
-            </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>,
-        document.body
+      {/* Confirm vote */}
+      {confirming && selected && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-5 w-full max-w-sm">
+            <div className="flex justify-between items-start">
+              <h3 className="text-base font-extrabold text-slate-900">Confirm your vote</h3>
+              <button onClick={() => setConfirming(false)} className="text-slate-400"><X size={18} /></button>
+            </div>
+            <p className="text-sm text-slate-600 mt-2">Are you sure you want to vote for <b>{selected.name}</b>? You cannot change your vote afterwards.</p>
+            {submitError && <p className="text-xs font-bold text-rose-600 mt-2">{submitError}</p>}
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setConfirming(false)} className="flex-1 py-2.5 border border-slate-200 rounded-xl text-sm font-bold text-slate-600">Cancel</button>
+              <button disabled={submitting} onClick={submitVote} className="flex-1 py-2.5 bg-purple-600 disabled:opacity-60 text-white rounded-xl text-sm font-extrabold">
+                {submitting ? 'Submitting...' : 'Confirm Vote'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
-
-      {/* ==========================================================
-          MODAL 2: VOTE CONFIRMATION POPUP
-         ========================================================== */}
-      {createPortal(
-        <AnimatePresence>
-          {showConfirmModal && selectedCandidate && (
-            <motion.div 
-              key="modal-confirm" 
-              className="fixed inset-0 z-[9999] flex items-center justify-center p-4" 
-              style={{ touchAction: 'none' }} 
-              onWheel={e => e.stopPropagation()} 
-              onTouchMove={e => e.stopPropagation()}
-            >
-              {/* Backdrop */}
-              <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 0.55 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 bg-black/60"
-              />
-              {/* Confirmation Dialog Box */}
-              <motion.div 
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
-                className="bg-card w-full max-w-sm rounded-[28px] border border-gray-100 p-6 shadow-2xl space-y-5 text-center relative z-10"
-                style={{ touchAction: 'auto' }}
-              >
-                {/* Green check shield circle */}
-                <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-sm">
-                  <CheckCircle2 size={24} className="text-emerald-600" />
-                </div>
-
-                <div className="space-y-1.5">
-                  <h3 className="text-sm font-bold text-text-primary">Confirm Vote</h3>
-                  <p className="text-xs text-text-secondary leading-normal">
-                    Are you sure you want to vote for <strong className="text-purple-900">{selectedCandidate.name}</strong>?
-                  </p>
-                </div>
-
-                {/* Candidate Summary card */}
-                <div className="bg-surface p-3.5 rounded-2xl border border-gray-100 flex items-center gap-3 text-left">
-                  <Avatar initials={selectedCandidate.initials} src={selectedCandidate.avatar} size="md" />
-                  <div>
-                    <h4 className="text-xs font-bold text-text-primary">{selectedCandidate.name}</h4>
-                    <p className="text-[10px] text-text-secondary mt-0.5">{selectedCandidate.profession}</p>
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-2 pt-2">
-                  <button 
-                    onClick={handleVoteSubmit}
-                    className="w-full py-3 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-xl press-scale shadow-sm"
-                  >
-                    Yes, Confirm
-                  </button>
-                  <button 
-                    onClick={() => {
-                      setShowConfirmModal(false);
-                    }}
-                    className="w-full py-3 bg-white hover:bg-gray-50 text-purple-700 text-xs font-bold rounded-xl border border-purple-200 press-scale"
-                  >
-                    No, Go Back
-                  </button>
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>,
-        document.body
-      )}
-
     </div>
   );
 };
