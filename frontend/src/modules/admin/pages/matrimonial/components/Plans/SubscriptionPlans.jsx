@@ -20,7 +20,8 @@ const EMPTY_PLAN = {
     unlimitedShortlist: false,
     readReceipts: false,
     profileBadge: false,
-    crossCommunityVisibility: false
+    crossCommunityVisibility: false,
+    communityFilter: false
   }
 };
 
@@ -140,6 +141,7 @@ const PlanModal = ({ plan, onClose, onSaved }) => {
               { key: 'visitorHistory', label: 'Visitor History' },
               { key: 'contactDetailsAccess', label: 'Contact Details Access' },
               { key: 'crossCommunityVisibility', label: 'See Other-Community Profiles' },
+              { key: 'communityFilter', label: 'Community & Sub-community Filter' },
             ].map(({ key, label }) => (
               <label key={key} className="flex items-center gap-2 cursor-pointer">
                 <div onClick={() => setFeature(key, !form.features[key])}
@@ -307,6 +309,7 @@ export const SubscriptionPlans = ({ data }) => {
               {plan.features?.visitorHistory && <p>• Visitor history</p>}
               {plan.features?.contactDetailsAccess && <p>• Contact details access</p>}
               {plan.features?.crossCommunityVisibility && <p>• Sees other-community profiles</p>}
+              {plan.features?.communityFilter && <p>• Community & sub-community filter</p>}
             </div>
 
             <div className="flex gap-2 pt-2 border-t border-slate-100">

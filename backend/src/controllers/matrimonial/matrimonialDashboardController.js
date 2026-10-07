@@ -80,6 +80,18 @@ exports.getDashboard = async (req, res) => {
       recentChats:  recentChatsCount
     };
 
+    // ─── My community + its sub-communities (for the sub-community filter) ─────
+    try {
+      const Community = require('../../models/Community');
+      const meDoc = await User.findById(userId).select('communityId subCommunity').lean();
+      const commDoc = meDoc?.communityId ? await Community.findById(meDoc.communityId).select('name subCommunities').lean() : null;
+      dashboard.community = {
+        name: commDoc?.name || '',
+        mySubCommunity: meDoc?.subCommunity || '',
+        subCommunities: (commDoc?.subCommunities || []).filter(sc => sc.isActive !== false).map(sc => sc.name).filter(Boolean)
+      };
+    } catch (e) { dashboard.community = { name: '', mySubCommunity: '', subCommunities: [] }; }
+
     // ─── Recommendations (categorized) ────────────────────────────────────────
     const recommendations = await getRecommendations(userId, myProfile, subscription);
     dashboard.recommendations = recommendations;
@@ -161,17 +173,17 @@ const getRecommendations = async (userId, myProfile, subscription) => {
   const pool = limit * 4;
   const [candidatePool, newMembers, recentlyActive, premiumMembers, nearYou] = await Promise.all([
     // Candidates for "Recommended Matches": ranked by partner-preference match below
-    MatrimonialProfile.find(baseQuery).sort({ lastActiveAt: -1 }).limit(200).populate('userId', 'name avatar').lean({ virtuals: true }),
+    MatrimonialProfile.find(baseQuery).sort({ lastActiveAt: -1 }).limit(200).populate('userId', 'name avatar subCommunity').lean({ virtuals: true }),
 
     // New Members
-    MatrimonialProfile.find(baseQuery).sort({ createdAt: -1 }).limit(pool).populate('userId', 'name avatar').lean({ virtuals: true }),
+    MatrimonialProfile.find(baseQuery).sort({ createdAt: -1 }).limit(pool).populate('userId', 'name avatar subCommunity').lean({ virtuals: true }),
 
     // Recently Active
-    MatrimonialProfile.find(baseQuery).sort({ lastActiveAt: -1 }).limit(pool).populate('userId', 'name avatar').lean({ virtuals: true }),
+    MatrimonialProfile.find(baseQuery).sort({ lastActiveAt: -1 }).limit(pool).populate('userId', 'name avatar subCommunity').lean({ virtuals: true }),
 
     // Verified Members first
     MatrimonialProfile.find({ ...baseQuery, verificationStatus: 'verified' })
-      .sort({ createdAt: -1 }).limit(pool).populate('userId', 'name avatar').lean({ virtuals: true }),
+      .sort({ createdAt: -1 }).limit(pool).populate('userId', 'name avatar subCommunity').lean({ virtuals: true }),
 
     // Near You (same city or state)
     MatrimonialProfile.find({
@@ -183,7 +195,7 @@ const getRecommendations = async (userId, myProfile, subscription) => {
           { 'location.state': myProfile?.location?.state || '__none__' }
         ] }
       ]
-    }).sort({ createdAt: -1 }).limit(pool).populate('userId', 'name avatar').lean({ virtuals: true })
+    }).sort({ createdAt: -1 }).limit(pool).populate('userId', 'name avatar subCommunity').lean({ virtuals: true })
   ]);
 
   const fits = (list) => (myProfile ? list.filter(p => passesHardPreferences(myProfile, p)) : list).slice(0, limit);

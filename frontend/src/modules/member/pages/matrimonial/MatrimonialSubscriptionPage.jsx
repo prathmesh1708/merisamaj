@@ -18,6 +18,7 @@ const FEATURE_ROWS = [
   { label: 'Visitor History', key: 'visitorHistory', type: 'boolean', tooltip: 'See who viewed your profile.' },
   { label: 'Contact Details Access', key: 'contactDetailsAccess', type: 'boolean', tooltip: 'View phone/email after a match accepts.' },
   { label: 'Other-Community Profiles', key: 'crossCommunityVisibility', type: 'boolean', tooltip: 'See and be matched with profiles outside your own community.' },
+  { label: 'Community Filter', key: 'communityFilter', type: 'boolean', tooltip: 'Filter matches by community and sub-community.' },
 ];
 
 // ─── Main Component ───────────────────────────────────────────────────────────

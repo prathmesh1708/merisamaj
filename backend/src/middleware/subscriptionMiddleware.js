@@ -13,7 +13,7 @@ const FREE_FALLBACK = {
   profileViewsPerDay: 10, interestLimit: 5, messageLimit: -1, advancedFilters: false,
   visitorHistory: false, chat: false, profileBoosts: 0, highlightProfile: false,
   priorityListing: false, contactDetailsAccess: false, unlimitedShortlist: false,
-  readReceipts: false, profileBadge: false, crossCommunityVisibility: false
+  readReceipts: false, profileBadge: false, crossCommunityVisibility: false, communityFilter: false
 };
 
 // ─── Load Active Subscription for a User ─────────────────────────────────────

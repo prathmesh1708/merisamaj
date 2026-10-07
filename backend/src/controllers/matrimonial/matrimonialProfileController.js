@@ -690,12 +690,14 @@ exports.getVisibilitySettings = async (req, res) => {
     // the "My Community" / "My Sub Community" cards. Sent outside `data` so it is never saved.
     const Community = require('../../models/Community');
     const communityId = req.communityId || req.user?.communityId?._id || req.user?.communityId;
-    const communityDoc = communityId ? await Community.findById(communityId).select('name').lean() : null;
+    const communityDoc = communityId ? await Community.findById(communityId).select('name subCommunities').lean() : null;
     const { features } = await getEffectiveFeatures(req.user._id);
     const canUseOtherCommunities = !!features?.crossCommunityVisibility;
     const memberOf = {
       communityName: communityDoc?.name || '',
       subCommunityName: (req.user?.subCommunity || '').trim(),
+      // All active sub-communities of the member's community (for the selector)
+      subCommunities: (communityDoc?.subCommunities || []).filter(sc => sc.isActive !== false).map(sc => sc.name).filter(Boolean),
       canUseOtherCommunities
     };
     const defaultSettings = {

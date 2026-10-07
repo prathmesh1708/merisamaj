@@ -55,7 +55,8 @@ const subscriptionPlanSchema = new mongoose.Schema(
       unlimitedShortlist:     { type: Boolean, default: false },
       readReceipts:           { type: Boolean, default: false },
       profileBadge:           { type: Boolean, default: false }, // Premium badge in search
-      crossCommunityVisibility: { type: Boolean, default: false } // See/be seen by other communities' profiles
+      crossCommunityVisibility: { type: Boolean, default: false }, // See/be seen by other communities' profiles
+      communityFilter:        { type: Boolean, default: false }  // Community & sub-community filter on matches
     },
 
     // ─── Audit ───────────────────────────────────────────────────────────────

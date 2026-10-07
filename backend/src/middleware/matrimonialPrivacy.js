@@ -22,6 +22,7 @@ const buildRestrictedProfile = (profile) => {
   return {
     _id:      profile._id,
     userId:   profile.userId,
+    subCommunity: (profile.userId && profile.userId.subCommunity) || '',
     status:   profile.status,
     visibility: profile.visibility,
     verificationStatus: profile.verificationStatus,

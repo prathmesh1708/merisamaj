@@ -6,7 +6,7 @@ import {
   Briefcase, GraduationCap, Clock, Check, CheckCheck, Bookmark, BookmarkCheck,
   Play, Pencil, User, Image, Lock, ShieldAlert, Award, EyeOff, ArrowLeft, Plus,
   Phone, MailCheck, ShieldCheck as VerifiedIcon, Sparkles as SpotlightIcon,
-  PhoneCall, Users, SwitchCamera, Settings
+  PhoneCall, Users, SwitchCamera, Settings, ChevronDown
 } from 'lucide-react';
 import { useData } from '../../context/DataProvider';
 import { useMatrimonial } from './MatrimonialContext';
@@ -265,6 +265,15 @@ const MatrimonialHomePage = () => {
 
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
 
+  // Sub-communities of the member's own community, loaded fresh each time the filter opens
+  const [subCommunityInfo, setSubCommunityInfo] = useState({ communityName: '', subCommunityName: '', subCommunities: [] });
+  useEffect(() => {
+    if (!isFilterDrawerOpen) return;
+    matrimonialProfileService.getVisibilitySettings()
+      .then(res => { if (res.data?.memberOf) setSubCommunityInfo(res.data.memberOf); })
+      .catch(() => {});
+  }, [isFilterDrawerOpen]);
+
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(''), 2500);
@@ -465,7 +474,8 @@ const MatrimonialHomePage = () => {
       } else if (activeFilterPill === 'my_community' || selectedCommunityScope === 'my') {
         if (isCrossCommunity) return false;
       } else if (selectedCommunityScope === 'specific' && selectedSpecificCommunity) {
-        if (!profComm.includes(selectedSpecificCommunity.toLowerCase())) return false;
+        // "Specific" = a sub-community of the member's own community
+        if ((profile.subCommunity || '').toLowerCase() !== selectedSpecificCommunity.toLowerCase()) return false;
         if (isCrossCommunity && !isAllMembers) return false;
       }
 
@@ -619,14 +629,6 @@ const MatrimonialHomePage = () => {
                     ) : (
                       <span className="text-[12.5px] font-black text-rose-500 uppercase">{currentUser?.initials || 'RA'}</span>
                     )}
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); navigate('/member/matrimonial/setup'); }}
-                      title="Edit my profile"
-                      className="absolute -bottom-0.5 -right-0.5 w-5 h-5 bg-rose-500 text-white rounded-full flex items-center justify-center border-2 border-white"
-                    >
-                      <Pencil size={10} className="stroke-[3]" />
-                    </button>
                   </div>
                   <div className="flex flex-col">
                     <div className="flex items-center gap-2">
@@ -2626,7 +2628,8 @@ const MatrimonialHomePage = () => {
                 </div>
               </div>
 
-              {/* ─── COMMUNITY PREFERENCE / OTHER COMMUNITY ─── */}
+              {/* ─── COMMUNITY FILTER — only for plans that include it ─── */}
+              {dashboard?.subscription?.features?.communityFilter === true && (
               <div>
                 <div className="flex justify-between items-center mb-2">
                   <label className="text-[11px] text-slate-400 font-extrabold uppercase tracking-wide">Community Filter</label>
@@ -2636,63 +2639,85 @@ const MatrimonialHomePage = () => {
                       : selectedCommunityScope === 'other' 
                         ? 'Other Communities' 
                         : selectedSpecificCommunity 
-                          ? selectedSpecificCommunity 
+                          ? `Sub: ${selectedSpecificCommunity}` 
                           : 'All Communities'}
                   </span>
                 </div>
 
-                {/* Scope Selection: All | My Community | Other Communities */}
-                <div className="grid grid-cols-3 gap-1.5 mb-3">
-                  {[
-                    { id: 'all', label: 'All Samaj' },
-                    { id: 'my', label: currentUser?.community ? `${currentUser.community.split(' ')[0]}` : 'My Samaj' },
-                    { id: 'other', label: 'Other Samaj' }
-                  ].map(scope => (
-                    <button
-                      key={scope.id}
-                      onClick={() => {
-                        setSelectedCommunityScope(scope.id);
-                        if (scope.id !== 'specific') setSelectedSpecificCommunity('');
-                        if (scope.id === 'other') setActiveFilterPill('other_community');
-                        else if (scope.id === 'all') setActiveFilterPill('all');
-                      }}
-                      className={`py-2 px-2 text-[11px] font-extrabold rounded-xl border transition-all text-center truncate ${
-                        selectedCommunityScope === scope.id && !selectedSpecificCommunity
-                          ? 'bg-rose-50 border-rose-350 text-rose-600 shadow-xs' 
-                          : 'bg-white border-slate-200 text-slate-650 hover:bg-slate-50'
-                      }`}
-                    >
-                      {scope.label}
-                    </button>
-                  ))}
-                </div>
+                {/* Two dropdowns: community group, and (optionally) one specific community */}
+                {(() => {
+                  const canOther = dashboard?.subscription?.canSeeOtherCommunities !== false;
+                  const myName = currentUser?.community || '';
+                  const looksLikeId = (n) => /^[a-f0-9]{24}$/i.test(String(n || ''));
+                  const specific = (availableCommunities || [])
+                    .filter(c => c && !looksLikeId(c))
+                    .filter(c => canOther || (myName && c.toLowerCase() === myName.toLowerCase()));
+                  const selectCls = 'block w-full min-w-0 max-w-full appearance-none bg-white border border-slate-200 rounded-xl pl-3.5 pr-10 h-12 text-[13px] sm:text-[14px] font-bold text-slate-800 truncate focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100';
+                  const Arrow = () => <ChevronDown size={18} className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" />;
+                  return (
+                    <div className="space-y-3 w-full min-w-0">
+                      <div className="min-w-0">
+                        <p className="text-[10px] text-slate-400 font-bold uppercase mb-1.5">Community</p>
+                        <div className="relative w-full">
+                        <select
+                          value={selectedSpecificCommunity ? '' : selectedCommunityScope}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setSelectedSpecificCommunity('');
+                            setSelectedCommunityScope(v);
+                            setActiveFilterPill(v === 'other' ? 'other_community' : 'all');
+                          }}
+                          className={selectCls}
+                        >
+                          {selectedSpecificCommunity && <option value="" disabled>Sub community selected below</option>}
+                          <option value="all">All Samaj</option>
+                          <option value="my">{dashboard?.community?.name ? `My Samaj (${dashboard.community.name})` : (myName ? `My Samaj (${myName})` : 'My Samaj')}</option>
+                          {canOther && <option value="other">Other Samaj</option>}
+                        </select>
+                        <Arrow />
+                        </div>
+                      </div>
 
-                {/* Specific Community Chips */}
-                <p className="text-[10px] text-slate-400 font-bold uppercase mb-1.5">Or Choose Specific Community:</p>
-                <div className="flex gap-1.5 overflow-x-auto scrollbar-hide py-1">
-                  {availableCommunities.map(comm => (
-                    <button
-                      key={comm}
-                      onClick={() => {
-                        if (selectedSpecificCommunity === comm) {
-                          setSelectedSpecificCommunity('');
-                          setSelectedCommunityScope('all');
-                        } else {
-                          setSelectedSpecificCommunity(comm);
-                          setSelectedCommunityScope('specific');
-                        }
-                      }}
-                      className={`px-3 py-1.5 rounded-full text-[11px] font-bold shrink-0 transition-all border ${
-                        selectedSpecificCommunity === comm
-                          ? 'bg-rose-500 border-rose-500 text-white shadow-xs'
-                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                      }`}
-                    >
-                      {comm}
-                    </button>
-                  ))}
-                </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] text-slate-400 font-bold uppercase mb-1.5">Sub Community</p>
+                        <div className="relative w-full">
+                        <select
+                          value={selectedSpecificCommunity}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            if (v) {
+                              setSelectedSpecificCommunity(v);
+                              setSelectedCommunityScope('specific');
+                            } else {
+                              setSelectedSpecificCommunity('');
+                              setSelectedCommunityScope('all');
+                            }
+                            setActiveFilterPill('all');
+                          }}
+                          className={selectCls}
+                        >
+                          {(() => {
+                            const subs = subCommunityInfo.subCommunities?.length ? subCommunityInfo.subCommunities : (dashboard?.community?.subCommunities || []);
+                            const mine = subCommunityInfo.subCommunityName || dashboard?.community?.mySubCommunity;
+                            const commName = subCommunityInfo.communityName || dashboard?.community?.name || 'your community';
+                            return subs.length === 0 ? (
+                              <option value="">No sub communities in {commName}</option>
+                            ) : (
+                              <>
+                                <option value="">All sub communities ({subs.length})</option>
+                                {subs.map(sc => <option key={sc} value={sc}>{sc}{sc === mine ? ' (yours)' : ''}</option>)}
+                              </>
+                            );
+                          })()}
+                        </select>
+                        <Arrow />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
+              )}
 
               {/* Marital Status Selection */}
               <div>

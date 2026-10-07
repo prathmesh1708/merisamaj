@@ -50,7 +50,8 @@ const matrimonialProfileSchema = new mongoose.Schema(
       },
       mySubCommunity: {
         enabled: { type: Boolean, default: true },
-        scope: { type: String, default: 'all' }
+        scope: { type: String, default: 'all' },          // 'all' | 'selected'
+        selectedSubCommunities: { type: [String], default: [] }
       },
       aadharVerifiedOnly: { type: Boolean, default: true },
       communityVerifiedOnly: { type: Boolean, default: true },
