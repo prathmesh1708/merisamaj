@@ -39,6 +39,7 @@ router.put('/visibility', profileCtrl.updateVisibilitySettings);
 router.get('/communities', profileCtrl.getAvailableCommunities);
 router.get('/communities-with-counts', profileCtrl.getAvailableCommunitiesWithCounts);
 router.get('/locations', profileCtrl.getAvailableLocations);
+router.get('/preference-options', profileCtrl.getPreferenceOptions);
 router.put('/account-status', profileCtrl.setAccountStatus);
 
 router.get('/search',

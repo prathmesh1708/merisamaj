@@ -11,7 +11,7 @@ const MatrimonialSettings = require('../../models/MatrimonialSettings');
 const UserSubscription    = require('../../models/UserSubscription');
 const UserBlock           = require('../../models/UserBlock');
 const User                = require('../../models/User');
-const { calculateMatchPercentage }          = require('../../services/matchService');
+const { calculateMatchPercentage, passesHardPreferences } = require('../../services/matchService');
 const { buildRestrictedProfile, buildFullProfile } = require('../../middleware/matrimonialPrivacy');
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
@@ -59,7 +59,10 @@ exports.getDashboard = async (req, res) => {
         plan:       subscription?.planName || 'Free',
         expiresOn:  subscription?.endDate || null,
         status:     subscription?.status  || 'free',
-        daysLeft:   subscription ? Math.ceil((subscription.endDate - now) / (1000 * 60 * 60 * 24)) : 0
+        daysLeft:   subscription ? Math.ceil((subscription.endDate - now) / (1000 * 60 * 60 * 24)) : 0,
+        // What the member's current plan (paid or Free) unlocks; the app hides anything not included.
+        features: (await require('../../middleware/subscriptionMiddleware').getEffectiveFeatures(userId)).features || {},
+        canSeeOtherCommunities: !!(await require('../../middleware/subscriptionMiddleware').getEffectiveFeatures(userId)).features?.crossCommunityVisibility
       },
       interests: {
         sent:     interests.sent,
@@ -97,7 +100,7 @@ const getRecommendations = async (userId, myProfile, subscription) => {
   // Pre-fetch settings, user doc, and blocks in a single parallel step
   const [settings, userDoc, blocks] = await Promise.all([
     MatrimonialSettings.findOne().lean(),
-    User.findById(userId).select('gender').lean(),
+    User.findById(userId).select('gender communityId assignedCommunityIds').lean(),
     UserBlock.find({ $or: [{ userId }, { blockedUserId: userId }] }).lean()
   ]);
 
@@ -128,18 +131,16 @@ const getRecommendations = async (userId, myProfile, subscription) => {
     'profileCompletion.percentage': { $gte: completionRequired }
   };
 
-  if (userCommunity) {
-    const escapeRegex = (str) => (str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    baseQuery.$or = [
-      { 'personal.community': new RegExp('^' + escapeRegex(userCommunity) + '$', 'i') },
-      {
-        'personal.community': { $not: new RegExp('^' + escapeRegex(userCommunity) + '$', 'i') },
-        visibility: { $in: ['all_members', 'public'] }
-      }
-    ];
-  } else {
-    baseQuery.visibility = { $in: ['all_members', 'public'] };
-  }
+  // Community scope by the members' real accounts (not the typed profile text):
+  // own community only, unless the plan includes other communities.
+  const { getEffectiveFeatures } = require('../../middleware/subscriptionMiddleware');
+  const { profileScopeCondition } = require('../../utils/matrimonialCommunityScope');
+  const { features: planFeatures } = await getEffectiveFeatures(userId);
+  const { condition: communityCondition } = await profileScopeCondition({
+    user: userDoc,
+    canSeeOtherCommunities: !!planFeatures?.crossCommunityVisibility
+  });
+  baseQuery.$and = [communityCondition];
 
   // ─── Apply opposite gender filter (Strictly Enforce) ────────────────────
   let myGender = null;
@@ -155,48 +156,59 @@ const getRecommendations = async (userId, myProfile, subscription) => {
     baseQuery['personal.gender'] = 'male';
   }
 
-  const [recommendedMatches, newMembers, recentlyActive, premiumMembers, nearYou] = await Promise.all([
-    // Recommended Matches (by community/preferences)
-    MatrimonialProfile.find({
-      ...baseQuery,
-      'personal.community': myProfile?.personal?.community || { $exists: true }
-    }).sort({ createdAt: -1 }).limit(limit).populate('userId', 'name avatar').lean({ virtuals: true }),
+  // Fetch a wider pool for each list, then drop profiles that break the user's
+  // must-match partner preferences (age range, marital status) before trimming.
+  const pool = limit * 4;
+  const [candidatePool, newMembers, recentlyActive, premiumMembers, nearYou] = await Promise.all([
+    // Candidates for "Recommended Matches": ranked by partner-preference match below
+    MatrimonialProfile.find(baseQuery).sort({ lastActiveAt: -1 }).limit(200).populate('userId', 'name avatar').lean({ virtuals: true }),
 
     // New Members
-    MatrimonialProfile.find(baseQuery).sort({ createdAt: -1 }).limit(limit).populate('userId', 'name avatar').lean({ virtuals: true }),
+    MatrimonialProfile.find(baseQuery).sort({ createdAt: -1 }).limit(pool).populate('userId', 'name avatar').lean({ virtuals: true }),
 
     // Recently Active
-    MatrimonialProfile.find(baseQuery).sort({ lastActiveAt: -1 }).limit(limit).populate('userId', 'name avatar').lean({ virtuals: true }),
+    MatrimonialProfile.find(baseQuery).sort({ lastActiveAt: -1 }).limit(pool).populate('userId', 'name avatar').lean({ virtuals: true }),
 
     // Verified Members first
     MatrimonialProfile.find({ ...baseQuery, verificationStatus: 'verified' })
-      .sort({ createdAt: -1 }).limit(limit).populate('userId', 'name avatar').lean({ virtuals: true }),
+      .sort({ createdAt: -1 }).limit(pool).populate('userId', 'name avatar').lean({ virtuals: true }),
 
     // Near You (same city or state)
     MatrimonialProfile.find({
       ...baseQuery,
-      $or: [
-        { 'location.city':  myProfile?.location?.city  || '__none__' },
-        { 'location.state': myProfile?.location?.state || '__none__' }
+      $and: [
+        ...baseQuery.$and,
+        { $or: [
+          { 'location.city':  myProfile?.location?.city  || '__none__' },
+          { 'location.state': myProfile?.location?.state || '__none__' }
+        ] }
       ]
-    }).sort({ createdAt: -1 }).limit(limit).populate('userId', 'name avatar').lean({ virtuals: true })
+    }).sort({ createdAt: -1 }).limit(pool).populate('userId', 'name avatar').lean({ virtuals: true })
   ]);
 
-  // Enrich recommended matches with match % using pre-fetched matchWeights (0 extra DB calls!)
-  const enriched = await Promise.all(
-    recommendedMatches.map(async (profile) => {
-      const result = myProfile
-        ? await calculateMatchPercentage(myProfile, profile, matchWeights)
-        : { matchPercentage: 0, matchedCriteria: [] };
-      return { ...buildRestrictedProfile(profile), ...result };
-    })
+  const fits = (list) => (myProfile ? list.filter(p => passesHardPreferences(myProfile, p)) : list).slice(0, limit);
+
+  // Recommended Matches: only profiles that fit the must-match preferences,
+  // ranked by how many of the user's partner preferences they satisfy.
+  const scored = await Promise.all(
+    candidatePool
+      .filter(p => !myProfile || passesHardPreferences(myProfile, p))
+      .map(async (profile) => {
+        const result = myProfile
+          ? await calculateMatchPercentage(myProfile, profile, matchWeights)
+          : { matchPercentage: 0, matchedCriteria: [] };
+        return { profile, result };
+      })
   );
+  scored.sort((a, b) => (b.result.matchPercentage - a.result.matchPercentage)
+    || (new Date(b.profile.lastActiveAt || 0) - new Date(a.profile.lastActiveAt || 0)));
+  const enriched = scored.slice(0, limit).map(({ profile, result }) => ({ ...buildRestrictedProfile(profile), ...result }));
 
   return {
     recommendedMatches: enriched,
-    newMembers:    newMembers.map(buildRestrictedProfile),
-    recentlyActive:recentlyActive.map(buildRestrictedProfile),
-    premiumMembers:premiumMembers.map(buildRestrictedProfile),
-    nearYou:       nearYou.map(buildRestrictedProfile)
+    newMembers:    fits(newMembers).map(buildRestrictedProfile),
+    recentlyActive:fits(recentlyActive).map(buildRestrictedProfile),
+    premiumMembers:fits(premiumMembers).map(buildRestrictedProfile),
+    nearYou:       fits(nearYou).map(buildRestrictedProfile)
   };
 };

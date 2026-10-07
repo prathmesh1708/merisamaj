@@ -251,7 +251,7 @@ const MatrimonialProfilePage = () => {
             />
           ) : primaryPhoto && !isPhotoVisible ? (
             <>
-              <img src={primaryPhoto.url} alt={name} className="w-full h-full object-cover blur-2xl brightness-75 scale-105" />
+              <img src={primaryPhoto.url} alt={name} className="w-full h-full object-cover blur-[6px] brightness-90 scale-105" />
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 bg-black/40 z-10">
                 <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center border border-white/20 relative mb-4">
                   <Image size={28} className="text-white/80" />

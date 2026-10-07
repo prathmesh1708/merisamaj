@@ -20,6 +20,7 @@ export const matrimonialProfileService = {
   getAvailableCommunities: ()        => axiosPrivate.get(`${BASE}/profile/communities`),
   getAvailableCommunitiesWithCounts: () => axiosPrivate.get(`${BASE}/profile/communities-with-counts`),
   getAvailableLocations:   ()        => axiosPrivate.get(`${BASE}/profile/locations`),
+  getPreferenceOptions:    ()        => axiosPrivate.get(`${BASE}/profile/preference-options`),
   setAccountStatus:        (status)  => axiosPrivate.put(`${BASE}/profile/account-status`, { status }),
   // Photos
   uploadPhotos:    (formData)   => axiosPrivate.post(`${BASE}/profile/photos/upload`, formData, {

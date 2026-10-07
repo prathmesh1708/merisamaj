@@ -8,7 +8,7 @@ import {
   Home, PhoneCall, Phone, Upload, Trash2, Camera, Star, AlertCircle,
   Shield, CheckCheck, Crown, ExternalLink, ChevronDown, ChevronUp, Plus
 } from 'lucide-react';
-import { matrimonialProfileService } from '../../../../../core/api/matrimonialService';
+import { matrimonialProfileService, matrimonialSubscriptionService } from '../../../../../core/api/matrimonialService';
 import { useData } from '../../../context/DataProvider';
 
 export const MatrimonialVisibilityManager = ({
@@ -121,11 +121,33 @@ export const MatrimonialVisibilityManager = ({
     setTimeout(() => setToastMessage(''), 3000);
   };
 
+  // Real matrimonial plans (created by the Admin) for the Subscription Plans screen
+  const [realPlans, setRealPlans] = useState([]);
+  const [realPlansLoading, setRealPlansLoading] = useState(false);
+  const [myPlanName, setMyPlanName] = useState('');
+  useEffect(() => {
+    if (currentScreen !== 'subscription') return;
+    setRealPlansLoading(true);
+    Promise.allSettled([matrimonialSubscriptionService.listPlans(), matrimonialSubscriptionService.getMySubscription()])
+      .then(([plansRes, subRes]) => {
+        if (plansRes.status === 'fulfilled') setRealPlans(plansRes.value.data?.data?.plans || []);
+        if (subRes.status === 'fulfilled') setMyPlanName(subRes.value.data?.data?.planName || '');
+      })
+      .finally(() => setRealPlansLoading(false));
+  }, [currentScreen]);
+
+  // The member's real community / sub-community names for the visibility cards
+  const [memberOf, setMemberOf] = useState({ communityName: '', subCommunityName: '', canUseOtherCommunities: false });
+  const otherLocked = memberOf.canUseOtherCommunities === false;
+  // "Gupta ji" -> "Gupta ji Samaj" (names that already say Samaj are left as they are)
+  const samaj = (name) => (/samaj/i.test(name) ? name : `${name} Samaj`);
+
   // Load saved visibility settings on mount
   useEffect(() => {
     const loadSettings = async () => {
       try {
         const res = await matrimonialProfileService.getVisibilitySettings();
+        if (res.data?.memberOf) setMemberOf(res.data.memberOf);
         if (res.data?.data) {
           setSettings(prev => ({
             ...prev,
@@ -190,7 +212,9 @@ export const MatrimonialVisibilityManager = ({
             preferredOccupation: p.preferences?.occupation || '',
             preferredEducation: p.preferences?.education || '',
             minIncome: p.preferences?.incomeMin || '',
-            preferredCity: p.preferences?.city || ''
+            preferredCity: p.preferences?.city || '',
+            minHeight: p.preferences?.heightMin ?? '',
+            maxHeight: p.preferences?.heightMax ?? ''
           });
           setPrivacySettings({
             showPhoneOnlyAfterAccept: p.privacy?.showPhoneOnlyAfterAccept ?? true,
@@ -368,6 +392,14 @@ export const MatrimonialVisibilityManager = ({
     }
   };
 
+  // Real values (admin lists + what profiles use) to suggest in the preference fields
+  const [prefOptions, setPrefOptions] = useState({});
+  useEffect(() => {
+    matrimonialProfileService.getPreferenceOptions()
+      .then(res => setPrefOptions(res.data?.data || {}))
+      .catch(() => {});
+  }, []);
+
   const handleSavePreferences = async () => {
     if (!myProfile) {
       showToast('Please save your profile details first.');
@@ -375,17 +407,25 @@ export const MatrimonialVisibilityManager = ({
     }
     setSaving(true);
     try {
+      const num = (v) => (v === '' || v === null || v === undefined ? null : Number(v));
+      const txt = (v) => (v && String(v).trim() ? String(v).trim() : null);
+      let ageMin = num(preferences.minAge);
+      let ageMax = num(preferences.maxAge);
+      if (ageMin !== null && ageMax !== null && ageMin > ageMax) [ageMin, ageMax] = [ageMax, ageMin];
+      let heightMin = num(preferences.minHeight);
+      let heightMax = num(preferences.maxHeight);
+      if (heightMin !== null && heightMax !== null && heightMin > heightMax) [heightMin, heightMax] = [heightMax, heightMin];
+      // An empty field is sent as null so it is really cleared on the server.
       const res = await matrimonialProfileService.updateProfile({
         preferences: {
-          ageMin: preferences.minAge ? Number(preferences.minAge) : undefined,
-          ageMax: preferences.maxAge ? Number(preferences.maxAge) : undefined,
-          maritalStatus: preferences.preferredMaritalStatus || undefined,
-          community: preferences.preferredCommunity || undefined,
-          religion: preferences.preferredReligion || undefined,
-          occupation: preferences.preferredOccupation || undefined,
-          education: preferences.preferredEducation || undefined,
-          incomeMin: preferences.minIncome || undefined,
-          city: preferences.preferredCity || undefined
+          ageMin, ageMax, heightMin, heightMax,
+          maritalStatus: txt(preferences.preferredMaritalStatus),
+          community: txt(preferences.preferredCommunity),
+          religion: txt(preferences.preferredReligion),
+          occupation: txt(preferences.preferredOccupation),
+          education: txt(preferences.preferredEducation),
+          incomeMin: txt(preferences.minIncome),
+          city: txt(preferences.preferredCity)
         }
       });
       setMyProfile(res.data?.data?.profile || null);
@@ -649,24 +689,21 @@ export const MatrimonialVisibilityManager = ({
               <ChevronRight size={18} className="text-slate-400 group-hover:text-rose-600 group-hover:translate-x-0.5 transition-all" />
             </button>
 
-            {/* 4. Profile Visibility Settings (HIGHLIGHTED / ACTIVE) */}
+            {/* 4. Profile Visibility Settings */}
             <button
               onClick={() => setCurrentScreen('visibility')}
-              className="w-full px-5 py-4 flex items-center justify-between bg-rose-50/40 hover:bg-rose-50/80 active:bg-rose-100/70 transition-colors text-left border-l-4 border-l-rose-500"
+              className="w-full px-5 py-4 flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition-colors text-left group"
             >
               <div className="flex items-center gap-3.5">
-                <div className="w-8 h-8 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shadow-xs">
+                <div className="w-8 h-8 rounded-full bg-slate-100 group-hover:bg-rose-50 text-slate-600 group-hover:text-rose-600 flex items-center justify-center transition-colors">
                   <Settings size={16} />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[13.5px] font-extrabold text-rose-700">Profile Visibility Settings</span>
-                    <span className="px-2 py-0.5 bg-rose-500 text-white text-[9px] font-black rounded-full uppercase tracking-wider shadow-xs">Active</span>
-                  </div>
-                  <p className="text-[10.5px] text-rose-600/80">Control who can view your photo & profile</p>
+                  <span className="text-[13.5px] font-bold text-slate-800">Profile Visibility Settings</span>
+                  <p className="text-[10.5px] text-slate-400">Control who can view your photo & profile</p>
                 </div>
               </div>
-              <ChevronRight size={18} className="text-rose-600" />
+              <ChevronRight size={18} className="text-slate-400 group-hover:text-rose-600 group-hover:translate-x-0.5 transition-all" />
             </button>
 
             {/* 5. Privacy & Security */}
@@ -697,7 +734,7 @@ export const MatrimonialVisibilityManager = ({
                 </div>
                 <div>
                   <span className="text-[13.5px] font-bold text-slate-800">Subscription Plans</span>
-                  <p className="text-[10.5px] text-slate-400">Upgrade to Pro, Pro Max & Supreme</p>
+                  <p className="text-[10.5px] text-slate-400">View plans and upgrade</p>
                 </div>
               </div>
               <ChevronRight size={18} className="text-slate-400 group-hover:text-rose-600 group-hover:translate-x-0.5 transition-all" />
@@ -773,33 +810,51 @@ export const MatrimonialVisibilityManager = ({
 
           {/* Settings List */}
           <div className="space-y-3">
-            {/* Setting 1: Other Community Members */}
-            <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs">
+            {/* Setting 1: Other Community Members — only shown when the plan includes it */}
+            {!otherLocked && (
+            <div className={`bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs ${otherLocked ? 'opacity-90' : ''}`}>
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-3">
                   <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 mt-0.5">
                     <Building size={16} />
                   </div>
                   <div>
-                    <h4 className="text-[13px] font-bold text-slate-800">Other Community Members</h4>
+                    <h4 className="text-[13px] font-bold text-slate-800 flex items-center gap-1.5">
+                      Other Community Members
+                      {otherLocked && <Lock size={12} className="text-slate-400" />}
+                    </h4>
                     <p className="text-[11px] text-slate-400 font-medium leading-tight mt-0.5">
                       Dusre community ke members ko bhi aapki profile dikhai degi.
                     </p>
                   </div>
                 </div>
 
-                <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                <label className={`relative inline-flex items-center shrink-0 mt-1 ${otherLocked ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
                   <input
                     type="checkbox"
-                    checked={settings.otherCommunities.enabled}
-                    onChange={() => toggleNestedSetting('otherCommunities', 'enabled')}
+                    checked={!otherLocked && settings.otherCommunities.enabled}
+                    disabled={otherLocked}
+                    onChange={() => { if (!otherLocked) toggleNestedSetting('otherCommunities', 'enabled'); }}
                     className="sr-only peer"
                   />
                   <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
                 </label>
               </div>
 
-              {settings.otherCommunities.enabled && (
+              {otherLocked && (
+                <div className="mt-3 pt-2.5 border-t border-slate-100 pl-11 flex items-center justify-between gap-2">
+                  <span className="text-[11.5px] font-semibold text-slate-500">Available with a plan that includes other communities.</span>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/member/matrimonial/subscription')}
+                    className="shrink-0 px-3 py-1.5 bg-rose-500 text-white rounded-full text-[11px] font-bold active:scale-95"
+                  >
+                    Upgrade
+                  </button>
+                </div>
+              )}
+
+              {!otherLocked && settings.otherCommunities.enabled && (
                 <div className="mt-3.5 pt-3 border-t border-slate-100 space-y-2.5 pl-11">
                   {/* Radio 1: All Other Communities */}
                   <label className="flex items-center gap-2.5 cursor-pointer">
@@ -839,6 +894,7 @@ export const MatrimonialVisibilityManager = ({
                 </div>
               )}
             </div>
+            )}
 
             {/* Setting 2: My Community Members */}
             <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs">
@@ -848,9 +904,9 @@ export const MatrimonialVisibilityManager = ({
                     <Users size={16} />
                   </div>
                   <div>
-                    <h4 className="text-[13px] font-bold text-slate-800">My Community Members</h4>
+                    <h4 className="text-[13px] font-bold text-slate-800">{memberOf.communityName ? `All ${samaj(memberOf.communityName)} Members` : 'My Community Members'}</h4>
                     <p className="text-[11px] text-slate-400 font-medium leading-tight mt-0.5">
-                      Sirf meri community ke members dekh sakte hain.
+                      Sirf meri community{memberOf.communityName ? ` (${memberOf.communityName})` : ''} ke members dekh sakte hain.
                     </p>
                   </div>
                 </div>
@@ -870,7 +926,7 @@ export const MatrimonialVisibilityManager = ({
                 <div className="mt-3 pt-2.5 border-t border-slate-100 pl-11 flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-rose-500"></span>
                   <span className="text-[12px] font-semibold text-slate-700">
-                    All Members
+                    {memberOf.communityName ? samaj(memberOf.communityName) : 'All Members'}
                   </span>
                 </div>
               )}
@@ -884,9 +940,9 @@ export const MatrimonialVisibilityManager = ({
                     <Users size={16} />
                   </div>
                   <div>
-                    <h4 className="text-[13px] font-bold text-slate-800">My Sub Community Members</h4>
+                    <h4 className="text-[13px] font-bold text-slate-800">{memberOf.subCommunityName ? `All ${samaj(memberOf.subCommunityName)} Members` : 'My Sub Community Members'}</h4>
                     <p className="text-[11px] text-slate-400 font-medium leading-tight mt-0.5">
-                      Sirf meri sub community ke members dekh sakte hain.
+                      Sirf meri sub community{memberOf.subCommunityName ? ` (${memberOf.subCommunityName})` : ''} ke members dekh sakte hain.
                     </p>
                   </div>
                 </div>
@@ -906,7 +962,7 @@ export const MatrimonialVisibilityManager = ({
                 <div className="mt-3 pt-2.5 border-t border-slate-100 pl-11 flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-rose-500"></span>
                   <span className="text-[12px] font-semibold text-slate-700">
-                    All Sub Communities
+                    {memberOf.subCommunityName ? samaj(memberOf.subCommunityName) : 'No sub community set on your profile'}
                   </span>
                 </div>
               )}
@@ -1630,27 +1686,40 @@ export const MatrimonialVisibilityManager = ({
         <div className="p-4 space-y-4 max-w-lg mx-auto w-full">
           <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-4">
             <div>
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
-                Preferred Age Range: {preferences.minAge || 18} - {preferences.maxAge || 35} Years
-              </label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="range"
-                  min={18}
-                  max={45}
-                  value={preferences.minAge || 18}
-                  onChange={e => setPreferences({ ...preferences, minAge: Number(e.target.value) })}
-                  className="w-full accent-rose-500"
-                />
-                <input
-                  type="range"
-                  min={preferences.minAge || 18}
-                  max={55}
-                  value={preferences.maxAge || 35}
-                  onChange={e => setPreferences({ ...preferences, maxAge: Number(e.target.value) })}
-                  className="w-full accent-rose-500"
-                />
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  Preferred Age: {preferences.minAge || preferences.maxAge
+                    ? `${preferences.minAge || 18} - ${preferences.maxAge || 60} years`
+                    : 'Any age'}
+                </label>
+                {(preferences.minAge || preferences.maxAge) && (
+                  <button type="button" onClick={() => setPreferences({ ...preferences, minAge: '', maxAge: '' })}
+                    className="text-[11px] font-bold text-rose-500">Any age</button>
+                )}
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <span className="text-[10px] text-slate-400 font-semibold">From {preferences.minAge || 18}</span>
+                  <input type="range" min={18} max={60}
+                    value={preferences.minAge || 18}
+                    onChange={e => {
+                      const v = Number(e.target.value);
+                      setPreferences({ ...preferences, minAge: v, maxAge: preferences.maxAge && preferences.maxAge < v ? v : (preferences.maxAge || 60) });
+                    }}
+                    className="w-full accent-rose-500" />
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 font-semibold">To {preferences.maxAge || 60}</span>
+                  <input type="range" min={18} max={60}
+                    value={preferences.maxAge || 60}
+                    onChange={e => {
+                      const v = Number(e.target.value);
+                      setPreferences({ ...preferences, maxAge: v, minAge: preferences.minAge && preferences.minAge > v ? v : (preferences.minAge || 18) });
+                    }}
+                    className="w-full accent-rose-500" />
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1">Only profiles in this age range appear in My matches.</p>
             </div>
 
             <div>
@@ -1662,7 +1731,7 @@ export const MatrimonialVisibilityManager = ({
               >
                 <option value="">Doesn't Matter</option>
                 <option value="Never Married">Never Married Only</option>
-                <option value="Divorced Allowed">Divorced / Widowed Allowed</option>
+                <option value="Divorced, Widowed, Separated">Divorced / Widowed / Separated Only</option>
               </select>
             </div>
 
@@ -1672,6 +1741,7 @@ export const MatrimonialVisibilityManager = ({
                 <input
                   type="text"
                   value={preferences.preferredCommunity}
+                  list="pref-communities"
                   onChange={e => setPreferences({ ...preferences, preferredCommunity: e.target.value })}
                   placeholder={user?.community ? `e.g. ${user.community}` : 'Any community'}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-rose-500"
@@ -1682,6 +1752,7 @@ export const MatrimonialVisibilityManager = ({
                 <input
                   type="text"
                   value={preferences.preferredReligion}
+                  list="pref-religions"
                   onChange={e => setPreferences({ ...preferences, preferredReligion: e.target.value })}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-rose-500"
                 />
@@ -1694,6 +1765,7 @@ export const MatrimonialVisibilityManager = ({
                 <input
                   type="text"
                   value={preferences.preferredOccupation}
+                  list="pref-professions"
                   onChange={e => setPreferences({ ...preferences, preferredOccupation: e.target.value })}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-rose-500"
                 />
@@ -1703,6 +1775,7 @@ export const MatrimonialVisibilityManager = ({
                 <input
                   type="text"
                   value={preferences.preferredEducation}
+                  list="pref-educations"
                   onChange={e => setPreferences({ ...preferences, preferredEducation: e.target.value })}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-rose-500"
                 />
@@ -1725,12 +1798,32 @@ export const MatrimonialVisibilityManager = ({
                 <input
                   type="text"
                   value={preferences.preferredCity}
+                  list="pref-cities"
                   onChange={e => setPreferences({ ...preferences, preferredCity: e.target.value })}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-rose-500"
                 />
               </div>
             </div>
           </div>
+
+          <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-2">
+            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Preferred Height (cm)</label>
+            <div className="grid grid-cols-2 gap-3">
+              <input type="number" min="120" max="220" placeholder="Min e.g. 150" value={preferences.minHeight ?? ''}
+                onChange={e => setPreferences({ ...preferences, minHeight: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-rose-500" />
+              <input type="number" min="120" max="220" placeholder="Max e.g. 180" value={preferences.maxHeight ?? ''}
+                onChange={e => setPreferences({ ...preferences, maxHeight: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-rose-500" />
+            </div>
+            <p className="text-[10px] text-slate-400">Tip: separate several choices with commas, e.g. "Indore, Bhopal". Leave a field empty for "any".</p>
+          </div>
+
+          <datalist id="pref-communities">{(prefOptions.communities || []).map(v => <option key={v} value={v} />)}</datalist>
+          <datalist id="pref-religions">{(prefOptions.religions || []).map(v => <option key={v} value={v} />)}</datalist>
+          <datalist id="pref-professions">{(prefOptions.professions || []).map(v => <option key={v} value={v} />)}</datalist>
+          <datalist id="pref-educations">{(prefOptions.educations || []).map(v => <option key={v} value={v} />)}</datalist>
+          <datalist id="pref-cities">{(prefOptions.cities || []).map(v => <option key={v} value={v} />)}</datalist>
 
           <button
             type="button"
@@ -1873,54 +1966,65 @@ export const MatrimonialVisibilityManager = ({
         </div>
 
         <div className="p-4 space-y-4 max-w-lg mx-auto w-full">
-          {/* Plan 1: Pro Plan */}
-          <div className="bg-white rounded-3xl p-5 border-2 border-rose-500 shadow-md relative overflow-hidden">
-            <div className="absolute top-0 right-0 bg-rose-500 text-white text-[9px] font-black uppercase px-3 py-1 rounded-bl-xl">
-              Most Popular
-            </div>
-            <div className="flex items-center gap-2 mb-1">
-              <Crown className="text-amber-500" size={18} />
-              <h3 className="text-base font-black text-slate-800">Pro Membership</h3>
-            </div>
-            <p className="text-2xl font-black text-rose-600 mb-3">₹999 <span className="text-xs text-slate-400 font-bold">/ Month</span></p>
-            <ul className="space-y-2 text-xs font-semibold text-slate-600 mb-4">
-              <li className="flex items-center gap-2"><Check size={14} className="text-emerald-500" /> Send unlimited interest requests</li>
-              <li className="flex items-center gap-2"><Check size={14} className="text-emerald-500" /> Unlock verified badge on profile</li>
-              <li className="flex items-center gap-2"><Check size={14} className="text-emerald-500" /> Direct chat with accepted profiles</li>
-            </ul>
-            <button
-              type="button"
-              onClick={() => {
-                navigate('/member/matrimonial/subscription');
-              }}
-              className="w-full py-2.5 bg-rose-500 text-white font-black text-xs rounded-xl shadow-md active:scale-95 transition-all"
-            >
-              Upgrade to Pro Plan
-            </button>
-          </div>
-
-          {/* Plan 2: Pro Max */}
-          <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs">
-            <div className="flex items-center gap-2 mb-1">
-              <Sparkles className="text-purple-500" size={18} />
-              <h3 className="text-base font-black text-slate-800">Pro Max Plan</h3>
-            </div>
-            <p className="text-2xl font-black text-slate-800 mb-3">₹1,999 <span className="text-xs text-slate-400 font-bold">/ 3 Months</span></p>
-            <ul className="space-y-2 text-xs font-semibold text-slate-600 mb-4">
-              <li className="flex items-center gap-2"><Check size={14} className="text-emerald-500" /> View direct phone numbers (30 contacts)</li>
-              <li className="flex items-center gap-2"><Check size={14} className="text-emerald-500" /> 5x profile visibility boost in matches</li>
-              <li className="flex items-center gap-2"><Check size={14} className="text-emerald-500" /> Incognito browsing mode included</li>
-            </ul>
-            <button
-              type="button"
-              onClick={() => {
-                navigate('/member/matrimonial/subscription');
-              }}
-              className="w-full py-2.5 bg-slate-900 text-white font-black text-xs rounded-xl shadow-md active:scale-95 transition-all"
-            >
-              Upgrade to Pro Max
-            </button>
-          </div>
+          {realPlansLoading && <div className="py-12 text-center text-xs font-bold text-slate-400">Loading plans…</div>}
+          {!realPlansLoading && realPlans.length === 0 && (
+            <div className="py-12 text-center text-xs font-bold text-slate-400 bg-white rounded-3xl border border-slate-200">No plans available right now.</div>
+          )}
+          {realPlans.map(plan => {
+            const f = plan.features || {};
+            const isCurrent = myPlanName && myPlanName === plan.name;
+            const highlight = plan.isFeatured || !!plan.badge;
+            const perks = [
+              `${f.profileViewsPerDay === -1 ? 'Unlimited' : (f.profileViewsPerDay ?? 0)} profile views per day`,
+              `${f.interestLimit === -1 ? 'Unlimited' : (f.interestLimit ?? 0)} interests per month`,
+              f.chat && 'Chat with accepted matches',
+              f.advancedFilters && 'Advanced search filters',
+              f.visitorHistory && 'See who visited your profile',
+              f.contactDetailsAccess && 'View contact details after acceptance',
+              f.crossCommunityVisibility && 'See profiles from other communities'
+            ].filter(Boolean);
+            return (
+              <div key={plan._id}
+                className={`bg-white rounded-3xl p-5 relative overflow-hidden ${highlight ? 'border-2 shadow-md' : 'border border-slate-200 shadow-xs'}`}
+                style={highlight ? { borderColor: plan.themeColor || '#f43f5e' } : undefined}>
+                {(plan.badge || plan.isFeatured) && (
+                  <div className="absolute top-0 right-0 text-white text-[9px] font-black uppercase px-3 py-1 rounded-bl-xl"
+                    style={{ backgroundColor: plan.themeColor || '#f43f5e' }}>
+                    {plan.badge || 'Most Popular'}
+                  </div>
+                )}
+                <div className="flex items-center gap-2 mb-1 pr-20">
+                  <Crown size={18} style={{ color: plan.themeColor || '#f59e0b' }} />
+                  <h3 className="text-base font-black text-slate-800 break-words">{plan.name}</h3>
+                </div>
+                {plan.description && <p className="text-[11px] text-slate-500 mb-2">{plan.description}</p>}
+                <p className="text-2xl font-black text-rose-600 mb-3">
+                  ₹{Number(plan.price || 0).toLocaleString('en-IN')}
+                  <span className="text-xs text-slate-400 font-bold"> {plan.price > 0 ? `/ ${plan.durationInDays} days` : '· Free for everyone'}</span>
+                  {plan.originalPrice > plan.price && (
+                    <span className="ml-2 text-xs text-slate-400 font-bold line-through">₹{Number(plan.originalPrice).toLocaleString('en-IN')}</span>
+                  )}
+                </p>
+                <ul className="space-y-2 text-xs font-semibold text-slate-600 mb-4">
+                  {perks.map(p => <li key={p} className="flex items-center gap-2"><Check size={14} className="text-emerald-500 shrink-0" /> {p}</li>)}
+                </ul>
+                {isCurrent ? (
+                  <div className="w-full py-2.5 rounded-xl text-xs font-black text-center bg-emerald-50 text-emerald-700 border border-emerald-200">Your current plan</div>
+                ) : plan.price > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/member/matrimonial/subscription?plan=${plan._id}`)}
+                    className="w-full py-2.5 text-white font-black text-xs rounded-xl shadow-md active:scale-95 transition-all"
+                    style={{ backgroundColor: plan.themeColor || '#f43f5e' }}
+                  >
+                    Upgrade to {plan.name} · ₹{Number(plan.price).toLocaleString('en-IN')}
+                  </button>
+                ) : (
+                  <div className="w-full py-2.5 rounded-xl text-xs font-black text-center bg-slate-100 text-slate-500">Included free with every account</div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     );
@@ -2067,13 +2171,13 @@ export const MatrimonialVisibilityManager = ({
               alt={previewUser.name}
               className={`w-full h-full object-cover transition-all duration-700 ${
                 previewTab === 'before'
-                  ? 'filter blur-md scale-110'
+                  ? 'filter blur-[6px] scale-105'
                   : 'filter blur-0 scale-100'
               }`}
             />
 
             {previewTab === 'before' && (
-              <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px] flex flex-col items-center justify-center text-white">
+              <div className="absolute inset-0 bg-black/10 flex flex-col items-center justify-center text-white">
                 <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center mb-1.5 border border-white/20">
                   <Lock size={22} className="text-white" />
                 </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, Check, CreditCard, ShieldCheck, CheckCircle2,
   QrCode, Landmark, Sparkles, X, Heart, RefreshCw,
@@ -23,6 +23,8 @@ const FEATURE_ROWS = [
 // ─── Main Component ───────────────────────────────────────────────────────────
 const MatrimonialSubscriptionPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const requestedPlanId = searchParams.get('plan');
 
   const [plans, setPlans]               = useState([]);
   const [mySubscription, setMySubscription] = useState(null);
@@ -66,8 +68,9 @@ const MatrimonialSubscriptionPage = () => {
         setPlans(planList);
         if (planList.length > 0 && !selectedPlan) {
           // Select the first popular plan, or just the first plan
-          const popular = planList.find(p => p.isFeatured || p.badge);
-          setSelectedPlan(popular || planList[0]);
+          const requested = requestedPlanId && planList.find(p => p._id === requestedPlanId);
+          const popular = planList.find(p => (p.isFeatured || p.badge) && p.price > 0);
+          setSelectedPlan(requested || popular || planList.find(p => p.price > 0) || planList[0]);
         }
       }
       if (subRes.status === 'fulfilled') {
@@ -172,7 +175,7 @@ const MatrimonialSubscriptionPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] pb-28 relative font-sans text-slate-800">
+    <div className="min-h-screen bg-[#f8fafc] pb-28 relative font-sans text-slate-800 w-full max-w-full overflow-x-hidden">
       {/* Toast */}
       {toast && (
         <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[70] bg-slate-900 text-white font-extrabold text-[12px] px-5 py-3 rounded-full shadow-xl flex items-center gap-2">
@@ -331,8 +334,94 @@ const MatrimonialSubscriptionPage = () => {
                     <p className="font-semibold">No plans currently available.</p>
                   </div>
                 ) : (
-                  <div className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden pt-4">
-                    <div className="overflow-x-auto no-scrollbar">
+                  <div className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden min-w-0">
+                    {/* ─── PHONE: plan cards (tap to select) ─── */}
+                    <div id="mobile-plan-list" className="sm:hidden p-3 space-y-3 scroll-mt-4">
+                      {[...plans]
+                        .sort((a, b) => (b._id === selectedPlan?._id) - (a._id === selectedPlan?._id))
+                        .map(plan => {
+                        const isSel = selectedPlan?._id === plan._id;
+                        return (
+                          <div
+                            key={plan._id}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => {
+                              if (isSel) return;
+                              setSelectedPlan(plan);
+                              document.getElementById('mobile-plan-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }}
+                            className={`w-full text-left rounded-2xl border-2 p-4 transition-all relative cursor-pointer ${isSel ? 'border-rose-500 bg-rose-50/40 shadow-md' : 'border-slate-200 bg-white'}`}
+                          >
+                            {(plan.badge || plan.isFeatured) && (
+                              <span className="absolute -top-2.5 right-4 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-md tracking-wider"
+                                style={{ backgroundColor: plan.themeColor || '#10b981' }}>
+                                {plan.badge || 'Popular'}
+                              </span>
+                            )}
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-start gap-2.5 min-w-0">
+                                <span className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${isSel ? 'border-rose-600' : 'border-slate-300'}`}>
+                                  {isSel && <span className="w-2.5 h-2.5 rounded-full bg-rose-600" />}
+                                </span>
+                                <div className="min-w-0">
+                                  <p className="text-[15px] font-black text-slate-900 break-words">{plan.name}</p>
+                                  <p className="text-[11px] font-semibold text-slate-500">
+                                    {plan.price > 0 ? `${plan.durationInDays} days` : 'Free for everyone'}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <p className="text-[18px] font-black text-rose-600 leading-none">₹{plan.price}</p>
+                                {plan.originalPrice > plan.price && (
+                                  <p className="text-[11px] text-slate-400 font-bold line-through mt-1">₹{plan.originalPrice}</p>
+                                )}
+                              </div>
+                            </div>
+                            <ul className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-1 gap-1.5">
+                              {FEATURE_ROWS.map(feature => {
+                                const val = plan.features?.[feature.key];
+                                const on = feature.type === 'value' ? !!val : !!val;
+                                return (
+                                  <li key={feature.key} className={`flex items-center justify-between gap-2 text-[12px] ${on ? 'text-slate-700' : 'text-slate-400'}`}>
+                                    <span className="font-semibold">{feature.label}</span>
+                                    {feature.type === 'value' ? (
+                                      <span className="font-extrabold text-slate-800 shrink-0">{val === -1 ? 'Unlimited' : (val || '—')}</span>
+                                    ) : val ? (
+                                      <Check size={15} className="text-emerald-600 stroke-[3px] shrink-0" />
+                                    ) : (
+                                      <X size={14} className="text-slate-300 shrink-0" />
+                                    )}
+                                  </li>
+                                );
+                              })}
+                            </ul>
+
+                            {isSel && (
+                              <div className="mt-4">
+                                {plan.price > 0 ? (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); setPaymentMethod(paymentMethod || 'upi'); setShowCheckout(true); setCheckoutStep('select-method'); }}
+                                    className="w-full py-3.5 text-white rounded-xl text-[14px] font-extrabold shadow-md active:scale-95 transition-transform"
+                                    style={{ backgroundColor: plan.themeColor || '#f43f5e' }}
+                                  >
+                                    {isActive ? 'Confirm Upgrade' : 'Upgrade Now'} · Pay ₹{plan.price}
+                                  </button>
+                                ) : (
+                                  <div className="w-full py-3 rounded-xl text-[13px] font-extrabold text-center bg-slate-100 text-slate-500">
+                                    {isActive ? 'Included free with every account' : 'This is your current free plan'}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* ─── WIDER SCREENS: comparison table ─── */}
+                    <div className="hidden sm:block overflow-x-auto no-scrollbar pt-4">
                       <div style={{ minWidth: `${Math.max(500, 150 + plans.length * 110)}px` }}>
                         
                         {/* ─── MATRIX HEADER ─── */}
@@ -401,7 +490,7 @@ const MatrimonialSubscriptionPage = () => {
                     
                     {/* ─── MATRIX FOOTER (Checkout Button) ─── */}
                     {selectedPlan && (
-                      <div className="p-4 bg-rose-50/30 border-t border-rose-100">
+                      <div className="hidden sm:block p-4 bg-rose-50/30 border-t border-rose-100">
                         <div className="flex justify-between items-center mb-3 px-1">
                           <div className="flex flex-col">
                             <span className="text-xl font-black text-rose-600">₹{selectedPlan.price}</span>

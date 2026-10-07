@@ -702,10 +702,16 @@ const MatrimonialHomePage = () => {
                 { label: 'Verified', key: 'verified' },
                 { label: 'Just Joined', key: 'joined' },
                 { label: 'Nearby', key: 'nearby' }
-              ].map(({ label, key }) => (
+              ].filter(({ key }) => key !== 'other_community' || dashboard?.subscription?.canSeeOtherCommunities !== false).map(({ label, key }) => (
                 <button
                   key={key}
                   onClick={() => {
+                    // Other communities are a plan feature; offer the upgrade instead of an empty list.
+                    if (key === 'other_community' && dashboard?.subscription?.canSeeOtherCommunities === false) {
+                      showToast('Your plan does not include other communities. Upgrade to see them.');
+                      navigate('/member/matrimonial/subscription');
+                      return;
+                    }
                     setActiveFilterPill(key);
                     if (key === 'other_community') {
                       setSelectedCommunityScope('other');
@@ -829,7 +835,7 @@ const MatrimonialHomePage = () => {
 
                   const handleCardClick = () => {
                     if (!hasMembershipAccess) {
-                      setIsMembershipPopupOpen(true);
+                      navigate('/member/matrimonial/subscription');
                       setSelectedPlanToUpgrade(profile.membershipTier);
                     } else {
                       navigate(`/member/matrimonial/${profile.id}`);
@@ -857,7 +863,7 @@ const MatrimonialHomePage = () => {
                           src={profile.photos?.[0]?.url || profile.userId?.avatar || profile.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.personal?.fullName || profile.name || 'User')}&background=0f172a&color=fff&size=400`}
                           alt={profile.name}
                           className={`absolute inset-0 w-full h-full object-cover transition-all duration-300 ${
-                            !hasAccess ? 'blur-2xl brightness-75 scale-105' : ''
+                            !hasAccess ? 'blur-[6px] brightness-90 scale-105' : ''
                           }`}
                         />
                         
@@ -878,7 +884,7 @@ const MatrimonialHomePage = () => {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setIsMembershipPopupOpen(true);
+                                navigate('/member/matrimonial/subscription');
                                 setSelectedPlanToUpgrade(profile.membershipTier);
                               }}
                               className="mt-4 px-5 py-2.5 bg-transparent hover:bg-white/10 text-white border-2 border-white rounded-full text-[12.5px] font-black tracking-wide transition-all active:scale-95"
@@ -1275,7 +1281,7 @@ const MatrimonialHomePage = () => {
 
                   <button 
                     onClick={() => {
-                      setIsMembershipPopupOpen(true);
+                      navigate('/member/matrimonial/subscription');
                       setSelectedPlanToUpgrade('Pro Supreme');
                     }}
                     className="mt-4 text-[12.5px] font-black text-rose-500 hover:text-rose-600 select-none block mx-auto active:scale-95"
@@ -1334,7 +1340,7 @@ const MatrimonialHomePage = () => {
                         src={visitor.photos?.[0]?.url || visitor.userId?.avatar || visitor.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(visitor.name || 'User')}&background=0f172a&color=fff&size=400`}
                         alt={visitor.name}
                         className={`absolute inset-0 w-full h-full object-cover transition-all duration-300 ${
-                          visitor.requiresUpgrade ? 'blur-2xl brightness-75 scale-105' : ''
+                          visitor.requiresUpgrade ? 'blur-[6px] brightness-90 scale-105' : ''
                         }`}
                       />
                       
@@ -1346,7 +1352,7 @@ const MatrimonialHomePage = () => {
                             Photo visible to paid members only
                           </p>
                           <button
-                            onClick={() => setIsMembershipPopupOpen(true)}
+                            onClick={() => navigate('/member/matrimonial/subscription')}
                             className="mt-4 px-5 py-2.5 bg-transparent hover:bg-white/10 text-white border-2 border-white rounded-full text-[12.5px] font-black tracking-wide transition-all active:scale-95"
                           >
                             Upgrade to view
@@ -1647,7 +1653,7 @@ const MatrimonialHomePage = () => {
               </p>
 
               <button
-                onClick={() => setIsMembershipPopupOpen(true)}
+                onClick={() => navigate('/member/matrimonial/subscription')}
                 className="mt-6 text-[13px] font-black text-rose-500 hover:text-rose-600 block active:scale-95"
               >
                 Upgrade Membership

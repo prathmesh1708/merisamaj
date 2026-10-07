@@ -193,12 +193,14 @@ exports.getUserProfile = async (req, res) => {
 
     // ─── Cross-community Privacy Check (bypassed by a plan with crossCommunityVisibility) ──
     const { features } = await getEffectiveFeatures(viewerId);
-    const viewerCommunity = (req.user?.community || '').trim().toLowerCase();
-    const profileCommunity = (profile.personal?.community || '').trim().toLowerCase();
-    const isCrossCommunity = viewerCommunity && profileCommunity && viewerCommunity !== profileCommunity;
+    // Same community = same real community on both members' accounts (as the lists use).
+    const { sameCommunity } = require('../../utils/matrimonialCommunityScope');
+    const isCrossCommunity = !(await sameCommunity(req.user, req.communityId, profileOwnerUserId));
     const isAllMembers = profile.visibility === 'all_members' || profile.visibility === 'public';
 
-    if (isCrossCommunity && !isAllMembers && !profileOwnerUserId.equals(viewerId) && !features.crossCommunityVisibility) {
+    // Another community's profile needs the viewer's plan feature (an accepted/pending
+    // interest between the two still allows it, so existing conversations keep working).
+    if (isCrossCommunity && !profileOwnerUserId.equals(viewerId) && !features.crossCommunityVisibility) {
       const hasConnection = await InterestRequest.findOne({
         $or: [
           { senderId: viewerId, receiverId: profileOwnerUserId },
@@ -434,44 +436,24 @@ exports.searchProfiles = async (req, res) => {
     // must be public/all_members" restriction entirely for that viewer.
     const hasCrossCommunityAccess = !!req.userFeatures?.crossCommunityVisibility;
     const userCommunity = (myProfile?.personal?.community || req.user?.community || '').trim();
-    if (req.query.communityScope === 'other') {
-      if (userCommunity) {
-        query['personal.community'] = { $not: new RegExp('^' + escapeRegex(userCommunity) + '$', 'i') };
-      }
-      if (!hasCrossCommunityAccess) {
-        query.visibility = { $in: ['all_members', 'public'] };
-      }
-    } else if (req.query.communityScope === 'my') {
-      if (userCommunity) {
-        query['personal.community'] = new RegExp('^' + escapeRegex(userCommunity) + '$', 'i');
-      }
-    } else if (community && community.trim()) {
-      query['personal.community'] = prefixRegex(community);
-      if (userCommunity && !community.trim().toLowerCase().includes(userCommunity.toLowerCase()) && !hasCrossCommunityAccess) {
-        query.visibility = { $in: ['all_members', 'public'] };
-      }
-    } else if (!hasCrossCommunityAccess) {
-      if (userCommunity) {
-        const communityCondition = [
-          { 'personal.community': new RegExp('^' + escapeRegex(userCommunity) + '$', 'i') },
-          {
-            'personal.community': { $not: new RegExp('^' + escapeRegex(userCommunity) + '$', 'i') },
-            visibility: { $in: ['all_members', 'public'] }
-          }
-        ];
-        if (query.$or) {
-          const existingOr = query.$or;
-          delete query.$or;
-          query.$and = query.$and || [];
-          query.$and.push({ $or: existingOr }, { $or: communityCondition });
-        } else {
-          query.$or = communityCondition;
-        }
-      } else {
-        query.visibility = { $in: ['all_members', 'public'] };
-      }
+    // Community scope by the members' real accounts (not the typed profile text).
+    const { profileScopeCondition } = require('../../utils/matrimonialCommunityScope');
+    const scope = req.query.communityScope === 'other' ? 'other' : (req.query.communityScope === 'my' ? 'my' : 'all');
+    const { condition: scopeCondition, blocked } = await profileScopeCondition({
+      user: req.user, reqCommunityId: req.communityId, canSeeOtherCommunities: hasCrossCommunityAccess, scope
+    });
+    if (blocked) {
+      // Other communities are a paid plan feature: nothing to show without it.
+      return res.json({
+        status: 'success',
+        data: { profiles: [], upgradeRequired: 'crossCommunityVisibility', pagination: { page: Number(page), limit: Number(limit), total: 0, pages: 0 } }
+      });
     }
-    // else: viewer has crossCommunityVisibility — no community/visibility restriction applied at all.
+    query.$and = [...(query.$and || []), scopeCondition];
+    // Optional free-text community filter typed by the user (still inside the allowed scope).
+    if (community && community.trim()) {
+      query['personal.community'] = prefixRegex(community);
+    }
     if (religion)      query['personal.religion']                = prefixRegex(religion);
     if (gotra)         query['personal.gotra']                   = prefixRegex(gotra);
     if (profession)    query['education.profession']             = prefixRegex(profession);
@@ -703,6 +685,19 @@ exports.setAccountStatus = async (req, res) => {
 exports.getVisibilitySettings = async (req, res) => {
   try {
     const profile = await MatrimonialProfile.findOne({ userId: req.user._id, isDeleted: false });
+
+    // The member's real community and sub-community (from their account), shown on
+    // the "My Community" / "My Sub Community" cards. Sent outside `data` so it is never saved.
+    const Community = require('../../models/Community');
+    const communityId = req.communityId || req.user?.communityId?._id || req.user?.communityId;
+    const communityDoc = communityId ? await Community.findById(communityId).select('name').lean() : null;
+    const { features } = await getEffectiveFeatures(req.user._id);
+    const canUseOtherCommunities = !!features?.crossCommunityVisibility;
+    const memberOf = {
+      communityName: communityDoc?.name || '',
+      subCommunityName: (req.user?.subCommunity || '').trim(),
+      canUseOtherCommunities
+    };
     const defaultSettings = {
       otherCommunities: {
         enabled: true,
@@ -726,16 +721,21 @@ exports.getVisibilitySettings = async (req, res) => {
       visibleOnlyAfterAccept: true
     };
 
+    // "Other Community Members" is a paid plan feature: always off without it.
+    if (!canUseOtherCommunities) defaultSettings.otherCommunities.enabled = false;
     if (!profile) {
-      return res.json({ status: 'success', data: defaultSettings });
+      return res.json({ status: 'success', data: defaultSettings, memberOf });
     }
 
     const settings = {
       ...defaultSettings,
       ...(profile.visibilitySettings || {})
     };
+    if (!canUseOtherCommunities) {
+      settings.otherCommunities = { ...(settings.otherCommunities || {}), enabled: false };
+    }
 
-    res.json({ status: 'success', data: settings });
+    res.json({ status: 'success', data: settings, memberOf });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }
@@ -743,6 +743,11 @@ exports.getVisibilitySettings = async (req, res) => {
 
 exports.updateVisibilitySettings = async (req, res) => {
   try {
+    // Cannot switch on "Other Community Members" without a plan that includes it.
+    const { features } = await getEffectiveFeatures(req.user._id);
+    if (!features?.crossCommunityVisibility && req.body?.otherCommunities) {
+      req.body.otherCommunities = { ...req.body.otherCommunities, enabled: false };
+    }
     let profile = await MatrimonialProfile.findOne({ userId: req.user._id, isDeleted: false });
     if (!profile) {
       profile = new MatrimonialProfile({
@@ -760,6 +765,44 @@ exports.updateVisibilitySettings = async (req, res) => {
 
     await profile.save();
     res.json({ status: 'success', message: 'Visibility settings updated successfully.', data: profile.visibilitySettings });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+// ─── Suggestions for the Partner Preferences form ────────────────────────────
+// Admin-managed lists (MatrimonialSettings) plus values that real active profiles use,
+// so preferences are typed the same way profiles are and actually match.
+exports.getPreferenceOptions = async (req, res) => {
+  try {
+    const MatrimonialSettings = require('../../models/MatrimonialSettings');
+    const settings = await MatrimonialSettings.findOne().lean();
+    const q = { isDeleted: false, status: 'active' };
+    const [communities, religions, cities, educations, professions] = await Promise.all([
+      MatrimonialProfile.distinct('personal.community', q),
+      MatrimonialProfile.distinct('personal.religion', q),
+      MatrimonialProfile.distinct('location.city', q),
+      MatrimonialProfile.distinct('education.highestQualification', q),
+      MatrimonialProfile.distinct('education.profession', q)
+    ]);
+    const merge = (...lists) => {
+      const seen = new Map();
+      lists.flat().forEach(v => {
+        const t = String(v || '').trim();
+        if (t && !seen.has(t.toLowerCase())) seen.set(t.toLowerCase(), t);
+      });
+      return [...seen.values()].sort((a, b) => a.localeCompare(b));
+    };
+    res.json({
+      status: 'success',
+      data: {
+        communities: merge(communities),
+        religions: merge(settings?.religionList || [], religions),
+        cities: merge(cities),
+        educations: merge(settings?.educationList || [], educations),
+        professions: merge(settings?.professionList || [], professions)
+      }
+    });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }

@@ -31,7 +31,7 @@ const ProfileCard = ({
           <img
             src={profile.avatar}
             alt={profile.name}
-            className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 ${isBlurred ? 'blur-lg brightness-75' : ''}`}
+            className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 ${isBlurred ? 'blur-[6px] brightness-90' : ''}`}
             loading="lazy"
             decoding="async"
           />
