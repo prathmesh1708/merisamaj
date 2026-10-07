@@ -15,7 +15,6 @@ const EMPTY_PLAN = {
 
 const BOOLEAN_FEATURES = [
   { key: 'professionalDirectory', label: 'Professional Directory' },
-  { key: 'matrimonial', label: 'Matrimonial Module' },
   { key: 'broadcast', label: 'Broadcast Messaging' },
   { key: 'analytics', label: 'Analytics' },
   { key: 'apiAccess', label: 'API Access' },

@@ -150,11 +150,7 @@ export default function MyBookingsPage() {
       razorpayInstance.open();
     } catch (err) {
       console.error('Razorpay Error:', err);
-      // Fallback to secondary payment modal if order creation fails in dev mode
-      setActiveBooking(booking);
-      setPaymentMethod('upi');
-      setPaymentStep('select');
-      setShowPaymentModal(true);
+      alert(err.response?.data?.message || err.message || 'Could not start the payment. Please try again.');
     }
   };
 

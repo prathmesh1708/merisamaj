@@ -21,9 +21,10 @@ exports.listPlans = async (req, res) => {
 exports.getMySubscription = async (req, res) => {
   try {
     const now = new Date();
+    // A cancelled plan stays usable until its end date (that is what the user is told).
     const sub = await UserSubscription.findOne({
       userId:  req.user._id,
-      status:  { $in: ['active', 'grace'] },
+      status:  { $in: ['active', 'grace', 'cancelled'] },
       endDate: { $gte: now }
     }).sort({ endDate: -1 }).populate('planId', 'name price');
 
@@ -73,9 +74,18 @@ exports.initiatePurchase = async (req, res) => {
       notes:   { userId: req.user._id.toString(), planId: plan._id.toString() }
     });
 
+    // The checkout needs the order id, amount and public key at the top level.
     res.json({
       status: 'success',
-      data:   { order, plan: { name: plan.name, price: plan.price }, gateway }
+      data:   {
+        order,
+        plan: { name: plan.name, price: plan.price },
+        gateway,
+        razorpayOrderId: order?.id,
+        amount:          order?.amount,
+        currency:        order?.currency || 'INR',
+        razorpayKeyId:   process.env.RAZORPAY_KEY_ID
+      }
     });
   } catch (err) {
     const errorMsg = err.error ? (err.error.description || err.error.message) : err.message;
@@ -97,22 +107,27 @@ exports.verifyAndActivate = async (req, res) => {
     }
 
     // ─── Verify Payment Signature ───────────────────────────────────────────
-    let isValid = false;
-    if (simulatedPayment) {
-      // Dev/test mode: bypass verification
-      isValid = process.env.NODE_ENV !== 'production';
-      if (!isValid) {
-        return res.status(400).json({ status: 'error', message: 'Simulated payments are not allowed in production.' });
+    if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+      return res.status(400).json({ status: 'error', message: 'Payment details are missing. Please pay through the secure checkout.' });
+    }
+    const isValid = verifyPayment({
+      gateway:   'razorpay',
+      orderId:   razorpayOrderId,
+      paymentId: razorpayPaymentId,
+      signature: razorpaySignature
+    });
+
+    // The money actually captured must match this plan (stops paying for a cheap
+    // plan and activating an expensive one). Also blocks reusing a payment twice.
+    if (isValid) {
+      const { fetchRazorpayPaymentDetails } = require('../../services/paymentService');
+      const paid = await fetchRazorpayPaymentDetails(razorpayPaymentId).catch(() => null);
+      if (!paid || Math.round(Number(paid.amount)) !== Math.round(plan.price * 100) || paid.order_id !== razorpayOrderId) {
+        return res.status(400).json({ status: 'error', message: 'The payment does not match this plan.' });
       }
-    } else if (gateway === 'razorpay') {
-      isValid = verifyPayment({
-        gateway,
-        orderId:   razorpayOrderId,
-        paymentId: razorpayPaymentId,
-        signature: razorpaySignature
-      });
-    } else if (gateway === 'manual') {
-      isValid = true;
+      if (await UserSubscription.exists({ paymentId: razorpayPaymentId })) {
+        return res.status(400).json({ status: 'error', message: 'This payment has already been used.' });
+      }
     }
 
     if (!isValid) {
@@ -131,8 +146,8 @@ exports.verifyAndActivate = async (req, res) => {
       pricePaid:        plan.price,
       durationInDays:   plan.durationInDays,
       featuresSnapshot: plan.features.toObject ? plan.features.toObject() : plan.features,
-      paymentId:        razorpayPaymentId || `MANUAL_${Date.now()}`,
-      paymentGateway:   gateway,
+      paymentId:        razorpayPaymentId,
+      paymentGateway:   'razorpay',
       paymentStatus:    'success',
       startDate,
       endDate,

@@ -550,8 +550,8 @@ exports.payBooking = async (req, res) => {
     const bookingCommId = (booking.communityId?._id || booking.communityId)?.toString();
     const isCommunityHeadAdmin = userRole === 'head_admin' && userCommId && bookingCommId && userCommId === bookingCommId;
 
-    if (!isPrivilegedAdmin && !isCommunityHeadAdmin && booking.user.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ status: 'error', message: 'Not authorized to access this booking' });
+    if (!isPrivilegedAdmin && !isCommunityHeadAdmin) {
+      return res.status(403).json({ status: 'error', message: 'Online payments must be made through the secure Razorpay checkout.' });
     }
 
     // Check 15-minute lock expiration
@@ -679,8 +679,15 @@ exports.verifyRazorpayBookingPayment = async (req, res) => {
       return res.status(403).json({ status: 'error', message: 'Not authorized to access this booking' });
     }
 
+    if (booking.razorpayOrderId && booking.razorpayOrderId !== razorpay_order_id) {
+      return res.status(400).json({ status: 'error', message: 'This payment does not belong to this booking.' });
+    }
+
     booking.status = 'confirmed';
     booking.paymentStatus = 'Paid';
+    // Online payment counts as money received (used by Samaj Fund income reports).
+    booking.amountReceived = booking.totalAmount;
+    booking.paymentMode = 'Online (Razorpay)';
     booking.razorpayPaymentId = razorpay_payment_id;
     booking.razorpayOrderId = razorpay_order_id;
     booking.razorpaySignature = razorpay_signature;

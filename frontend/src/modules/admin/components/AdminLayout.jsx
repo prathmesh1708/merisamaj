@@ -192,19 +192,12 @@ export const AdminLayout = () => {
       category: 'SYSTEM & CONTENT',
       items: [
         { 
-          name: 'Subscription Mgmt', 
+          name: 'Matrimonial Subscriptions', 
           icon: CreditCard,
           permKey: 'canManageSubscriptions',
           children: [
-            { name: 'Overview', path: '/admin/subscriptions', search: '?tab=overview' },
-            { name: 'Plans', path: '/admin/subscriptions', search: '?tab=plans' },
-            { name: 'Subscribers', path: '/admin/subscriptions', search: '?tab=subscribers' },
-            { name: 'Usage', path: '/admin/subscriptions', search: '?tab=usage' },
-            { name: 'Revenue', path: '/admin/subscriptions', search: '?tab=revenue' },
-            { name: 'Coupons', path: '/admin/subscriptions', search: '?tab=coupons' },
-            { name: 'Invoices', path: '/admin/subscriptions', search: '?tab=invoices' },
-            { name: 'Notifications', path: '/admin/subscriptions', search: '?tab=notifications' },
-            { name: 'Settings', path: '/admin/subscriptions', search: '?tab=settings' }
+            { name: 'Plans (Free & Paid)', path: '/admin/subscriptions', search: '?tab=plans' },
+            { name: 'Subscribers', path: '/admin/subscriptions', search: '?tab=subscribers' }
           ]
         },
         {

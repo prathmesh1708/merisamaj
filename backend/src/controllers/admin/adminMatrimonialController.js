@@ -422,11 +422,11 @@ exports.updatePlan = async (req, res) => {
 
 exports.deletePlan = async (req, res) => {
   try {
-    const plan = await SubscriptionPlan.findById(req.params.id);
+    // Permanently remove the plan. Members who already bought it are not affected:
+    // their subscription keeps its own copy of the plan name, price and features.
+    const plan = await SubscriptionPlan.findByIdAndDelete(req.params.id);
     if (!plan) return res.status(404).json({ status: 'error', message: 'Plan not found.' });
-    plan.isActive = false;
-    await plan.save();
-    res.json({ status: 'success', message: 'Plan deactivated.' });
+    res.json({ status: 'success', message: 'Plan deleted.' });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }
@@ -500,9 +500,22 @@ exports.getAnalytics = async (req, res) => {
 // ─── Grant Manual Subscription ────────────────────────────────────────────────
 exports.grantSubscription = async (req, res) => {
   try {
-    const { userId, planId, durationOverrideDays } = req.body;
+    const { planId, durationOverrideDays } = req.body;
     const plan = await SubscriptionPlan.findById(planId);
     if (!plan) return res.status(404).json({ status: 'error', message: 'Plan not found.' });
+    if (!(plan.durationInDays > 0) && !(durationOverrideDays > 0)) {
+      return res.status(400).json({ status: 'error', message: 'The free plan already applies to everyone. Pick a paid plan to grant.' });
+    }
+
+    // Accept a user id, email or phone number.
+    const ident = String(req.body.userId || '').trim();
+    const mongoose = require('mongoose');
+    const UserModel = require('../../models/User');
+    const target = mongoose.Types.ObjectId.isValid(ident)
+      ? await UserModel.findById(ident).select('_id')
+      : await UserModel.findOne({ $or: [{ email: ident.toLowerCase() }, { phone: new RegExp(`${ident.replace(/\D/g, '').slice(-10) || '^$'}$`) }] }).select('_id');
+    if (!target) return res.status(404).json({ status: 'error', message: 'No user found with that ID, email or phone.' });
+    const userId = target._id;
 
     const startDate = new Date();
     const endDate   = new Date();
@@ -637,3 +650,48 @@ exports.adminReopenProfile = async (req, res) => {
   }
 };
 
+
+// ─── Matrimonial subscribers (who bought which plan) + revenue summary ────────
+exports.listSubscriptions = async (req, res) => {
+  try {
+    const UserSubscriptionModel = require('../../models/UserSubscription');
+    const { status, planId } = req.query;
+    const now = new Date();
+    const filter = {};
+    if (planId) filter.planId = planId;
+    if (status === 'active') { filter.status = { $in: ['active', 'grace', 'cancelled'] }; filter.endDate = { $gte: now }; }
+    else if (status === 'expired') filter.$or = [{ endDate: { $lt: now } }, { status: 'expired' }];
+    else if (status === 'cancelled') filter.status = 'cancelled';
+
+    const subs = await UserSubscriptionModel.find(filter)
+      .populate('userId', 'name phone email city')
+      .sort({ createdAt: -1 })
+      .limit(500)
+      .lean();
+
+    const all = await UserSubscriptionModel.find({}).select('pricePaid status endDate paymentGateway planName').lean();
+    const activeCount = all.filter(s => ['active', 'grace', 'cancelled'].includes(s.status) && new Date(s.endDate) >= now).length;
+    const revenue = all.filter(s => s.paymentGateway === 'razorpay').reduce((sum, s) => sum + (s.pricePaid || 0), 0);
+    const byPlan = {};
+    all.forEach(s => { byPlan[s.planName || 'Unknown'] = (byPlan[s.planName || 'Unknown'] || 0) + 1; });
+
+    res.json({
+      status: 'success',
+      data: {
+        summary: { total: all.length, active: activeCount, paidRevenue: revenue, byPlan },
+        subscriptions: subs.map(s => ({
+          id: s._id,
+          user: s.userId ? { id: s.userId._id, name: s.userId.name, phone: s.userId.phone, city: s.userId.city } : null,
+          planName: s.planName,
+          pricePaid: s.pricePaid,
+          gateway: s.paymentGateway,
+          status: (['active', 'grace', 'cancelled'].includes(s.status) && new Date(s.endDate) < now) ? 'expired' : s.status,
+          startDate: s.startDate,
+          endDate: s.endDate
+        }))
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};

@@ -6,14 +6,23 @@
  */
 const UserSubscription = require('../models/UserSubscription');
 const MatrimonialSettings = require('../models/MatrimonialSettings');
+const SubscriptionPlan = require('../models/SubscriptionPlan');
+
+// Fills any feature the Free plan document does not define.
+const FREE_FALLBACK = {
+  profileViewsPerDay: 10, interestLimit: 5, messageLimit: -1, advancedFilters: false,
+  visitorHistory: false, chat: false, profileBoosts: 0, highlightProfile: false,
+  priorityListing: false, contactDetailsAccess: false, unlimitedShortlist: false,
+  readReceipts: false, profileBadge: false, crossCommunityVisibility: false
+};
 
 // ─── Load Active Subscription for a User ─────────────────────────────────────
 const getActiveSubscription = async (userId) => {
   const now = new Date();
-  // Includes 'grace' status (within grace period)
+  // Includes 'grace' (within grace period) and 'cancelled' (cancelled but paid until endDate)
   const sub = await UserSubscription.findOne({
     userId,
-    status:  { $in: ['active', 'grace'] },
+    status:  { $in: ['active', 'grace', 'cancelled'] },
     endDate: { $gte: now }
   }).sort({ endDate: -1 }).lean();
   return sub;
@@ -24,7 +33,13 @@ const getEffectiveFeatures = async (userId) => {
   const sub = await getActiveSubscription(userId);
   if (sub) return { features: sub.featuresSnapshot, subscription: sub };
 
-  // Fall back to free-plan defaults from settings
+  // No paid plan: use the Free plan exactly as the Admin configured it (active, price 0).
+  const freePlan = await SubscriptionPlan.findOne({ isActive: true, price: 0 }).sort({ displayOrder: 1 }).lean();
+  if (freePlan?.features) {
+    return { features: { ...FREE_FALLBACK, ...freePlan.features }, subscription: null };
+  }
+
+  // No Free plan configured: built-in defaults.
   const settings = await MatrimonialSettings.findOne().lean();
   return {
     features: {
@@ -102,7 +117,16 @@ const checkInterestLimit = async (req, res, next) => {
       return next(); // Unlimited
     }
 
-    const used = subscription?.usage?.interestsSentThisMonth ?? 0;
+    // Paid plans track usage on the subscription; free users have no subscription,
+    // so count the interests they actually sent this calendar month.
+    let used = subscription?.usage?.interestsSentThisMonth;
+    if (used === undefined || used === null) {
+      const InterestRequest = require('../models/InterestRequest');
+      const monthStart = new Date();
+      monthStart.setDate(1);
+      monthStart.setHours(0, 0, 0, 0);
+      used = await InterestRequest.countDocuments({ senderId: req.user._id, createdAt: { $gte: monthStart } });
+    }
     if (used >= limit) {
       return res.status(403).json({
         status:  'error',

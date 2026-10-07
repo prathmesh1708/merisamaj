@@ -72,7 +72,7 @@ exports.assignPlanToCommunity = async (req, res) => {
 
     community.planId = plan._id;
     community.planAssignedAt = new Date();
-    community.settings.matrimonialEnabled = !!plan.features.matrimonial;
+    community.settings.matrimonialEnabled = true; // Matrimonial is always available to everyone
     community.settings.directoryEnabled = !!plan.features.professionalDirectory;
     await community.save();
 

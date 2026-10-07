@@ -29,7 +29,7 @@ exports.getDashboard = async (req, res) => {
       recentChatsCount
     ] = await Promise.all([
       MatrimonialProfile.findOne({ userId, isDeleted: false }),
-      UserSubscription.findOne({ userId, status: { $in: ['active', 'grace'] }, endDate: { $gte: now } }).sort({ endDate: -1 }),
+      UserSubscription.findOne({ userId, status: { $in: ['active', 'grace', 'cancelled'] }, endDate: { $gte: now } }).sort({ endDate: -1 }),
       InterestRequest.aggregate([
         { $match: { $or: [{ senderId: userId }, { receiverId: userId }] } },
         {

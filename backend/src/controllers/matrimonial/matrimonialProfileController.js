@@ -210,6 +210,29 @@ exports.getUserProfile = async (req, res) => {
       }
     }
 
+    // ─── Daily profile-view limit from the viewer's plan (-1 = unlimited) ──────
+    // Re-opening a profile already viewed today does not use up another view.
+    if (!profileOwnerUserId.equals(viewerId)) {
+      const viewLimit = features.profileViewsPerDay;
+      if (typeof viewLimit === 'number' && viewLimit !== -1) {
+        const dayStart = new Date();
+        dayStart.setHours(0, 0, 0, 0);
+        const seenToday = await ProfileVisitor.exists({ visitorId: viewerId, profileId: profile._id, lastVisited: { $gte: dayStart } });
+        if (!seenToday) {
+          const viewedToday = await ProfileVisitor.countDocuments({ visitorId: viewerId, lastVisited: { $gte: dayStart } });
+          if (viewedToday >= viewLimit) {
+            return res.status(403).json({
+              status: 'error',
+              code: 'PROFILE_VIEW_LIMIT',
+              message: `You have reached your limit of ${viewLimit} profile views today. Upgrade your plan to view more.`,
+              used: viewedToday,
+              limit: viewLimit
+            });
+          }
+        }
+      }
+    }
+
     // ─── Record Visit (Premium feature) ────────────────────────────────────
     if (!profileOwnerUserId.equals(viewerId)) {
       await ProfileVisitor.findOneAndUpdate(
@@ -311,6 +334,11 @@ exports.getUserProfile = async (req, res) => {
 // ─── Search Profiles ──────────────────────────────────────────────────────────
 exports.searchProfiles = async (req, res) => {
   try {
+    // Advanced filters are a plan feature: without it, only the basic filters apply.
+    if (req.userFeatures && !req.userFeatures.advancedFilters) {
+      ['heightMin', 'heightMax', 'gotra', 'profession', 'education', 'occupation', 'diet', 'annualIncome', 'verifiedOnly', 'withPhoto']
+        .forEach(k => { delete req.query[k]; });
+    }
     const {
       page = 1, limit = 20,
       name,

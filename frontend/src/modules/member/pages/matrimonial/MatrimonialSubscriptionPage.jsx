@@ -7,6 +7,7 @@ import {
   ChevronRight, Info, HelpCircle
 } from 'lucide-react';
 import { matrimonialSubscriptionService } from '../../../../core/api/matrimonialService';
+import { loadRazorpayScript } from '../../../../core/utils/razorpayLoader';
 
 // ─── Feature Keys for Matrix ──────────────────────────────────────────────────
 const FEATURE_ROWS = [
@@ -102,8 +103,9 @@ const MatrimonialSubscriptionPage = () => {
     try {
       const initiateRes = await matrimonialSubscriptionService.initiatePurchase({ planId: selectedPlan._id });
       const order = initiateRes.data.data;
+      const sdkLoaded = await loadRazorpayScript();
 
-      if (window.Razorpay && order.razorpayOrderId) {
+      if (sdkLoaded && window.Razorpay && order.razorpayOrderId) {
         const options = {
           key: order.razorpayKeyId,
           amount: order.amount,
@@ -112,15 +114,22 @@ const MatrimonialSubscriptionPage = () => {
           description: selectedPlan.name,
           order_id: order.razorpayOrderId,
           handler: async (response) => {
-            await matrimonialSubscriptionService.verifyAndActivate({
-              razorpayOrderId: response.razorpay_order_id,
-              razorpayPaymentId: response.razorpay_payment_id,
-              razorpaySignature: response.razorpay_signature,
-              planId: selectedPlan._id
-            });
-            setCheckoutStep('success');
-            loadData();
+            try {
+              await matrimonialSubscriptionService.verifyAndActivate({
+                gateway: 'razorpay',
+                razorpayOrderId: response.razorpay_order_id,
+                razorpayPaymentId: response.razorpay_payment_id,
+                razorpaySignature: response.razorpay_signature,
+                planId: selectedPlan._id
+              });
+              setCheckoutStep('success');
+              loadData();
+            } catch (verifyErr) {
+              showToast(verifyErr.response?.data?.message || 'Payment could not be verified.');
+              setCheckoutStep('select-method');
+            }
           },
+          modal: { ondismiss: () => setCheckoutStep('select-method') },
           prefill: {},
           theme: { color: selectedPlan.themeColor || '#f43f5e' }
         };
@@ -129,15 +138,9 @@ const MatrimonialSubscriptionPage = () => {
         return;
       }
 
-      await new Promise(r => setTimeout(r, 1800));
-      await matrimonialSubscriptionService.verifyAndActivate({
-        planId: selectedPlan._id,
-        simulatedPayment: true,
-        paymentMethod,
-        upiId: paymentMethod === 'upi' ? upiId : undefined
-      });
-      setCheckoutStep('success');
-      loadData();
+      // Razorpay could not be opened: never activate without a real payment.
+      showToast(sdkLoaded ? 'Could not start the payment. Please try again.' : 'Payment window failed to load. Check your internet connection.');
+      setCheckoutStep('select-method');
     } catch (err) {
       showToast(err.response?.data?.message || 'Payment failed. Please try again.');
       setCheckoutStep('select-method');
@@ -416,11 +419,17 @@ const MatrimonialSubscriptionPage = () => {
                             <span className="text-[9px] text-slate-500 font-semibold">{selectedPlan.name} Plan</span>
                           </div>
                         </div>
-                        <button onClick={() => { setShowCheckout(true); setCheckoutStep('select-method'); }}
-                          className="w-full py-3.5 text-white rounded-xl text-[13.5px] font-extrabold shadow-md active:scale-95 transition-transform flex items-center justify-center gap-2"
-                          style={{ backgroundColor: selectedPlan.themeColor || '#f43f5e' }}>
-                          {isActive ? 'Confirm Upgrade' : 'Upgrade Now'}
-                        </button>
+                        {selectedPlan.price > 0 ? (
+                          <button onClick={() => { setPaymentMethod(paymentMethod || 'upi'); setShowCheckout(true); setCheckoutStep('select-method'); }}
+                            className="w-full py-3.5 text-white rounded-xl text-[13.5px] font-extrabold shadow-md active:scale-95 transition-transform flex items-center justify-center gap-2"
+                            style={{ backgroundColor: selectedPlan.themeColor || '#f43f5e' }}>
+                            {isActive ? 'Confirm Upgrade' : 'Upgrade Now'}
+                          </button>
+                        ) : (
+                          <div className="w-full py-3.5 rounded-xl text-[13px] font-extrabold text-center bg-slate-100 text-slate-500">
+                            {isActive ? 'Included free with every account' : 'This is your current free plan'}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -433,16 +442,16 @@ const MatrimonialSubscriptionPage = () => {
 
       {/* ─── CHECKOUT MODAL ─── */}
       {showCheckout && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center">
+        <div className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center sm:p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => !processing && setShowCheckout(false)} />
-          <div className="bg-white w-full rounded-t-[28px] p-5 z-50 relative shadow-2xl max-w-md max-h-[88vh] overflow-y-auto">
+          <div className="bg-white w-full rounded-t-[28px] sm:rounded-[28px] p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] relative shadow-2xl max-w-md max-h-[90vh] overflow-y-auto">
             <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-4" />
 
             {checkoutStep === 'select-method' && (
               <div className="space-y-4">
                 <div className="text-center">
                   <h3 className="text-[15px] font-black text-slate-800">Secure Checkout</h3>
-                  <p className="text-[10.5px] text-slate-400 font-bold mt-0.5">Pay via UPI, Cards or Net Banking</p>
+                  <p className="text-[11px] text-slate-500 font-bold mt-0.5">Pay via UPI, Cards or Net Banking</p>
                 </div>
 
                 <div className="bg-rose-50 border border-rose-100 rounded-2xl p-4 flex justify-between items-center">
@@ -467,8 +476,8 @@ const MatrimonialSubscriptionPage = () => {
                   ].map(({ id, label, Icon }) => (
                     <label key={id} className={`flex items-center gap-3.5 p-4 border rounded-2xl cursor-pointer transition-all ${paymentMethod === id ? 'bg-rose-50 border-rose-400' : 'bg-white border-slate-200'}`}>
                       <input type="radio" name="paymethod" value={id} checked={paymentMethod === id} onChange={() => setPaymentMethod(id)} className="accent-rose-500" />
-                      <Icon size={18} className="text-slate-400" />
-                      <span className="text-[12.5px] font-bold text-slate-700">{label}</span>
+                      <Icon size={18} className={paymentMethod === id ? 'text-rose-500' : 'text-slate-500'} />
+                      <span className="text-[13px] font-bold text-slate-800">{label}</span>
                     </label>
                   ))}
                 </div>
@@ -490,12 +499,12 @@ const MatrimonialSubscriptionPage = () => {
 
                 <div className="flex gap-2.5 pb-4">
                   <button onClick={() => setShowCheckout(false)}
-                    className="flex-1 py-3.5 bg-slate-100 text-slate-500 rounded-xl text-[12.5px] font-black">Cancel</button>
+                    className="flex-1 py-3.5 bg-slate-100 text-slate-700 rounded-xl text-[13px] font-black">Cancel</button>
                   <button onClick={handleConfirmPayment} disabled={!paymentMethod || processing}
-                    className={`flex-1 py-3.5 text-white rounded-xl text-[12.5px] font-black shadow-sm flex items-center justify-center gap-2 ${paymentMethod ? 'bg-rose-500' : 'bg-slate-300 cursor-not-allowed'}`}
+                    className={`flex-1 py-3.5 text-white rounded-xl text-[13px] font-black shadow-sm flex items-center justify-center gap-2 ${paymentMethod ? 'bg-rose-500' : 'bg-rose-300 cursor-not-allowed'}`}
                     style={{ backgroundColor: paymentMethod ? (selectedPlan?.themeColor || '#f43f5e') : undefined }}>
                     {processing && <Loader2 size={14} className="animate-spin" />}
-                    Confirm & Pay
+                    {paymentMethod ? `Pay ₹${selectedPlan?.price}` : 'Select a method'}
                   </button>
                 </div>
               </div>

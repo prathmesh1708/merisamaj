@@ -162,7 +162,6 @@ const MODULE_FLAGS = [
   { key: 'eventEnabled',        label: 'Events',          icon: '🎉' },
   { key: 'donationEnabled',     label: 'Donations',       icon: '💰' },
   { key: 'invitationEnabled',   label: 'Invitations',     icon: '💌' },
-  { key: 'matrimonialEnabled',  label: 'Matrimonial',     icon: '💍' },
   { key: 'directoryEnabled',    label: 'Directory',       icon: '📂' },
   { key: 'obituaryEnabled',     label: 'Obituary',        icon: '🕯️' },
   { key: 'dharmashalaEnabled',  label: 'Dharmashala',     icon: '🏛️' },

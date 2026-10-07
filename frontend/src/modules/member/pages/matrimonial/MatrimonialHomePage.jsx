@@ -528,6 +528,18 @@ const MatrimonialHomePage = () => {
     }
   }, [activeBottomTab]);
 
+  // Unread matrimonial messages, for the Chat tab badge.
+  const [chatUnread, setChatUnread] = useState(0);
+  useEffect(() => {
+    matrimonialChatService.getConversations()
+      .then(res => {
+        const list = res.data?.data?.conversations || [];
+        const me = currentUser?._id;
+        setChatUnread(list.reduce((sum, c) => sum + (Number(c.unreadCount?.[me]) || 0), 0));
+      })
+      .catch(() => {});
+  }, [currentUser?._id, activeBottomTab]);
+
   // Listener for simulated interest acceptance event
   useEffect(() => {
     const handleAccepted = (e) => {
@@ -537,61 +549,37 @@ const MatrimonialHomePage = () => {
     return () => window.removeEventListener('matrimonialInterestAccepted', handleAccepted);
   }, []);
 
-  const renderMatrimonialSubTabs = () => (
-    <div className="bg-white/95 backdrop-blur-md px-3 py-2 border-b border-slate-100/90 shrink-0 z-40">
-      <div className="grid grid-cols-4 gap-1 p-1 bg-slate-100/90 rounded-2xl max-w-lg mx-auto">
+  const renderMatrimonialSubTabs = () => {
+    const tab = (key, label, Icon, badge) => {
+      const active = activeBottomTab === key;
+      return (
         <button
-          onClick={() => { setActiveBottomTab('matches'); setCurrentSubView(null); }}
-          className={`flex items-center justify-center gap-1 py-1.5 px-1 rounded-xl text-[11px] md:text-xs font-black transition-all ${
-            activeBottomTab === 'matches'
-              ? 'bg-white text-rose-600 shadow-xs'
-              : 'text-slate-500 hover:text-slate-800'
+          key={key}
+          onClick={() => { setActiveBottomTab(key); setCurrentSubView(null); }}
+          className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-[15px] font-bold transition-all shrink-0 ${
+            active ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'text-slate-700 hover:bg-slate-50 border border-transparent'
           }`}
         >
-          <Sparkles size={12} className={activeBottomTab === 'matches' ? 'text-rose-500' : 'text-slate-400'} />
-          <span className="truncate">Matches</span>
-        </button>
-
-        <button
-          onClick={() => { setActiveBottomTab('activity'); setCurrentSubView(null); }}
-          className={`flex items-center justify-center gap-1 py-1.5 px-1 rounded-xl text-[11px] md:text-xs font-black transition-all relative ${
-            activeBottomTab === 'activity'
-              ? 'bg-white text-rose-600 shadow-xs'
-              : 'text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <Clock size={12} className={activeBottomTab === 'activity' ? 'text-rose-500' : 'text-slate-400'} />
-          <span className="truncate">Activity</span>
-          {receivedCount > 0 && (
-            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+          <Icon size={18} className={active ? 'text-rose-500' : 'text-slate-600'} />
+          <span>{label}</span>
+          {badge > 0 && (
+            <span className="min-w-[20px] h-5 px-1.5 bg-rose-500 text-white text-[11px] font-bold rounded-full flex items-center justify-center">
+              {badge > 99 ? '99+' : badge}
+            </span>
           )}
         </button>
-
-        <button
-          onClick={() => { setActiveBottomTab('messenger'); setCurrentSubView(null); }}
-          className={`flex items-center justify-center gap-1 py-1.5 px-1 rounded-xl text-[11px] md:text-xs font-black transition-all relative ${
-            activeBottomTab === 'messenger'
-              ? 'bg-white text-rose-600 shadow-xs'
-              : 'text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <MessageCircle size={12} className={activeBottomTab === 'messenger' ? 'text-rose-500' : 'text-slate-400'} />
-          <span className="truncate">Chat</span>
-          <span className="px-1 py-0.2 bg-rose-500 text-white text-[8px] font-bold rounded-full">
-            2
-          </span>
-        </button>
-
-        <button
-          onClick={() => navigate('/member/matrimonial/subscription')}
-          className="flex items-center justify-center gap-1 py-1.5 px-1 bg-gradient-to-r from-rose-500 to-pink-600 text-white rounded-xl text-[11px] md:text-xs font-black shadow-xs hover:opacity-95 active:scale-95 transition-all"
-        >
-          <Crown size={11} />
-          <span className="truncate">Upgrade</span>
-        </button>
+      );
+    };
+    return (
+      <div className="bg-white px-3 py-2 border-b border-slate-100 shrink-0 z-40">
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide max-w-lg mx-auto">
+          {tab('matches', 'Matches', Users, 0)}
+          {tab('activity', 'Activity', Clock, receivedCount)}
+          {tab('messenger', 'Chat', MessageCircle, chatUnread)}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="h-[100dvh] bg-slate-50 flex flex-col overflow-hidden relative select-none w-full">
@@ -618,26 +606,31 @@ const MatrimonialHomePage = () => {
               </div>
             ) : (
               <>
-                <div className="flex items-center gap-3.5">
+                <div className="flex items-center gap-2.5 min-w-0">
                   <div 
                     onClick={() => {
                       setActiveBottomTab('my-profile');
                       setCurrentSubView(null);
                     }}
-                    className="w-10 h-10 rounded-full bg-slate-200 border-2 border-rose-500/30 flex items-center justify-center text-slate-500 cursor-pointer relative shadow-sm hover:scale-105 active:scale-95 transition-transform"
+                    className="w-10 h-10 shrink-0 rounded-full bg-slate-200 border-2 border-rose-100 flex items-center justify-center text-slate-500 cursor-pointer relative shadow-sm active:scale-95 transition-transform"
                   >
                     {currentUser?.avatar ? (
                       <img src={currentUser.avatar} alt="Me" className="w-full h-full object-cover rounded-full" />
                     ) : (
                       <span className="text-[12.5px] font-black text-rose-500 uppercase">{currentUser?.initials || 'RA'}</span>
                     )}
-                    <div className="absolute -bottom-1 -right-1 bg-rose-500 text-white rounded-full px-1 py-0.5 text-[7px] font-black border border-white uppercase tracking-tighter leading-none">
-                      {isCurrentlySubscribed ? sub.plan.split(' ').map(n=>n[0]).join('') : 'N'}
-                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); navigate('/member/matrimonial/setup'); }}
+                      title="Edit my profile"
+                      className="absolute -bottom-0.5 -right-0.5 w-5 h-5 bg-rose-500 text-white rounded-full flex items-center justify-center border-2 border-white"
+                    >
+                      <Pencil size={10} className="stroke-[3]" />
+                    </button>
                   </div>
                   <div className="flex flex-col">
                     <div className="flex items-center gap-2">
-                      <h1 className="text-[17px] font-black text-slate-800 tracking-tight leading-tight">
+                      <h1 className="text-[17px] sm:text-[20px] font-black text-slate-900 tracking-tight leading-tight whitespace-nowrap">
                         {isCombo 
                           ? (sub.activeProfileType === 'groom' ? "Son's Matches" : "Daughter's Matches") 
                           : "My matches"}
@@ -652,38 +645,37 @@ const MatrimonialHomePage = () => {
                         </button>
                       )}
                     </div>
-                    <p 
-                      className="text-[11px] font-bold text-slate-400 mt-0.5 flex items-center gap-1 cursor-pointer hover:text-rose-500 transition-colors"
-                      onClick={() => navigate('/member/matrimonial/setup')}
-                    >
-                      as per <span className="text-rose-500 font-extrabold">partner preferences</span>
-                      <Pencil size={10} className="text-slate-400 stroke-[2.5]" />
-                    </p>
                   </div>
                 </div>
                 
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1.5 shrink-0">
                   <button
-                    className="text-rose-500 active:scale-95 transition-transform relative"
+                    className="text-slate-700 active:scale-95 transition-transform relative p-1"
+                    title="Interests received"
                     onClick={() => navigate('/member/matrimonial/interests')}
                   >
-                    <Heart size={22} fill="currentColor" className="drop-shadow-[0_1px_4px_rgba(244,63,94,0.5)] hover:scale-110 transition-transform" />
-                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center border border-white">
-                      {receivedCount > 0 ? (receivedCount > 9 ? '9+' : receivedCount) : ''}
-                    </span>
+                    <Mail size={21} className="stroke-[1.8]" />
+                    {receivedCount > 0 && (
+                      <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white">
+                        {receivedCount > 9 ? '9+' : receivedCount}
+                      </span>
+                    )}
                   </button>
-                  <button className="text-slate-700 active:scale-95 transition-transform" onClick={() => setIsSearchOpen(true)}>
-                    <Search size={22} className="stroke-[1.8]" />
-                  </button>
-                  <button 
-                    className="text-slate-700 hover:text-rose-600 active:scale-95 transition-transform" 
-                    title="Profile & Visibility Settings"
+                  <button
+                    className="text-slate-700 hover:text-rose-600 active:scale-95 transition-transform p-1"
+                    title="Matrimonial settings"
                     onClick={() => {
                       setActiveBottomTab('my-profile');
                       setCurrentSubView(null);
                     }}
                   >
-                    <Settings size={22} className="stroke-[1.8]" />
+                    <Settings size={20} className="stroke-[1.8]" />
+                  </button>
+                  <button
+                    onClick={() => navigate('/member/matrimonial/subscription')}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-full text-[12.5px] font-bold shadow-sm active:scale-95 transition-all whitespace-nowrap shrink-0"
+                  >
+                    <Crown size={13} /> {isCurrentlySubscribed ? 'Premium' : 'Upgrade'}
                   </button>
                 </div>
               </>
@@ -698,14 +690,14 @@ const MatrimonialHomePage = () => {
             <div className="px-4 py-3 bg-white border-b border-slate-100/80 flex items-center gap-2 overflow-x-auto scrollbar-hide shrink-0 font-sans">
               <button
                 onClick={() => setIsFilterDrawerOpen(true)}
-                className="px-3.5 py-2 rounded-full border border-slate-200 bg-white text-slate-700 text-[12px] font-bold flex items-center gap-1.5 shrink-0 active:scale-95 transition-transform"
+                className="px-5 py-2.5 rounded-full border border-slate-200 bg-white text-slate-800 text-[14px] font-bold flex items-center gap-2 shrink-0 active:scale-95 transition-transform"
               >
-                <SlidersHorizontal size={13} className="text-slate-500" /> Filters
+                <SlidersHorizontal size={16} className="text-slate-600" /> Filters
               </button>
               
               {[
                 { label: 'All matches', key: 'all' },
-                { label: 'Other Community', key: 'other_community' },
+                { label: 'Other Communities', key: 'other_community' },
                 { label: 'My Community', key: 'my_community' },
                 { label: 'Verified', key: 'verified' },
                 { label: 'Just Joined', key: 'joined' },
@@ -728,16 +720,32 @@ const MatrimonialHomePage = () => {
                       setSelectedSpecificCommunity('');
                     }
                   }}
-                  className={`px-4 py-2 rounded-full text-[12px] font-bold transition-all shrink-0 active:scale-95 border flex items-center gap-1.5 ${
+                  className={`px-5 py-2.5 rounded-full text-[14px] font-bold transition-all shrink-0 active:scale-95 border flex items-center gap-1.5 ${
                     activeFilterPill === key
                       ? 'bg-rose-500 border-rose-500 text-white shadow-sm'
                       : 'bg-white border-slate-200 text-slate-655 hover:bg-slate-50'
                   }`}
                 >
-                  {key === 'other_community' && <Users size={13} className={activeFilterPill === key ? 'text-white' : 'text-rose-500'} />}
+                  {key === 'other_community' && <Users size={16} className={activeFilterPill === key ? 'text-white' : 'text-rose-500'} />}
                   {label}
                 </button>
               ))}
+            </div>
+
+            <div className="px-4 pt-3 pb-1 bg-white">
+              <div className="flex items-center gap-3 border border-slate-200 rounded-full px-4 py-3 bg-white focus-within:border-rose-300">
+                <Search size={20} className="text-slate-600 shrink-0" />
+                <input
+                  type="text"
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
+                  placeholder="Search by name, location, gothra, etc..."
+                  className="flex-1 bg-transparent outline-none text-[14px] text-slate-800 placeholder:text-slate-400"
+                />
+                {searchText && (
+                  <button onClick={() => setSearchText('')} className="text-slate-400"><X size={16} /></button>
+                )}
+              </div>
             </div>
 
             {/* ─── MARRIED / CLOSED PROFILE BANNER ─── */}

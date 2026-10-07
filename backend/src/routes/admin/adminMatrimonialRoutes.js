@@ -20,6 +20,7 @@ router.get('/reports',         adminMatCtrl.listReports);
 router.put('/reports/:id',     adminMatCtrl.actionReport);
 
 // ─── Subscription Plans ───────────────────────────────────────────────────────
+router.get('/subscriptions',   adminMatCtrl.listSubscriptions);
 router.get('/plans',           adminMatCtrl.listPlans);
 router.post('/plans',          adminMatCtrl.createPlan);
 router.post('/plans/grant',    adminMatCtrl.grantSubscription);  // Static must come before /:id

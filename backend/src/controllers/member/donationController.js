@@ -345,8 +345,11 @@ exports.createDonation = async (req, res) => {
       }
     }
 
-    const txnId = req.body.txnId || `TXN${Math.floor(1000000000 + Math.random() * 9000000000)}`;
     const isCash = req.body.paymentMethod === 'Cash';
+    if (!isCash) {
+      return res.status(400).json({ success: false, status: 'error', message: 'Online payments must be made through the secure Razorpay checkout.' });
+    }
+    const txnId = `TXN${Math.floor(1000000000 + Math.random() * 9000000000)}`;
     const paymentMode = isCash ? 'Cash' : (type === 'One-time' ? 'Online (UPI)' : 'Bank Transfer');
 
     // A cash pledge isn't real money yet — it only counts once someone with
@@ -537,11 +540,20 @@ exports.verifyRazorpayPayment = async (req, res) => {
       });
     }
 
-    const campaign = await Donation.findById(targetId || existingApproved?.campaign);
-    const finalAmount = Number(reqAmount) || 0;
-    const finalDonorName = reqDonorName || req.user?.name || 'Anonymous';
-
+    // The amount and campaign are taken from the pending record created with the
+    // order (server-side), or from Razorpay itself, never from the request body.
     let donationRecord = await Donation.findOne({ orderId });
+    let finalAmount = donationRecord?.amount || 0;
+    if (!(finalAmount > 0)) {
+      const paid = await paymentService.fetchRazorpayPaymentDetails(paymentId).catch(() => null);
+      finalAmount = paid?.amount ? paid.amount / 100 : 0;
+    }
+    if (!(finalAmount > 0)) {
+      return res.status(400).json({ success: false, status: 'error', message: 'Could not confirm the paid amount for this order.' });
+    }
+    const campaign = await Donation.findById(donationRecord?.campaign || targetId);
+    const finalDonorName = donationRecord?.donorName || reqDonorName || req.user?.name || 'Anonymous';
+
     if (!donationRecord) {
       donationRecord = new Donation({
         user: req.user?._id,
@@ -627,11 +639,11 @@ exports.handleRazorpayWebhook = async (req, res) => {
     const signature = req.headers['x-razorpay-signature'];
     const secret = process.env.RAZORPAY_WEBHOOK_SECRET || process.env.RAZORPAY_KEY_SECRET;
 
-    if (secret && signature) {
-      const shasum = crypto.createHmac('sha256', secret);
-      shasum.update(JSON.stringify(req.body));
-      const digest = shasum.digest('hex');
-
+    if (!req.razorpayVerified) {
+      if (!secret || !signature) {
+        return res.status(400).json({ status: 'error', message: 'Missing webhook signature' });
+      }
+      const digest = crypto.createHmac('sha256', secret).update(req.rawBody || JSON.stringify(req.body)).digest('hex');
       if (digest !== signature) {
         console.warn('Webhook signature mismatch');
         return res.status(400).json({ status: 'error', message: 'Invalid webhook signature' });

@@ -71,7 +71,8 @@ const matrimonialInterestRoutes     = require('./matrimonial/matrimonialInterest
 const matrimonialChatRoutes         = require('./matrimonial/matrimonialChatRoutes');
 const matrimonialAuxRoutes          = require('./matrimonial/matrimonialAuxRoutes');
 
-router.use('/matrimonial', checkModuleEnabled('matrimonialEnabled'));
+// Matrimonial is open to every member of every community (not gated by the community plan);
+// what members see inside it (plans, settings, content) is managed by the Admin.
 router.use('/matrimonial/profile',       matrimonialProfileRoutes);
 router.use('/matrimonial/subscription',  matrimonialSubscriptionRoutes);
 router.use('/matrimonial/interests',     matrimonialInterestRoutes);

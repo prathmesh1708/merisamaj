@@ -12,7 +12,7 @@ import CommunityHeadManagement from '../pages/community-heads/CommunityHeadManag
 import HeadDetailsPage from '../pages/community-heads/HeadDetailsPage';
 import HeadActivityMonitor from '../pages/community-heads/HeadActivityMonitor';
 import HeadReports from '../pages/community-heads/HeadReports';
-import SubscriptionManagement from '../pages/subscriptions/SubscriptionManagement';
+import MatrimonialSubscriptionsAdmin from '../pages/subscriptions/MatrimonialSubscriptionsAdmin';
 import GlobalFamilyManagement from '../pages/families/GlobalFamilyManagement';
 import GlobalProfessionalOverview from '../pages/professionals/GlobalProfessionalOverview';
 import GlobalProfessionalGrid from '../pages/professionals/GlobalProfessionalGrid';
@@ -76,7 +76,7 @@ export const AdminRoutes = () => {
           <Route path="reports" element={<HeadReports />} />
           <Route path=":id" element={<HeadDetailsPage />} />
         </Route>
-        <Route path="subscriptions" element={<SubscriptionManagement />} />
+        <Route path="subscriptions" element={<MatrimonialSubscriptionsAdmin />} />
         <Route path="reports" element={<AdminReportsDesk />} />
         <Route path="config" element={<SystemConfig />} />
         <Route path="families" element={<Navigate to="/admin/dashboard" replace />} />

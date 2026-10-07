@@ -27,9 +27,7 @@ export const BottomNav = ({ isVisible = true }) => {
     return null;
   }
 
-  // Matrimony is hidden when the member's community plan has that module switched
-  // off (Admin → Subscriptions → assign a plan without the Matrimonial feature).
-  const matrimonialEnabled = activeUser?.communityId?.settings?.matrimonialEnabled !== false;
+  const matrimonialEnabled = true; // Matrimonial is available to every member
 
   const navItems = [
     { name: 'Home', path: '/member/home', icon: Home, activeColor: '#7C3AED' },

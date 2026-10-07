@@ -215,6 +215,9 @@ exports.getFundsData = async (req, res) => {
 // ⚠️  DEPRECATED: This route only handles online/gateway verified payments. Direct cash payments are blocked for members.
 exports.makePayment = async (req, res) => {
   try {
+    // Online money is only recorded through createFundOrder + verifyFundPayment (Razorpay).
+    return res.status(400).json({ success: false, message: 'Online payments must be made through the secure Razorpay checkout.' });
+
     const { fundId } = req.params;
     const { amount, paymentMethod } = req.body;
     const myId = req.user._id;
@@ -545,7 +548,7 @@ exports.verifyFundPayment = async (req, res) => {
     const paymentId = razorpay_payment_id;
     const orderId   = razorpay_order_id;
     const signature = razorpay_signature;
-    const amount    = Number(reqAmount || 0);
+    let amount      = Number(reqAmount || 0); // replaced below by the verified amount
     const myId      = req.user._id;
 
     if (!paymentId || !orderId || !signature) {
@@ -587,8 +590,10 @@ exports.verifyFundPayment = async (req, res) => {
     }
 
     // ── 3. Razorpay API Double-Verification (status must be captured) ──────
+    let verifiedAmount = null;
     try {
       const paymentDetails = await paymentService.fetchRazorpayPaymentDetails(paymentId);
+      if (paymentDetails?.amount) verifiedAmount = paymentDetails.amount / 100;
       if (paymentDetails && paymentDetails.status && !['captured', 'authorized'].includes(paymentDetails.status)) {
         await Contribution.findOneAndUpdate(
           { fundId, memberId: myId, 'transactions.orderId': orderId },
@@ -601,6 +606,14 @@ exports.verifyFundPayment = async (req, res) => {
       }
     } catch (apiErr) {
       console.warn('[Fund] Razorpay API direct fetch notice (proceeding with verified signature):', apiErr.message);
+    }
+
+    // Never trust the amount sent by the browser: use what Razorpay captured,
+    // else what was recorded when this order was created.
+    const pendingTxn = ledger?.transactions.find(t => t.orderId === orderId);
+    amount = verifiedAmount ?? pendingTxn?.amount ?? 0;
+    if (!(amount > 0)) {
+      return res.status(400).json({ success: false, message: 'Could not confirm the paid amount for this order.' });
     }
 
     // ── 4. MongoDB Transaction: All-or-nothing DB updates ─────────────────
@@ -726,8 +739,11 @@ exports.handleFundWebhook = async (req, res) => {
     const secret    = process.env.RAZORPAY_WEBHOOK_SECRET || process.env.RAZORPAY_KEY_SECRET;
 
     // Validate webhook signature
-    if (secret && signature) {
-      const digest = crypto.createHmac('sha256', secret).update(JSON.stringify(req.body)).digest('hex');
+    if (!req.razorpayVerified) {
+      if (!secret || !signature) {
+        return res.status(400).json({ status: 'error', message: 'Missing webhook signature.' });
+      }
+      const digest = crypto.createHmac('sha256', secret).update(req.rawBody || JSON.stringify(req.body)).digest('hex');
       if (digest !== signature) {
         console.warn('[Fund] Webhook signature mismatch');
         return res.status(400).json({ status: 'error', message: 'Invalid webhook signature.' });

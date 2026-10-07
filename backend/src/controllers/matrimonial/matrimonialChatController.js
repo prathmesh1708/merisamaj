@@ -6,7 +6,7 @@
 const Conversation = require('../../models/Conversation');
 const Message      = require('../../models/Message');
 const InterestRequest = require('../../models/InterestRequest');
-const { checkFeature } = require('../../middleware/subscriptionMiddleware');
+const { checkFeature, getEffectiveFeatures } = require('../../middleware/subscriptionMiddleware');
 const { notifyNewMessage } = require('../../services/notificationService');
 const { markConversationSeen, markMessagesSeen } = require('../../services/messageService');
 
@@ -214,6 +214,26 @@ exports.sendMessage = async (req, res) => {
     const interest = await InterestRequest.findOne({ _id: conversation.referenceId, status: 'accepted' });
     if (!interest) {
       return res.status(403).json({ status: 'error', message: 'Chat requires an accepted interest request.' });
+    }
+
+    // ─── Monthly message limit from the sender's plan (-1 = unlimited) ──────────────
+    const { features } = await getEffectiveFeatures(req.user._id);
+    const msgLimit = features.messageLimit;
+    if (typeof msgLimit === 'number' && msgLimit !== -1) {
+      const monthStart = new Date();
+      monthStart.setDate(1);
+      monthStart.setHours(0, 0, 0, 0);
+      const myConversations = await Conversation.find({ participants: req.user._id, type: 'matrimonial' }).distinct('_id');
+      const sentThisMonth = await Message.countDocuments({ senderId: req.user._id, conversationId: { $in: myConversations }, createdAt: { $gte: monthStart } });
+      if (sentThisMonth >= msgLimit) {
+        return res.status(403).json({
+          status: 'error',
+          code: 'MESSAGE_LIMIT_REACHED',
+          message: `You have reached your monthly limit of ${msgLimit} messages. Upgrade your plan to send more.`,
+          used: sentThisMonth,
+          limit: msgLimit
+        });
+      }
     }
 
     let finalMediaUrl = mediaUrl || null;

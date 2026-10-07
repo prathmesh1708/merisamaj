@@ -101,7 +101,7 @@ if (rateLimit && process.env.NODE_ENV === 'production') {
   });
   app.use('/api', limiter);
 }
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '50mb', verify: (req, res, buf) => { if (req.originalUrl && req.originalUrl.includes('/webhooks/')) req.rawBody = buf; } }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cookieParser());
 app.use('/uploads', (req, res, next) => {
