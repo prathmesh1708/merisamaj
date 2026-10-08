@@ -14,6 +14,7 @@ const STATUS = {
 const ORDER = { Active: 0, Upcoming: 1, ResultPending: 2, ResultDeclared: 3 };
 
 const actionLabel = (e) => {
+  if (e.viewOnly && e.status !== 'ResultDeclared') return 'View (you created it)';
   if (e.status === 'Active') return e.hasVoted ? 'Vote Submitted' : 'Vote Now';
   if (e.status === 'ResultDeclared') return 'View Result';
   if (e.status === 'ResultPending') return e.hasVoted ? 'Result Countdown' : 'Voting Closed';
@@ -77,6 +78,11 @@ const VotingPage = () => {
                   <span className={`shrink-0 text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${st.cls}`}>{st.label}</span>
                 </div>
                 {e.description && <p className="text-xs text-slate-500 mt-1 line-clamp-2">{e.description}</p>}
+                {e.candidates?.length > 0 && (
+                  <p className="text-[11px] font-semibold text-slate-600 mt-1.5 truncate">
+                    Candidates: {e.candidates.map(c => c.name).join(', ')}
+                  </p>
+                )}
 
                 <div className="mt-3 space-y-1 text-[11px] font-semibold text-slate-500">
                   <div className="flex items-center gap-1.5"><Calendar size={12} /> {formatDateTime(e.startDate)} → {formatDateTime(e.endDate)}</div>

@@ -87,6 +87,8 @@ exports.createInvitation = async (req, res) => {
       familyName,
       customFields: parsedCustomFields
     });
+    const rsvpSettings = parseRsvpSettings(req.body.rsvpSettings);
+    if (rsvpSettings) invitation.rsvpSettings = rsvpSettings;
 
     const createdInvitation = await invitation.save();
 
@@ -173,6 +175,43 @@ exports.getInvitationById = async (req, res) => {
 };
 
 // @desc    Update RSVP status
+
+// Reads the creator's RSVP setup from the form (sent as a JSON string with the photos).
+const RSVP_KEYS = ['attending', 'attending_family', 'not_attending'];
+const parseRsvpSettings = (raw, current = {}) => {
+  if (raw === undefined || raw === null || raw === '') return undefined;
+  let v = raw;
+  try { v = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch (e) { return undefined; }
+  const cur = current && current.toObject ? current.toObject() : (current || {});
+  const out = {
+    enabled: v.enabled !== undefined ? !!v.enabled : (cur.enabled !== undefined ? cur.enabled : true),
+    title: (v.title !== undefined ? String(v.title) : cur.title || '').trim().slice(0, 80) || 'RSVP (आपकी उपस्थिति)',
+    message: (v.message !== undefined ? String(v.message) : cur.message || '').trim().slice(0, 200),
+    options: {}
+  };
+  RSVP_KEYS.forEach(k => {
+    const o = (v.options || {})[k] || {};
+    const c = (cur.options || {})[k] || {};
+    out.options[k] = {
+      enabled: o.enabled !== undefined ? !!o.enabled : (c.enabled !== undefined ? c.enabled : true),
+      label: (o.label !== undefined ? String(o.label) : c.label || '').trim().slice(0, 60)
+    };
+  });
+  // Creator's own answers (up to 6), each with a stable key
+  const extrasIn = v.extraOptions !== undefined ? v.extraOptions : (cur.extraOptions || []);
+  const seen = new Set();
+  out.extraOptions = (Array.isArray(extrasIn) ? extrasIn : [])
+    .map(o => ({
+      key: /^custom_[a-z0-9]{2,20}$/.test(String(o?.key || '')) ? String(o.key) : `custom_${Math.random().toString(36).slice(2, 10)}`,
+      label: String(o?.label || '').trim().slice(0, 60)
+    }))
+    .filter(o => o.label && !seen.has(o.key) && seen.add(o.key))
+    .slice(0, 6);
+  // At least one answer must stay available while RSVP is on.
+  if (out.enabled && !RSVP_KEYS.some(k => out.options[k].enabled) && out.extraOptions.length === 0) out.options.attending.enabled = true;
+  return out;
+};
+
 // @route   PUT /api/member/invitations/:id/rsvp
 // @access  Private
 exports.updateRSVP = async (req, res) => {
@@ -182,6 +221,16 @@ exports.updateRSVP = async (req, res) => {
 
     if (!invitation) {
       return res.status(404).json({ message: 'Invitation not found' });
+    }
+
+    const rs = invitation.rsvpSettings || {};
+    if (rs.enabled === false) {
+      return res.status(400).json({ message: 'The host has turned off RSVP for this invitation.' });
+    }
+    const extraKeys = (rs.extraOptions || []).map(o => o.key);
+    const builtInOk = RSVP_KEYS.includes(status) && rs.options?.[status]?.enabled !== false;
+    if (!builtInOk && !extraKeys.includes(status)) {
+      return res.status(400).json({ message: 'This RSVP option is not available for this invitation.' });
     }
 
     const rsvpIndex = invitation.rsvps.findIndex(
@@ -372,6 +421,8 @@ exports.updateInvitation = async (req, res) => {
       console.error('Error parsing customFields:', e);
     }
 
+    const nextRsvp = parseRsvpSettings(req.body.rsvpSettings, invitation.rsvpSettings);
+    if (nextRsvp) invitation.rsvpSettings = nextRsvp;
     invitation.title = title || invitation.title;
     invitation.hostName = hostName || invitation.hostName;
     invitation.date = date || invitation.date;

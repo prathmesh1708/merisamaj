@@ -6,6 +6,29 @@ import DatePicker from '../../../../components/ui/DatePicker';
 import TimePicker from '../../../../components/ui/TimePicker';
 import invitationService from '../../../../core/api/invitationService';
 
+const DEFAULT_RSVP = {
+  enabled: true,
+  title: 'RSVP (आपकी उपस्थिति)',
+  message: 'Please confirm your attendance with the host',
+  options: {
+    attending: { enabled: true, label: 'I am Attending (उपस्थित रहूंगा)' },
+    attending_family: { enabled: true, label: 'With Family (सपरिवार)' },
+    not_attending: { enabled: true, label: 'Declined (असमर्थ)' }
+  },
+  extraOptions: []
+};
+// Saved settings merged over the defaults (older invitations have none).
+const mergeRsvp = (r) => ({
+  ...DEFAULT_RSVP,
+  ...(r || {}),
+  extraOptions: Array.isArray(r?.extraOptions) ? r.extraOptions : [],
+  options: Object.fromEntries(Object.keys(DEFAULT_RSVP.options).map(k => [k, {
+    ...DEFAULT_RSVP.options[k],
+    ...((r && r.options && r.options[k]) || {}),
+    label: (r && r.options && r.options[k] && r.options[k].label) || DEFAULT_RSVP.options[k].label
+  }]))
+});
+
 const compressImage = (file) => {
   return new Promise((resolve) => {
     if (!file || !file.type.startsWith('image/')) {
@@ -40,7 +63,8 @@ const compressImage = (file) => {
         ctx.drawImage(img, 0, 0, width, height);
 
         canvas.toBlob((blob) => {
-          if (blob && blob.size < file.size) {
+          const serverAccepts = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(file.type);
+          if (blob && (blob.size < file.size || !serverAccepts)) {
             const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, '') + '.jpg', {
               type: 'image/jpeg',
               lastModified: Date.now()
@@ -75,6 +99,7 @@ export default function CreateInvitationPage() {
     message: 'You are cordially invited.',
     customFields: {},
     images: [],
+    rsvpSettings: DEFAULT_RSVP,
   });
 
   const [existingImages, setExistingImages] = useState([]);
@@ -110,6 +135,7 @@ export default function CreateInvitationPage() {
           message: existing.message || 'You are cordially invited.',
           customFields: existing.customFields || {},
           images: [],
+          rsvpSettings: mergeRsvp(existing.rsvpSettings),
         });
         setExistingImages(existing.images || (existing.image ? [existing.image] : []));
         setLoadingInitial(false);
@@ -128,6 +154,7 @@ export default function CreateInvitationPage() {
               message: res.message || 'You are cordially invited.',
               customFields: res.customFields || {},
               images: [],
+              rsvpSettings: mergeRsvp(res.rsvpSettings),
             });
             setExistingImages(res.images || (res.image ? [res.image] : []));
           }
@@ -138,16 +165,36 @@ export default function CreateInvitationPage() {
     }
   }, [id, isEditMode, invitations]);
 
+  const MAX_PHOTOS = 5;
+  const ACCEPTED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
   const handleImageUpload = async (e) => {
-    const rawFiles = Array.from(e.target.files || []);
-    if (rawFiles.length > 0) {
-      const compressedFiles = await Promise.all(rawFiles.map(compressImage));
-      const newUrls = compressedFiles.map(file => URL.createObjectURL(file));
-      setImagePreviews(prev => [...prev, ...newUrls]);
-      setFormData(prev => ({
-        ...prev,
-        images: [...(prev.images || []), ...compressedFiles]
-      }));
+    const input = e.target;
+    const rawFiles = Array.from(input.files || []);
+    input.value = ''; // allow picking the same photo again later
+    if (rawFiles.length === 0) return;
+
+    const alreadyChosen = (existingImages?.length || 0) + (formData.images?.length || 0);
+    const room = MAX_PHOTOS - alreadyChosen;
+    if (room <= 0) {
+      setToastMessage(`You can add up to ${MAX_PHOTOS} photos.`);
+      setTimeout(() => setToastMessage(''), 3000);
+      return;
+    }
+
+    const converted = await Promise.all(rawFiles.slice(0, room).map(compressImage));
+    const usable = converted.filter(f => ACCEPTED_TYPES.includes(f.type) && f.size <= 5 * 1024 * 1024);
+    const skipped = converted.length - usable.length;
+
+    if (usable.length > 0) {
+      setImagePreviews(prev => [...prev, ...usable.map(file => URL.createObjectURL(file))]);
+      setFormData(prev => ({ ...prev, images: [...(prev.images || []), ...usable] }));
+    }
+    const notes = [];
+    if (rawFiles.length > room) notes.push(`Only ${MAX_PHOTOS} photos allowed, so ${rawFiles.length - room} were not added.`);
+    if (skipped > 0) notes.push(`${skipped} photo(s) could not be used. Please choose JPG or PNG photos under 5MB.`);
+    if (notes.length) {
+      setToastMessage(notes.join(' '));
+      setTimeout(() => setToastMessage(''), 4000);
     }
   };
 
@@ -238,6 +285,7 @@ export default function CreateInvitationPage() {
     }
 
     data.append('customFields', JSON.stringify(formData.customFields || {}));
+    data.append('rsvpSettings', JSON.stringify(formData.rsvpSettings || DEFAULT_RSVP));
     
     setIsSubmitting(true);
     try {
@@ -253,8 +301,9 @@ export default function CreateInvitationPage() {
         setIsCreated(true);
       }
     } catch (err) {
-      setToastMessage(isEditMode ? "Failed to update invitation" : "Failed to create invitation");
-      setTimeout(() => setToastMessage(''), 3000);
+      const reason = err?.response?.data?.message;
+      setToastMessage(reason || (isEditMode ? "Failed to update invitation" : "Failed to create invitation"));
+      setTimeout(() => setToastMessage(''), 4000);
     } finally {
       setIsSubmitting(false);
     }
@@ -480,6 +529,7 @@ export default function CreateInvitationPage() {
                   </div>
                   <p className="text-indigo-900 text-[13px] font-bold">Upload Event Photos (Multiple)</p>
                   <p className="text-[11px] text-slate-400 mt-1">Tap to select photos of card, venue, or program</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">Up to 5 photos · JPG, PNG or WEBP · max 5MB each</p>
                 </label>
 
                 {/* Existing Images Previews (in Edit Mode) */}
@@ -644,6 +694,79 @@ export default function CreateInvitationPage() {
               ))}
 
             </div>
+
+            {/* RSVP setup: what the guests will be asked */}
+            {(() => {
+              const r = mergeRsvp(formData.rsvpSettings);
+              const setR = (patch) => setFormData(prev => ({ ...prev, rsvpSettings: { ...mergeRsvp(prev.rsvpSettings), ...patch } }));
+              const setOpt = (key, patch) => setR({ options: { ...r.options, [key]: { ...r.options[key], ...patch } } });
+              const input = 'w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] outline-none focus:border-indigo-500 focus:bg-white transition-colors font-medium text-slate-800';
+              return (
+                <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[14px] font-bold text-slate-800">RSVP (guest response)</p>
+                      <p className="text-[11px] text-slate-400">Choose what your guests can answer. You can change this later by editing the invitation.</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                      <input type="checkbox" className="sr-only peer" checked={r.enabled} onChange={e => setR({ enabled: e.target.checked })} />
+                      <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:bg-emerald-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+                    </label>
+                  </div>
+
+                  {r.enabled && (
+                    <>
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Heading</label>
+                        <input className={input} maxLength={80} value={r.title} onChange={e => setR({ title: e.target.value })} />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Message to guests</label>
+                        <input className={input} maxLength={200} value={r.message} onChange={e => setR({ message: e.target.value })} />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Answer options</label>
+                        {[['attending', 'Attending'], ['attending_family', 'With family'], ['not_attending', 'Not attending']].map(([key, name]) => (
+                          <div key={key} className="flex items-center gap-2">
+                            <input type="checkbox" checked={r.options[key].enabled}
+                              onChange={e => setOpt(key, { enabled: e.target.checked })}
+                              className="w-4 h-4 rounded text-purple-600 border-slate-300 shrink-0" title={`Show "${name}"`} />
+                            <input className={`${input} ${r.options[key].enabled ? '' : 'opacity-50'}`} maxLength={60}
+                              disabled={!r.options[key].enabled}
+                              value={r.options[key].label}
+                              onChange={e => setOpt(key, { label: e.target.value })}
+                              placeholder={name} />
+                          </div>
+                        ))}
+                        {/* Creator's own answers */}
+                        {r.extraOptions.map((opt, i) => (
+                          <div key={opt.key} className="flex items-center gap-2">
+                            <span className="w-4 h-4 rounded bg-purple-600 text-white flex items-center justify-center shrink-0"><Check size={11} strokeWidth={3} /></span>
+                            <input className={input} maxLength={60} value={opt.label} placeholder="Your answer, e.g. Will join for lunch only"
+                              onChange={e => setR({ extraOptions: r.extraOptions.map((o, j) => j === i ? { ...o, label: e.target.value } : o) })} />
+                            <button type="button" title="Remove this answer"
+                              onClick={() => setR({ extraOptions: r.extraOptions.filter((_, j) => j !== i) })}
+                              className="w-9 h-9 shrink-0 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center hover:bg-rose-100">
+                              <X size={15} />
+                            </button>
+                          </div>
+                        ))}
+                        {r.extraOptions.length < 6 && (
+                          <button type="button"
+                            onClick={() => setR({ extraOptions: [...r.extraOptions, { key: `custom_${Date.now().toString(36)}`, label: '' }] })}
+                            className="w-full py-2.5 rounded-xl border-2 border-dashed border-purple-200 text-purple-600 text-[13px] font-bold hover:bg-purple-50">
+                            + Add answer
+                          </button>
+                        )}
+                        {!['attending', 'attending_family', 'not_attending'].some(k => r.options[k].enabled) && !r.extraOptions.some(o => o.label.trim()) && (
+                          <p className="text-[11px] font-semibold text-rose-500">Keep at least one answer.</p>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
 
             <button 
               type="submit"

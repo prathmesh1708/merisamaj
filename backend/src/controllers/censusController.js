@@ -1,6 +1,8 @@
 const User = require('../models/User');
 const Event = require('../models/Event');
 const CensusUpdateRequest = require('../models/CensusUpdateRequest');
+const Family = require('../models/Family');
+const FamilyMember = require('../models/FamilyMember');
 const { applyScopeFilter, inheritTenantPayload } = require('../utils/queryScopeHelper');
 const { createNotification } = require('../services/notificationService');
 const { sendPushNotification } = require('../services/pushNotificationService');
@@ -48,11 +50,69 @@ const isJointFamily = (user) => {
   return hasJointRelation;
 };
 
+/**
+ * Family Tree context for the census.
+ * Users who belong to a Family are counted from approved FamilyMember records instead
+ * of their own familyMembers[] array, so a relative who later registered and linked
+ * their account is counted exactly once (as a registered user), and pending/declined
+ * additions don't appear in the Jangana until approved.
+ *
+ * Returns Map<userId, { isHead, familyCode, members[] }> where members are shaped like
+ * legacy familyMembers entries plus `isLinked`.
+ */
+const buildFamilyContext = async (users) => {
+  const ctx = new Map();
+  const familyIds = [...new Set(users.filter(u => u.familyId).map(u => u.familyId.toString()))];
+  if (familyIds.length === 0) return ctx;
+
+  const [families, records] = await Promise.all([
+    Family.find({ _id: { $in: familyIds }, status: 'active' }).select('familyCode headUserId').lean(),
+    FamilyMember.find({
+      familyId: { $in: familyIds },
+      isRemoved: false,
+      approvalStatus: 'approved',
+      linkStatus: { $ne: 'declined' },
+      relationToHead: { $ne: 'Self' }
+    }).select('familyId userId name relationToHead relationNote gender dob age phone maritalStatus').lean()
+  ]);
+
+  const recordsByFamily = new Map();
+  records.forEach(r => {
+    const key = r.familyId.toString();
+    if (!recordsByFamily.has(key)) recordsByFamily.set(key, []);
+    recordsByFamily.get(key).push({
+      name: r.name,
+      relation: r.relationToHead === 'Relative' && r.relationNote ? r.relationNote : r.relationToHead,
+      gender: r.gender,
+      dob: r.dob,
+      age: r.age,
+      phone: r.phone,
+      maritalStatus: r.maritalStatus,
+      isLinked: !!r.userId
+    });
+  });
+
+  const familyById = new Map(families.map(f => [f._id.toString(), f]));
+  users.forEach(u => {
+    if (!u.familyId) return;
+    const family = familyById.get(u.familyId.toString());
+    if (!family) return;
+    ctx.set(u._id.toString(), {
+      isHead: family.headUserId.toString() === u._id.toString(),
+      familyCode: family.familyCode,
+      members: recordsByFamily.get(family._id.toString()) || []
+    });
+  });
+  return ctx;
+};
+
 // GET /api/v1/member/census/summary (or /head/census/summary, /admin/census/summary)
 exports.getCensusSummary = async (req, res) => {
   try {
     const commId = (req.communityId || req.user?.communityId?._id || req.user?.communityId || 'global').toString();
-    const cacheKey = `census_summary_${commId}`;
+    // Optional ?city= narrows every number to that city (applyScopeFilter reads it).
+    const selectedCity = (req.query.city && req.query.city !== 'all' && req.query.city !== 'All') ? String(req.query.city).trim() : '';
+    const cacheKey = `census_summary_${commId}_${selectedCity.toLowerCase() || 'all'}`;
     const cached = cacheService.get(cacheKey);
     if (cached) {
       return res.status(200).json(cached);
@@ -61,11 +121,14 @@ exports.getCensusSummary = async (req, res) => {
     const filter = applyScopeFilter(req, { accountStatus: { $ne: 'deleted' } });
 
     const users = await User.find(filter)
-      .select('name gender dob city maritalStatus qualification profession phone role communityId familyMembers accountStatus profileImage avatar')
+      .select('name gender dob city maritalStatus qualification profession phone role communityId familyMembers familyId accountStatus profileImage avatar')
       .lean();
+    const familyContext = await buildFamilyContext(users);
 
     let totalUsers = users.length;
     let totalEmbeddedMembers = 0;
+    let inactiveMembersCount = 0;
+    let dummyMembersCount = 0;
 
     let males = [];
     let females = [];
@@ -90,7 +153,9 @@ exports.getCensusSummary = async (req, res) => {
         phone: u.phone || '',
         avatar: u.profileImage || u.avatar || null,
         maritalStatus: rawStatus ? classifyMaritalStatus(rawStatus) : (uAge < 18 ? 'Single' : 'Not Specified'),
-        active: u.accountStatus === 'active',
+        // Registered on MeriSamaj = Active (unless deactivated/blocked)
+        active: !['inactive', 'blocked'].includes(u.accountStatus),
+        memberStatus: 'Active',
         relation: 'Head',
         education: u.qualification || 'Graduate',
         profession: u.profession || 'Professional'
@@ -113,9 +178,14 @@ exports.getCensusSummary = async (req, res) => {
         else ageBrackets['50+']++;
       }
 
-      // Process embedded family members
-      const famMembers = Array.isArray(u.familyMembers) ? u.familyMembers : [];
-      totalEmbeddedMembers += famMembers.length;
+      // Process family members — from Family Tree records when the user has a family,
+      // otherwise from the legacy embedded array.
+      const famCtx = familyContext.get(u._id.toString());
+      // Non-head members of a Family are covered by their head's family unit
+      if (famCtx && !famCtx.isHead) return;
+      const famMembers = famCtx ? famCtx.members : (Array.isArray(u.familyMembers) ? u.familyMembers : []);
+      // Linked relatives are registered users, already counted above as primary members
+      totalEmbeddedMembers += famMembers.filter(fm => !fm.isLinked).length;
 
       const famMales = [];
       const famFemales = [];
@@ -135,37 +205,52 @@ exports.getCensusSummary = async (req, res) => {
           city: uCity,
           phone: fm.phone || fm.mobile || u.phone || '',
           maritalStatus: fmRawStatus ? classifyMaritalStatus(fmRawStatus) : 'Not Specified',
-          active: true,
+          // Family-added relatives without a MeriSamaj account are inactive (dummy = no mobile)
+          active: false,
+          memberStatus: (fm.phone || fm.mobile) ? 'Inactive' : 'Dummy',
+          isFamilyRecord: true,
           relation: fm.relation || 'Family Member',
           education: 'Graduate',
           profession: 'Family Member'
         };
 
+        // Linked relatives are registered users, already counted as primary members —
+        // list them in the family unit only
+        const countGlobally = !fm.isLinked;
+        if (countGlobally) {
+          if (fm.phone || fm.mobile) inactiveMembersCount++;
+          else dummyMembersCount++;
+        }
+        const bumpAgeBracket = () => {
+          if (!countGlobally) return;
+          if (fmAge >= 18 && fmAge <= 25) ageBrackets['18-25']++;
+          else if (fmAge >= 26 && fmAge <= 35) ageBrackets['26-35']++;
+          else if (fmAge >= 36 && fmAge <= 50) ageBrackets['36-50']++;
+          else ageBrackets['50+']++;
+        };
+
         if (isChild && fmAge < 18) {
-          kids.push({ ...fmObj, gender: isFemale ? 'Girl' : 'Boy' });
+          if (countGlobally) {
+            kids.push({ ...fmObj, gender: isFemale ? 'Girl' : 'Boy' });
+            ageBrackets['0-17']++;
+          }
           famKids.push({ name: fm.name, age: fmAge, gender: isFemale ? 'Girl' : 'Boy', relation: fm.relation });
-          ageBrackets['0-17']++;
         } else if (isFemale) {
-          females.push(fmObj);
+          if (countGlobally) females.push(fmObj);
           famFemales.push({ name: fm.name, age: fmAge, relation: fm.relation });
-          if (fmAge >= 18 && fmAge <= 25) ageBrackets['18-25']++;
-          else if (fmAge >= 26 && fmAge <= 35) ageBrackets['26-35']++;
-          else if (fmAge >= 36 && fmAge <= 50) ageBrackets['36-50']++;
-          else ageBrackets['50+']++;
+          bumpAgeBracket();
         } else {
-          males.push(fmObj);
+          if (countGlobally) males.push(fmObj);
           famMales.push({ name: fm.name, age: fmAge, relation: fm.relation });
-          if (fmAge >= 18 && fmAge <= 25) ageBrackets['18-25']++;
-          else if (fmAge >= 26 && fmAge <= 35) ageBrackets['26-35']++;
-          else if (fmAge >= 36 && fmAge <= 50) ageBrackets['36-50']++;
-          else ageBrackets['50+']++;
+          bumpAgeBracket();
         }
       });
 
       // Classify Family Unit
-      const joint = isJointFamily(u);
+      const joint = isJointFamily({ familyMembers: famMembers });
       const familyUnit = {
         id: `fam_${u._id}`,
+        familyCode: famCtx ? famCtx.familyCode : null,
         name: `${u.name} परिवार`,
         headId: u._id,
         headName: u.name,
@@ -193,10 +278,24 @@ exports.getCensusSummary = async (req, res) => {
     const totalMembers = totalUsers + totalEmbeddedMembers;
 
     // Active Cities Breakdown list
-    const citiesBreakdown = Object.keys(cityMap).map(cityName => ({
+    let citiesBreakdown = Object.keys(cityMap).map(cityName => ({
       name: cityName,
       count: cityMap[cityName]
     })).sort((a, b) => b.count - a.count);
+
+    // When one city is selected, still return every city of the community so the
+    // member can switch to another one.
+    if (selectedCity) {
+      const reqAllCities = { ...req, query: { ...req.query, city: undefined } };
+      const allFilter = applyScopeFilter(reqAllCities, { accountStatus: { $ne: 'deleted' } });
+      const grouped = await User.aggregate([
+        { $match: allFilter },
+        { $group: { _id: { $ifNull: ['$city', 'Indore'] }, count: { $sum: 1 } } }
+      ]);
+      citiesBreakdown = grouped
+        .map(g => ({ name: g._id || 'Indore', count: g.count }))
+        .sort((a, b) => b.count - a.count);
+    }
 
     // Active Events Count from Event model
     const eventFilter = applyScopeFilter(req, { isDeleted: { $ne: true } });
@@ -226,6 +325,10 @@ exports.getCensusSummary = async (req, res) => {
           totalMembers,
           totalUsers,
           totalEmbeddedMembers,
+          // Active = registered on MeriSamaj; Inactive/Dummy = added by family, not registered
+          activeMembersCount: totalUsers,
+          inactiveMembersCount,
+          dummyMembersCount,
           malesCount: males.length,
           femalesCount: females.length,
           kidsCount: kids.length,
@@ -241,6 +344,7 @@ exports.getCensusSummary = async (req, res) => {
         kids,
         families: [...jointFamilies, ...nuclearFamilies],
         citiesBreakdown,
+        selectedCity,
         ageBrackets
       }
     };
@@ -257,6 +361,8 @@ exports.getCensusSummary = async (req, res) => {
 exports.getCensusMembers = async (req, res) => {
   try {
     const { gender, city, ageGroup, maritalStatus, search } = req.query;
+    // status: all | active (registered) | inactive (approved family-added members without an account)
+    const status = (req.query.status || 'all').toLowerCase();
 
     const baseFilter = { accountStatus: { $ne: 'deleted' } };
     if (gender && gender !== 'all') {
@@ -271,18 +377,20 @@ exports.getCensusMembers = async (req, res) => {
 
     const filter = applyScopeFilter(req, baseFilter);
 
-    if (search && search.trim()) {
-      const q = search.trim();
-      const regex = new RegExp(q, 'i');
-      filter.$or = [
-        { name: regex },
-        { phone: regex },
-        { city: regex },
-        { profession: regex }
-      ];
+    const searchRegex = search && search.trim()
+      ? new RegExp(search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
+      : null;
+    if (searchRegex) {
+      // AND with the community scope ($or) instead of overwriting it
+      filter.$and = [...(filter.$and || []), { $or: [
+        { name: searchRegex },
+        { phone: searchRegex },
+        { city: searchRegex },
+        { profession: searchRegex }
+      ] }];
     }
 
-    const users = await User.find(filter)
+    const users = status === 'inactive' ? [] : await User.find(filter)
       .select('name gender dob city maritalStatus qualification profession phone role communityId familyMembers accountStatus')
       .lean();
 
@@ -298,12 +406,57 @@ exports.getCensusMembers = async (req, res) => {
         city: u.city || 'Indore',
         phone: u.phone || '',
         maritalStatus: u.maritalStatus || 'Married',
-        active: u.accountStatus === 'active',
+        active: !['inactive', 'blocked'].includes(u.accountStatus),
+        memberStatus: 'Active',
         relation: 'Head',
         education: u.qualification || 'Graduate',
         profession: u.profession || 'Professional'
       });
     });
+
+    // Approved family-added members without an account: listed as Inactive (Dummy = no mobile),
+    // counted in the Jangana like everyone else
+    if (status !== 'active') {
+      const recordBase = {
+        isRemoved: false,
+        userId: null,
+        approvalStatus: 'approved',
+        linkStatus: { $ne: 'declined' },
+        relationToHead: { $ne: 'Self' }
+      };
+      if (gender && gender !== 'all') recordBase.gender = gender === 'male' || gender === 'Male' ? 'Male' : 'Female';
+      if (city && city !== 'all') recordBase.city = city;
+      if (maritalStatus && maritalStatus !== 'all') recordBase.maritalStatus = maritalStatus;
+      const recordFilter = applyScopeFilter(req, recordBase);
+      if (searchRegex) {
+        recordFilter.$and = [...(recordFilter.$and || []), { $or: [{ name: searchRegex }, { phone: searchRegex }, { city: searchRegex }] }];
+      }
+
+      const records = await FamilyMember.find(recordFilter)
+        .populate('familyId', 'familyCode headUserId')
+        .populate('addedBy', 'name')
+        .lean();
+      records.forEach(r => {
+        members.push({
+          id: r._id,
+          name: r.name,
+          fatherName: r.addedBy?.name ? `${r.addedBy.name}'s Family` : 'Family Member',
+          gender: r.gender || '',
+          age: computeAge(r.dob, r.age),
+          city: r.city || '',
+          phone: r.phone || '',
+          maritalStatus: r.maritalStatus || '',
+          active: false,
+          memberStatus: r.phone ? 'Inactive' : 'Dummy',
+          isFamilyRecord: true,
+          relation: r.relationToHead === 'Relative' && r.relationNote ? r.relationNote : r.relationToHead,
+          familyCode: r.familyId?.familyCode || '',
+          memberCode: r.memberCode,
+          education: '',
+          profession: r.occupation || 'Family Member'
+        });
+      });
+    }
 
     res.status(200).json({
       success: true,

@@ -1,11 +1,11 @@
-import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, UserPlus, Users, Camera, Trash2, Edit3, Phone, Calendar, Heart, Briefcase, Network, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { ArrowLeft, UserPlus, Users, Camera, Trash2, Edit3, Phone, Calendar, Heart, Briefcase, Network, ChevronLeft, ChevronRight, Mail, IdCard, Link2, Clock } from 'lucide-react';
 import { Avatar } from '../../components/common/Avatar';
 import { useData } from '../../context/DataProvider';
 import { t } from '../../utils/translations';
 import { PageHeader } from '../../components/layout/PageHeader';
 import InteractiveFamilyTree from '../../components/family/InteractiveFamilyTree';
+import { familyService } from '../../services/familyService';
 
 const CustomSelect = ({ value, onChange, options }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -43,20 +43,68 @@ const CustomSelect = ({ value, onChange, options }) => {
 };
 
 const FamilyPage = () => {
-  const navigate = useNavigate();
-  const { currentUser, addFamilyMember, deleteFamilyMember, updateFamilyMember, language, setLanguage } = useData();
+  const { currentUser, syncFamilyMembers, language, setLanguage } = useData();
   const [activeTab, setActiveTab] = useState('tree'); // tree | list | add
   const [editingMember, setEditingMember] = useState(null);
   const [memberToDelete, setMemberToDelete] = useState(null);
+  const [familyView, setFamilyView] = useState({ family: null, self: null, members: [], invitations: [] });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState(null); // { type: 'success' | 'error', message }
 
-  const handleSave = (member) => {
-    if (editingMember) {
-      updateFamilyMember(editingMember.id, member);
+  const showNotice = (message, type = 'success') => {
+    setNotice({ message, type });
+    setTimeout(() => setNotice(null), 4000);
+  };
+
+  const applyView = (view) => {
+    setFamilyView(prev => ({ ...prev, ...view }));
+    if (view?.members) syncFamilyMembers(view.members);
+  };
+
+  useEffect(() => {
+    familyService.getMyFamily()
+      .then(applyView)
+      .catch(err => showNotice(err.response?.data?.message || 'Could not load your family.', 'error'))
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleSave = async (member) => {
+    setSaving(true);
+    try {
+      const res = editingMember
+        ? await familyService.updateMember(editingMember.id, member)
+        : await familyService.addMember(member);
+      applyView(res.data);
+      showNotice(res.message);
       setEditingMember(null);
-    } else {
-      addFamilyMember(member);
+      setActiveTab('list');
+    } catch (err) {
+      showNotice(err.response?.data?.message || 'Could not save family member.', 'error');
+    } finally {
+      setSaving(false);
     }
-    setActiveTab('list');
+  };
+
+  const handleDelete = async (member) => {
+    try {
+      const res = await familyService.removeMember(member.id);
+      applyView(res.data);
+      showNotice(res.message);
+    } catch (err) {
+      showNotice(err.response?.data?.message || 'Could not remove family member.', 'error');
+    }
+  };
+
+  const handleInvitation = async (invitation, accept) => {
+    try {
+      const res = await familyService.respondToInvitation(invitation.id, accept);
+      applyView({ ...res.data, invitations: familyView.invitations.filter(i => i.id !== invitation.id) });
+      showNotice(res.message);
+    } catch (err) {
+      showNotice(err.response?.data?.message || 'Could not respond to invitation.', 'error');
+    }
   };
 
   const handleCancel = () => {
@@ -64,14 +112,17 @@ const FamilyPage = () => {
     setActiveTab('list');
   };
 
+  // Rejected/declined entries stay visible in the list (with their status) but not in the tree
+  const treeMembers = familyView.members.filter(m => m.approvalStatus !== 'rejected' && m.linkStatus !== 'declined');
+
   return (
     <div className="min-h-screen bg-surface flex flex-col pb-6 animate-fade-in">
       {/* Header */}
-      <PageHeader 
-        title="Family Details" 
-        subtitle="Manage family members" 
+      <PageHeader
+        title="Family Details"
+        subtitle="Manage family members"
         rightContent={
-          <button 
+          <button
             onClick={() => setLanguage(language === 'en' ? 'hi' : 'en')}
             className="w-10 h-10 rounded-[14px] flex items-center justify-center text-brand-primary text-[11px] font-black uppercase press-scale"
             style={{ background: 'rgba(124,58,237,0.07)', border: '1px solid rgba(124,58,237,0.15)' }}
@@ -81,11 +132,91 @@ const FamilyPage = () => {
         }
       />
 
+      {notice && (
+        <div className={`fixed top-20 left-1/2 -translate-x-1/2 z-[60] w-[calc(100%-32px)] max-w-sm px-4 py-3 rounded-2xl shadow-xl text-white text-xs font-bold animate-fade-in ${notice.type === 'error' ? 'bg-rose-600' : 'bg-emerald-600'}`}>
+          {notice.message}
+        </div>
+      )}
+
       <div className="flex-1 px-5 pt-24 pb-20 max-w-md mx-auto w-full">
         <div className="flex flex-col h-full gap-4">
+          {/* Invitations: someone added my mobile number to their family tree */}
+          {familyView.invitations?.map(inv => (
+            <div key={inv.id} className="bg-white rounded-[22px] p-4 border-2 border-brand-primary/30 shadow-sm space-y-3 animate-fade-in-up">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-[14px] bg-purple-50 flex items-center justify-center text-brand-primary shrink-0">
+                  <Mail size={18} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[13px] font-black text-slate-800">Family Tree Invitation</p>
+                  <p className="text-[11px] text-slate-500 font-semibold leading-relaxed mt-0.5">
+                    <span className="text-slate-700 font-bold">{inv.addedByName || inv.headName}</span> added you as <span className="text-brand-primary font-bold">{inv.relationToHead}</span>{inv.headName ? ` of ${inv.headName}` : ''} in family <span className="text-slate-700 font-bold">{inv.familyCode}</span>.
+                  </p>
+                  <p className="text-[10px] text-slate-400 font-semibold mt-1">Accepting links your account to this family with Member ID {inv.memberCode}.</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => handleInvitation(inv, false)} className="flex-1 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50 border border-slate-100 press-scale">
+                  Reject
+                </button>
+                <button onClick={() => handleInvitation(inv, true)} className="flex-1 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wider text-white bg-gradient-to-r from-brand-primary to-purple-600 shadow-md shadow-purple-500/20 press-scale">
+                  Accept
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {/* Family ID card */}
+          <div className="bg-gradient-to-br from-brand-primary to-purple-600 rounded-[22px] p-4 text-white shadow-lg shadow-purple-500/20 shrink-0">
+            {loading ? (
+              <p className="text-xs font-semibold opacity-80">Loading family…</p>
+            ) : familyView.family ? (
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[9px] font-black uppercase tracking-widest opacity-70">Family ID</p>
+                  <p className="text-lg font-black tracking-wide">{familyView.family.familyCode}</p>
+                  <p className="text-[10px] font-semibold opacity-80 truncate">
+                    Head: {familyView.family.isHead ? 'You' : familyView.family.head?.name}
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-[9px] font-black uppercase tracking-widest opacity-70">Your Member ID</p>
+                  <p className="text-sm font-black">{familyView.self?.memberCode || '—'}</p>
+                  <p className="text-[10px] font-semibold opacity-80">{familyView.members.length + 1} members</p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <IdCard size={22} className="opacity-80 shrink-0" />
+                <p className="text-[11px] font-semibold leading-relaxed">Add your first family member to get your Family ID and Member ID.</p>
+              </div>
+            )}
+          </div>
+
+          {/* Jangana summary for this family (includes you) */}
+          {familyView.summary && (
+            <div className="bg-white rounded-[22px] p-4 border border-purple-100/30 shadow-sm shrink-0">
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Jangana Summary</p>
+              <div className="grid grid-cols-5 gap-1.5 text-center">
+                {[
+                  { label: 'Total', value: familyView.summary.total, className: 'text-slate-800' },
+                  { label: 'Active', value: familyView.summary.active, className: 'text-emerald-600' },
+                  { label: 'Inactive / Dummy', value: familyView.summary.inactive + familyView.summary.dummy, className: 'text-rose-500' },
+                  { label: 'Counted', value: familyView.summary.counted, className: 'text-brand-primary' },
+                  { label: 'Pending', value: familyView.summary.pending, className: 'text-amber-600' }
+                ].map(item => (
+                  <div key={item.label} className="bg-slate-50 rounded-xl py-2 px-1">
+                    <p className={`text-base font-black ${item.className}`}>{item.value}</p>
+                    <p className="text-[8px] font-bold text-slate-500 uppercase leading-tight mt-0.5">{item.label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Tab Switcher */}
           <div className="flex bg-[#7C3AED]/5 p-1 rounded-2xl border border-purple-100/30 shrink-0">
-            <button 
+            <button
               onClick={() => {
                 setActiveTab('tree');
                 setEditingMember(null);
@@ -95,7 +226,7 @@ const FamilyPage = () => {
               <Network size={16} className="mb-0.5" />
               Family Tree
             </button>
-            <button 
+            <button
               onClick={() => {
                 setActiveTab('add');
                 setEditingMember(null);
@@ -105,7 +236,7 @@ const FamilyPage = () => {
               <UserPlus size={16} className="mb-0.5" />
               {editingMember ? 'Edit' : 'Add Member'}
             </button>
-            <button 
+            <button
               onClick={() => {
                 setActiveTab('list');
                 setEditingMember(null);
@@ -118,30 +249,32 @@ const FamilyPage = () => {
           </div>
 
           {activeTab === 'tree' ? (
-            <InteractiveFamilyTree 
-              members={currentUser.familyMembers} 
-              currentUser={currentUser} 
-              onEditMember={(member) => { setEditingMember(member); setActiveTab('add'); }}
+            <InteractiveFamilyTree
+              members={treeMembers}
+              currentUser={currentUser}
+              onEditMember={(member) => { if (member.canManage) { setEditingMember(member); setActiveTab('add'); } }}
             />
           ) : activeTab === 'list' ? (
-            <FamilyListView 
-              members={currentUser.familyMembers} 
+            <FamilyListView
+              members={familyView.members}
               onEdit={(member) => { setEditingMember(member); setActiveTab('add'); }}
               onDelete={(member) => setMemberToDelete(member)}
               language={language}
             />
           ) : (
-            <FamilyMemberForm 
-              initialMember={editingMember} 
-              onCancel={handleCancel} 
-              onSave={handleSave} 
-              language={language} 
+            <FamilyMemberForm
+              key={editingMember?.id || 'new'}
+              initialMember={editingMember}
+              onCancel={handleCancel}
+              onSave={handleSave}
+              saving={saving}
+              language={language}
             />
           )}
         </div>
       </div>
 
-      {/* Delete Confirmation Modal inside Mobile Frame */}
+      {/* Remove Confirmation Modal inside Mobile Frame */}
       {memberToDelete && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-6 animate-fade-in">
           <div className="bg-white rounded-3xl p-6 w-full max-w-xs shadow-xl border border-gray-100 animate-zoom-in text-center space-y-4">
@@ -149,26 +282,30 @@ const FamilyPage = () => {
               <Trash2 size={22} className="text-red-500 animate-pulse" />
             </div>
             <div className="space-y-1.5">
-              <h3 className="text-sm font-black text-slate-800">Delete Family Member?</h3>
+              <h3 className="text-sm font-black text-slate-800">Remove Family Member?</h3>
               <p className="text-xs text-slate-500 leading-relaxed font-semibold">
-                Are you sure you want to remove <span className="text-slate-700 font-bold">"{memberToDelete.name}"</span>? This action cannot be undone.
+                {memberToDelete.isLinked ? (
+                  <><span className="text-slate-700 font-bold">"{memberToDelete.name}"</span> has their own account. They will move to a separate family and keep their Member ID.</>
+                ) : (
+                  <>Are you sure you want to remove <span className="text-slate-700 font-bold">"{memberToDelete.name}"</span> from your family?</>
+                )}
               </p>
             </div>
             <div className="flex gap-2.5 pt-2">
-              <button 
+              <button
                 onClick={() => setMemberToDelete(null)}
                 className="flex-1 py-3 bg-slate-50 hover:bg-slate-100 text-slate-500 text-xs font-bold rounded-2xl border border-slate-200 transition-all press-scale"
               >
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={() => {
-                  deleteFamilyMember(memberToDelete.id);
+                  handleDelete(memberToDelete);
                   setMemberToDelete(null);
                 }}
                 className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded-2xl transition-all press-scale shadow-md shadow-red-200"
               >
-                Delete
+                Remove
               </button>
             </div>
           </div>
@@ -178,7 +315,15 @@ const FamilyPage = () => {
   );
 };
 
-const FamilyMemberForm = ({ initialMember, onCancel, onSave, language }) => {
+const RELATION_OPTIONS = [
+  'Grandfather', 'Grandmother', 'Father', 'Mother', 'Father-in-law', 'Mother-in-law', 'Uncle', 'Aunt',
+  'Spouse', 'Brother', 'Sister', 'Brother-in-law', 'Sister-in-law', 'Son', 'Daughter',
+  'Son-in-law', 'Daughter-in-law', 'Nephew', 'Niece', 'Grandson', 'Granddaughter'
+];
+
+const FamilyMemberForm = ({ initialMember, onCancel, onSave, saving, language }) => {
+  // Linked members manage their own profile — only the relation can be changed here
+  const isLinked = !!initialMember?.isLinked;
   const [form, setForm] = useState({ 
     name: initialMember?.name || '', 
     relation: initialMember?.relation || 'Spouse', 
@@ -260,7 +405,8 @@ const FamilyMemberForm = ({ initialMember, onCancel, onSave, language }) => {
             placeholder="Enter full name" 
             value={form.name} 
             onChange={(e) => setForm({...form, name: e.target.value})} 
-            className="w-full premium-input font-semibold" 
+            disabled={isLinked}
+            className="w-full premium-input font-semibold disabled:opacity-60" 
           />
         </div>
 
@@ -269,23 +415,39 @@ const FamilyMemberForm = ({ initialMember, onCancel, onSave, language }) => {
           <CustomSelect 
             value={form.relation} 
             onChange={(val) => setForm({...form, relation: val})} 
-            options={['Grandfather', 'Grandmother', 'Father', 'Mother', 'Uncle', 'Aunt', 'Spouse', 'Brother', 'Sister', 'Son', 'Daughter', 'Nephew', 'Niece', 'Grandson', 'Granddaughter']}
+            options={RELATION_OPTIONS}
           />
         </div>
 
+        {isLinked ? (
+          <p className="text-[11px] text-slate-500 font-semibold bg-slate-50 rounded-xl px-3 py-2.5 border border-slate-100">
+            {initialMember.name} has their own MeriSamaj account and manages their own details. You can only change the relation here.
+          </p>
+        ) : (
+          <p className="text-[11px] text-slate-500 font-semibold bg-purple-50/50 rounded-xl px-3 py-2.5 border border-purple-100/40">
+            New members are reviewed by your Local Head and Community Head before they appear in the Jangana. If the mobile number is on MeriSamaj, they'll be invited to link their account.
+          </p>
+        )}
+
         <div>
-          <label className="text-[10px] font-extrabold text-text-secondary uppercase tracking-widest block mb-1.5 px-0.5">Mobile Number</label>
+          <label className="text-[10px] font-extrabold text-text-secondary uppercase tracking-widest block mb-1.5 px-0.5">Mobile Number <span className="normal-case tracking-normal text-slate-400">(optional)</span></label>
           <input 
             type="tel" 
-            placeholder="Enter mobile number" 
+            placeholder="Leave blank for children / no mobile" 
             value={form.phone} 
             maxLength={10}
+            disabled={isLinked}
             onChange={(e) => {
               const val = e.target.value.replace(/[^0-9]/g, '').slice(0, 10);
               setForm({...form, phone: val});
             }}
             className="w-full premium-input font-semibold" 
           />
+          <p className="text-[10px] text-slate-400 font-semibold mt-1.5 px-0.5">
+            {form.phone
+              ? 'They will be Inactive until they register on MeriSamaj with this number, then Active.'
+              : 'Without a mobile number this member is added as a Dummy ID (e.g. a child).'}
+          </p>
         </div>
 
         <div className="relative">
@@ -368,16 +530,17 @@ const FamilyMemberForm = ({ initialMember, onCancel, onSave, language }) => {
           <button onClick={onCancel} className="flex-1 py-3.5 rounded-xl text-xs font-bold uppercase tracking-wider text-slate-500 bg-slate-50 border border-slate-100 hover:bg-slate-100 press-scale transition-all duration-200">
             Cancel
           </button>
-          <button 
-            onClick={() => onSave({
-              ...form, 
-              id: initialMember?.id || Date.now().toString(), 
-              initials: form.name.split(' ').map(n=>n[0]).join('').substring(0,2).toUpperCase() || 'UN'
-            })} 
-            className="flex-1 py-3.5 rounded-xl text-xs font-bold uppercase tracking-wider text-white bg-gradient-to-r from-brand-primary to-purple-600 hover:from-purple-600 hover:to-brand-primary shadow-lg shadow-purple-500/25 press-scale transition-all duration-300"
-            disabled={!form.name}
+          <button
+            onClick={() => {
+              const payload = isLinked ? { relation: form.relation } : { ...form };
+              // Relation is shown relative to you; only send it when changed so it isn't re-derived
+              if (initialMember && form.relation === initialMember.relation) delete payload.relation;
+              onSave(payload);
+            }}
+            className="flex-1 py-3.5 rounded-xl text-xs font-bold uppercase tracking-wider text-white bg-gradient-to-r from-brand-primary to-purple-600 hover:from-purple-600 hover:to-brand-primary shadow-lg shadow-purple-500/25 press-scale transition-all duration-300 disabled:opacity-60"
+            disabled={!form.name || saving || (form.phone && form.phone.length !== 10)}
           >
-            Save Member
+            {saving ? 'Saving…' : 'Save Member'}
           </button>
         </div>
       </div>
@@ -387,7 +550,31 @@ const FamilyMemberForm = ({ initialMember, onCancel, onSave, language }) => {
 
 export default FamilyPage;
 
-const FamilyListView = ({ members, onEdit, onDelete, language }) => {
+// Active = has a MeriSamaj account; Inactive = added by family, not registered; Dummy = no mobile
+const ACTIVITY_BADGES = {
+  active: { label: 'Active', className: 'bg-emerald-50 text-emerald-700' },
+  inactive: { label: 'Inactive', className: 'bg-rose-50 text-rose-600' },
+  dummy: { label: 'Dummy', className: 'bg-rose-50 text-rose-600' }
+};
+
+const JANGANA_BADGES = {
+  counted: { label: 'Counted', className: 'bg-emerald-50 text-emerald-700' },
+  pending: { label: 'Pending approval', className: 'bg-amber-50 text-amber-700' },
+  excluded: { label: 'Not counted', className: 'bg-slate-100 text-slate-500' }
+};
+
+const LINK_BADGES = {
+  invited: { label: 'Invited', className: 'bg-sky-50 text-sky-700' },
+  declined: { label: 'Declined', className: 'bg-slate-100 text-slate-500' }
+};
+
+const Badge = ({ badge, icon: Icon }) => badge ? (
+  <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-md uppercase tracking-wider ${badge.className}`}>
+    {Icon && <Icon size={10} />} {badge.label}
+  </span>
+) : null;
+
+const FamilyListView =({ members, onEdit, onDelete, language }) => {
   const [filterRelation, setFilterRelation] = useState('All');
   
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -447,6 +634,12 @@ const FamilyListView = ({ members, onEdit, onDelete, language }) => {
                 <h3 className="text-[15px] font-bold text-slate-800 truncate">{member.name}</h3>
                 <div className="flex items-center gap-2 mt-1 mb-1.5 flex-wrap">
                   <span className="inline-block px-2 py-0.5 bg-purple-50 text-brand-primary text-[10px] font-bold rounded-md uppercase tracking-wider">{member.relation}</span>
+                  {member.memberCode && (
+                    <span className="inline-block px-2 py-0.5 bg-slate-800 text-white text-[10px] font-bold rounded-md tracking-wider">{member.memberCode}</span>
+                  )}
+                  <Badge badge={ACTIVITY_BADGES[member.activityStatus]} />
+                  <Badge badge={JANGANA_BADGES[member.janganaStatus]} icon={Clock} />
+                  <Badge badge={LINK_BADGES[member.linkStatus]} icon={Link2} />
                   {member.maritalStatus && member.maritalStatus !== 'Single' && (
                     <span className="inline-block px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold rounded-md uppercase tracking-wider">{member.maritalStatus}</span>
                   )}
@@ -457,6 +650,7 @@ const FamilyListView = ({ members, onEdit, onDelete, language }) => {
                   {member.occupation && <p className="flex items-center gap-1.5"><Briefcase size={12} className="text-slate-400" /> {member.occupation}</p>}
                 </div>
               </div>
+              {member.canManage && (
               <div className="flex gap-2 shrink-0">
                 <button onClick={() => onEdit(member)} className="w-9 h-9 rounded-[14px] bg-slate-50 flex items-center justify-center text-slate-500 hover:bg-white hover:text-brand-primary hover:shadow-sm border border-transparent hover:border-purple-100 transition-all active:scale-95">
                   <Edit3 size={15} />
@@ -465,6 +659,7 @@ const FamilyListView = ({ members, onEdit, onDelete, language }) => {
                   <Trash2 size={15} />
                 </button>
               </div>
+              )}
             </div>
           ))}
         </div>

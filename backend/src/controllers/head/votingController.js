@@ -4,7 +4,7 @@ const Community = require('../../models/Community');
 const User = require('../../models/User');
 const { notifyElectionCreated, createBroadcastNotification } = require('../../services/notificationService');
 const { sendPushNotification } = require('../../services/pushNotificationService');
-const { electionFieldsFromBody, normaliseCandidates, publishAndNotify } = require('../../utils/electionAdmin');
+const { electionFieldsFromBody, normaliseCandidates, publishAndNotify, hasNoVoters } = require('../../utils/electionAdmin');
 const { applyScopeFilter, inheritTenantPayload } = require('../../utils/queryScopeHelper');
 
 // Helper to resolve the community ID for write/bind operations
@@ -301,7 +301,7 @@ exports.createElection = async (req, res) => {
       finalScope = 'CUSTOM';
     }
 
-    const newVoting = await Voting.create({
+    const newVoting = new Voting({
       title,
       description,
       type: type || 'Community Election',
@@ -319,6 +319,11 @@ exports.createElection = async (req, res) => {
       ...electionFieldsFromBody(req.body, req.user),
       createdBy
     });
+
+    if (await hasNoVoters(newVoting)) {
+      return res.status(400).json({ status: 'error', success: false, message: "Nobody can vote in this election with the selected voters and locations. Change 'Who can vote' / 'Locations', or untick 'Publish now' to save it as a draft." });
+    }
+    await newVoting.save();
 
     if (newVoting.resultDate && newVoting.resultDate < newVoting.endDate) {
       newVoting.resultDate = newVoting.endDate;
@@ -458,6 +463,9 @@ exports.updateElection = async (req, res) => {
       election.scope = 'COMMUNITY';
     }
 
+    if (await hasNoVoters(election)) {
+      return res.status(400).json({ status: 'error', message: "Nobody can vote in this election with the selected voters and locations. Change 'Who can vote' / 'Locations', or untick 'Publish now' to save it as a draft." });
+    }
     await election.save();
     try { await publishAndNotify(election, req); } catch (e) { console.warn('[Notify] updateElection publish failed:', e.message); }
 

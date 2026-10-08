@@ -146,7 +146,7 @@ export const HeadAuthProvider = ({ children }) => {
   };
 
   return (
-    <HeadAuthContext.Provider value={{ headAuth, headLogin, headLogout, updateHeadUser }}>
+    <HeadAuthContext.Provider value={{ headAuth, setHeadAuth, headLogin, headLogout, updateHeadUser }}>
       {children}
     </HeadAuthContext.Provider>
   );

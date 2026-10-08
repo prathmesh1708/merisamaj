@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { adminVotingService } from '../../services/adminVotingService';
 import { axiosPrivate } from '../../../../core/api/axiosPrivate';
-import ElectionEligibilityFields, { electionFieldDefaults, electionFieldsFromElection } from '../../../../components/election/ElectionEligibilityFields';
+import ElectionEligibilityFields, { electionFieldDefaults, electionFieldsFromElection, withExactTimes, formatElectionTime } from '../../../../components/election/ElectionEligibilityFields';
 
 export const AdminVotingManagement = () => {
   const [elections, setElections] = useState([]);
@@ -290,7 +290,7 @@ export const AdminVotingManagement = () => {
     setCreateSubmitting(true);
     try {
       if (isEditing && editingId) {
-        const res = await adminVotingService.updateElection(editingId, formData);
+        const res = await adminVotingService.updateElection(editingId, withExactTimes(formData));
         if (res.success) {
           showToast(`Successfully updated election "${formData.title}"`);
           setFormData(initialForm);
@@ -298,7 +298,7 @@ export const AdminVotingManagement = () => {
           fetchData();
         }
       } else {
-        const res = await adminVotingService.createElection(formData);
+        const res = await adminVotingService.createElection(withExactTimes(formData));
         if (res.success) {
           showToast(`Successfully launched election "${formData.title}"`);
           setFormData(initialForm);
@@ -958,8 +958,9 @@ export const AdminVotingManagement = () => {
                 <p className="text-[11px] font-bold text-slate-400 uppercase">Description</p>
                 <p className="font-semibold text-slate-800 leading-relaxed">{selectedElection.description}</p>
                 <div className="pt-2 flex flex-wrap gap-4 text-[11px] text-slate-500 font-medium">
-                  <span>Start: {new Date(selectedElection.startDate).toLocaleDateString()}</span>
-                  <span>End: {new Date(selectedElection.endDate).toLocaleDateString()}</span>
+                  <span>Start: {formatElectionTime(selectedElection.startDate)}</span>
+                  <span>End: {formatElectionTime(selectedElection.endDate)}</span>
+                  <span>Result: {formatElectionTime(selectedElection.resultDate || selectedElection.endDate)}</span>
                   <span>Community: {selectedElection.community}</span>
                 </div>
               </div>

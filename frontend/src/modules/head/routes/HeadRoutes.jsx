@@ -26,6 +26,7 @@ import { HeadGroupsPage } from '../pages/groups/HeadGroupsPage';
 import HeadLeadershipManagement from '../pages/leadership/HeadLeadershipManagement';
 import LocalCommunityManagement from '../pages/local-community/LocalCommunityManagement';
 import { HeadCensusManagement } from '../pages/census/HeadCensusManagement';
+import { HeadFamilyRequests } from '../pages/census/HeadFamilyRequests';
 import { HeadNotificationCenter } from '../pages/notifications/HeadNotificationCenter';
 import HeadProfileSettings from '../pages/profile/HeadProfileSettings';
 import CommunitySettings from '../pages/settings/CommunitySettings';
@@ -60,6 +61,7 @@ export const HeadRoutes = () => {
           {/* Member Management Desk */}
           <Route path="members" element={<MemberManagement />} />
           <Route path="census" element={<HeadCensusManagement />} />
+          <Route path="family-requests" element={<HeadFamilyRequests />} />
 
           {/* Other Head views */}
           <Route path="events" element={<EventManagement />} />

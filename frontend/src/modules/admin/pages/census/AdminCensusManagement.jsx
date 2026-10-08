@@ -340,6 +340,7 @@ export const AdminCensusManagement = () => {
                   <th className="p-3">City</th>
                   <th className="p-3">Phone</th>
                   <th className="p-3">Profession</th>
+                  <th className="p-3">Status</th>
                   <th className="p-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -352,7 +353,17 @@ export const AdminCensusManagement = () => {
                     <td className="p-3">{m.city || 'Indore'}</td>
                     <td className="p-3 font-mono">{m.phone || '-'}</td>
                     <td className="p-3">{m.profession || 'Professional'}</td>
+                    <td className="p-3">
+                      {/* Inactive/Dummy = approved family-added member without a MeriSamaj account */}
+                      <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase ${
+                        m.active === false ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-700'
+                      }`}>
+                        {m.memberStatus || (m.active === false ? 'Inactive' : 'Active')}
+                      </span>
+                      {m.familyCode && <span className="block text-[10px] text-slate-400 mt-0.5">{m.familyCode} · {m.relation}</span>}
+                    </td>
                     <td className="p-3 text-right">
+                      {!m.isFamilyRecord && (
                       <button
                         onClick={() => handleDeactivateMember(m.id || m._id)}
                         className="p-1.5 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-100 transition-colors"
@@ -360,6 +371,7 @@ export const AdminCensusManagement = () => {
                       >
                         <Trash2 size={14} />
                       </button>
+                      )}
                     </td>
                   </tr>
                 ))}

@@ -1169,26 +1169,23 @@ export const DataProvider = ({ children }) => {
     await logout();
   };
 
-  const addFamilyMember = (newMember) => {
-    const memberWithId = { ...newMember, id: `f${Date.now()}`, initials: newMember.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() };
-    setCurrentUser(prev => ({
-      ...prev,
-      familyMembers: [...prev.familyMembers, memberWithId]
-    }));
-  };
-
-  const deleteFamilyMember = (memberId) => {
-    setCurrentUser(prev => ({
-      ...prev,
-      familyMembers: prev.familyMembers.filter(m => m.id !== memberId)
-    }));
-  };
-
-  const updateFamilyMember = (memberId, updatedMember) => {
-    setCurrentUser(prev => ({
-      ...prev,
-      familyMembers: prev.familyMembers.map(m => m.id === memberId ? { ...m, ...updatedMember, initials: updatedMember.name ? updatedMember.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : m.initials } : m)
-    }));
+  // Family members live on the server (Family Tree API); this mirrors the latest
+  // list into currentUser so profile counts etc. stay in sync without a refetch.
+  const syncFamilyMembers = (members) => {
+    setCurrentUser(prev => {
+      if (!prev) return prev;
+      const next = {
+        ...prev,
+        familyMembers: members.map(m => ({
+          ...m,
+          recordId: m.id,
+          mobile: m.phone,
+          initials: m.name ? m.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : '?'
+        }))
+      };
+      try { localStorage.setItem('merisamaj_user', JSON.stringify(next)); } catch { /* storage unavailable */ }
+      return next;
+    });
   };
 
   const toggleEventRSVP = async (eventId) => {
@@ -3031,9 +3028,7 @@ export const DataProvider = ({ children }) => {
     loginUser,
     logoutUser,
     updateProfile,
-    addFamilyMember,
-    updateFamilyMember,
-    deleteFamilyMember,
+    syncFamilyMembers,
     members: adaptedMembersList,
     loadMembers,
     admins: adaptedAdminsList,
@@ -3083,9 +3078,7 @@ export const DataProvider = ({ children }) => {
     updateProfile,
     loginUser,
     logoutUser,
-    addFamilyMember,
-    deleteFamilyMember,
-    updateFamilyMember,
+    syncFamilyMembers,
     createPost,
     fetchFeedPosts,
     fetchStoriesList,

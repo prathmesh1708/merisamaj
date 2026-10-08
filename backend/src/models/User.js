@@ -74,7 +74,9 @@ const userSchema = new mongoose.Schema({
   emailPrivacy: { type: String, enum: ['public', 'followers', 'private'], default: 'followers' },
   familyPrivacy: { type: String, enum: ['public', 'followers', 'private'], default: 'followers' },
   
-  // Family Members Array
+  // Family Members Array — legacy/denormalized view. The source of truth is the
+  // Family + FamilyMember collections; services/familyService.js rewrites this array
+  // whenever the family changes so older screens keep working.
   familyMembers: [{
     name: String,
     relation: String,
@@ -83,8 +85,19 @@ const userSchema = new mongoose.Schema({
     gender: String,
     phone: String,
     mobile: String,
-    gotra: String
+    gotra: String,
+    maritalStatus: String,
+    occupation: String,
+    avatar: String,
+    recordId: { type: mongoose.Schema.Types.ObjectId, ref: 'FamilyMember' },
+    memberCode: String,
+    approvalStatus: String,
+    linkStatus: String
   }],
+
+  // Family Tree (Samagra-style): shared Family ID + this person's own Member ID record
+  familyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Family', default: null, index: true },
+  memberRecordId: { type: mongoose.Schema.Types.ObjectId, ref: 'FamilyMember', default: null },
   
   // Preferences (Matrimonial/Other)
   prefEducation: { type: String },

@@ -1,5 +1,6 @@
 const Leadership = require('../../models/Leadership');
 const User = require('../../models/User');
+const FamilyMember = require('../../models/FamilyMember');
 const mongoose = require('mongoose');
 const { applyScopeFilter } = require('../../utils/queryScopeHelper');
 const { createNotification } = require('../../services/notificationService');
@@ -204,11 +205,23 @@ exports.getCommunityLeadership = async (req, res) => {
     const statsUserFilter = applyScopeFilter(req, { accountStatus: { $ne: 'deleted' } });
     
     const primaryUsersCount = await User.countDocuments(statsUserFilter).catch(() => 0);
-    const usersWithFam = await User.find(statsUserFilter).select('familyMembers').lean();
+    const usersWithFam = await User.find(statsUserFilter).select('familyMembers familyId').lean();
     let familyMembersCount = 0;
+    const familyIds = new Set();
     usersWithFam.forEach(u => {
-      if (Array.isArray(u.familyMembers)) familyMembersCount += u.familyMembers.length;
+      if (u.familyId) familyIds.add(u.familyId.toString());
+      else if (Array.isArray(u.familyMembers)) familyMembersCount += u.familyMembers.length;
     });
+    // Family Tree members: approved, not linked to an account (registered users are counted above)
+    if (familyIds.size > 0) {
+      familyMembersCount += await FamilyMember.countDocuments({
+        familyId: { $in: [...familyIds] },
+        isRemoved: false,
+        approvalStatus: 'approved',
+        userId: null,
+        linkStatus: { $ne: 'declined' }
+      }).catch(() => 0);
+    }
 
     const totalMembersCount = primaryUsersCount + familyMembersCount;
     const distinctStates = await User.distinct('state', statsUserFilter).catch(() => []);

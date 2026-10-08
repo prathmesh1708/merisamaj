@@ -317,11 +317,17 @@ export const CensusPage = () => {
     }
   }, [location.state]);
 
+  // City the summary is shown for: the member's own city by default, '' = all cities.
+  const [summaryCity, setSummaryCity] = useState(null);
+  useEffect(() => {
+    if (summaryCity === null && currentUser) setSummaryCity(currentUser.city || '');
+  }, [currentUser, summaryCity]);
+
   const fetchLiveCensusData = async () => {
     try {
       setLoadingCensus(true);
       setCensusError(null);
-      const res = await axiosPrivate.get('/member/census/summary');
+      const res = await axiosPrivate.get('/member/census/summary', { params: summaryCity ? { city: summaryCity } : {} });
       if (res.data && res.data.data) {
         setCensusData(res.data.data);
       }
@@ -334,8 +340,10 @@ export const CensusPage = () => {
   };
 
   useEffect(() => {
+    if (summaryCity === null) return; // wait until we know the member's city
     fetchLiveCensusData();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summaryCity]);
 
   const males = censusData.males || [];
   const females = censusData.females || [];
@@ -393,6 +401,10 @@ export const CensusPage = () => {
   // Print Preview Mode
   const [printPreviewMode, setPrintPreviewMode] = useState(false);
 
+  // Jangana list tab: Active = registered on MeriSamaj; Inactive = approved family-added
+  // members without an account (still counted in every total)
+  const [activityTab, setActivityTab] = useState('all'); // all | active | inactive
+
   useEffect(() => {
     if (isFilterModalOpen || isUpdateModalOpen || showRecentModal || showBloodCampsModal) {
       document.body.style.overflow = 'hidden';
@@ -405,7 +417,9 @@ export const CensusPage = () => {
   }, [isFilterModalOpen, isUpdateModalOpen, showRecentModal, showBloodCampsModal]);
 
   // Filter logic helper
-  const filterMember = (m, genderGroup) => {
+  const isInactiveMember = (m) => m.active === false;
+
+  const filterMember = (m, genderGroup, ignoreActivity = false) => {
     // Search query match
     const matchesSearch = !searchQuery || 
       m.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -433,12 +447,54 @@ export const CensusPage = () => {
       else if (selectedAgeGroup === '15-17') matchesAge = age >= 15 && age <= 17;
     }
 
-    return matchesSearch && matchesCity && matchesMarital && matchesAge;
+    const matchesActivity = ignoreActivity || activityTab === 'all' ||
+      (activityTab === 'inactive' ? isInactiveMember(m) : !isInactiveMember(m));
+
+    return matchesSearch && matchesCity && matchesMarital && matchesAge && matchesActivity;
   };
 
   const filteredMales = males.filter(m => filterMember(m, 'male'));
   const filteredFemales = females.filter(m => filterMember(m, 'female'));
   const filteredKids = kids.filter(m => filterMember(m, 'kid'));
+
+  // Male/Female lists show only married members as cards; single / unspecified members
+  // are still included in every count (tabs, marital status breakdown, totals)
+  const isMarried = (m) => m.maritalStatus === 'Married';
+  const genderListFiltered = currentView === 'females' ? filteredFemales : filteredMales;
+  const visibleGenderList = genderListFiltered.filter(isMarried);
+  const hiddenUnmarriedCount = genderListFiltered.length - visibleGenderList.length;
+
+  const renderActivityTabs = (list, group) => {
+    const base = list.filter(m => filterMember(m, group, true));
+    const inactiveCount = base.filter(isInactiveMember).length;
+    const tabs = [
+      { key: 'all', label: language === 'en' ? 'All' : 'सभी', count: base.length },
+      { key: 'active', label: language === 'en' ? 'Active' : 'सक्रिय', count: base.length - inactiveCount },
+      { key: 'inactive', label: language === 'en' ? 'Inactive' : 'निष्क्रिय', count: inactiveCount }
+    ];
+    return (
+      <div className="flex bg-gray-100/80 p-1 rounded-2xl mb-3.5">
+        {tabs.map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setActivityTab(tab.key)}
+            className={`flex-1 py-2 text-[11px] font-black rounded-xl transition-all ${activityTab === tab.key
+              ? (tab.key === 'inactive' ? 'bg-white text-rose-600 shadow-sm' : 'bg-white text-brand-primary shadow-sm')
+              : 'text-gray-500'}`}
+          >
+            {tab.label} ({tab.count})
+          </button>
+        ))}
+      </div>
+    );
+  };
+
+  // Family-added members (no MeriSamaj account) have no profile/chat to open
+  const InactiveTag = ({ member }) => member.active === false ? (
+    <span className="text-[8.5px] font-black px-1.5 py-0.5 rounded uppercase bg-rose-50 text-rose-600 border border-rose-100">
+      {member.memberStatus === 'Dummy' ? (language === 'en' ? 'Dummy' : 'डमी') : (language === 'en' ? 'Inactive' : 'निष्क्रिय')}
+    </span>
+  ) : null;
   
   const filteredFamilies = families.filter(f => {
     const matchesSearch = !searchQuery || 
@@ -672,6 +728,31 @@ export const CensusPage = () => {
               </div>
               <ChevronRight size={16} className="text-slate-300 group-hover:text-orange-500 group-hover:translate-x-1 transition-all" />
             </motion.div>
+
+            {/* Which city the summary below is for */}
+            <div className="mb-4">
+              <label className="text-[10px] font-black text-gray-400 tracking-wider uppercase block mb-1.5">
+                {language === 'en' ? 'Showing census for' : 'जनगणना शहर'}
+              </label>
+              <div className="relative">
+                <select
+                  value={summaryCity || ''}
+                  onChange={(e) => setSummaryCity(e.target.value)}
+                  className="block w-full appearance-none bg-white border border-gray-200 rounded-2xl pl-4 pr-10 h-12 text-[14px] font-bold text-gray-800 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                >
+                  <option value="">{language === 'en' ? 'All cities' : 'सभी शहर'}</option>
+                  {[...new Set([...(summaryCity ? [summaryCity] : []), ...citiesBreakdown.map(c => c.name)])].map(name => {
+                    const c = citiesBreakdown.find(x => x.name === name);
+                    return (
+                      <option key={name} value={name}>
+                        {name}{currentUser?.city && name.toLowerCase() === currentUser.city.toLowerCase() ? (language === 'en' ? ' (my city)' : ' (मेरा शहर)') : ''}{c ? ` · ${c.count}` : ''}
+                      </option>
+                    );
+                  })}
+                </select>
+                <ChevronRight size={16} className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 rotate-90 text-gray-400" />
+              </div>
+            </div>
 
             {/* Demographics Overview Grid */}
             <div className="flex items-center justify-between mb-3.5">
@@ -1304,15 +1385,25 @@ export const CensusPage = () => {
               </div>
             )}
 
+            {renderActivityTabs(currentView === 'males' ? males : females, currentView === 'males' ? 'male' : 'female')}
+
+            {hiddenUnmarriedCount > 0 && (
+              <p className="text-[11px] font-semibold text-gray-500 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 mb-3">
+                {language === 'en'
+                  ? `Showing married members only · ${hiddenUnmarriedCount} single / not specified member${hiddenUnmarriedCount === 1 ? '' : 's'} counted above`
+                  : `केवल विवाहित सदस्य दिखाए गए हैं · ${hiddenUnmarriedCount} अविवाहित / अनिर्दिष्ट सदस्य ऊपर गिने गए हैं`}
+              </p>
+            )}
+
             {/* List Render */}
             <div className="flex flex-col gap-2.5">
-              {(currentView === 'males' ? filteredMales : filteredFemales).map(member => (
+              {visibleGenderList.map(member => (
                 <motion.div 
                   initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                   whileHover={{ y: -4, scale: 1.01 }} whileTap={{ scale: 0.98 }}
                   key={member.id}
                   className="bg-white/90 backdrop-blur-xl border border-white/60 p-4 rounded-[20px] shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-[0_12px_30px_rgb(124,58,237,0.08)] relative overflow-hidden flex items-center gap-3.5 cursor-pointer transition-all group"
-                  onClick={() => navigate('/member/directory/' + member.id)}
+                  onClick={() => { if (!member.isFamilyRecord) navigate('/member/directory/' + member.id); }}
                 >
                   <div className="w-13 h-13 rounded-full bg-gray-50 border border-gray-100 overflow-hidden shrink-0 flex items-center justify-center relative shadow-inner">
                     <img 
@@ -1321,14 +1412,15 @@ export const CensusPage = () => {
                       alt={member.name} 
                     />
                     {!member.active && (
-                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                        <span className="text-[8px] font-black text-white bg-slate-800 px-1 rounded">Muted</span>
-                      </div>
+                      <div className="absolute inset-0 bg-black/30" />
                     )}
                   </div>
                   
                   <div className="flex-1 min-w-0">
-                    <h4 className="text-[14.5px] font-black text-slate-900 leading-tight truncate group-hover:text-brand-primary transition-colors">{member.name}</h4>
+                    <div className="flex items-center gap-1.5">
+                      <h4 className="text-[14.5px] font-black text-slate-900 leading-tight truncate group-hover:text-brand-primary transition-colors">{member.name}</h4>
+                      <InactiveTag member={member} />
+                    </div>
                     <p className="text-[11.5px] font-semibold text-slate-500 mt-0.5">
                       {currentView === 'males' ? 'पिता' : 'पति/पिता'}: {member.fatherName}
                     </p>
@@ -1338,6 +1430,7 @@ export const CensusPage = () => {
                     </div>
                   </div>
 
+                  {!member.isFamilyRecord && (
                   <div className="flex gap-2 shrink-0" onClick={e => e.stopPropagation()}>
                     <motion.a whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} href={`tel:${member.phone}`} className="w-8 h-8 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 transition-colors hover:bg-blue-600 hover:text-white shadow-sm">
                       <Phone size={13} />
@@ -1346,12 +1439,17 @@ export const CensusPage = () => {
                       <MessageCircle size={13} />
                     </motion.button>
                   </div>
+                  )}
                 </motion.div>
               ))}
-              {(currentView === 'males' ? filteredMales : filteredFemales).length === 0 && (
+              {visibleGenderList.length === 0 && (
                 <div className="text-center py-10 bg-white border border-gray-100 rounded-3xl p-6 text-gray-400">
                   <AlertCircle className="mx-auto mb-2 opacity-50" size={24} />
-                  <p className="text-sm font-semibold">{language === 'en' ? 'No members match search query' : 'इस खोज के अनुसार कोई सदस्य नहीं मिला'}</p>
+                  <p className="text-sm font-semibold">
+                    {genderListFiltered.length > 0
+                      ? (language === 'en' ? 'No married members to show' : 'कोई विवाहित सदस्य नहीं')
+                      : (language === 'en' ? 'No members match search query' : 'इस खोज के अनुसार कोई सदस्य नहीं मिला')}
+                  </p>
                 </div>
               )}
             </div>
@@ -1469,13 +1567,15 @@ export const CensusPage = () => {
               </button>
             </div>
 
+            {renderActivityTabs(kids, 'kid')}
+
             {/* List Render */}
             <div className="flex flex-col gap-2.5">
               {filteredKids.map(member => (
                 <div 
                   key={member.id}
                   className="bg-white border border-gray-150/70 p-4 rounded-2xl shadow-sm/5 relative overflow-hidden flex items-center gap-3.5 cursor-pointer hover:border-emerald-500/40 transition-colors"
-                  onClick={() => navigate('/member/directory/' + member.id)}
+                  onClick={() => { if (!member.isFamilyRecord) navigate('/member/directory/' + member.id); }}
                 >
                   <div className="w-13 h-13 rounded-full bg-emerald-50 border border-emerald-100 overflow-hidden shrink-0 flex items-center justify-center relative shadow-inner">
                     <img src={`https://i.pravatar.cc/100?u=${member.id}`} className="w-full h-full object-cover" alt="" />
@@ -1490,6 +1590,7 @@ export const CensusPage = () => {
                       <span className={`text-[8.5px] font-black px-1.5 py-0.5 rounded uppercase ${member.gender === 'Boy' ? 'bg-blue-50 text-blue-600' : 'bg-pink-50 text-pink-600'}`}>
                         {member.gender}
                       </span>
+                      <InactiveTag member={member} />
                     </div>
                     <p className="text-[11.5px] font-semibold text-gray-500 mt-1">
                       {language === 'en' ? 'Parent' : 'पिता'}: {member.fatherName}

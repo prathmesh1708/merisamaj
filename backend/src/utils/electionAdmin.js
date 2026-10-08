@@ -96,4 +96,9 @@ const electionAnalytics = async (election) => {
   };
 };
 
-module.exports = { electionFieldsFromBody, normaliseCandidates, publishAndNotify, electionAnalytics, isLocalLevel };
+// A published election must have at least one eligible voter.
+const { findEligibleUsers: findEligible } = require('./electionEngine');
+const hasNoVoters = async (electionDoc) =>
+  electionDoc.isPublished !== false && electionDoc.status !== 'Cancelled' && (await findEligible(electionDoc)).length === 0;
+
+module.exports = { electionFieldsFromBody, normaliseCandidates, publishAndNotify, electionAnalytics, isLocalLevel, hasNoVoters };

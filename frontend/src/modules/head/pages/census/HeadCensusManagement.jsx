@@ -19,6 +19,8 @@ export const HeadCensusManagement = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCity, setSelectedCity] = useState('all');
   const [selectedGender, setSelectedGender] = useState('all');
+  // Active = registered on MeriSamaj; Inactive = approved family-added member without an account
+  const [activityFilter, setActivityFilter] = useState('all');
 
   // Notification Toast
   const [toast, setToast] = useState(null);
@@ -122,9 +124,13 @@ export const HeadCensusManagement = () => {
       }
       if (selectedCity !== 'all' && m.city !== selectedCity) return false;
       if (selectedGender !== 'all' && m.gender !== selectedGender) return false;
+      if (activityFilter === 'active' && m.active === false) return false;
+      if (activityFilter === 'inactive' && m.active !== false) return false;
       return true;
     });
-  }, [membersList, searchQuery, selectedCity, selectedGender]);
+  }, [membersList, searchQuery, selectedCity, selectedGender, activityFilter]);
+
+  const inactiveMembersCount = membersList.filter(m => m.active === false).length;
 
   const summary = censusSummary?.summary || {};
   const citiesBreakdown = censusSummary?.citiesBreakdown || [];
@@ -296,7 +302,27 @@ export const HeadCensusManagement = () => {
                 className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs focus:outline-none focus:border-indigo-500"
               />
             </div>
+            <div className="flex bg-slate-100 p-1 rounded-2xl">
+              {[
+                { key: 'all', label: `All (${membersList.length})` },
+                { key: 'active', label: `Active (${membersList.length - inactiveMembersCount})` },
+                { key: 'inactive', label: `Inactive (${inactiveMembersCount})` }
+              ].map(tab => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActivityFilter(tab.key)}
+                  className={`px-4 py-2 font-bold text-xs rounded-xl transition-all ${
+                    activityFilter === tab.key ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
           </div>
+          <p className="text-[11px] text-slate-500 font-medium">
+            Inactive members were added by their family and approved, but have not registered on MeriSamaj yet. They are included in the Jangana total.
+          </p>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-700">
@@ -308,6 +334,7 @@ export const HeadCensusManagement = () => {
                   <th className="p-3">City</th>
                   <th className="p-3">Phone</th>
                   <th className="p-3">Profession</th>
+                  <th className="p-3">Status</th>
                   <th className="p-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -320,7 +347,16 @@ export const HeadCensusManagement = () => {
                     <td className="p-3">{m.city || 'Indore'}</td>
                     <td className="p-3 font-mono">{m.phone || '-'}</td>
                     <td className="p-3">{m.profession || 'Professional'}</td>
+                    <td className="p-3">
+                      <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase ${
+                        m.active === false ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-700'
+                      }`}>
+                        {m.memberStatus || (m.active === false ? 'Inactive' : 'Active')}
+                      </span>
+                      {m.familyCode && <span className="block text-[10px] text-slate-400 mt-0.5">{m.familyCode} · {m.relation}</span>}
+                    </td>
                     <td className="p-3 text-right">
+                      {!m.isFamilyRecord && (
                       <button
                         onClick={() => handleDeactivateMember(m.id || m._id)}
                         className="p-1.5 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-100 transition-colors"
@@ -328,6 +364,7 @@ export const HeadCensusManagement = () => {
                       >
                         <Trash2 size={14} />
                       </button>
+                      )}
                     </td>
                   </tr>
                 ))}

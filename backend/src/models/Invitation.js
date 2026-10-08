@@ -6,9 +6,9 @@ const rsvpSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  // attending | attending_family | not_attending | pending | custom_xxx (creator's own answers)
   status: {
     type: String,
-    enum: ['attending', 'attending_family', 'not_attending', 'pending'],
     default: 'pending'
   },
   respondedAt: {
@@ -124,6 +124,24 @@ const invitationSchema = new mongoose.Schema({
     ref: 'User'
   },
   rsvps: [rsvpSchema],
+  // RSVP box designed by the creator: on/off, wording, and which answers to offer.
+  // The three answer keys stay fixed so attendance counts keep working.
+  rsvpSettings: {
+    enabled: { type: Boolean, default: true },
+    title:   { type: String, default: 'RSVP (आपकी उपस्थिति)' },
+    message: { type: String, default: 'Please confirm your attendance with the host' },
+    options: {
+      attending:        { enabled: { type: Boolean, default: true }, label: { type: String, default: 'I am Attending (उपस्थित रहूंगा)' } },
+      attending_family: { enabled: { type: Boolean, default: true }, label: { type: String, default: 'With Family (सपरिवार)' } },
+      not_attending:    { enabled: { type: Boolean, default: true }, label: { type: String, default: 'Declined (असमर्थ)' } }
+    },
+    // Extra answers the creator added, e.g. "Will join for lunch only"
+    extraOptions: [{
+      _id: false,
+      key:   { type: String },   // custom_xxxx
+      label: { type: String }
+    }]
+  },
   openedBy: [openedBySchema],
   // Total opens across all members (repeat opens included)
   viewCount: {

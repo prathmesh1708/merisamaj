@@ -89,6 +89,7 @@ export const HeadLayout = () => {
           children: [
             { name: 'All Members', path: '/head/members', search: '?tab=list' },
             { name: 'Community Census', path: '/head/census' },
+            { name: 'Family Requests', path: '/head/family-requests' },
             { name: 'Verifications', path: '/head/members', search: '?tab=verification', badge: pendingApprovalsCount > 0 ? pendingApprovalsCount : null },
             { name: 'Samaj Analytics', path: '/head/members', search: '?tab=analytics' }
           ]

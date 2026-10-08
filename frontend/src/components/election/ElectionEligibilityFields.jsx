@@ -25,6 +25,25 @@ export const toInputDate = (d) => {
   return `${x.getFullYear()}-${pad(x.getMonth() + 1)}-${pad(x.getDate())}T${pad(x.getHours())}:${pad(x.getMinutes())}`;
 };
 
+// The date pickers give local wall-clock time ("2026-10-09T11:16") with no time zone.
+// Convert to an exact instant before sending, so the server's own time zone (UTC on
+// most hosts) can never shift the start / end / result times.
+const toInstant = (v) => {
+  if (!v) return v;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? v : d.toISOString();
+};
+export const withExactTimes = (form) => ({
+  ...form,
+  startDate: toInstant(form.startDate),
+  endDate: toInstant(form.endDate),
+  resultDate: form.resultDate ? toInstant(form.resultDate) : form.resultDate
+});
+
+// "09 Oct 2026, 11:16 am" in the viewer's own time zone
+export const formatElectionTime = (d) =>
+  d ? new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+
 // Read the structured fields back from a saved election (for the edit form).
 export const electionFieldsFromElection = (el) => ({
   bannerImage: el.bannerImage || '',

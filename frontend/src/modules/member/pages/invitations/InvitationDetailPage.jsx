@@ -13,6 +13,29 @@ import CancelInvitationModal from './components/CancelInvitationModal';
 import DeleteInvitationModal from './components/DeleteInvitationModal';
 import invitationService from '../../../../core/api/invitationService';
 
+const DEFAULT_RSVP = {
+  enabled: true,
+  title: 'RSVP (आपकी उपस्थिति)',
+  message: 'Please confirm your attendance with the host',
+  options: {
+    attending: { enabled: true, label: 'I am Attending (उपस्थित रहूंगा)' },
+    attending_family: { enabled: true, label: 'With Family (सपरिवार)' },
+    not_attending: { enabled: true, label: 'Declined (असमर्थ)' }
+  },
+  extraOptions: []
+};
+// Saved settings merged over the defaults (older invitations have none).
+const mergeRsvp = (r) => ({
+  ...DEFAULT_RSVP,
+  ...(r || {}),
+  extraOptions: Array.isArray(r?.extraOptions) ? r.extraOptions : [],
+  options: Object.fromEntries(Object.keys(DEFAULT_RSVP.options).map(k => [k, {
+    ...DEFAULT_RSVP.options[k],
+    ...((r && r.options && r.options[k]) || {}),
+    label: (r && r.options && r.options[k] && r.options[k].label) || DEFAULT_RSVP.options[k].label
+  }]))
+});
+
 export default function InvitationDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -343,7 +366,10 @@ export default function InvitationDetailPage() {
     { id: 'friends', label: 'Friends', enabled: invitationFormConfig?.enableFriendsTab !== false }
   ].filter(t => t.enabled);
 
-  const canShowDirectory = !timeLeft.isPast && !isCancelled && directoryTabs.length > 0;
+  // Only the person who created the invitation (or a head/admin) can invite more people;
+  // someone who merely received it cannot forward it to others.
+  const rsvpCfg = mergeRsvp(inv?.rsvpSettings);
+  const canShowDirectory = canManage && !timeLeft.isPast && !isCancelled && directoryTabs.length > 0;
 
   // Directory filter logic
   const getCommunitySurname = (community) => {
@@ -930,6 +956,26 @@ export default function InvitationDetailPage() {
               </button>
             </div>
 
+            {/* Creator's own answers: who picked each */}
+            {rsvpCfg.extraOptions.filter(o => o.label).length > 0 && (
+              <div className="space-y-2">
+                {rsvpCfg.extraOptions.filter(o => o.label).map(opt => {
+                  const people = rsvpMembers.filter(m => m.status === opt.key);
+                  return (
+                    <div key={opt.key} className="p-3 rounded-2xl border border-slate-100 bg-slate-50/60">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[12.5px] font-bold text-slate-700">{opt.label}</span>
+                        <span className="text-[12px] font-black text-purple-700">{people.length}</span>
+                      </div>
+                      {people.length > 0 && (
+                        <p className="text-[11px] text-slate-500 mt-1">{people.map(p => p.name).join(', ')}</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             {/* Responses List */}
             <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
               {creatorRsvpTab === 'attending' && (
@@ -1022,8 +1068,8 @@ export default function InvitationDetailPage() {
           <div className="bg-white p-5 sm:p-6 rounded-3xl shadow-sm border border-slate-200/90 text-left">
             <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
               <div>
-                <h4 className="font-extrabold text-slate-900 text-[15px]">RSVP (आपकी उपस्थिति)</h4>
-                <p className="text-[11px] text-slate-500 font-semibold">Please confirm your attendance with the host</p>
+                <h4 className="font-extrabold text-slate-900 text-[15px]">{rsvpCfg.title}</h4>
+                {rsvpCfg.message && <p className="text-[11px] text-slate-500 font-semibold">{rsvpCfg.message}</p>}
               </div>
               {selectedStatus && (
                 <span className="text-[10.5px] font-extrabold bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-xl border border-emerald-200/60">
@@ -1032,7 +1078,11 @@ export default function InvitationDetailPage() {
               )}
             </div>
 
-            {isCancelled ? (
+            {!rsvpCfg.enabled ? (
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center text-[12px] font-semibold text-slate-500">
+                The host has not asked for RSVP for this invitation.
+              </div>
+            ) : isCancelled ? (
               <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 text-center space-y-1.5">
                 <AlertOctagon size={24} className="text-rose-600 mx-auto" />
                 <p className="text-xs font-black text-rose-800">Event Cancelled by Organizer (कार्यक्रम रद्द)</p>
@@ -1040,7 +1090,7 @@ export default function InvitationDetailPage() {
               </div>
             ) : (
               <div className="space-y-2.5">
-                <button 
+                {rsvpCfg.options.attending.enabled && <button
                   onClick={() => handleRSVP('attending')}
                   disabled={isSubmittingRSVP}
                   className={`w-full py-3.5 rounded-2xl font-black text-[13.5px] flex items-center justify-center gap-2 transition-all border-2 press-scale ${
@@ -1050,11 +1100,11 @@ export default function InvitationDetailPage() {
                   }`}
                 >
                   <Check size={16} strokeWidth={3} />
-                  <span>I am Attending (उपस्थित रहूंगा)</span>
-                </button>
+                  <span>{rsvpCfg.options.attending.label}</span>
+                </button>}
 
                 <div className="flex gap-2.5">
-                  <button 
+                  {rsvpCfg.options.attending_family.enabled && <button
                     onClick={() => handleRSVP('attending_family')}
                     disabled={isSubmittingRSVP}
                     className={`flex-1 py-3 rounded-2xl font-bold text-[12.5px] flex items-center justify-center gap-1.5 transition-all border-2 press-scale ${
@@ -1064,10 +1114,10 @@ export default function InvitationDetailPage() {
                     }`}
                   >
                     <Users size={15} />
-                    <span>With Family (सपरिवार)</span>
-                  </button>
+                    <span>{rsvpCfg.options.attending_family.label}</span>
+                  </button>}
 
-                  <button 
+                  {rsvpCfg.options.not_attending.enabled && <button
                     onClick={() => handleRSVP('not_attending')}
                     disabled={isSubmittingRSVP}
                     className={`flex-1 py-3 rounded-2xl font-bold text-[12.5px] flex items-center justify-center gap-1.5 transition-all border-2 press-scale ${
@@ -1077,9 +1127,24 @@ export default function InvitationDetailPage() {
                     }`}
                   >
                     <X size={15} strokeWidth={2.5} />
-                    <span>Declined (असमर्थ)</span>
-                  </button>
+                    <span>{rsvpCfg.options.not_attending.label}</span>
+                  </button>}
                 </div>
+
+                {rsvpCfg.extraOptions.filter(o => o.label).map(opt => (
+                  <button
+                    key={opt.key}
+                    onClick={() => handleRSVP(opt.key)}
+                    disabled={isSubmittingRSVP}
+                    className={`w-full py-3 rounded-2xl font-bold text-[12.5px] flex items-center justify-center gap-1.5 transition-all border-2 press-scale ${
+                      selectedStatus === opt.key
+                        ? 'border-purple-600 bg-purple-600 text-white shadow-md shadow-purple-600/20'
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-purple-200'
+                    }`}
+                  >
+                    <span>{opt.label}</span>
+                  </button>
+                ))}
               </div>
             )}
 

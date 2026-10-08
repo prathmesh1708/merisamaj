@@ -91,6 +91,9 @@ router.use('/leadership', leadershipRoutes);
 const censusRoutes = require('./censusRoutes');
 router.use('/census', censusRoutes);
 
+// ─── Family Tree (Family ID + Member IDs, invitations) ───────────────────────
+router.use('/family', require('./familyRoutes'));
+
 // ─── Referral & Rewards Module ──────────────────────────────────────────────
 const referralRoutes = require('./referralRoutes');
 router.use('/referral', referralRoutes);

@@ -5,7 +5,7 @@ import {
   Users, MapPin, Shield, Search, Check, Edit3, Filter, Building2, UserCheck, ChevronRight
 } from 'lucide-react';
 import headVotingService from '../../../../core/api/headVotingService';
-import ElectionEligibilityFields, { electionFieldDefaults, electionFieldsFromElection } from '../../../../components/election/ElectionEligibilityFields';
+import ElectionEligibilityFields, { electionFieldDefaults, electionFieldsFromElection, withExactTimes, formatElectionTime } from '../../../../components/election/ElectionEligibilityFields';
 
 export const ElectionCommission = () => {
   const [activeModal, setActiveModal] = useState(false);
@@ -187,14 +187,14 @@ export const ElectionCommission = () => {
     try {
       setIsSubmitting(true);
       if (isEditing && editingId) {
-        const res = await headVotingService.updateElection(editingId, formData);
+        const res = await headVotingService.updateElection(editingId, withExactTimes(formData));
         if (res.status === 'success') {
           showToast(`Successfully updated election: "${formData.title}"!`);
           setActiveModal(false);
           fetchElections();
         }
       } else {
-        const res = await headVotingService.createElection(formData);
+        const res = await headVotingService.createElection(withExactTimes(formData));
         if (res.status === 'success') {
           showToast(`Successfully launched election: "${formData.title}"!`);
           setActiveModal(false);
@@ -461,7 +461,8 @@ export const ElectionCommission = () => {
                 {/* Card Footer with actions */}
                 <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between text-[10.5px] font-semibold text-slate-500 gap-2">
                   <span className="flex items-center gap-1">
-                    <Clock size={12} className="text-amber-500" /> {el.startDateFormatted} - {el.endDateFormatted}
+                    <Clock size={12} className="text-amber-500" /> {formatElectionTime(el.startDate)} → {formatElectionTime(el.endDate)}
+                    <span className="text-slate-400">· Result {formatElectionTime(el.resultDate || el.endDate)}</span>
                   </span>
                   
                   <div className="flex items-center gap-2.5">

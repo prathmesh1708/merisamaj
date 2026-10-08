@@ -100,12 +100,16 @@ exports.getVotings = async (req, res) => {
     }
 
     const elections = await Voting.find(filter).populate('communityId', 'name').sort({ createdAt: -1 });
-    const eligible = elections.filter(e => isEligible(e, req.user, req.communityId));
+    const mine = (e) => idOf(e.createdBy) === idOf(req.user._id);
+    const eligible = elections.filter(e => isEligible(e, req.user, req.communityId) || mine(e));
 
     const votes = await Vote.find({ user: req.user._id, voting: { $in: eligible.map(e => e._id) } }).lean();
     const voteByElection = Object.fromEntries(votes.map(v => [String(v.voting), v]));
 
-    const data = await Promise.all(eligible.map(e => formatElection(e, req, voteByElection[String(e._id)])));
+    const data = await Promise.all(eligible.map(async e => ({
+      ...(await formatElection(e, req, voteByElection[String(e._id)])),
+      viewOnly: !isEligible(e, req.user, req.communityId)
+    })));
     res.status(200).json({ status: 'success', data });
   } catch (error) {
     console.error('Error fetching votings:', error);
@@ -122,11 +126,13 @@ exports.getVotingById = async (req, res) => {
     if (!election || election.isPublished === false || election.status === 'Cancelled') {
       return res.status(404).json({ status: 'error', message: 'Election not found' });
     }
-    if (!isEligible(election, req.user, req.communityId)) {
+    const canVote = isEligible(election, req.user, req.communityId);
+    const isCreator = idOf(election.createdBy) === idOf(req.user._id);
+    if (!canVote && !isCreator) {
       return res.status(403).json({ status: 'error', message: 'You are not eligible for this election.' });
     }
     const voteDoc = await Vote.findOne({ voting: election._id, user: req.user._id }).lean();
-    res.status(200).json({ status: 'success', data: await formatElection(election, req, voteDoc) });
+    res.status(200).json({ status: 'success', data: { ...(await formatElection(election, req, voteDoc)), viewOnly: !canVote } });
   } catch (error) {
     console.error('Error fetching voting:', error);
     res.status(500).json({ status: 'error', message: 'Failed to fetch voting' });

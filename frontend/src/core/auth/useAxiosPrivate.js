@@ -129,7 +129,9 @@ export const useAxiosPrivate = () => {
                 isInitialized: true,
               });
             }
-            return Promise.reject(refreshError);
+            const expired = new Error('Your session has expired. Please log in again.');
+            expired.response = { status: 401, data: { message: 'Your session has expired. Please log in again.' } };
+            return Promise.reject(expired);
           }
         }
         return Promise.reject(error);

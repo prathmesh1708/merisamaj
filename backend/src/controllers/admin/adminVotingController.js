@@ -3,7 +3,7 @@ const Vote = require('../../models/Vote');
 const Community = require('../../models/Community');
 const User = require('../../models/User');
 const mongoose = require('mongoose');
-const { electionFieldsFromBody, normaliseCandidates, publishAndNotify } = require('../../utils/electionAdmin');
+const { electionFieldsFromBody, normaliseCandidates, publishAndNotify, hasNoVoters } = require('../../utils/electionAdmin');
 const { applyScopeFilter } = require('../../utils/queryScopeHelper');
 const { createBroadcastNotification } = require('../../services/notificationService');
 
@@ -405,7 +405,7 @@ exports.createElection = async (req, res) => {
       finalCommunityId = null; // platform-wide across all communities
     }
 
-    const newVoting = await Voting.create({
+    const newVoting = new Voting({
       title,
       description,
       type: type || 'Platform Election',
@@ -423,6 +423,11 @@ exports.createElection = async (req, res) => {
       ...electionFieldsFromBody(req.body, req.user),
       createdBy: req.user._id
     });
+
+    if (await hasNoVoters(newVoting)) {
+      return res.status(400).json({ status: 'error', success: false, message: "Nobody can vote in this election with the selected voters and locations. Change 'Who can vote' / 'Locations', or untick 'Publish now' to save it as a draft." });
+    }
+    await newVoting.save();
 
     if (newVoting.resultDate && newVoting.resultDate < newVoting.endDate) {
       newVoting.resultDate = newVoting.endDate;
@@ -547,6 +552,9 @@ exports.updateElection = async (req, res) => {
     }
 
     Object.assign(election, electionFieldsFromBody(req.body, req.user));
+    if (await hasNoVoters(election)) {
+      return res.status(400).json({ success: false, message: "Nobody can vote in this election with the selected voters and locations. Change 'Who can vote' / 'Locations', or untick 'Publish now' to save it as a draft." });
+    }
     await election.save();
     try { await publishAndNotify(election, req); } catch (e) { console.warn('[Notify] Admin updateElection publish failed:', e.message); }
 

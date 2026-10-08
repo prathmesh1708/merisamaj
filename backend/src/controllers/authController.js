@@ -4,6 +4,7 @@ const User = require('../models/User');
 const config = require('../config/config');
 const { notifyInvitationAccepted, notifySecurityAlert, notifyLocalHeadNewMember } = require('../services/notificationService');
 const { sendPushNotification } = require('../services/pushNotificationService');
+const familyService = require('../services/familyService');
 
 // Centralized production-secure cookie helper
 const getCookieOptions = (maxAgeMs = 7 * 24 * 60 * 60 * 1000) => {
@@ -89,6 +90,8 @@ const getUserResponsePayload = (user) => {
     alternatePhone: user.alternatePhone,
     alternateEmail: user.alternateEmail,
     familyMembers: user.familyMembers || [],
+    familyId: user.familyId || null,
+    memberRecordId: user.memberRecordId || null,
     prefEducation: user.prefEducation,
     prefAge: user.prefAge,
     prefHeight: user.prefHeight,
@@ -173,6 +176,9 @@ const registerUser = async (req, res) => {
 
       // ── Notify Local Head (matching member city) & Community Head ──────────
       notifyLocalHeadNewMember(user).catch(err => console.warn('[notifyLocalHeadNewMember error]:', err.message));
+
+      // ── Family Tree: relatives who already added this mobile number get an accept/reject invite ──
+      familyService.activatePendingInvitations(user).catch(err => console.warn('[family invitations error]:', err.message));
 
       const { accessToken, refreshToken } = generateTokens(user);
       
@@ -710,7 +716,9 @@ const updateProfile = async (req, res) => {
       user.alternatePhone = req.body.alternatePhone || user.alternatePhone;
       user.alternateEmail = req.body.alternateEmail || user.alternateEmail;
       
-      // Family Members
+      // Family Members (legacy array — synced into Family/FamilyMember records after save)
+      const previousFamilyMembers = (user.familyMembers || []).map(m => (m.toObject ? m.toObject() : m));
+      let incomingFamilyMembers = null;
       if (req.body.familyMembers) {
         try {
           user.familyMembers = typeof req.body.familyMembers === 'string' 
@@ -719,6 +727,9 @@ const updateProfile = async (req, res) => {
         } catch (e) {
           user.familyMembers = req.body.familyMembers;
         }
+        incomingFamilyMembers = user.familyMembers.map(m => (m.toObject ? m.toObject() : m));
+        // Records own the family data now; the array is rebuilt by the family service
+        user.familyMembers = previousFamilyMembers;
       }
       
       // Preferences
@@ -746,7 +757,15 @@ const updateProfile = async (req, res) => {
       if (req.body.membershipStartDate !== undefined) user.membershipStartDate = req.body.membershipStartDate;
       if (req.body.matrimonySubscription !== undefined) user.matrimonySubscription = req.body.matrimonySubscription;
 
-      const updatedUser = await user.save();
+      let updatedUser = await user.save();
+      if (incomingFamilyMembers) {
+        try {
+          await familyService.syncLegacyFamilyMembers(updatedUser, incomingFamilyMembers, previousFamilyMembers);
+        } catch (err) {
+          console.error('[updateProfile] family sync failed:', err.message);
+        }
+        updatedUser = await User.findById(user._id);
+      }
       const cacheService = require('../utils/cacheService');
       cacheService.del(`auth_user_${user._id}`);
       await updatedUser.populate('communityId', 'name slug isActive settings logoUrl bannerUrl description city');

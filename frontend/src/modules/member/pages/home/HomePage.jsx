@@ -154,16 +154,22 @@ const HomePage = () => {
   const [liveCensusBanner, setLiveCensusBanner] = useState(null);
   const [liveFooterArtwork, setLiveFooterArtwork] = useState(null);
 
+  // Home census card shows only the member's own city (e.g. Indore members → Indore counts)
+  const censusCity = (effectiveUser?.city || '').trim();
   useEffect(() => {
     let isMounted = true;
-    
-    axiosPrivate.get('/member/census/summary')
+    axiosPrivate.get('/member/census/summary', { params: censusCity ? { city: censusCity } : {} })
       .then(res => {
         if (isMounted && res.data?.data?.summary) {
           setCensusSummary(res.data.data.summary);
         }
       })
       .catch(() => {});
+    return () => { isMounted = false; };
+  }, [censusCity]);
+
+  useEffect(() => {
+    let isMounted = true;
 
     donationService.getStats()
       .then(res => {
@@ -966,14 +972,16 @@ const HomePage = () => {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-2">
                 <span className="bg-white/15 text-white text-[9px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider border border-white/10 backdrop-blur-md">
-                  Community Census
+                  {censusCity ? `${censusCity} Census` : 'Community Census'}
                 </span>
               </div>
               <h3 className="text-[19px] font-bold leading-tight tracking-tight">
                 Community Census Dashboard
               </h3>
               <p className="text-white/65 text-[11px] mt-1.5 font-medium leading-snug">
-                Detailed breakdown of total members, men, women &amp; children with percentage
+                {censusCity
+                  ? <>Members of {censusCity} — men, women &amp; children with percentage</>
+                  : <>Detailed breakdown of total members, men, women &amp; children with percentage</>}
               </p>
               
               <button

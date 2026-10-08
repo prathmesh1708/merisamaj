@@ -53,6 +53,9 @@ router.use('/local-community', headLocalCommunityRoutes);
 const headCensusRoutes = require('./censusRoutes');
 router.use('/census', headCensusRoutes);
 
+// Family Tree approval requests (Local Head → Community Head)
+router.use('/family-requests', require('./headFamilyRoutes'));
+
 // Head Dashboard Stats Routes
 const headDashboardRoutes = require('./headDashboardRoutes');
 router.use('/dashboard', headDashboardRoutes);

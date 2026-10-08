@@ -23,6 +23,7 @@ const userNotificationSchema = new mongoose.Schema(
       type: String,
       enum: [
         'census',
+        'family',
         'leadership',
         'matrimonial',
         'events',

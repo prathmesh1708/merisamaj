@@ -54,7 +54,7 @@ const PollDetailPage = () => {
     );
   }
 
-  const { status, hasVoted } = election;
+  const { status, hasVoted, viewOnly } = election;
   const selected = election.candidates.find(c => c.id === selectedId);
   const refreshSoon = () => refresh(true);
 
@@ -93,6 +93,46 @@ const PollDetailPage = () => {
           </div>
         </div>
 
+        {/* Creator who is not a voter: read-only view */}
+        {viewOnly && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-[12px] font-semibold text-amber-800">
+            You created this election, but you are not in its voter list (check "Who can vote" and "Locations"), so you can view it but not vote.
+          </div>
+        )}
+        {viewOnly && status !== 'ResultDeclared' && (
+          <div className="space-y-2">
+            <h3 className="text-xs font-black text-slate-500 uppercase tracking-wider">Candidates</h3>
+            {election.candidates.map(c => (
+              <div key={c.id} className="bg-white rounded-2xl border border-slate-200 p-3 flex items-center gap-3">
+                <Avatar c={c} />
+                <div className="min-w-0">
+                  <p className="text-sm font-extrabold text-slate-900 truncate">{c.name}</p>
+                  {(c.position || c.profession) && <p className="text-[11px] font-semibold text-slate-500 truncate">{c.position || c.profession}</p>}
+                  {(c.shortIntro || c.bio) && <p className="text-[11px] text-slate-400 line-clamp-2 mt-0.5">{c.shortIntro || c.bio}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Candidates are visible before voting opens and while the result is pending */}
+        {!viewOnly && (status === 'Upcoming' || (status === 'ResultPending' && !hasVoted) || (hasVoted && status !== 'ResultDeclared')) && election.candidates?.length > 0 && (
+          <div className="space-y-2">
+            <h3 className="text-xs font-black text-slate-500 uppercase tracking-wider">Candidates ({election.candidates.length})</h3>
+            {election.candidates.map(c => (
+              <div key={c.id} className={`bg-white rounded-2xl border p-3 flex items-center gap-3 ${election.userVotedCandidateId === c.id ? 'border-emerald-300' : 'border-slate-200'}`}>
+                <Avatar c={c} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-extrabold text-slate-900 truncate">{c.name}{c.age ? <span className="text-slate-400 font-semibold">, {c.age}</span> : null}</p>
+                  {(c.position || c.profession) && <p className="text-[11px] font-semibold text-slate-500 truncate">{c.position || c.profession}</p>}
+                  {(c.shortIntro || c.bio) && <p className="text-[11px] text-slate-400 line-clamp-2 mt-0.5">{c.shortIntro || c.bio}</p>}
+                </div>
+                {election.userVotedCandidateId === c.id && <span className="text-[10px] font-black text-emerald-600 shrink-0">Your vote</span>}
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Upcoming */}
         {status === 'Upcoming' && <CountdownBox target={election.startDate} label="Voting starts in" onDone={refreshSoon} />}
 
@@ -110,7 +150,7 @@ const PollDetailPage = () => {
         )}
 
         {/* Voting closed and the user did not vote */}
-        {!hasVoted && status === 'ResultPending' && (
+        {!hasVoted && !viewOnly && status === 'ResultPending' && (
           <>
             <div className="bg-white border border-slate-200 rounded-2xl p-4 text-center text-sm font-bold text-slate-600">Voting has closed.</div>
             <CountdownBox target={election.resultDate} label="Result will be available in" onDone={refreshSoon} />
@@ -118,7 +158,7 @@ const PollDetailPage = () => {
         )}
 
         {/* Voting open */}
-        {status === 'Active' && !hasVoted && (
+        {status === 'Active' && !hasVoted && !viewOnly && (
           <>
             <CountdownBox target={election.endDate} label="Voting closes in" onDone={refreshSoon} />
             <h3 className="text-xs font-black text-slate-500 uppercase tracking-wider pt-1">Select a candidate</h3>
@@ -128,7 +168,7 @@ const PollDetailPage = () => {
                   className={`w-full text-left bg-white rounded-2xl border-2 p-3 flex items-center gap-3 transition-all ${selectedId === c.id ? 'border-purple-600 bg-purple-50' : 'border-slate-200 hover:border-purple-300'}`}>
                   <Avatar c={c} />
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-extrabold text-slate-900 truncate">{c.name}</p>
+                    <p className="text-sm font-extrabold text-slate-900 truncate">{c.name}{c.age ? <span className="text-slate-400 font-semibold">, {c.age}</span> : null}</p>
                     {(c.position || c.profession) && <p className="text-[11px] font-semibold text-slate-500 truncate">{c.position || c.profession}</p>}
                     {(c.shortIntro || c.bio) && <p className="text-[11px] text-slate-400 line-clamp-2 mt-0.5">{c.shortIntro || c.bio}</p>}
                   </div>
