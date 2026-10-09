@@ -72,15 +72,6 @@ const MonumentIllustration = ({ type = 'temple', city = '' }) => {
   );
 };
 
-const INDIAN_STATES_AND_CITIES = {
-  'Madhya Pradesh': ['Indore', 'Bhopal', 'Jabalpur', 'Gwalior', 'Ujjain', 'Sagar', 'Dewas', 'Satna', 'Ratlam', 'Rewa'],
-  'Rajasthan': ['Jaipur', 'Jodhpur', 'Kota', 'Bikaner', 'Ajmer', 'Udaipur', 'Bhilwara', 'Alwar', 'Sikar'],
-  'Maharashtra': ['Mumbai', 'Pune', 'Nagpur', 'Thane', 'Nashik', 'Chhatrapati Sambhajinagar', 'Navi Mumbai', 'Solapur'],
-  'Gujarat': ['Ahmedabad', 'Surat', 'Vadodara', 'Rajkot', 'Bhavnagar', 'Jamnagar', 'Gandhinagar', 'Anand'],
-  'Uttar Pradesh': ['Lucknow', 'Kanpur', 'Ghaziabad', 'Agra', 'Varanasi', 'Meerut', 'Prayagraj', 'Noida'],
-  'Delhi': ['New Delhi', 'Central Delhi', 'South Delhi', 'East Delhi', 'North Delhi']
-};
-
 const AVAILABLE_POWERS = [
   { key: 'canViewMembers', label: 'View & Search Members', category: 'Members' },
   { key: 'canAddMembers', label: 'Add & Register Members', category: 'Members' },
@@ -97,6 +88,67 @@ const AVAILABLE_POWERS = [
   { key: 'canSendNotifications', label: 'Send Announcements & Notifications', category: 'Broadcast' },
   { key: 'canViewCensus', label: 'View Community Census & Analytics', category: 'Census' }
 ];
+
+// Detail card for a Local Head / Local Sub-Head inside the Group Detail modal
+const LeaderDetailCard = ({ leader, tone = 'slate', isSelf = false, city, group, onEditPowers }) => {
+  const [showPassword, setShowPassword] = useState(false);
+  const isActive = (leader.accountStatus || 'active') === 'active';
+  const hasPassword = leader.plainPassword && leader.plainPassword !== '******';
+  const toneClasses = tone === 'indigo' ? 'bg-indigo-50/60 border-indigo-200' : 'bg-slate-50 border-slate-200';
+  const initials = (leader.name || '?').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+
+  return (
+    <div className={`rounded-2xl border p-3.5 ${toneClasses}`}>
+      <div className="flex items-start gap-3">
+        {leader.avatar ? (
+          <img src={leader.avatar} alt={leader.name} className="w-12 h-12 rounded-xl object-cover border border-white shadow-sm shrink-0" />
+        ) : (
+          <div className="w-12 h-12 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black shrink-0">{initials}</div>
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <p className="text-sm font-extrabold text-slate-800 m-0 truncate">{leader.name}</p>
+            {isSelf && <span className="text-[9px] font-bold bg-indigo-600 text-white px-1.5 py-0.5 rounded">YOU</span>}
+            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${isActive ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-600 border border-rose-200'}`}>
+              {isActive ? 'Active' : (leader.accountStatus || 'Inactive')}
+            </span>
+          </div>
+          {leader.designation && <p className="text-xs font-semibold text-indigo-600 m-0 mt-0.5">{leader.designation}</p>}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 mt-2 text-xs text-slate-600">
+            <span className="flex items-center gap-1.5 min-w-0">
+              <Phone size={12} className="text-slate-400 shrink-0" />
+              {leader.phone ? <a href={`tel:${leader.phone}`} className="hover:text-indigo-600 truncate">{leader.phone}</a> : '—'}
+            </span>
+            <span className="flex items-center gap-1.5 min-w-0">
+              <Mail size={12} className="text-slate-400 shrink-0" />
+              <span className="truncate">{leader.email || '—'}</span>
+            </span>
+            <span className="flex items-center gap-1.5"><MapPin size={12} className="text-slate-400 shrink-0" /> {city} • {group}</span>
+            {hasPassword && (
+              <span className="flex items-center gap-1.5">
+                <Key size={12} className="text-slate-400 shrink-0" />
+                <span className="font-mono">{showPassword ? leader.plainPassword : '••••••'}</span>
+                <button type="button" onClick={() => setShowPassword(v => !v)} className="text-slate-400 hover:text-slate-600" title={showPassword ? 'Hide password' : 'Show password'}>
+                  {showPassword ? <EyeOff size={12} /> : <Eye size={12} />}
+                </button>
+              </span>
+            )}
+          </div>
+        </div>
+        {onEditPowers && (
+          <button
+            type="button"
+            onClick={onEditPowers}
+            className="shrink-0 text-[11px] font-extrabold text-indigo-600 bg-white border border-indigo-200 px-2.5 py-1.5 rounded-lg flex items-center gap-1"
+            title="Edit powers & permissions"
+          >
+            <Shield size={12} /> Powers
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
 
 export default function LocalCommunityManagement() {
   const { headAuth } = useHeadAuth();
@@ -121,18 +173,13 @@ export default function LocalCommunityManagement() {
   const [userSearchTerm, setUserSearchTerm] = useState('');
 
   // Modals state
-  const [showAddLocationModal, setShowAddLocationModal] = useState(false);
-  const [newLocationState, setNewLocationState] = useState('Madhya Pradesh');
-  const [newLocationCity, setNewLocationCity] = useState('Indore');
-  const [customCityInput, setCustomCityInput] = useState('');
-
   const [showAddGroupModal, setShowAddGroupModal] = useState(null);
   const [newGroupName, setNewGroupName] = useState('');
 
   const [assignHeadModal, setAssignHeadModal] = useState(null);
   const [submittingHead, setSubmittingHead] = useState(false);
   const [viewHeadsModal, setViewHeadsModal] = useState(null);
-  const [editingLoc, setEditingLoc] = useState(null);
+  const [unlistedCities, setUnlistedCities] = useState([]);
 
   // Form for Assigning / Updating Local Head or Sub Head
   const [assignForm, setAssignForm] = useState({
@@ -175,54 +222,35 @@ export default function LocalCommunityManagement() {
   const [editPowersModal, setEditPowersModal] = useState(null);
   const [updatingPowers, setUpdatingPowers] = useState(false);
 
-  // ── 1. Initial Load: Fetch Community & Sub-Communities ──
+  // Group detail modal (click a group card): Local Head details, sub-heads, rename, visibility
+  const [groupDetail, setGroupDetail] = useState(null); // { loc, grp }
+  const [editingGroupName, setEditingGroupName] = useState(false);
+  const [groupNameDraft, setGroupNameDraft] = useState('');
+  const [savingGroupMeta, setSavingGroupMeta] = useState(false);
+  // Who is looking: { level: 'community' | 'local' | 'local_sub', city, group }
+  const [viewer, setViewer] = useState(null);
+
+  // ── 1. Initial Load: the head's own Community & Sub-Communities ──
+  // (Uses /head/local-community — the /admin endpoints reject Head accounts, which
+  // used to leave this page showing placeholder groups with zero counts.)
   useEffect(() => {
     const initCommunity = async () => {
       setLoading(true);
+      setError('');
       try {
-        const commRes = await axiosPrivate.get('/admin/communities');
-        const commList = Array.isArray(commRes.data?.data) ? commRes.data.data : (Array.isArray(commRes.data) ? commRes.data : []);
-        
-        // Find community assigned to this head
-        let targetComm = null;
-        const headCommId = headUser?.communityId?._id || headUser?.communityId;
-        
-        if (headCommId) {
-          targetComm = commList.find(c => c._id === headCommId || c.id === headCommId);
-        }
-        if (!targetComm && commList.length > 0) {
-          targetComm = commList[0];
-        }
-
-        if (targetComm) {
-          setCommunity(targetComm);
-          
-          // Fetch sub-communities
-          const subRes = await axiosPrivate.get(`/admin/communities/${targetComm._id}/sub-communities`);
-          const subs = subRes.data?.data || [];
-          setSubCommunities(subs);
-
-          // Select first sub-community or head's subCommunity
-          const defaultSub = headUser?.subCommunity || (subs.length > 0 ? (subs[0].name || subs[0]) : 'Rathore');
-          setSelectedSubCommunity(defaultSub);
-        } else {
-          // Fallback mock community if none in DB
-          setCommunity({
-            _id: 'default-comm',
-            name: headUser?.community || 'Rajput',
-            createdAt: new Date().toISOString()
-          });
-          setSelectedSubCommunity(headUser?.subCommunity || 'Rathore');
-        }
+        const res = await axiosPrivate.get('/head/local-community/structure');
+        const data = res.data?.data || {};
+        setCommunity(data.community || null);
+        setViewer(data.viewer || null);
+        const subs = data.subCommunities || [];
+        setSubCommunities(subs);
+        const own = headUser?.subCommunity || data.viewer?.subCommunity;
+        const ownExists = own && subs.some(sb => (sb.name || '').toLowerCase() === own.toLowerCase());
+        // With no sub-communities the breakdown simply covers the whole community
+        setSelectedSubCommunity(ownExists ? own : (subs[0]?.name || own || 'all'));
       } catch (err) {
         console.error('Failed to init community:', err);
-        setCommunity({
-          _id: headUser?.communityId?._id || headUser?.communityId || 'default-comm',
-          name: headUser?.community || 'Rajput',
-          createdAt: new Date().toISOString()
-        });
-        setSelectedSubCommunity(headUser?.subCommunity || 'Rathore');
-      } finally {
+        setError(err.response?.data?.message || 'Could not load your community.');
         setLoading(false);
       }
     };
@@ -236,57 +264,17 @@ export default function LocalCommunityManagement() {
     setLoading(true);
     setError('');
     try {
-      const res = await axiosPrivate.get(`/admin/communities/${community._id}/sub-communities/${encodeURIComponent(selectedSubCommunity)}/locations`);
+      const res = await axiosPrivate.get(`/head/local-community/sub-communities/${encodeURIComponent(selectedSubCommunity)}/locations`);
       if (res.data?.success && res.data?.data) {
         setLocations(res.data.data.locations || []);
         setStats(res.data.data.stats || {});
         setAllLocalHeads(res.data.data.allLocalHeads || []);
         setAllSubHeads(res.data.data.allSubHeads || []);
+        setUnlistedCities(res.data.data.unlistedCities || []);
       }
     } catch (err) {
       console.error('Failed to fetch location data:', err);
-      // Fallback default locations
-      setLocations([
-        {
-          id: 'loc-indore',
-          name: 'Indore',
-          fullName: 'Indore Location',
-          illustrationType: 'temple',
-          isActive: true,
-          userCount: 0,
-          localHeadsCount: 0,
-          localSubHeadsCount: 0,
-          groups: [
-            { id: 'g1', name: 'Group 1', colorClass: 'grp-header-blue', heads: 0, subHeads: 0, localHeadsList: [], subHeadsList: [] },
-            { id: 'g2', name: 'Group 2', colorClass: 'grp-header-pink', heads: 0, subHeads: 0, localHeadsList: [], subHeadsList: [] },
-            { id: 'g3', name: 'Group 3', colorClass: 'grp-header-green', heads: 0, subHeads: 0, localHeadsList: [], subHeadsList: [] },
-            { id: 'g4', name: 'Group 4', colorClass: 'grp-header-yellow', heads: 0, subHeads: 0, localHeadsList: [], subHeadsList: [] },
-          ]
-        },
-        {
-          id: 'loc-bhopal',
-          name: 'Bhopal',
-          fullName: 'Bhopal Location',
-          illustrationType: 'palace',
-          isActive: true,
-          userCount: 0,
-          localHeadsCount: 0,
-          localSubHeadsCount: 0,
-          groups: [
-            { id: 'g1', name: 'Group 1', colorClass: 'grp-header-blue', heads: 0, subHeads: 0, localHeadsList: [], subHeadsList: [] },
-            { id: 'g2', name: 'Group 2', colorClass: 'grp-header-pink', heads: 0, subHeads: 0, localHeadsList: [], subHeadsList: [] },
-            { id: 'g3', name: 'Group 3', colorClass: 'grp-header-green', heads: 0, subHeads: 0, localHeadsList: [], subHeadsList: [] },
-            { id: 'g4', name: 'Group 4', colorClass: 'grp-header-yellow', heads: 0, subHeads: 0, localHeadsList: [], subHeadsList: [] },
-          ]
-        }
-      ]);
-      setStats({
-        activeLocationsCount: 2,
-        totalCommunityHeadsCount: 1,
-        totalLocalCommunityHeadsCount: 0,
-        totalLocalSubCommunityHeadsCount: 0,
-        totalUsersCount: 0
-      });
+      setError(err.response?.data?.message || 'Failed to load locations and groups.');
     } finally {
       setLoading(false);
     }
@@ -313,50 +301,7 @@ export default function LocalCommunityManagement() {
     }
   };
 
-  // ── 3. Actions: Add Location, Add Group, Toggle, Delete, Rename ──
-  const handleToggleLocStatus = (locId) => {
-    setLocations(prev => prev.map(l =>
-      l.id === locId ? { ...l, isActive: !l.isActive } : l
-    ));
-  };
-
-  const handleDeleteLoc = (loc) => {
-    if (!window.confirm(`Are you sure you want to delete "${loc.fullName || loc.name}"?`)) return;
-    setLocations(prev => prev.filter(l => l.id !== loc.id));
-  };
-
-  const handleRenameLoc = (locId, newName) => {
-    if (!newName.trim()) return;
-    setLocations(prev => prev.map(l =>
-      l.id === locId ? { ...l, name: newName.trim(), fullName: `${newName.trim()} Location` } : l
-    ));
-    setEditingLoc(null);
-  };
-
-  const handleAddLocationSubmit = (e) => {
-    e.preventDefault();
-    const city = customCityInput.trim() || newLocationCity.trim();
-    if (!city) return;
-    const newLoc = {
-      id: `loc-${Date.now()}`,
-      name: city,
-      fullName: `${city} Location`,
-      illustrationType: 'temple',
-      isActive: true,
-      userCount: 0,
-      groups: [
-        { id: 'g1', name: 'Group 1', colorClass: 'grp-header-blue', heads: 0, subHeads: 0, localHeadsList: [], subHeadsList: [] },
-        { id: 'g2', name: 'Group 2', colorClass: 'grp-header-pink', heads: 0, subHeads: 0, localHeadsList: [], subHeadsList: [] },
-        { id: 'g3', name: 'Group 3', colorClass: 'grp-header-green', heads: 0, subHeads: 0, localHeadsList: [], subHeadsList: [] },
-        { id: 'g4', name: 'Group 4', colorClass: 'grp-header-yellow', heads: 0, subHeads: 0, localHeadsList: [], subHeadsList: [] },
-      ]
-    };
-    setLocations(prev => [...prev, newLoc]);
-    setNewLocationCity('Indore');
-    setCustomCityInput('');
-    setShowAddLocationModal(false);
-  };
-
+  // ── 3. Actions: Add Group ──
   const handleAddGroupSubmit = (e) => {
     e.preventDefault();
     if (!newGroupName.trim() || !showAddGroupModal) return;
@@ -451,7 +396,7 @@ export default function LocalCommunityManagement() {
       }
 
       const res = await axiosPrivate.post(
-        `/admin/communities/${community._id}/sub-communities/${encodeURIComponent(selectedSubCommunity)}/assign-head`,
+        `/head/local-community/sub-communities/${encodeURIComponent(selectedSubCommunity)}/assign-head`,
         submitPayload
       );
       alert(res.data?.message || 'Leader assigned successfully!');
@@ -491,6 +436,63 @@ export default function LocalCommunityManagement() {
     }
   };
 
+  // ── 6. Group Detail: open, rename, Home visibility ──
+  // Community Head can manage every group; a Local Head only their own group.
+  const canManageGroup = (grp) => viewer?.level === 'community' || (viewer?.level === 'local' && !!grp?.isMine);
+
+  const openGroupDetail = (loc, grp) => {
+    setEditingGroupName(false);
+    setGroupNameDraft(grp.name);
+    setGroupDetail({ loc, grp });
+  };
+
+  const closeGroupDetail = () => {
+    setGroupDetail(null);
+    setEditingGroupName(false);
+  };
+
+  const patchGroup = (payload) => axiosPrivate.patch(
+    `/head/local-community/groups/${encodeURIComponent(groupDetail.grp.name)}`,
+    { city: groupDetail.loc.name, ...payload }
+  );
+
+  const handleSaveGroupRename = async () => {
+    if (!groupDetail) return;
+    const trimmed = groupNameDraft.trim();
+    if (!trimmed || trimmed === groupDetail.grp.name) {
+      setEditingGroupName(false);
+      return;
+    }
+    setSavingGroupMeta(true);
+    try {
+      const res = await patchGroup({ newName: trimmed });
+      alert(res.data?.message || `Group renamed to "${trimmed}".`);
+      setGroupDetail(prev => prev ? { ...prev, grp: { ...prev.grp, name: trimmed } } : prev);
+      setEditingGroupName(false);
+      fetchLocationData();
+    } catch (err) {
+      console.error('Failed to rename group:', err);
+      alert(err.response?.data?.message || 'Failed to rename group');
+    } finally {
+      setSavingGroupMeta(false);
+    }
+  };
+
+  const handleToggleGroupVisibility = async (nextVisible) => {
+    if (!groupDetail) return;
+    setSavingGroupMeta(true);
+    try {
+      await patchGroup({ isVisibleOnHome: nextVisible });
+      setGroupDetail(prev => prev ? { ...prev, grp: { ...prev.grp, isVisibleOnHome: nextVisible } } : prev);
+      fetchLocationData();
+    } catch (err) {
+      console.error('Failed to update group visibility:', err);
+      alert(err.response?.data?.message || 'Failed to update group visibility');
+    } finally {
+      setSavingGroupMeta(false);
+    }
+  };
+
   const commName = community?.name || 'Rajput';
   const subName = selectedSubCommunity || 'Rathore';
   const subAvatarLetter = (subName || 'R').charAt(0).toUpperCase();
@@ -500,10 +502,6 @@ export default function LocalCommunityManagement() {
   const totalLocalCommunityHeadsCount = stats.totalLocalCommunityHeadsCount || allLocalHeads.length;
   const totalLocalSubCommunityHeadsCount = stats.totalLocalSubCommunityHeadsCount || allSubHeads.length;
   const totalUsersCount = stats.totalUsersCount || 0;
-
-  const availableCities = newLocationState && INDIAN_STATES_AND_CITIES[newLocationState]
-    ? INDIAN_STATES_AND_CITIES[newLocationState]
-    : [];
 
   return (
     <div className="subcomm-view-container font-sans">
@@ -604,16 +602,6 @@ export default function LocalCommunityManagement() {
           <div className="strip-stat-label">Total Users</div>
         </div>
 
-        {/* Action Button: + Add New Location */}
-        <div className="strip-action-box">
-          <button
-            type="button"
-            className="subcomm-btn-add-primary"
-            onClick={() => setShowAddLocationModal(true)}
-          >
-            + Add New Location
-          </button>
-        </div>
       </div>
 
       {/* ── Main 2x2 Grid of Location Cards ── */}
@@ -631,7 +619,6 @@ export default function LocalCommunityManagement() {
         <div className="subcomm-cards-grid">
           {locations.map(loc => {
             const isLocActive = loc.isActive !== false;
-            const isEditing = editingLoc?.id === loc.id;
             const locHeadCount = (loc.localHeadsList && loc.localHeadsList.length) || loc.localHeadsCount || 0;
 
             return (
@@ -641,36 +628,7 @@ export default function LocalCommunityManagement() {
                   <div className="location-header-left">
                     <MonumentIllustration type={loc.illustrationType} city={loc.name} />
                     <div>
-                      {isEditing ? (
-                        <div className="flex items-center gap-1.5">
-                          <input
-                            autoFocus
-                            value={editingLoc.name}
-                            onChange={e => setEditingLoc({ ...editingLoc, name: e.target.value })}
-                            onKeyDown={e => {
-                              if (e.key === 'Enter') handleRenameLoc(loc.id, editingLoc.name);
-                              if (e.key === 'Escape') setEditingLoc(null);
-                            }}
-                            className="px-2 py-1 border border-slate-300 rounded-lg text-sm font-bold w-36"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleRenameLoc(loc.id, editingLoc.name)}
-                            className="text-green-600 font-extrabold text-sm"
-                          >
-                            ✓
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setEditingLoc(null)}
-                            className="text-slate-400 font-extrabold text-sm"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      ) : (
-                        <h3 className="subcomm-card-title">{loc.fullName || `${loc.name} Location`}</h3>
-                      )}
+                      <h3 className="subcomm-card-title">{loc.fullName || `${loc.name} Location`}</h3>
                       <div className="flex items-center gap-2 mt-0.5">
                         <p className="subcomm-card-subtitle">Total Groups: {loc.groups?.length || 4}</p>
                         {locHeadCount > 0 && (
@@ -711,9 +669,17 @@ export default function LocalCommunityManagement() {
                     const grpSubHeadCount = grp.subHeads ?? (grp.subHeadsList?.length || 0);
 
                     return (
-                      <div key={grp.id || idx} className="subcomm-group-col">
+                      <div
+                        key={grp.id || idx}
+                        className={`subcomm-group-col subcomm-group-col-clickable ${grp.isMine ? 'subcomm-group-col-mine' : ''}`}
+                        role="button"
+                        tabIndex={0}
+                        title="Click to view group details"
+                        onClick={() => openGroupDetail(loc, grp)}
+                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openGroupDetail(loc, grp); } }}
+                      >
                         <div className={`grp-col-header ${grp.colorClass || 'grp-header-blue'}`}>
-                          {grp.name}
+                          {grp.name}{grp.isMine ? ' ★' : ''}
                         </div>
 
                         {/* Local Community Heads Row - Only show for Main Head/Admin */}
@@ -724,11 +690,7 @@ export default function LocalCommunityManagement() {
                               <span
                                 className="grp-number"
                                 style={{ cursor: grpHeadCount > 0 ? 'pointer' : 'default' }}
-                                onClick={() => grpHeadCount > 0 && setViewHeadsModal({
-                                  title: `Local Community Heads • ${loc.name} (${grp.name})`,
-                                  type: 'local_head',
-                                  heads: grp.localHeadsList || []
-                                })}
+                                onClick={(e) => { e.stopPropagation(); openGroupDetail(loc, grp); }}
                                 title={grpHeadCount > 0 ? 'Click to view heads in this group' : ''}
                               >
                                 {grpHeadCount}
@@ -737,7 +699,7 @@ export default function LocalCommunityManagement() {
                                 type="button"
                                 className="grp-plus-btn"
                                 title="Assign/Create Local Community Head"
-                                onClick={() => openAssignHeadModal(loc, grp, 'local_head')}
+                                onClick={(e) => { e.stopPropagation(); openAssignHeadModal(loc, grp, 'local_head'); }}
                               >
                                 +
                               </button>
@@ -753,11 +715,7 @@ export default function LocalCommunityManagement() {
                             <span
                               className="grp-number"
                               style={{ cursor: grpSubHeadCount > 0 ? 'pointer' : 'default' }}
-                              onClick={() => grpSubHeadCount > 0 && setViewHeadsModal({
-                                title: `Local Sub Heads • ${loc.name} (${grp.name})`,
-                                type: 'local_sub_head',
-                                heads: grp.subHeadsList || []
-                              })}
+                              onClick={(e) => { e.stopPropagation(); openGroupDetail(loc, grp); }}
                               title={grpSubHeadCount > 0 ? 'Click to view sub-heads in this group and manage powers' : ''}
                             >
                               {grpSubHeadCount}
@@ -766,7 +724,7 @@ export default function LocalCommunityManagement() {
                               type="button"
                               className="grp-plus-btn"
                               title="Assign/Create Local Sub Community Head with Powers"
-                              onClick={() => openAssignHeadModal(loc, grp, 'local_sub_head')}
+                              onClick={(e) => { e.stopPropagation(); openAssignHeadModal(loc, grp, 'local_sub_head'); }}
                             >
                               +
                             </button>
@@ -785,46 +743,182 @@ export default function LocalCommunityManagement() {
                   <span className="users-label">Total Users ({loc.name})</span>
                 </div>
 
-                {/* Action Buttons: Edit, Deactivate, Delete */}
-                <div className="subcomm-card-action-bar">
-                  <button
-                    type="button"
-                    className="subcomm-act-btn"
-                    onClick={() => setEditingLoc({ id: loc.id, name: loc.name })}
-                  >
-                    <span className="comm-icon-orange">✏️</span> Edit
-                  </button>
-                  <button
-                    type="button"
-                    className="subcomm-act-btn"
-                    onClick={() => handleToggleLocStatus(loc.id)}
-                  >
-                    <span className="comm-icon-blue">{isLocActive ? '⏸️' : '▶️'}</span> {isLocActive ? 'Deactivate' : 'Activate'}
-                  </button>
-                  <button
-                    type="button"
-                    className="subcomm-act-btn subcomm-act-delete"
-                    onClick={() => handleDeleteLoc(loc)}
-                  >
-                    <span className="comm-icon-red">🗑️</span> Delete
-                  </button>
-                </div>
+                {/* Locations are created and managed by the Admin */}
+                {!isLocActive && (
+                  <p className="text-[11px] font-semibold text-slate-500 text-center m-0">This location has been deactivated by the Admin.</p>
+                )}
               </div>
             );
           })}
         </div>
       )}
 
-      {/* ── Bottom Large "+ Add New Location" Button ── */}
-      <div className="subcomm-bottom-add-bar">
-        <button
-          type="button"
-          className="subcomm-btn-bottom-add"
-          onClick={() => setShowAddLocationModal(true)}
-        >
-          <span className="plus-symbol">+</span> Add New Location
-        </button>
-      </div>
+      {/* Locations are added by the Admin; tell the head about people outside them */}
+      {!loading && !error && (
+        <div className="mt-4 px-4 py-3 rounded-2xl border text-xs font-semibold bg-slate-50 border-slate-200 text-slate-600">
+          📍 Locations are added by the Admin.
+          {unlistedCities.length > 0 && (
+            <span className="block mt-1 text-amber-700">
+              Not shown above: {unlistedCities.map(c => {
+                const parts = [];
+                if (c.users) parts.push(`${c.users} member${c.users === 1 ? '' : 's'}`);
+                if (c.localHeads) parts.push(`${c.localHeads} Local Head${c.localHeads === 1 ? '' : 's'}`);
+                if (c.localSubHeads) parts.push(`${c.localSubHeads} Sub-Head${c.localSubHeads === 1 ? '' : 's'}`);
+                return `${c.name} (${parts.join(', ')})`;
+              }).join(' • ')} — ask the Admin to add the city as a location.
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────
+          MODAL: Group Detail — Local Head details, Sub-Heads, rename & Home visibility
+      ───────────────────────────────────────────── */}
+      {groupDetail && (() => {
+        const { loc, grp } = groupDetail;
+        const gdHeads = grp.localHeadsList || [];
+        const gdSubHeads = grp.subHeadsList || [];
+        const isVisible = grp.isVisibleOnHome !== false;
+        const canEditGroup = canManageGroup(grp);
+        return (
+          <div className="community-modal-overlay" onClick={closeGroupDetail}>
+            <div className="community-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '620px' }}>
+              <div className="community-modal-header">
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  {editingGroupName ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        autoFocus
+                        type="text"
+                        maxLength={40}
+                        value={groupNameDraft}
+                        onChange={e => setGroupNameDraft(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') handleSaveGroupRename(); if (e.key === 'Escape') setEditingGroupName(false); }}
+                        className="px-3 py-1.5 border border-slate-300 rounded-xl text-base font-extrabold w-56"
+                      />
+                      <button type="button" disabled={savingGroupMeta} onClick={handleSaveGroupRename} className="text-green-600 font-extrabold">✓</button>
+                      <button type="button" onClick={() => setEditingGroupName(false)} className="text-slate-400 font-extrabold">✕</button>
+                    </div>
+                  ) : (
+                    <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
+                      👥 {grp.name}
+                      {grp.isMine && <span className="text-[10px] font-bold bg-indigo-50 text-indigo-600 border border-indigo-200 px-2 py-0.5 rounded-full">Your Group</span>}
+                      {canEditGroup && (
+                        <button
+                          type="button"
+                          title="Rename Group"
+                          onClick={() => { setGroupNameDraft(grp.name); setEditingGroupName(true); }}
+                          className="text-sm text-indigo-600 hover:text-indigo-800"
+                        >
+                          <Edit size={15} />
+                        </button>
+                      )}
+                    </h3>
+                  )}
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    📍 {loc.name} • {!isLocalHead && <>{gdHeads.length} Local Head(s) • </>}{gdSubHeads.length} Local Sub-Head(s)
+                  </p>
+                </div>
+                <button type="button" className="community-modal-close" onClick={closeGroupDetail}>✕</button>
+              </div>
+
+              <div className="community-modal-body" style={{ maxHeight: '62vh', overflowY: 'auto' }}>
+                {/* Home Page Visibility */}
+                {canEditGroup && (
+                  <div className="flex items-center justify-between gap-3 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 mb-4">
+                    <div>
+                      <p className="text-sm font-extrabold text-slate-800 m-0">Show this group on the Home page?</p>
+                      <p className="text-xs text-slate-500 m-0 mt-0.5">
+                        Members in {loc.name} will {isVisible ? '' : 'not '}see this Local Head and their team on the leadership directory.
+                      </p>
+                    </div>
+                    <div className="flex bg-slate-200 p-0.5 rounded-xl gap-0.5 shrink-0">
+                      <button
+                        type="button"
+                        disabled={savingGroupMeta}
+                        onClick={() => handleToggleGroupVisibility(true)}
+                        className={`px-3.5 py-1.5 rounded-lg text-xs font-extrabold ${isVisible ? 'bg-green-600 text-white' : 'text-slate-600'}`}
+                      >
+                        Yes
+                      </button>
+                      <button
+                        type="button"
+                        disabled={savingGroupMeta}
+                        onClick={() => handleToggleGroupVisibility(false)}
+                        className={`px-3.5 py-1.5 rounded-lg text-xs font-extrabold ${!isVisible ? 'bg-red-600 text-white' : 'text-slate-600'}`}
+                      >
+                        No
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Local Head details — only for the Community Head; a Local Head sees just their Sub-Heads */}
+                {!isLocalHead && (<>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider m-0">Local Head</p>
+                  {!isLocalHead && gdHeads.length === 0 && (
+                    <button
+                      type="button"
+                      onClick={() => { closeGroupDetail(); openAssignHeadModal(loc, grp, 'local_head'); }}
+                      className="text-[11px] font-extrabold text-indigo-600 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-lg"
+                    >
+                      + Appoint Local Head
+                    </button>
+                  )}
+                </div>
+                {gdHeads.length === 0 ? (
+                  <p className="text-sm text-slate-400 mb-4">No Local Head appointed in this group yet.</p>
+                ) : (
+                  <div className="flex flex-col gap-2.5 mb-5">
+                    {gdHeads.map((leader, idx) => (
+                      <LeaderDetailCard
+                        key={leader.id || idx}
+                        leader={leader}
+                        tone="indigo"
+                        isSelf={String(leader.id) === String(headUser?._id || headUser?.id)}
+                        city={loc.name}
+                        group={grp.name}
+                      />
+                    ))}
+                  </div>
+                )}
+                </>)}
+
+                {/* Local Sub-Heads */}
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider m-0">Local Sub-Heads</p>
+                  {canEditGroup && (
+                    <button
+                      type="button"
+                      onClick={() => { closeGroupDetail(); openAssignHeadModal(loc, grp, 'local_sub_head'); }}
+                      className="text-[11px] font-extrabold text-indigo-600 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-lg"
+                    >
+                      + Add Sub-Head
+                    </button>
+                  )}
+                </div>
+                {gdSubHeads.length === 0 ? (
+                  <p className="text-sm text-slate-400 m-0">No Local Sub-Heads in this group yet.</p>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {gdSubHeads.map((leader, idx) => (
+                      <LeaderDetailCard
+                        key={leader.id || idx}
+                        leader={leader}
+                        tone="slate"
+                        city={loc.name}
+                        group={grp.name}
+                        onEditPowers={canEditGroup ? () => { closeGroupDetail(); openEditPowersModal(leader); } : null}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ─────────────────────────────────────────────
           MODAL 1: Assign / Appoint Head / Sub-Head + Give Powers
@@ -1222,77 +1316,6 @@ export default function LocalCommunityManagement() {
       )}
 
       {/* ─────────────────────────────────────────────
-          MODAL 4: Add New Location
-      ───────────────────────────────────────────── */}
-      {showAddLocationModal && (
-        <div className="community-modal-overlay" onClick={() => setShowAddLocationModal(false)}>
-          <div className="community-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '480px' }}>
-            <div className="community-modal-header">
-              <h3 className="text-lg font-black text-slate-800">📍 Add New Location Unit</h3>
-              <button type="button" className="community-modal-close" onClick={() => setShowAddLocationModal(false)}>✕</button>
-            </div>
-            <form onSubmit={handleAddLocationSubmit}>
-              <div className="community-modal-body space-y-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">State</label>
-                  <select
-                    value={newLocationState}
-                    onChange={e => {
-                      setNewLocationState(e.target.value);
-                      const cities = INDIAN_STATES_AND_CITIES[e.target.value] || [];
-                      if (cities.length > 0) setNewLocationCity(cities[0]);
-                    }}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold"
-                  >
-                    {Object.keys(INDIAN_STATES_AND_CITIES).map(st => (
-                      <option key={st} value={st}>{st}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">City / Region</label>
-                  <select
-                    value={newLocationCity}
-                    onChange={e => setNewLocationCity(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold"
-                  >
-                    {availableCities.map(ct => (
-                      <option key={ct} value={ct}>{ct}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Or Enter Custom Location Name</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Ujjain Rural, Gwalior Central"
-                    value={customCityInput}
-                    onChange={e => setCustomCityInput(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold"
-                  />
-                </div>
-              </div>
-
-              <div className="community-modal-actions mt-4">
-                <button
-                  type="button"
-                  className="community-btn-secondary"
-                  onClick={() => setShowAddLocationModal(false)}
-                >
-                  Cancel
-                </button>
-                <button type="submit" className="community-btn-primary">
-                  Create Location Card
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ─────────────────────────────────────────────
           MODAL 5: Add Group
       ───────────────────────────────────────────── */}
       {showAddGroupModal && (
@@ -1609,6 +1632,21 @@ export default function LocalCommunityManagement() {
           overflow: hidden;
           display: flex;
           flex-direction: column;
+        }
+        .subcomm-group-col-clickable {
+          cursor: pointer;
+          transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+        }
+        .subcomm-group-col-clickable:hover,
+        .subcomm-group-col-clickable:focus-visible {
+          transform: translateY(-2px);
+          border-color: #a5b4fc;
+          box-shadow: 0 8px 20px rgba(79, 70, 229, 0.12);
+          outline: none;
+        }
+        .subcomm-group-col-mine {
+          border-color: #6366f1;
+          box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
         }
         .grp-col-header {
           padding: 8px 4px;

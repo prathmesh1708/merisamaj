@@ -4,9 +4,9 @@ import {
   Search, Heart, Bell, SlidersHorizontal, X, Star, Crown, ChevronRight,
   ChevronLeft, Home, Mail, MessageCircle, Sparkles, ShieldCheck, MapPin,
   Briefcase, GraduationCap, Clock, Check, CheckCheck, Bookmark, BookmarkCheck,
-  Play, Pencil, User, Image, Lock, ShieldAlert, Award, EyeOff, ArrowLeft, Plus,
+  Play, Pencil, User, Image, Lock, ShieldAlert, EyeOff, ArrowLeft, Plus,
   Phone, MailCheck, ShieldCheck as VerifiedIcon, Sparkles as SpotlightIcon,
-  PhoneCall, Users, SwitchCamera, Settings, ChevronDown
+  PhoneCall, Users, SwitchCamera, Settings, ChevronDown, BadgeCheck
 } from 'lucide-react';
 import { useData } from '../../context/DataProvider';
 import { useMatrimonial } from './MatrimonialContext';
@@ -22,7 +22,7 @@ const membershipRanks = {
 };
 const MatrimonialHomePage = () => {
   const navigate = useNavigate();
-  const { currentUser, updateProfile, getUnreadCountForModule, markModuleAsVisited } = useData();
+  const { currentUser, updateProfile, markModuleAsVisited } = useData();
   const {
     dashboard, dashboardLoading, fetchDashboard,
     myProfile,
@@ -434,6 +434,9 @@ const MatrimonialHomePage = () => {
           : 'Active Today',
         membershipTier: profile.membershipTier || 'Normal',
         verifiedStatus: profile.verificationStatus === 'verified',
+        // From the member's own account: approved by their Local/Community Head, and Aadhaar check
+        headVerified: profile.userId?.verificationStatus === 'verified',
+        aadhaarVerified: !!profile.userId?.isAadharVerified,
         isNew: profile.createdAt ? new Date(profile.createdAt) > new Date(Date.now() - 7 * 24 * 3600000) : false,
         isRestricted: profile.isRestricted ?? true,
         visibility: profile.visibility || 'all_members'
@@ -453,7 +456,7 @@ const MatrimonialHomePage = () => {
         const matchesGotra     = (profile.gotra || '').toLowerCase().includes(query);
         if (!matchesName && !matchesCity && !matchesProfession && !matchesGotra) return false;
       }
-      if (activeFilterPill === 'verified' && !profile.verifiedStatus) return false;
+      if (activeFilterPill === 'verified' && !profile.headVerified && !profile.aadhaarVerified) return false;
       if (activeFilterPill === 'joined'   && !profile.isNew)          return false;
       const userCity = currentUser?.city || '';
       if (activeFilterPill === 'nearby' && userCity && profile.city !== userCity) return false;
@@ -487,7 +490,7 @@ const MatrimonialHomePage = () => {
         if (ms.toLowerCase() !== selectedMaritalStatus.toLowerCase()) return false;
       }
       if (selectedDiet !== 'All' && (profile.diet || profile.lifestyle?.diet || '').toLowerCase() !== selectedDiet.toLowerCase()) return false;
-      if (verifiedOnlyFilter && !profile.verifiedStatus) return false;
+      if (verifiedOnlyFilter && !profile.headVerified && !profile.aadhaarVerified) return false;
       if (withPhotoOnlyFilter && !profile.avatar && (!profile.photos || profile.photos.length === 0)) return false;
       return true;
     });
@@ -559,63 +562,9 @@ const MatrimonialHomePage = () => {
     return () => window.removeEventListener('matrimonialInterestAccepted', handleAccepted);
   }, []);
 
-  const renderMatrimonialSubTabs = () => {
-    const tab = (key, label, Icon, badge) => {
-      const active = activeBottomTab === key;
-      return (
-        <button
-          key={key}
-          onClick={() => { setActiveBottomTab(key); setCurrentSubView(null); }}
-          className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-[15px] font-bold transition-all shrink-0 ${
-            active ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'text-slate-700 hover:bg-slate-50 border border-transparent'
-          }`}
-        >
-          <Icon size={18} className={active ? 'text-rose-500' : 'text-slate-600'} />
-          <span>{label}</span>
-          {badge > 0 && (
-            <span className="min-w-[20px] h-5 px-1.5 bg-rose-500 text-white text-[11px] font-bold rounded-full flex items-center justify-center">
-              {badge > 99 ? '99+' : badge}
-            </span>
-          )}
-        </button>
-      );
-    };
-    return (
-      <div className="bg-white px-3 py-2 border-b border-slate-100 shrink-0 z-40">
-        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide max-w-lg mx-auto">
-          {tab('matches', 'Matches', Users, 0)}
-          {tab('activity', 'Activity', Clock, receivedCount)}
-          {tab('messenger', 'Chat', MessageCircle, chatUnread)}
-        </div>
-      </div>
-    );
-  };
-
-  return (
-    <div className="h-[100dvh] bg-slate-50 flex flex-col overflow-hidden relative select-none w-full">
-
-      {/* ─── MAIN MATCHES FEED VIEW ─── */}
-      {activeBottomTab === 'matches' && (
-        <>
-          {/* Header Bar — Glass morphism */}
-          <div className="bg-white/80 backdrop-blur-xl sticky top-0 z-45 border-b border-purple-100/30 shrink-0 px-4 h-15 flex items-center justify-between shadow-[0_2px_12px_rgba(244,63,94,0.03)]">
-            {isSearchOpen ? (
-              <div className="flex-1 flex items-center gap-3 bg-rose-50/40 border border-rose-100/30 px-3.5 py-2 rounded-xl">
-                <Search size={18} className="text-rose-450" />
-                <input
-                  type="text"
-                  placeholder="Search matches..."
-                  value={searchText}
-                  onChange={(e) => setSearchText(e.target.value)}
-                  className="bg-transparent outline-none w-full text-[14px] text-slate-800 font-semibold"
-                  autoFocus
-                />
-                <button onClick={() => { setSearchText(''); setIsSearchOpen(false); }} className="text-slate-400 p-0.5">
-                  <X size={18} />
-                </button>
-              </div>
-            ) : (
-              <>
+  // Same header (avatar, "My matches", interests, settings, Upgrade) on every tab
+  const renderMatrimonialHeaderMain = () => (
+    <>
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div 
                     onClick={() => {
@@ -680,6 +629,73 @@ const MatrimonialHomePage = () => {
                     <Crown size={13} /> {isCurrentlySubscribed ? 'Premium' : 'Upgrade'}
                   </button>
                 </div>
+    </>
+  );
+
+  const renderMatrimonialHeader = () => (
+    <div className="bg-white/80 backdrop-blur-xl sticky top-0 z-45 border-b border-purple-100/30 shrink-0 px-4 h-15 flex items-center justify-between shadow-[0_2px_12px_rgba(244,63,94,0.03)]">
+      {renderMatrimonialHeaderMain()}
+    </div>
+  );
+
+  const renderMatrimonialSubTabs = () => {
+    const tab = (key, label, Icon, badge) => {
+      const active = activeBottomTab === key;
+      return (
+        <button
+          key={key}
+          onClick={() => { setActiveBottomTab(key); setCurrentSubView(null); }}
+          className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-[15px] font-bold transition-all shrink-0 ${
+            active ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'text-slate-700 hover:bg-slate-50 border border-transparent'
+          }`}
+        >
+          <Icon size={18} className={active ? 'text-rose-500' : 'text-slate-600'} />
+          <span>{label}</span>
+          {badge > 0 && (
+            <span className="min-w-[20px] h-5 px-1.5 bg-rose-500 text-white text-[11px] font-bold rounded-full flex items-center justify-center">
+              {badge > 99 ? '99+' : badge}
+            </span>
+          )}
+        </button>
+      );
+    };
+    return (
+      <div className="bg-white px-3 py-2 border-b border-slate-100 shrink-0 z-40">
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide max-w-lg mx-auto">
+          {tab('matches', 'Matches', Users, 0)}
+          {tab('activity', 'Activity', Clock, receivedCount)}
+          {tab('messenger', 'Chat', MessageCircle, chatUnread)}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="h-[100dvh] bg-slate-50 flex flex-col overflow-hidden relative select-none w-full">
+
+      {/* ─── MAIN MATCHES FEED VIEW ─── */}
+      {activeBottomTab === 'matches' && (
+        <>
+          {/* Header Bar — Glass morphism */}
+          <div className="bg-white/80 backdrop-blur-xl sticky top-0 z-45 border-b border-purple-100/30 shrink-0 px-4 h-15 flex items-center justify-between shadow-[0_2px_12px_rgba(244,63,94,0.03)]">
+            {isSearchOpen ? (
+              <div className="flex-1 flex items-center gap-3 bg-rose-50/40 border border-rose-100/30 px-3.5 py-2 rounded-xl">
+                <Search size={18} className="text-rose-450" />
+                <input
+                  type="text"
+                  placeholder="Search matches..."
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
+                  className="bg-transparent outline-none w-full text-[14px] text-slate-800 font-semibold"
+                  autoFocus
+                />
+                <button onClick={() => { setSearchText(''); setIsSearchOpen(false); }} className="text-slate-400 p-0.5">
+                  <X size={18} />
+                </button>
+              </div>
+            ) : (
+              <>
+                {renderMatrimonialHeaderMain()}
               </>
             )}
           </div>
@@ -692,9 +708,9 @@ const MatrimonialHomePage = () => {
             <div className="px-4 py-3 bg-white border-b border-slate-100/80 flex items-center gap-2 overflow-x-auto scrollbar-hide shrink-0 font-sans">
               <button
                 onClick={() => setIsFilterDrawerOpen(true)}
-                className="px-5 py-2.5 rounded-full border border-slate-200 bg-white text-slate-800 text-[14px] font-bold flex items-center gap-2 shrink-0 active:scale-95 transition-transform"
+                className="px-3.5 py-1.5 rounded-full border border-slate-200 bg-white text-slate-800 text-[12.5px] font-bold flex items-center gap-1.5 shrink-0 active:scale-95 transition-transform"
               >
-                <SlidersHorizontal size={16} className="text-slate-600" /> Filters
+                <SlidersHorizontal size={14} className="text-slate-600" /> Filters
               </button>
               
               {[
@@ -728,13 +744,13 @@ const MatrimonialHomePage = () => {
                       setSelectedSpecificCommunity('');
                     }
                   }}
-                  className={`px-5 py-2.5 rounded-full text-[14px] font-bold transition-all shrink-0 active:scale-95 border flex items-center gap-1.5 ${
+                  className={`px-3.5 py-1.5 rounded-full text-[12.5px] font-bold transition-all shrink-0 active:scale-95 border flex items-center gap-1 ${
                     activeFilterPill === key
                       ? 'bg-rose-500 border-rose-500 text-white shadow-sm'
                       : 'bg-white border-slate-200 text-slate-655 hover:bg-slate-50'
                   }`}
                 >
-                  {key === 'other_community' && <Users size={16} className={activeFilterPill === key ? 'text-white' : 'text-rose-500'} />}
+                  {key === 'other_community' && <Users size={14} className={activeFilterPill === key ? 'text-white' : 'text-rose-500'} />}
                   {label}
                 </button>
               ))}
@@ -869,11 +885,23 @@ const MatrimonialHomePage = () => {
                           }`}
                         />
                         
-                        <div className="absolute top-4 right-4 bg-black/45 backdrop-blur-xs px-2.5 py-1 rounded-lg flex items-center gap-1.5 pointer-events-none z-10">
-                          <Image size={12} className="text-white" />
-                          <span className="text-[10px] font-black text-white">
-                            {profile.photos?.length || profile.photoCount || 1}
-                          </span>
+                        <div className="absolute top-4 right-4 flex flex-col items-end gap-2 pointer-events-none z-10">
+                          {/* Premium profile: big golden tick */}
+                          {profile.isPremium && (
+                            <div
+                              className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-300 via-yellow-400 to-amber-600 border-2 border-white/90 shadow-lg shadow-amber-500/40 flex items-center justify-center"
+                              title="Premium profile"
+                              aria-label="Premium profile"
+                            >
+                              <BadgeCheck size={30} className="text-white fill-amber-500" strokeWidth={2.2} />
+                            </div>
+                          )}
+                          <div className="bg-black/45 backdrop-blur-xs px-2.5 py-1 rounded-lg flex items-center gap-1.5">
+                            <Image size={12} className="text-white" />
+                            <span className="text-[10px] font-black text-white">
+                              {profile.photos?.length || profile.photoCount || 1}
+                            </span>
+                          </div>
                         </div>
 
                         {/* Membership Lock Overlay */}
@@ -930,12 +958,23 @@ const MatrimonialHomePage = () => {
 
                         <div className="relative z-10 px-5 pb-3 pointer-events-none flex flex-col justify-end">
                           <div className="flex items-center gap-1.5 flex-wrap mb-2.5">
-                            <span className={`px-3 py-1 text-[10px] font-black uppercase tracking-wider rounded-full shadow-sm ${getTierStyle(profile.membershipTier)}`}>
-                              {profile.membershipTier}
+                            <span className={`px-3 py-1 text-[10px] font-black uppercase tracking-wider rounded-full shadow-sm ${profile.isPremium ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-amber-950' : getTierStyle(profile.membershipTier)}`}>
+                              {profile.isPremium ? (profile.premiumPlan || 'Premium') : profile.membershipTier}
                             </span>
                             {profile.community && (
                               <span className="px-2.5 py-1 text-[10.5px] font-extrabold rounded-full bg-white/20 backdrop-blur-md text-white border border-white/30 shadow-sm flex items-center gap-1">
                                 🏷️ {profile.community}
+                              </span>
+                            )}
+                            {profile.headVerified && (
+                              <span className="px-2.5 py-1 text-[10.5px] font-extrabold rounded-full bg-green-600 text-white border border-green-400/60 shadow-sm flex items-center gap-1" title="Verified by Samaj Head">
+                                <BadgeCheck size={12} /> Head Verified
+                              </span>
+                            )}
+                            {profile.aadhaarVerified && (
+                              // Indian flag colours: saffron → white → green, navy (Ashoka Chakra) text
+                              <span className="px-2.5 py-1 text-[10.5px] font-extrabold rounded-full bg-gradient-to-r from-[#FF9933] via-white to-[#138808] text-[#000080] border border-white/70 shadow-sm flex items-center gap-1" title="Aadhaar verified">
+                                <ShieldCheck size={12} /> Aadhaar Verified
                               </span>
                             )}
                           </div>
@@ -943,13 +982,16 @@ const MatrimonialHomePage = () => {
                           <span className="text-[11px] text-white/80 font-bold uppercase tracking-wider">
                             {profile.activeStatus}
                           </span>
-                          
+
                           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                             <h2 className="text-white text-[24px] font-black tracking-tight leading-none">
                               {profile.name}, {profile.age}
                             </h2>
-                            {profile.membershipTier !== 'Normal' && (
-                              <Award size={18} className="text-amber-400 fill-amber-400 shadow-sm shrink-0" />
+                            {profile.headVerified && (
+                              <BadgeCheck size={20} className="text-green-500 fill-white shrink-0" aria-label="Head verified" />
+                            )}
+                            {profile.aadhaarVerified && (
+                              <ShieldCheck size={19} className="text-[#FF9933] fill-white/90 shrink-0" aria-label="Aadhaar verified" />
                             )}
                           </div>
                           
@@ -1064,31 +1106,8 @@ const MatrimonialHomePage = () => {
       {/* ─── ACTIVITY HUB VIEW (Matches reference Image 2) ─── */}
       {activeBottomTab === 'activity' && currentSubView === null && (
         <div className="flex-1 flex flex-col overflow-hidden bg-slate-50">
-          {/* Header */}
-          <div className="bg-white sticky top-0 z-40 border-b border-slate-100/80 px-4 h-15 flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-3">
-              <div 
-                onClick={() => { setActiveBottomTab('my-profile'); setCurrentSubView(null); }}
-                className="w-9 h-9 rounded-full bg-slate-200 border-2 border-slate-100 flex items-center justify-center text-slate-500 cursor-pointer hover:opacity-85 shadow-sm active:scale-95 transition-all"
-              >
-                <User size={18} />
-              </div>
-              <h1 className="text-[18px] font-black text-slate-800 tracking-tight leading-none">Activity</h1>
-            </div>
-            <div className="flex items-center gap-3">
-              <button className="text-slate-700 relative" onClick={() => navigate('/member/notifications?module=matrimonial')}>
-                <Heart size={21} />
-                {getUnreadCountForModule('matrimonial') > 0 && (
-                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-rose-500 text-white text-[8px] font-black rounded-full flex items-center justify-center border border-white">
-                    {getUnreadCountForModule('matrimonial')}
-                  </span>
-                )}
-              </button>
-              <button className="text-slate-700" onClick={() => setIsSearchOpen(true)}>
-                <Search size={21} />
-              </button>
-            </div>
-          </div>
+          {/* Header — same as the Matches tab */}
+          {renderMatrimonialHeader()}
 
           {renderMatrimonialSubTabs()}
 
@@ -1744,31 +1763,8 @@ const MatrimonialHomePage = () => {
       {/* ─── MESSENGER VIEW (Cloned from Images 1 & 2) ─── */}
       {activeBottomTab === 'messenger' && (
         <div className="flex-1 flex flex-col overflow-hidden bg-slate-50 font-sans">
-          {/* Header */}
-          <div className="bg-white sticky top-0 z-40 border-b border-slate-100/80 px-4 h-15 flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-3">
-              <div 
-                onClick={() => { setActiveBottomTab('my-profile'); setCurrentSubView(null); }}
-                className="w-9 h-9 rounded-full bg-slate-200 border-2 border-slate-100 flex items-center justify-center text-slate-500 cursor-pointer hover:opacity-85 shadow-sm active:scale-95 transition-all"
-              >
-                <User size={18} />
-              </div>
-              <h1 className="text-[18px] font-black text-slate-800 tracking-tight leading-none">Messenger</h1>
-            </div>
-            <div className="flex items-center gap-3">
-              <button className="text-slate-700 relative" onClick={() => navigate('/member/notifications?module=matrimonial')}>
-                <Heart size={21} />
-                {getUnreadCountForModule('matrimonial') > 0 && (
-                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-rose-500 text-white text-[8px] font-black rounded-full flex items-center justify-center border border-white">
-                    {getUnreadCountForModule('matrimonial')}
-                  </span>
-                )}
-              </button>
-              <button className="text-slate-700" onClick={() => setIsSearchOpen(true)}>
-                <Search size={21} />
-              </button>
-            </div>
-          </div>
+          {/* Header — same as the Matches tab */}
+          {renderMatrimonialHeader()}
 
           {renderMatrimonialSubTabs()}
 

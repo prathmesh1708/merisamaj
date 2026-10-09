@@ -22,6 +22,10 @@ const {
   searchMantriMandalCandidates,
   addMantriMandalMember,
   removeMantriMandalMember,
+  getAvailableLocationCities,
+  addLocation,
+  toggleLocation,
+  removeLocation,
 } = require('../../controllers/admin/communityController');
 
 // Secure admin endpoints, allowing 'admin' and 'head' roles where appropriate
@@ -70,6 +74,16 @@ router.post('/:id/sub-communities/:subName/assign-head', authorize('admin', 'hea
 
 // PATCH  /api/v1/admin/communities/:id/groups/:groupName → rename a Group and/or toggle its Home-page visibility
 router.patch('/:id/groups/:groupName', authorize('admin', 'head'), updateGroupMeta);
+
+// ── Locations (cities assigned to this community) ──
+// GET    /api/v1/admin/communities/:id/locations/available → active cities not yet added
+router.get('/:id/locations/available', authorize('admin'), getAvailableLocationCities);
+// POST   /api/v1/admin/communities/:id/locations            → add a city as a location
+router.post('/:id/locations', authorize('admin'), addLocation);
+// PATCH  /api/v1/admin/communities/:id/locations/:cityId/toggle → activate/deactivate for this community
+router.patch('/:id/locations/:cityId/toggle', authorize('admin'), toggleLocation);
+// DELETE /api/v1/admin/communities/:id/locations/:cityId   → remove (blocked while heads are assigned)
+router.delete('/:id/locations/:cityId', authorize('admin'), removeLocation);
 
 // ── Mantri Mandal (display-only committee a Head curates from existing members) ──
 // GET    /api/v1/admin/communities/:id/mantri-mandal/search?q=... → search existing members to add

@@ -56,6 +56,15 @@ const communitySchema = new mongoose.Schema(
       }
     ],
 
+    // Locations (from cityIds) deactivated for THIS community only — City.isActive
+    // is shared master data, so a per-community switch can't live on the City.
+    inactiveCityIds: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'City'
+      }
+    ],
+
     // Sub-Communities / Gotras / Categories
     // Each entry is its own lightweight record (stable _id, name, active flag,
     // createdAt) so the admin can toggle/rename/delete one sub-community without

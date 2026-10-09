@@ -35,6 +35,7 @@ router.put('/settings',        adminMatCtrl.updateSettings);
 router.get('/success-stories',              adminSuccessStoryCtrl.getAllStories);
 router.get('/success-stories/eligible',     adminSuccessStoryCtrl.getEligibleCouples);
 router.post('/success-stories',             adminSuccessStoryCtrl.createStory);
+router.post('/success-stories/upload-image', require('../../middleware/uploadMiddleware').single('image'), adminSuccessStoryCtrl.uploadStoryImage);
 router.put('/success-stories/:id',          adminSuccessStoryCtrl.updateStory);
 router.delete('/success-stories/:id',       adminSuccessStoryCtrl.deleteStory);
 router.put('/success-stories/:id/publish',  adminSuccessStoryCtrl.publishStory);

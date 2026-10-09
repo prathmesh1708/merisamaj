@@ -1375,7 +1375,11 @@ const SubLocalHeadLocationWiseView = ({
 
   // Modals & UI Actions
   const [showAddLocationModal, setShowAddLocationModal] = useState(false);
-  const [newLocationCity, setNewLocationCity] = useState('');
+  const [newLocationCity, setNewLocationCity] = useState(''); // selected City _id
+  const [availableCities, setAvailableCities] = useState([]);
+  const [loadingAvailableCities, setLoadingAvailableCities] = useState(false);
+  const [savingLocation, setSavingLocation] = useState(false);
+  const [unlistedCities, setUnlistedCities] = useState([]);
   const [showAddGroupModal, setShowAddGroupModal] = useState(null); // holds location object
   const [newGroupName, setNewGroupName] = useState('');
   const [editingLoc, setEditingLoc] = useState(null); // { id, name }
@@ -1490,6 +1494,7 @@ const SubLocalHeadLocationWiseView = ({
         setLocations(res.data.locations || []);
         setStats(res.data.stats || {});
         setAllLocalHeads(res.data.allLocalHeads || []);
+        setUnlistedCities(res.data.unlistedCities || []);
       }
     } catch (err) {
       console.error('Failed to load location breakdown:', err);
@@ -1517,46 +1522,66 @@ const SubLocalHeadLocationWiseView = ({
     fetchLocationData();
   }, [commId, subName]);
 
-  const handleToggleLocStatus = (locId) => {
-    setLocations(prev => prev.map(l =>
-      l.id === locId ? { ...l, isActive: !l.isActive } : l
-    ));
+  // Locations are the community's assigned Cities — every change is saved.
+  const handleToggleLocStatus = async (loc) => {
+    if (!loc.cityId) return;
+    try {
+      const res = await axiosPrivate.patch(`/admin/communities/${commId}/locations/${loc.cityId}/toggle`);
+      alert(res.data?.message || 'Location updated');
+      fetchLocationData();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to update location');
+    }
   };
 
-  const handleDeleteLoc = (loc) => {
-    if (!window.confirm(`Are you sure you want to delete "${loc.fullName || loc.name}"?`)) return;
-    setLocations(prev => prev.filter(l => l.id !== loc.id));
+  const handleDeleteLoc = async (loc) => {
+    if (!loc.cityId) return;
+    if (!window.confirm(`Remove "${loc.fullName || loc.name}" from this community?`)) return;
+    try {
+      const res = await axiosPrivate.delete(`/admin/communities/${commId}/locations/${loc.cityId}`);
+      alert(res.data?.message || 'Location removed');
+      fetchLocationData();
+      if (onRefreshCommunities) onRefreshCommunities();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to remove location');
+    }
   };
 
-  const handleRenameLoc = (locId, newName) => {
-    if (!newName.trim()) return;
-    setLocations(prev => prev.map(l =>
-      l.id === locId ? { ...l, name: newName.trim(), fullName: `${newName.trim()} Location` } : l
-    ));
+  const handleRenameLoc = () => {
+    // City names are shared master data — rename them from Admin → Cities.
     setEditingLoc(null);
   };
 
-  const handleAddLocationSubmit = (e) => {
-    e.preventDefault();
-    const city = newLocationCity.trim();
-    if (!city) return;
-    const newLoc = {
-      id: `loc-${Date.now()}`,
-      name: city,
-      fullName: `${city} Location`,
-      illustrationType: 'temple',
-      isActive: true,
-      userCount: 0,
-      groups: [
-        { id: 'g1', name: 'Group 1', colorClass: 'grp-header-blue', heads: 0, subHeads: 0, localHeadsList: [], subHeadsList: [] },
-        { id: 'g2', name: 'Group 2', colorClass: 'grp-header-pink', heads: 0, subHeads: 0, localHeadsList: [], subHeadsList: [] },
-        { id: 'g3', name: 'Group 3', colorClass: 'grp-header-green', heads: 0, subHeads: 0, localHeadsList: [], subHeadsList: [] },
-        { id: 'g4', name: 'Group 4', colorClass: 'grp-header-yellow', heads: 0, subHeads: 0, localHeadsList: [], subHeadsList: [] },
-      ]
-    };
-    setLocations(prev => [...prev, newLoc]);
+  const openAddLocationModal = async () => {
     setNewLocationCity('');
-    setShowAddLocationModal(false);
+    setShowAddLocationModal(true);
+    setLoadingAvailableCities(true);
+    try {
+      const res = await axiosPrivate.get(`/admin/communities/${commId}/locations/available`);
+      setAvailableCities(res.data?.data || []);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to load cities');
+    } finally {
+      setLoadingAvailableCities(false);
+    }
+  };
+
+  const handleAddLocationSubmit = async (e) => {
+    e.preventDefault();
+    if (!newLocationCity) return;
+    setSavingLocation(true);
+    try {
+      const res = await axiosPrivate.post(`/admin/communities/${commId}/locations`, { cityId: newLocationCity });
+      alert(res.data?.message || 'Location added');
+      setShowAddLocationModal(false);
+      setNewLocationCity('');
+      fetchLocationData();
+      if (onRefreshCommunities) onRefreshCommunities();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to add location');
+    } finally {
+      setSavingLocation(false);
+    }
   };
 
   const handleAddGroupSubmit = (e) => {
@@ -1891,7 +1916,7 @@ const SubLocalHeadLocationWiseView = ({
           <button
             type="button"
             className="subcomm-btn-add-primary"
-            onClick={() => setShowAddLocationModal(true)}
+            onClick={openAddLocationModal}
           >
             + Add New Location
           </button>
@@ -2079,20 +2104,15 @@ const SubLocalHeadLocationWiseView = ({
                   <button
                     type="button"
                     className="subcomm-act-btn"
-                    onClick={() => setEditingLoc({ id: loc.id, name: loc.name })}
-                  >
-                    <span className="comm-icon-orange">✏️</span> Edit
-                  </button>
-                  <button
-                    type="button"
-                    className="subcomm-act-btn"
-                    onClick={() => handleToggleLocStatus(loc.id)}
+                    disabled={!loc.cityId}
+                    onClick={() => handleToggleLocStatus(loc)}
                   >
                     <span className="comm-icon-blue">{isLocActive ? '⏸️' : '▶️'}</span> {isLocActive ? 'Deactivate' : 'Activate'}
                   </button>
                   <button
                     type="button"
                     className="subcomm-act-btn subcomm-act-delete"
+                    disabled={!loc.cityId}
                     onClick={() => handleDeleteLoc(loc)}
                   >
                     <span className="comm-icon-red">🗑️</span> Delete
@@ -2104,12 +2124,27 @@ const SubLocalHeadLocationWiseView = ({
         </div>
       )}
 
+      {/* People in cities that are not a location of this community yet */}
+      {!loading && unlistedCities.length > 0 && (
+        <div style={{ margin: '16px 0 0', padding: '12px 16px', background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: '14px', fontSize: '0.8rem', color: '#92400e' }}>
+          <strong>Not shown above:</strong>{' '}
+          {unlistedCities.map(c => {
+            const parts = [];
+            if (c.users) parts.push(`${c.users} member${c.users === 1 ? '' : 's'}`);
+            if (c.localHeads) parts.push(`${c.localHeads} Local Head${c.localHeads === 1 ? '' : 's'}`);
+            if (c.localSubHeads) parts.push(`${c.localSubHeads} Sub-Head${c.localSubHeads === 1 ? '' : 's'}`);
+            return `${c.name} (${parts.join(', ')})`;
+          }).join(' • ')}
+          {' '}— add the city as a location to manage them here.
+        </div>
+      )}
+
       {/* Bottom Large "+ Add New Location" Button matching Image 2 */}
       <div className="subcomm-bottom-add-bar">
         <button
           type="button"
           className="subcomm-btn-bottom-add"
-          onClick={() => setShowAddLocationModal(true)}
+          onClick={openAddLocationModal}
         >
           <span className="plus-symbol">+</span> Add New Location
         </button>
@@ -2838,22 +2873,26 @@ const SubLocalHeadLocationWiseView = ({
             <form onSubmit={handleAddLocationSubmit}>
               <div className="community-modal-body">
                 <div className="community-form-group">
-                  <label>Location / City Name *</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Jabalpur, Gwalior, Sagar, Rewa..."
+                  <label>City *</label>
+                  <select
                     value={newLocationCity}
                     onChange={e => setNewLocationCity(e.target.value)}
                     className="community-input"
+                    disabled={loadingAvailableCities}
                     autoFocus
-                  />
-                  <small className="community-hint">Enter the city or regional unit for {commName} &gt; {subName}.</small>
+                  >
+                    <option value="">{loadingAvailableCities ? 'Loading cities…' : (availableCities.length ? 'Select a city' : 'No more cities available')}</option>
+                    {availableCities.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}{c.state ? ` (${c.state})` : ''}</option>
+                    ))}
+                  </select>
+                  <small className="community-hint">Only cities created in Admin → Cities can be added. The location is saved for {commName}.</small>
                 </div>
               </div>
               <div className="community-modal-actions">
                 <button type="button" className="community-btn-secondary" onClick={() => setShowAddLocationModal(false)}>Cancel</button>
-                <button type="submit" className="community-btn-primary" disabled={!newLocationCity.trim()}>
-                  ✓ Add Location
+                <button type="submit" className="community-btn-primary" disabled={!newLocationCity || savingLocation}>
+                  {savingLocation ? 'Saving…' : '✓ Add Location'}
                 </button>
               </div>
             </form>

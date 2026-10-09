@@ -173,17 +173,17 @@ const getRecommendations = async (userId, myProfile, subscription) => {
   const pool = limit * 4;
   const [candidatePool, newMembers, recentlyActive, premiumMembers, nearYou] = await Promise.all([
     // Candidates for "Recommended Matches": ranked by partner-preference match below
-    MatrimonialProfile.find(baseQuery).sort({ lastActiveAt: -1 }).limit(200).populate('userId', 'name avatar subCommunity').lean({ virtuals: true }),
+    MatrimonialProfile.find(baseQuery).sort({ lastActiveAt: -1 }).limit(200).populate('userId', 'name avatar subCommunity verificationStatus isAadharVerified').lean({ virtuals: true }),
 
     // New Members
-    MatrimonialProfile.find(baseQuery).sort({ createdAt: -1 }).limit(pool).populate('userId', 'name avatar subCommunity').lean({ virtuals: true }),
+    MatrimonialProfile.find(baseQuery).sort({ createdAt: -1 }).limit(pool).populate('userId', 'name avatar subCommunity verificationStatus isAadharVerified').lean({ virtuals: true }),
 
     // Recently Active
-    MatrimonialProfile.find(baseQuery).sort({ lastActiveAt: -1 }).limit(pool).populate('userId', 'name avatar subCommunity').lean({ virtuals: true }),
+    MatrimonialProfile.find(baseQuery).sort({ lastActiveAt: -1 }).limit(pool).populate('userId', 'name avatar subCommunity verificationStatus isAadharVerified').lean({ virtuals: true }),
 
     // Verified Members first
     MatrimonialProfile.find({ ...baseQuery, verificationStatus: 'verified' })
-      .sort({ createdAt: -1 }).limit(pool).populate('userId', 'name avatar subCommunity').lean({ virtuals: true }),
+      .sort({ createdAt: -1 }).limit(pool).populate('userId', 'name avatar subCommunity verificationStatus isAadharVerified').lean({ virtuals: true }),
 
     // Near You (same city or state)
     MatrimonialProfile.find({
@@ -195,7 +195,7 @@ const getRecommendations = async (userId, myProfile, subscription) => {
           { 'location.state': myProfile?.location?.state || '__none__' }
         ] }
       ]
-    }).sort({ createdAt: -1 }).limit(pool).populate('userId', 'name avatar subCommunity').lean({ virtuals: true })
+    }).sort({ createdAt: -1 }).limit(pool).populate('userId', 'name avatar subCommunity verificationStatus isAadharVerified').lean({ virtuals: true })
   ]);
 
   const fits = (list) => (myProfile ? list.filter(p => passesHardPreferences(myProfile, p)) : list).slice(0, limit);
@@ -214,13 +214,32 @@ const getRecommendations = async (userId, myProfile, subscription) => {
   );
   scored.sort((a, b) => (b.result.matchPercentage - a.result.matchPercentage)
     || (new Date(b.profile.lastActiveAt || 0) - new Date(a.profile.lastActiveAt || 0)));
-  const enriched = scored.slice(0, limit).map(({ profile, result }) => ({ ...buildRestrictedProfile(profile), ...result }));
+  // Premium badge: each shown profile's active matrimonial plan. Kept separate from
+  // `membershipTier`, which the app uses to lock profiles by plan rank.
+  const shownUserIds = [...candidatePool, ...newMembers, ...recentlyActive, ...premiumMembers, ...nearYou]
+    .map(p => p.userId?._id || p.userId)
+    .filter(Boolean);
+  const activeSubs = shownUserIds.length
+    ? await UserSubscription.find({
+        userId: { $in: shownUserIds },
+        status: { $in: ['active', 'grace', 'cancelled'] },
+        endDate: { $gte: new Date() }
+      }).select('userId planName').lean()
+    : [];
+  const planByUser = new Map(activeSubs.map(s => [String(s.userId), s.planName]));
+  const withTier = (profile, built) => {
+    const planName = planByUser.get(String(profile.userId?._id || profile.userId));
+    return { ...built, isPremium: !!planName, premiumPlan: planName || null };
+  };
+  const present = (list) => fits(list).map(p => withTier(p, buildRestrictedProfile(p)));
+
+  const enriched = scored.slice(0, limit).map(({ profile, result }) => ({ ...withTier(profile, buildRestrictedProfile(profile)), ...result }));
 
   return {
     recommendedMatches: enriched,
-    newMembers:    fits(newMembers).map(buildRestrictedProfile),
-    recentlyActive:fits(recentlyActive).map(buildRestrictedProfile),
-    premiumMembers:fits(premiumMembers).map(buildRestrictedProfile),
-    nearYou:       fits(nearYou).map(buildRestrictedProfile)
+    newMembers:    present(newMembers),
+    recentlyActive:present(recentlyActive),
+    premiumMembers:present(premiumMembers),
+    nearYou:       present(nearYou)
   };
 };

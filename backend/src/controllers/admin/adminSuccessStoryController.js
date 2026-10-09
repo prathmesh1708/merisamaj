@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const SuccessStory = require('../../models/SuccessStory');
 const MatrimonialProfile = require('../../models/MatrimonialProfile');
 const { getIO } = require('../../services/socketRegistry');
@@ -95,17 +96,58 @@ exports.getEligibleCouples = async (req, res) => {
   }
 };
 
+// Only these fields can be set from the admin form. Empty strings for the ObjectId
+// fields (the form sends '' when no app couple is linked) become null instead of
+// failing with a cast error.
+const STORY_FIELDS = ['title', 'shortDescription', 'story', 'coverImage', 'gallery', 'weddingDate',
+  'groomName', 'brideName', 'location', 'groomId', 'brideId', 'marriageRequestId', 'communityId', 'displayOrder'];
+const ID_FIELDS = ['groomId', 'brideId', 'marriageRequestId', 'communityId'];
+
+const pickStoryFields = (body = {}) => {
+  const data = {};
+  STORY_FIELDS.forEach(f => { if (body[f] !== undefined) data[f] = body[f]; });
+  ID_FIELDS.forEach(f => {
+    if (data[f] === '' || (data[f] && !mongoose.Types.ObjectId.isValid(data[f]))) data[f] = null;
+  });
+  if (data.weddingDate === '') data.weddingDate = null;
+  ['title', 'shortDescription', 'groomName', 'brideName', 'location'].forEach(f => {
+    if (typeof data[f] === 'string') data[f] = data[f].trim();
+  });
+  return data;
+};
+
+const coupleError = (data) => {
+  if (!data.title) return 'Title is required.';
+  if (!data.groomId && !data.groomName) return "Groom's name is required.";
+  if (!data.brideId && !data.brideName) return "Bride's name is required.";
+  return null;
+};
+
 // ─── Create Story ──────────────────────────────────────────────────────────
+// Either from an eligible app couple (groomId/brideId) or written by the admin
+// directly (groomName/brideName). `publishNow: true` makes it visible to members at once.
 exports.createStory = async (req, res) => {
   try {
+    const data = pickStoryFields(req.body);
+    const error = coupleError(data);
+    if (error) return res.status(400).json({ status: 'error', message: error });
+
+    const publishNow = req.body.publishNow === true || req.body.publishNow === 'true';
     const story = await SuccessStory.create({
-      ...req.body,
+      ...data,
+      status: publishNow ? 'published' : 'draft',
+      publishedAt: publishNow ? new Date() : undefined,
       createdBy: req.user._id
     });
 
+    if (publishNow) {
+      const io = getIO();
+      if (io) io.emit('successStory:published', { story });
+    }
+
     res.status(201).json({
       status: 'success',
-      message: 'Story created successfully',
+      message: publishNow ? 'Story published — members can see it now.' : 'Story saved as draft.',
       data: { story }
     });
   } catch (err) {
@@ -113,12 +155,31 @@ exports.createStory = async (req, res) => {
   }
 };
 
+// ─── Upload a story photo ──────────────────────────────────────────────────
+// @route POST /api/v1/admin/matrimonial/success-stories/upload-image  (multipart field: image)
+exports.uploadStoryImage = async (req, res) => {
+  try {
+    const { resolveAvatarUpload } = require('../../utils/avatarUploadHelper');
+    const url = await resolveAvatarUpload(req, 'success_stories');
+    if (!url) return res.status(400).json({ status: 'error', message: 'Please choose an image to upload.' });
+    res.status(200).json({ status: 'success', data: { url } });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
 // ─── Update Story ──────────────────────────────────────────────────────────
 exports.updateStory = async (req, res) => {
   try {
+    const data = pickStoryFields(req.body);
+    const existing = await SuccessStory.findById(req.params.id).lean();
+    if (!existing) return res.status(404).json({ status: 'error', message: 'Story not found' });
+    const error = coupleError({ ...existing, ...data });
+    if (error) return res.status(400).json({ status: 'error', message: error });
+
     const story = await SuccessStory.findByIdAndUpdate(
       req.params.id,
-      { ...req.body, updatedBy: req.user._id },
+      { ...data, updatedBy: req.user._id },
       { new: true, runValidators: true }
     );
 

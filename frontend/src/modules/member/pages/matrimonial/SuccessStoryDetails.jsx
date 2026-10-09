@@ -67,12 +67,18 @@ const SuccessStoryDetails = () => {
             Met through Samaj Matrimony
           </div>
           <h1 className="text-white text-3xl md:text-5xl font-serif font-bold leading-tight drop-shadow-lg mb-3">
-            {story.groomId?.name} & {story.brideId?.name}
+            {/* Linked app users, or the names the admin typed in */}
+            {story.groomId?.name || story.groomName} & {story.brideId?.name || story.brideName}
           </h1>
-          <p className="text-white/90 text-sm md:text-base font-medium flex items-center gap-2 drop-shadow-md">
-            <Heart size={16} className="text-pink-400 fill-pink-400" /> 
-            Married on {new Date(story.weddingDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-          </p>
+          {(story.weddingDate || story.location) && (
+            <p className="text-white/90 text-sm md:text-base font-medium flex items-center gap-2 drop-shadow-md">
+              <Heart size={16} className="text-pink-400 fill-pink-400" />
+              {story.weddingDate
+                ? `Married on ${new Date(story.weddingDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`
+                : 'Happily married'}
+              {story.location ? ` · ${story.location}` : ''}
+            </p>
+          )}
         </div>
       </div>
 

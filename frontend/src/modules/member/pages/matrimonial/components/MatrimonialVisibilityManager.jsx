@@ -916,46 +916,23 @@ export const MatrimonialVisibilityManager = ({
                   <input
                     type="checkbox"
                     checked={settings.myCommunity.enabled}
-                    onChange={() => toggleNestedSetting('myCommunity', 'enabled')}
+                    onChange={() => setSettings(s => {
+                      // The sub-community choice lives inside this card, so it follows this switch
+                      const enabled = !s.myCommunity.enabled;
+                      return {
+                        ...s,
+                        myCommunity: { ...s.myCommunity, enabled },
+                        mySubCommunity: { ...s.mySubCommunity, enabled }
+                      };
+                    })}
                     className="sr-only peer"
                   />
                   <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
                 </label>
               </div>
 
-            </div>
-
-            {/* Setting 3: My Sub Community Members — tap to choose which sub-communities */}
-            <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs">
-              <div className="flex items-start justify-between gap-3">
-                <div
-                  className="flex items-start gap-3 cursor-pointer flex-1 min-w-0"
-                  role="button"
-                  onClick={() => setCurrentScreen('select-subcommunities')}
-                >
-                  <div className="w-8 h-8 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 mt-0.5">
-                    <Users size={16} />
-                  </div>
-                  <div>
-                    <h4 className="text-[13px] font-bold text-slate-800">{memberOf.subCommunityName ? `All ${samaj(memberOf.subCommunityName)} Members` : 'My Sub Community Members'}</h4>
-                    <p className="text-[11px] text-slate-400 font-medium leading-tight mt-0.5">
-                      Sirf meri sub community{memberOf.subCommunityName ? ` (${memberOf.subCommunityName})` : ''} ke members dekh sakte hain.
-                    </p>
-                  </div>
-                </div>
-
-                <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
-                  <input
-                    type="checkbox"
-                    checked={settings.mySubCommunity.enabled}
-                    onChange={() => toggleNestedSetting('mySubCommunity', 'enabled')}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-                </label>
-              </div>
-
-              {settings.mySubCommunity.enabled && (
+              {/* Sub-community chooser — which sub-communities of my community can see me */}
+              {settings.myCommunity.enabled && (
                 <button
                   type="button"
                   onClick={() => setCurrentScreen('select-subcommunities')}

@@ -1028,43 +1028,41 @@ exports.getSubCommunityLocationBreakdown = async (req, res) => {
       (u.role === 'sub_head' && !u.accountType && u.subHeadType === 'local')
     );
 
-    // Determine distinct cities from community settings + users + local heads
+    // Locations = ONLY the cities actually assigned to this community (Community.cityIds,
+    // or the legacy single `city` field when no cityIds exist). Cities that members or
+    // heads merely live in, and the old hard-coded showcase cities, are NOT locations.
     const cityMap = new Map();
-
-    // 1. From Community's assigned cities
+    const inactiveCityIdSet = new Set((community.inactiveCityIds || []).map(String));
     if (Array.isArray(community.cityIds)) {
       community.cityIds.forEach(c => {
         if (c && c.name) {
           const key = c.name.trim().toLowerCase();
-          cityMap.set(key, { name: c.name.trim(), isActive: c.isActive !== false });
+          cityMap.set(key, {
+            cityId: c._id,
+            name: c.name.trim(),
+            state: c.state || '',
+            isActive: c.isActive !== false && !inactiveCityIdSet.has(String(c._id))
+          });
         }
       });
     }
-    if (community.city) {
-      const key = community.city.trim().toLowerCase();
-      if (!cityMap.has(key)) {
-        cityMap.set(key, { name: community.city.trim(), isActive: true });
-      }
+    if (cityMap.size === 0 && community.city && community.city.trim()) {
+      cityMap.set(community.city.trim().toLowerCase(), { cityId: null, name: community.city.trim(), state: '', isActive: true });
     }
 
-    // 2. From Local Heads & Users
-    localHeads.concat(localSubHeads).concat(effectiveUsers).forEach(u => {
-      if (u.city && u.city.trim()) {
-        const key = u.city.trim().toLowerCase();
-        if (!cityMap.has(key)) {
-          cityMap.set(key, { name: u.city.trim(), isActive: true });
-        }
-      }
-    });
-
-    // 3. Fallback default showcase cities if still empty
-    const defaultCities = ['Indore', 'Bhopal', 'Ujjain', 'Khandwa'];
-    defaultCities.forEach(cityName => {
-      const key = cityName.toLowerCase();
-      if (!cityMap.has(key)) {
-        cityMap.set(key, { name: cityName, isActive: true });
-      }
-    });
+    // People living in cities that are not (yet) a location — reported so the UI can
+    // tell the admin/head instead of silently hiding them.
+    const unlistedMap = new Map();
+    const countUnlisted = (u, field) => {
+      const key = (u.city || '').trim().toLowerCase();
+      if (!key || cityMap.has(key)) return;
+      if (!unlistedMap.has(key)) unlistedMap.set(key, { name: u.city.trim(), users: 0, localHeads: 0, localSubHeads: 0 });
+      unlistedMap.get(key)[field]++;
+    };
+    effectiveUsers.forEach(u => countUnlisted(u, 'users'));
+    localHeads.forEach(u => countUnlisted(u, 'localHeads'));
+    localSubHeads.forEach(u => countUnlisted(u, 'localSubHeads'));
+    const unlistedCities = Array.from(unlistedMap.values()).sort((a, b) => a.name.localeCompare(b.name));
 
     // Illustration types helper
     const getIllustrationType = (cityName) => {
@@ -1087,25 +1085,25 @@ exports.getSubCommunityLocationBreakdown = async (req, res) => {
       const cityLocalHeads = localHeads.filter(u => u.city && u.city.trim().toLowerCase() === cLower);
       const cityLocalSubHeads = localSubHeads.filter(u => u.city && u.city.trim().toLowerCase() === cLower);
 
-      // Distribute heads into 4 standard groups (Group 1 - Group 4)
-      const groups = [1, 2, 3, 4].map(gNum => {
-        const gName = `Group ${gNum}`;
-        const colorClass = colorClasses[(gNum - 1) % colorClasses.length];
+      // Groups are matched by their exact label (a missing label counts as "Group 1",
+      // same as assignment). Renamed groups keep their own card; the standard
+      // "Group 1..N" slots pad the matrix to at least 4 cards.
+      const labelOf = (u) => (u.group && u.group.trim()) || 'Group 1';
+      const usedLabels = Array.from(new Set(cityLocalHeads.concat(cityLocalSubHeads).map(labelOf)));
+      const groupLabels = [...usedLabels];
+      for (let n = 1; groupLabels.length < 4; n++) {
+        if (!groupLabels.some(l => l.toLowerCase() === `group ${n}`)) groupLabels.push(`Group ${n}`);
+      }
+      const groupNumber = (label) => { const m = /^group\s+(\d+)$/i.exec(label); return m ? Number(m[1]) : Number.MAX_SAFE_INTEGER; };
+      groupLabels.sort((a, b) => groupNumber(a) - groupNumber(b) || a.localeCompare(b));
 
-        // Group-assigned local heads (or distribute evenly if no group specified)
-        const grpHeads = cityLocalHeads.filter((h, idx) => {
-          if (h.group) return h.group.toLowerCase().includes(String(gNum));
-          return idx % 4 === (gNum - 1);
-        });
-
-        // Group-assigned sub local heads
-        const grpSubHeads = cityLocalSubHeads.filter((sh, idx) => {
-          if (sh.group) return sh.group.toLowerCase().includes(String(gNum));
-          return idx % 4 === (gNum - 1);
-        });
+      const groups = groupLabels.map((gName, gIdx) => {
+        const colorClass = colorClasses[gIdx % colorClasses.length];
+        const grpHeads = cityLocalHeads.filter(h => labelOf(h) === gName);
+        const grpSubHeads = cityLocalSubHeads.filter(sh => labelOf(sh) === gName);
 
         return {
-          id: `g${gNum}`,
+          id: `g-${gName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
           name: gName,
           colorClass,
           heads: grpHeads.length,
@@ -1146,6 +1144,8 @@ exports.getSubCommunityLocationBreakdown = async (req, res) => {
       return {
         id: `loc-${cLower.replace(/\s+/g, '-')}`,
         name: cityName,
+        cityId: cityObj.cityId,
+        state: cityObj.state,
         fullName: `${cityName} Location`,
         illustrationType: getIllustrationType(cityName),
         isActive: cityObj.isActive !== false,
@@ -1195,6 +1195,7 @@ exports.getSubCommunityLocationBreakdown = async (req, res) => {
           totalUsersCount
         },
         locations,
+        unlistedCities,
         allLocalHeads: localHeads.map(h => ({
           id: h._id,
           name: h.name,
@@ -1633,10 +1634,14 @@ exports.updateGroupMeta = async (req, res) => {
     }
 
     const escapeRegex = (str) => (str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Heads created before the Group field existed have no `group` stored — they are
+    // shown under "Group 1", so renaming/hiding "Group 1" must include them too.
+    const groupCondition = decodedGroupName === 'Group 1'
+      ? { $or: [{ group: 'Group 1' }, { group: { $in: [null, ''] } }, { group: { $exists: false } }] }
+      : { group: decodedGroupName };
     const matchQuery = {
       communityId: id,
-      group: decodedGroupName,
-      $or: roleCondition
+      $and: [groupCondition, { $or: roleCondition }]
     };
 
     if (city && city.trim()) {
@@ -1686,3 +1691,120 @@ exports.updateGroupMeta = async (req, res) => {
   }
 };
 
+
+// ─────────────────────────────────────────────
+// Locations of a Community = its assigned Cities (Community.cityIds).
+// City records are shared master data (Admin → Cities); these endpoints only
+// attach/detach them to ONE community and switch them on/off for that community.
+// ─────────────────────────────────────────────
+
+const escapeCityRegex = (str) => (str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// @desc    Active cities that can still be added as a location of this community
+// @route   GET /api/v1/admin/communities/:id/locations/available
+exports.getAvailableLocationCities = async (req, res) => {
+  try {
+    const City = mongoose.model('City');
+    const community = await Community.findById(req.params.id).select('cityIds').lean();
+    if (!community) return res.status(404).json({ status: 'error', message: 'Community not found' });
+
+    const cities = await City.find({ isActive: true, _id: { $nin: community.cityIds || [] } })
+      .select('name state')
+      .sort({ state: 1, name: 1 })
+      .lean();
+    res.status(200).json({ success: true, data: cities.map(c => ({ id: c._id, name: c.name, state: c.state || '' })) });
+  } catch (error) {
+    console.error('getAvailableLocationCities error:', error);
+    res.status(500).json({ status: 'error', message: error.message || 'Server error' });
+  }
+};
+
+// @desc    Add an existing City as a location of this community
+// @route   POST /api/v1/admin/communities/:id/locations  { cityId }
+exports.addLocation = async (req, res) => {
+  try {
+    const City = mongoose.model('City');
+    const { cityId } = req.body;
+    if (!cityId || !mongoose.Types.ObjectId.isValid(cityId)) {
+      return res.status(400).json({ status: 'error', message: 'Please select a city.' });
+    }
+    const city = await City.findOne({ _id: cityId, isActive: true }).select('name').lean();
+    if (!city) return res.status(404).json({ status: 'error', message: 'City not found or inactive.' });
+
+    const community = await Community.findById(req.params.id);
+    if (!community) return res.status(404).json({ status: 'error', message: 'Community not found' });
+    if ((community.cityIds || []).some(c => String(c) === String(cityId))) {
+      return res.status(409).json({ status: 'error', message: `${city.name} is already a location of this community.` });
+    }
+
+    community.cityIds.push(cityId);
+    await community.save();
+    res.status(201).json({ success: true, message: `${city.name} added as a location.` });
+  } catch (error) {
+    console.error('addLocation error:', error);
+    res.status(500).json({ status: 'error', message: error.message || 'Server error' });
+  }
+};
+
+// @desc    Activate / deactivate a location for this community only
+// @route   PATCH /api/v1/admin/communities/:id/locations/:cityId/toggle
+exports.toggleLocation = async (req, res) => {
+  try {
+    const { cityId } = req.params;
+    const community = await Community.findById(req.params.id);
+    if (!community) return res.status(404).json({ status: 'error', message: 'Community not found' });
+    if (!(community.cityIds || []).some(c => String(c) === String(cityId))) {
+      return res.status(404).json({ status: 'error', message: 'This location is not part of the community.' });
+    }
+
+    const inactive = (community.inactiveCityIds || []).map(String);
+    const nowActive = inactive.includes(String(cityId));
+    community.inactiveCityIds = nowActive
+      ? community.inactiveCityIds.filter(c => String(c) !== String(cityId))
+      : [...(community.inactiveCityIds || []), cityId];
+    await community.save();
+    res.status(200).json({ success: true, isActive: nowActive, message: `Location ${nowActive ? 'activated' : 'deactivated'}.` });
+  } catch (error) {
+    console.error('toggleLocation error:', error);
+    res.status(500).json({ status: 'error', message: error.message || 'Server error' });
+  }
+};
+
+// @desc    Remove a location from this community (blocked while heads are assigned there)
+// @route   DELETE /api/v1/admin/communities/:id/locations/:cityId
+exports.removeLocation = async (req, res) => {
+  try {
+    const City = mongoose.model('City');
+    const { cityId } = req.params;
+    const community = await Community.findById(req.params.id);
+    if (!community) return res.status(404).json({ status: 'error', message: 'Community not found' });
+    if (!(community.cityIds || []).some(c => String(c) === String(cityId))) {
+      return res.status(404).json({ status: 'error', message: 'This location is not part of the community.' });
+    }
+
+    const city = await City.findById(cityId).select('name').lean();
+    if (city) {
+      const headsThere = await User.countDocuments({
+        communityId: community._id,
+        role: 'sub_head',
+        accountType: { $in: ['local_head', 'local_sub_head'] },
+        accountStatus: { $ne: 'deleted' },
+        city: new RegExp(`^${escapeCityRegex(city.name)}$`, 'i')
+      });
+      if (headsThere > 0) {
+        return res.status(409).json({
+          status: 'error',
+          message: `${city.name} still has ${headsThere} Local Head/Sub-Head account(s). Remove or move them before deleting this location.`
+        });
+      }
+    }
+
+    community.cityIds = community.cityIds.filter(c => String(c) !== String(cityId));
+    community.inactiveCityIds = (community.inactiveCityIds || []).filter(c => String(c) !== String(cityId));
+    await community.save();
+    res.status(200).json({ success: true, message: `${city?.name || 'Location'} removed from this community.` });
+  } catch (error) {
+    console.error('removeLocation error:', error);
+    res.status(500).json({ status: 'error', message: error.message || 'Server error' });
+  }
+};

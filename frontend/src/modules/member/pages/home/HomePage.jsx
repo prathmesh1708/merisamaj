@@ -145,6 +145,15 @@ const HomePage = () => {
   
   const [liveTopDonors, setLiveTopDonors] = useState([]);
   const [liveSuccessStories, setLiveSuccessStories] = useState([]);
+  // Stories the admin published from Matrimonial → Success Stories
+  const [publishedMatrimonialStories, setPublishedMatrimonialStories] = useState([]);
+  useEffect(() => {
+    let cancelled = false;
+    successStoryService.getPublishedStories()
+      .then(res => { if (!cancelled) setPublishedMatrimonialStories(res.data?.data?.stories || []); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
   const [censusSummary, setCensusSummary] = useState(null);
   const [totalFundsAmount, setTotalFundsAmount] = useState(0);
   const [liveCommunityHead, setLiveCommunityHead] = useState(null);
@@ -384,8 +393,9 @@ const HomePage = () => {
     return 'Agrawal';
   };
 
-  const displaySuccessStories = liveSuccessStories.length > 0 
-    ? liveSuccessStories 
+  const realSuccessStories = [...publishedMatrimonialStories, ...liveSuccessStories];
+  const displaySuccessStories = realSuccessStories.length > 0
+    ? realSuccessStories
     : mockSuccessStories.map(story => {
         const surname = getCommunitySurnameLocal(userCommunity);
         return {
@@ -1268,7 +1278,9 @@ const HomePage = () => {
                   {story.tag || 'Met through Samaj Matrimony'}
                 </div>
                 <h4 className="text-white text-[21px] font-serif font-bold leading-tight drop-shadow-md">
-                  {story.title || (story.groomId && story.brideId ? `${story.groomId.name} & ${story.brideId.name}` : story.groomName)}
+                  {story.title || ((story.groomId?.name || story.groomName) && (story.brideId?.name || story.brideName)
+                    ? `${story.groomId?.name || story.groomName} & ${story.brideId?.name || story.brideName}`
+                    : story.groomName)}
                 </h4>
                 <p className="text-white/75 text-[12px] font-medium mt-1 drop-shadow-sm flex items-center gap-1.5">
                   <Heart size={12} className="text-pink-400" fill="currentColor" /> 
