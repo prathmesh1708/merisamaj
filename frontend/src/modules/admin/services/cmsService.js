@@ -12,7 +12,7 @@ const initialContactInfo = {
 };
 
 const initialFooterContent = {
-  copyright: '© 2026 MeriSamaj. All Rights Reserved.',
+  copyright: '© 2026 ApniSamaj. All Rights Reserved.',
   tagline: 'Fostering unity, bridging families, digitizing heritage.',
   socialLinks: {
     facebook: 'https://facebook.com/merisamaj',
@@ -34,7 +34,7 @@ const initialAuditLogs = [
     action: 'Published',
     module: 'Banners',
     itemId: 'b-1',
-    details: 'Published Main Hero Banner "Welcome to MeriSamaj Community"',
+    details: 'Published Main Hero Banner "Welcome to ApniSamaj Community"',
     timestamp: '2026-07-01T12:00:00Z',
     user: 'Council Admin'
   },

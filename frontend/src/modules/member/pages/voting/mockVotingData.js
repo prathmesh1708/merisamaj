@@ -142,7 +142,7 @@ export const mockElections = [
         bio: "Manish Gupta (Age: 38 years) is a young entrepreneur. His vision is to connect the community with modern technology to increase self-employment opportunities for youth.",
         manifesto: [
           "Seed-funding and mentorship circle for community youth startups.",
-          "Expansion of 'MeriSamaj' app for community activities and business networking.",
+          "Expansion of 'ApniSamaj' app for community activities and business networking.",
           "Organization of annual sports and cultural exchange programs."
         ],
         experience: "Co-founder - Indore Youth Club, Member - JCI",

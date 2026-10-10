@@ -1,6 +1,6 @@
 /**
  * authValidator.js — Backend Validation Middleware
- * MeriSamaj — Production-Level Auth API Validation
+ * ApniSamaj — Production-Level Auth API Validation
  *
  * RULES:
  * - Same regex patterns as frontend validators.js (Single Source of Truth)

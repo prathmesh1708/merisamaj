@@ -35,7 +35,7 @@ exports.addMember = async (req, res) => {
     res.status(201).json({
       success: true,
       message: record.linkStatus === 'invited'
-        ? `${record.name} is registered on MeriSamaj — an invitation was sent. Approval is pending with your Samaj Head.`
+        ? `${record.name} is registered on ApniSamaj — an invitation was sent. Approval is pending with your Samaj Head.`
         : `${record.name} added. Approval is pending with your Samaj Head.`,
       data: view
     });

@@ -149,7 +149,7 @@ export const MemberLayout = () => {
                   <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.2) 0%, transparent 60%)' }} />
                 </div>
                 <div>
-                  <h2 className="text-[17px] font-black text-white tracking-tight leading-none">MeriSamaj</h2>
+                  <h2 className="text-[17px] font-black text-white tracking-tight leading-none">ApniSamaj</h2>
                   <p className="text-[9px] font-semibold tracking-widest uppercase mt-0.5" style={{ color: 'rgba(167,139,250,0.6)' }}>Community Platform</p>
                 </div>
               </div>

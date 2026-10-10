@@ -167,7 +167,7 @@ const sendPushNotification = async ({
     const payload = {
       tokens: tokenStrings,
       notification: {
-        title: title || 'MeriSamaj Alert',
+        title: title || 'ApniSamaj Alert',
         body: message || ''
       },
       data: {

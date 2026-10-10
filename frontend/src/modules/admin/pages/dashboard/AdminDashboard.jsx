@@ -47,7 +47,7 @@ export const AdminDashboard = () => {
         <div>
           <h1 className="text-2xl font-black text-slate-800 tracking-tight">Platform Master Dashboard</h1>
           <p className="text-sm font-medium text-slate-500 mt-1">
-            Real-time platform-wide statistics across the entire MeriSamaj network
+            Real-time platform-wide statistics across the entire ApniSamaj network
           </p>
         </div>
         <div className="flex items-center gap-2 bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100">

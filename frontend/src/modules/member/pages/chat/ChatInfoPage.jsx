@@ -161,7 +161,7 @@ const ChatInfoPage = () => {
                   <p className="text-[15px] font-medium text-gray-900 truncate">
                     {uid === 'u1' ? 'You' : `Participant ${uid[1]}`}
                   </p>
-                  <p className="text-[13px] text-gray-500 truncate">Hey there! I am using MeriSamaj.</p>
+                  <p className="text-[13px] text-gray-500 truncate">Hey there! I am using ApniSamaj.</p>
                 </div>
                 {chat.adminIds?.includes(uid) && (
                   <span className="text-[11px] font-bold text-brand-primary bg-brand-primary/10 px-2 py-0.5 rounded border border-brand-primary/20 shrink-0">

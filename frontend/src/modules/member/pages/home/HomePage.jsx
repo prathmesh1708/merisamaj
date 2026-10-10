@@ -13,9 +13,9 @@ import { CityLandscape } from '../../components/common/CityLandscape';
 import { mockAdmins as mockAdminsRaw } from '../../data/mockUsers';
 // Static success stories for home page — matrimonial module shows community matches
 const mockSuccessStories = [
-  { id: 'ss1', groomName: 'Rajesh & Priya Agrawal', location: 'Indore', marriageDate: 'Feb 2026', avatar: 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=800&q=80', quote: 'Found our match on MeriSamaj within 3 months!' },
+  { id: 'ss1', groomName: 'Rajesh & Priya Agrawal', location: 'Indore', marriageDate: 'Feb 2026', avatar: 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=800&q=80', quote: 'Found our match on ApniSamaj within 3 months!' },
   { id: 'ss2', groomName: 'Vikram & Sunita Sharma', location: 'Bhopal', marriageDate: 'Apr 2026', avatar: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=800&q=80', quote: 'Community filter made finding the right match easy.' },
-  { id: 'ss3', groomName: 'Amit & Kavita Gupta', location: 'Delhi', marriageDate: 'Jun 2026', avatar: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?auto=format&fit=crop&w=800&q=80', quote: 'Our families connected through MeriSamaj. Grateful!' },
+  { id: 'ss3', groomName: 'Amit & Kavita Gupta', location: 'Delhi', marriageDate: 'Jun 2026', avatar: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?auto=format&fit=crop&w=800&q=80', quote: 'Our families connected through ApniSamaj. Grateful!' },
 ];
 
 import ReferAndEarnBanner from './ReferAndEarnBanner';
@@ -1671,7 +1671,7 @@ const HomePage = () => {
               {/* End text */}
               <div className="relative z-10 flex flex-col items-center">
                  <h3 className="text-brand-primary/40 text-[42px] font-black italic tracking-tighter mb-2 drop-shadow-md leading-none select-none">
-                   {liveFooterArtwork?.hashtagText || '#MeriSamaj'}
+                   {liveFooterArtwork?.hashtagText || '#ApniSamaj'}
                  </h3>
                  <div className="bg-white/85 backdrop-blur-xl px-6 py-2.5 rounded-2xl border border-purple-200/40 shadow-sm flex flex-col items-center text-center">
                    <span className="text-text-secondary text-[14px] font-black tracking-wide">

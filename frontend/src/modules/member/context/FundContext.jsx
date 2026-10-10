@@ -133,7 +133,7 @@ export const FundProvider = ({ children }) => {
           key:         key || import.meta.env.VITE_RAZORPAY_KEY_ID,
           amount:      orderAmount,
           currency:    currency || 'INR',
-          name:        'Meri Samaj Fund',
+          name:        'Apni Samaj Fund',
           description: `Fund Contribution`,
           order_id,
           prefill: {

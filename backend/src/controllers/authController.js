@@ -5,6 +5,7 @@ const config = require('../config/config');
 const { notifyInvitationAccepted, notifySecurityAlert, notifyLocalHeadNewMember } = require('../services/notificationService');
 const { sendPushNotification } = require('../services/pushNotificationService');
 const familyService = require('../services/familyService');
+const otpService = require('../services/otpService');
 
 // Centralized production-secure cookie helper
 const getCookieOptions = (maxAgeMs = 7 * 24 * 60 * 60 * 1000) => {
@@ -164,6 +165,13 @@ const registerUser = async (req, res) => {
     const referralService = require('../services/referralService');
     if (!userData.referralCode) {
       userData.referralCode = await referralService.generateUniqueReferralCode();
+    }
+
+    // The mobile number must have been verified by OTP (send-otp → verify-otp) just before
+    try {
+      await otpService.consumeVerifiedOtp(phone, 'register', req.body.otp);
+    } catch (otpError) {
+      return res.status(400).json({ success: false, errors: { phone: otpError.message }, message: otpError.message });
     }
 
     const user = await User.create(userData);
@@ -841,44 +849,58 @@ const verifyAadhaarOtp = async (req, res) => {
   }
 };
 
-// @desc    Simulated OTP sending (returns default OTP '123456' for development)
+const otpErrorResponse = (res, error) => {
+  if (error instanceof otpService.OtpError) {
+    return res.status(error.status).json({ message: error.message });
+  }
+  console.error('[OTP] error:', error);
+  return res.status(500).json({ message: 'Something went wrong. Please try again.' });
+};
+
+// @desc    Send an OTP by SMS (SMS Gateway Hub). type: 'register' | 'reset_password'
+//          Without SMS configured (development only) the OTP is 123456.
 // @route   POST /api/auth/send-otp
 // @access  Public
 const sendOtp = async (req, res) => {
-  const { phone } = req.body;
-  if (!phone) {
-    return res.status(400).json({ message: 'Phone number is required' });
+  try {
+    const { phone, type } = req.body;
+    const phone10 = otpService.normalizePhone(phone);
+    if (phone10.length !== 10) {
+      return res.status(400).json({ message: 'Enter a valid 10-digit mobile number.' });
+    }
+
+    // Don't spend an SMS when the request can't succeed anyway
+    const existingUser = await User.findOne({ phone: phone10 }).select('_id').lean();
+    const isReset = ['reset_password', 'forgot', 'reset'].includes(String(type || '').toLowerCase());
+    if (isReset && !existingUser) {
+      return res.status(404).json({ message: 'No account found with this mobile number.' });
+    }
+    if (!isReset && existingUser) {
+      return res.status(400).json({ message: 'This mobile number is already registered. Please log in.' });
+    }
+
+    const { devOtp, smsFailed } = await otpService.requestOtp(phone10, isReset ? 'reset_password' : 'register');
+    res.json({
+      message: smsFailed
+        ? 'SMS could not be sent (check SMS gateway settings). Development mode — use 123456'
+        : devOtp ? 'OTP sent (development mode — use 123456)' : `OTP sent to +91 ${phone10}`,
+      ...(devOtp ? { otp: devOtp } : {})
+    });
+  } catch (error) {
+    otpErrorResponse(res, error);
   }
-  
-  let otp = null;
-  // TODO: Integrate Production SMS Provider here (Twilio/Fast2SMS)
-  if (process.env.NODE_ENV !== "production") {
-      otp = "123456";
-  }
-  
-  // In production, we would actually trigger the SMS sending here instead of returning it
-  res.json({ message: 'OTP sent successfully (simulated)', otp });
 };
 
-// @desc    Simulated OTP verification (accepts '123456')
+// @desc    Verify an OTP sent by /send-otp
 // @route   POST /api/auth/verify-otp
 // @access  Public
 const verifyOtp = async (req, res) => {
-  const { phone, otp } = req.body;
-  if (!phone || !otp) {
-    return res.status(400).json({ message: 'Phone and OTP are required' });
-  }
-
-  let expectedOtp = null;
-  if (process.env.NODE_ENV !== "production") {
-      expectedOtp = "123456";
-  }
-  // TODO: Production verification logic would check against a DB record or SMS provider API
-  
-  if (expectedOtp && otp === expectedOtp) {
+  try {
+    const { phone, otp, type } = req.body;
+    await otpService.verifyOtp(phone, type || 'register', otp);
     res.json({ message: 'OTP verified successfully' });
-  } else {
-    res.status(400).json({ message: 'Invalid OTP' });
+  } catch (error) {
+    otpErrorResponse(res, error);
   }
 };
 
@@ -893,19 +915,18 @@ const resetPassword = async (req, res) => {
       return res.status(400).json({ message: 'Phone, OTP and new password are required' });
     }
 
-    const user = await User.findOne({ phone });
+    const phone10 = otpService.normalizePhone(phone);
+    const user = await User.findOne({ phone: phone10 });
 
     if (!user) {
       return res.status(404).json({ message: 'User not found with this mobile number' });
     }
 
-    let expectedOtp = null;
-    if (process.env.NODE_ENV !== "production") {
-      expectedOtp = "123456";
-    }
-    
-    if (expectedOtp && otp !== expectedOtp) {
-      return res.status(400).json({ message: 'Invalid OTP' });
+    // The OTP must have been sent to this number and match — in every environment
+    try {
+      await otpService.consumeVerifiedOtp(phone10, 'reset_password', otp);
+    } catch (otpError) {
+      return otpErrorResponse(res, otpError);
     }
 
     user.password = newPassword;

@@ -153,7 +153,7 @@ exports.getCensusSummary = async (req, res) => {
         phone: u.phone || '',
         avatar: u.profileImage || u.avatar || null,
         maritalStatus: rawStatus ? classifyMaritalStatus(rawStatus) : (uAge < 18 ? 'Single' : 'Not Specified'),
-        // Registered on MeriSamaj = Active (unless deactivated/blocked)
+        // Registered on ApniSamaj = Active (unless deactivated/blocked)
         active: !['inactive', 'blocked'].includes(u.accountStatus),
         memberStatus: 'Active',
         relation: 'Head',
@@ -205,7 +205,7 @@ exports.getCensusSummary = async (req, res) => {
           city: uCity,
           phone: fm.phone || fm.mobile || u.phone || '',
           maritalStatus: fmRawStatus ? classifyMaritalStatus(fmRawStatus) : 'Not Specified',
-          // Family-added relatives without a MeriSamaj account are inactive (dummy = no mobile)
+          // Family-added relatives without a ApniSamaj account are inactive (dummy = no mobile)
           active: false,
           memberStatus: (fm.phone || fm.mobile) ? 'Inactive' : 'Dummy',
           isFamilyRecord: true,
@@ -325,7 +325,7 @@ exports.getCensusSummary = async (req, res) => {
           totalMembers,
           totalUsers,
           totalEmbeddedMembers,
-          // Active = registered on MeriSamaj; Inactive/Dummy = added by family, not registered
+          // Active = registered on ApniSamaj; Inactive/Dummy = added by family, not registered
           activeMembersCount: totalUsers,
           inactiveMembersCount,
           dummyMembersCount,

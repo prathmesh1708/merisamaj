@@ -59,7 +59,7 @@ export const SideNav = () => {
             म
           </div>
           <div>
-            <h1 className="text-[18px] font-bold text-white tracking-tight">MeriSamaj</h1>
+            <h1 className="text-[18px] font-bold text-white tracking-tight">ApniSamaj</h1>
             <p className="text-[10px] font-medium text-purple-300/60 tracking-wide">Your Community Platform</p>
           </div>
         </div>

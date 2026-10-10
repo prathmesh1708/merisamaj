@@ -83,8 +83,8 @@ const getDefaultStories = () => [
     id: 'story_1',
     title: 'Rajesh & Priya Agrawal',
     tag: 'Featured Match',
-    quote: 'Found their life partner through MeriSamaj within 3 months of verified listing.',
-    shortDescription: 'Found their life partner through MeriSamaj within 3 months of verified listing.',
+    quote: 'Found their life partner through ApniSamaj within 3 months of verified listing.',
+    shortDescription: 'Found their life partner through ApniSamaj within 3 months of verified listing.',
     coverImage: 'https://images.unsplash.com/photo-1583939003579-730e3918a45a?auto=format&fit=crop&w=800&q=80',
     weddingDate: '2024',
     groomName: 'Rajesh Agrawal',
@@ -289,7 +289,7 @@ const getOrCreateAppContent = async (communityId) => {
       footerArtwork: {
         artworkType: 'svg',
         backgroundImage: '',
-        hashtagText: '#MeriSamaj',
+        hashtagText: '#ApniSamaj',
         caughtUpTitle: "You're all caught up!",
         caughtUpSubtitle: 'Check back later for new updates',
         enabled: true
@@ -322,7 +322,7 @@ const getOrCreateAppContent = async (communityId) => {
       doc.footerArtwork = {
         artworkType: 'svg',
         backgroundImage: '',
-        hashtagText: '#MeriSamaj',
+        hashtagText: '#ApniSamaj',
         caughtUpTitle: "You're all caught up!",
         caughtUpSubtitle: 'Check back later for new updates',
         enabled: true

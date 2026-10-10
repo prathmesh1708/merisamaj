@@ -79,7 +79,7 @@ const ProfessionalDetailPage = () => {
               if (navigator.share) {
                 navigator.share({
                   title: activeProfessional.title,
-                  text: `Check out ${activeProfessional.title} on MeriSamaj Business Directory`,
+                  text: `Check out ${activeProfessional.title} on ApniSamaj Business Directory`,
                   url: window.location.href,
                 }).catch(() => {});
               } else {

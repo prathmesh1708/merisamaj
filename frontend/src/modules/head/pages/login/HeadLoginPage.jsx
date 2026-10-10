@@ -331,7 +331,7 @@ const HeadLoginPage = () => {
       {/* ─── Bottom Brand Label ─── */}
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10">
         <p className="text-[11px] font-medium" style={{ color: 'rgba(255,255,255,0.18)' }}>
-          © 2025 MeriSamaj · Community Management Platform
+          © 2025 ApniSamaj · Community Management Platform
         </p>
       </div>
     </div>

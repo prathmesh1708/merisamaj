@@ -390,7 +390,7 @@ export const HeadLayout = () => {
                 <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.2) 0%, transparent 60%)' }} />
               </div>
               <div>
-                <h1 className="text-[17px] font-extrabold text-white tracking-tight leading-none">MeriSamaj</h1>
+                <h1 className="text-[17px] font-extrabold text-white tracking-tight leading-none">ApniSamaj</h1>
                 <p className="text-[9px] font-semibold uppercase tracking-widest mt-1.5" style={{ color: 'rgba(167,139,250,0.6)' }}>DashboardKit</p>
               </div>
             </div>
@@ -460,7 +460,7 @@ export const HeadLayout = () => {
             म
           </div>
           <div>
-            <h1 className="text-[15px] font-bold text-slate-800 leading-none">MeriSamaj</h1>
+            <h1 className="text-[15px] font-bold text-slate-800 leading-none">ApniSamaj</h1>
             <p className="text-[8px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">
               {isLocalHead ? `Local Head • ${headUser?.city || 'City'}` : 'Council Head'}
             </p>
@@ -499,7 +499,7 @@ export const HeadLayout = () => {
                   <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.2) 0%, transparent 60%)' }} />
                 </div>
                 <div>
-                  <h1 className="text-[17px] font-extrabold text-white tracking-tight leading-none">MeriSamaj</h1>
+                  <h1 className="text-[17px] font-extrabold text-white tracking-tight leading-none">ApniSamaj</h1>
                   <p className="text-[9px] font-semibold uppercase tracking-widest mt-1.5" style={{ color: 'rgba(167,139,250,0.6)' }}>DashboardKit</p>
                 </div>
               </div>

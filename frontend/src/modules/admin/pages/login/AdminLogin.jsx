@@ -45,7 +45,7 @@ export const AdminLogin = () => {
             <div className="admin-login-icon">
               <ShieldCheck size={32} />
             </div>
-            <h2>MeriSamaj Admin Panel</h2>
+            <h2>ApniSamaj Admin Panel</h2>
             <p>Enter your credentials to manage the platform</p>
           </div>
 
@@ -98,7 +98,7 @@ export const AdminLogin = () => {
           </form>
 
           <div className="admin-login-footer">
-            <p>© {new Date().getFullYear()} MeriSamaj Platform Admin</p>
+            <p>© {new Date().getFullYear()} ApniSamaj Platform Admin</p>
           </div>
         </div>
       </div>

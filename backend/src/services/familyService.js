@@ -648,7 +648,7 @@ const activatePendingInvitations = async (user) => {
 // ─── Read model for the member app ────────────────────────────────────────────
 
 /**
- * Activity: a member is ACTIVE once they have a MeriSamaj account (linked/self).
+ * Activity: a member is ACTIVE once they have a ApniSamaj account (linked/self).
  * Until then they are INACTIVE — or DUMMY when no mobile number was given (e.g. a child).
  * Jangana: approved members are counted (active or not); pending wait for the heads.
  */

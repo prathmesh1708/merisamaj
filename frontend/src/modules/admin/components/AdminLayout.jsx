@@ -432,7 +432,7 @@ export const AdminLayout = () => {
               <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.2) 0%, transparent 60%)' }} />
             </div>
             <div>
-              <h1 className="text-[18px] font-black text-white tracking-tight leading-none">MeriSamaj</h1>
+              <h1 className="text-[18px] font-black text-white tracking-tight leading-none">ApniSamaj</h1>
               <p className="text-[9px] font-semibold uppercase tracking-widest mt-1" style={{ color: 'rgba(167,139,250,0.6)' }}>Admin Dashboard</p>
             </div>
           </div>
@@ -499,7 +499,7 @@ export const AdminLayout = () => {
             म
           </div>
           <div>
-            <h1 className="text-[15px] font-black text-slate-900 leading-none">MeriSamaj</h1>
+            <h1 className="text-[15px] font-black text-slate-900 leading-none">ApniSamaj</h1>
             <p className="text-[8px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">Admin Desk</p>
           </div>
         </div>
@@ -536,7 +536,7 @@ export const AdminLayout = () => {
                   <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.2) 0%, transparent 60%)' }} />
                 </div>
                 <div>
-                  <h1 className="text-[17px] font-black text-white tracking-tight leading-none">MeriSamaj</h1>
+                  <h1 className="text-[17px] font-black text-white tracking-tight leading-none">ApniSamaj</h1>
                   <p className="text-[9px] font-semibold uppercase tracking-widest mt-0.5" style={{ color: 'rgba(167,139,250,0.6)' }}>Admin Desk</p>
                 </div>
               </div>

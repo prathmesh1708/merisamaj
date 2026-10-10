@@ -401,7 +401,7 @@ export const CensusPage = () => {
   // Print Preview Mode
   const [printPreviewMode, setPrintPreviewMode] = useState(false);
 
-  // Jangana list tab: Active = registered on MeriSamaj; Inactive = approved family-added
+  // Jangana list tab: Active = registered on ApniSamaj; Inactive = approved family-added
   // members without an account (still counted in every total)
   const [activityTab, setActivityTab] = useState('all'); // all | active | inactive
 
@@ -489,7 +489,7 @@ export const CensusPage = () => {
     );
   };
 
-  // Family-added members (no MeriSamaj account) have no profile/chat to open
+  // Family-added members (no ApniSamaj account) have no profile/chat to open
   const InactiveTag = ({ member }) => member.active === false ? (
     <span className="text-[8.5px] font-black px-1.5 py-0.5 rounded uppercase bg-rose-50 text-rose-600 border border-rose-100">
       {member.memberStatus === 'Dummy' ? (language === 'en' ? 'Dummy' : 'डमी') : (language === 'en' ? 'Inactive' : 'निष्क्रिय')}
@@ -1181,7 +1181,7 @@ export const CensusPage = () => {
             </table>
 
             <div className="mt-12 text-center text-gray-500 text-[10px] border-t border-gray-200 pt-4">
-              This report is generated dynamically by MeriSamaj community software and is meant for internal community reference only.
+              This report is generated dynamically by ApniSamaj community software and is meant for internal community reference only.
             </div>
           </div>
         )}

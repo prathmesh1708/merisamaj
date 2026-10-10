@@ -24,7 +24,7 @@ const LINK_LABELS = {
   declined: 'Declined invitation'
 };
 
-// Active = registered on MeriSamaj; Inactive = not registered yet; Dummy = no mobile number
+// Active = registered on ApniSamaj; Inactive = not registered yet; Dummy = no mobile number
 const ACTIVITY_STYLES = {
   active: { label: 'Active', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
   inactive: { label: 'Inactive', className: 'bg-rose-50 text-rose-600 border-rose-200' },
@@ -153,7 +153,7 @@ export const HeadFamilyRequests = () => {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
             { label: 'Total Families', value: stats.totalFamilies, sub: 'Registered in system', icon: Users, className: 'text-indigo-600 bg-indigo-50' },
-            { label: 'Active Members', value: stats.activeMembers, sub: 'Registered on MeriSamaj', icon: UserCheck, className: 'text-emerald-600 bg-emerald-50' },
+            { label: 'Active Members', value: stats.activeMembers, sub: 'Registered on ApniSamaj', icon: UserCheck, className: 'text-emerald-600 bg-emerald-50' },
             { label: 'Inactive / Dummy', value: stats.inactiveMembers + stats.dummyMembers, sub: `${stats.inactiveMembers} not registered · ${stats.dummyMembers} no mobile`, icon: UserX, className: 'text-rose-600 bg-rose-50' },
             { label: 'Total Population', value: stats.janganaCount, sub: `Jangana count · ${stats.pendingRequests} pending`, icon: User, className: 'text-violet-600 bg-violet-50' }
           ].map(card => (

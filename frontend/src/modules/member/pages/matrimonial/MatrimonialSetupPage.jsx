@@ -355,7 +355,7 @@ const MatrimonialSetupPage = ({ isHub = false, onPublish }) => {
           <div className="bg-rose-50/50 border border-rose-100 rounded-2xl p-4 flex items-start gap-3">
             <Lock size={16} className="text-rose-500 shrink-0 mt-0.5" />
             <p className="text-[12px] text-rose-700 leading-relaxed font-semibold">
-              Choose your profile visibility. Selecting <strong>"All Members"</strong> allows candidates across all Samaj communities on MeriSamaj to view and discover your profile.
+              Choose your profile visibility. Selecting <strong>"All Members"</strong> allows candidates across all Samaj communities on ApniSamaj to view and discover your profile.
             </p>
           </div>
 

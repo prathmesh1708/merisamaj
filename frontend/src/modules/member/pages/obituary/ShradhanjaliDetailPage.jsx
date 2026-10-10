@@ -101,7 +101,7 @@ const ShradhanjaliDetailPage = () => {
       try {
         await navigator.share({
           title: obituary.deceasedName,
-          text: `${obituary.deceasedName}'s Tribute — MeriSamaj`,
+          text: `${obituary.deceasedName}'s Tribute — ApniSamaj`,
           url: window.location.href
         });
       } catch {

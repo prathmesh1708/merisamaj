@@ -884,7 +884,7 @@ export const mockSuccessStories = [
     groomName: 'Rahul & Meera',
     location: 'Indore, MP',
     marriageDate: 'March 2025',
-    quote: 'We found each other on MeriSamaj and our families instantly connected. The platform made it so easy to find someone who shares our values and traditions. We are grateful!',
+    quote: 'We found each other on ApniSamaj and our families instantly connected. The platform made it so easy to find someone who shares our values and traditions. We are grateful!',
     avatar: 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=800&q=80',
   },
   {
@@ -892,7 +892,7 @@ export const mockSuccessStories = [
     groomName: 'Vikash & Priyanka',
     location: 'Delhi, NCR',
     marriageDate: 'January 2025',
-    quote: 'After connecting on MeriSamaj, we realized we share the same gotra-conscious values and family traditions. Our parents approved within weeks. Thank you MeriSamaj!',
+    quote: 'After connecting on ApniSamaj, we realized we share the same gotra-conscious values and family traditions. Our parents approved within weeks. Thank you ApniSamaj!',
     avatar: 'https://images.unsplash.com/photo-1529634597503-139d3726fed5?auto=format&fit=crop&w=800&q=80',
   },
   {
@@ -908,7 +908,7 @@ export const mockSuccessStories = [
     groomName: 'Nikhil & Kavya',
     location: 'Surat, GJ',
     marriageDate: 'February 2025',
-    quote: 'Being part of the same community made our bond stronger from day one. MeriSamaj understood our needs and connected us with the right families. Highly recommended!',
+    quote: 'Being part of the same community made our bond stronger from day one. ApniSamaj understood our needs and connected us with the right families. Highly recommended!',
     avatar: 'https://images.unsplash.com/photo-1583939003579-730e3918a45a?auto=format&fit=crop&w=800&q=80',
   },
 ];

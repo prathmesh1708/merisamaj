@@ -127,7 +127,7 @@ const INITIAL_SETTINGS = {
       {
         id: 'p1',
         title: 'Refer & Earn Program',
-        desc: 'Invite your extended family members to join MeriSamaj platform today and earn community reward points.',
+        desc: 'Invite your extended family members to join ApniSamaj platform today and earn community reward points.',
         image: 'https://images.unsplash.com/photo-1543269865-cbf427effbad?auto=format&fit=crop&w=400&q=80',
         buttonText: 'Invite Family',
         buttonLink: '/member/referral',

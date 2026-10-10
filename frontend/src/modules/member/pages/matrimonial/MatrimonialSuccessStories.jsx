@@ -57,7 +57,7 @@ const MatrimonialSuccessStories = () => {
             {stories.length > 0 ? `${stories.length} ${stories.length === 1 ? 'Marriage' : 'Marriages'} Celebrated` : 'Celebrating Our Couples'}
           </h2>
           <p className="text-[12px] text-white/80 mt-1 max-w-[280px] leading-relaxed font-semibold">
-            MeriSamaj helps connect hearts within our traditional values. Read some of our beautiful couple testimonials.
+            ApniSamaj helps connect hearts within our traditional values. Read some of our beautiful couple testimonials.
           </p>
         </div>
 

@@ -82,7 +82,7 @@ export const DonationProvider = ({ children }) => {
           key: key || import.meta.env.VITE_RAZORPAY_KEY_ID,
           amount: orderAmount,
           currency: currency || 'INR',
-          name: 'Meri Samaj Donation',
+          name: 'Apni Samaj Donation',
           description: 'Support Noble Cause',
           order_id: order_id,
           prefill: {

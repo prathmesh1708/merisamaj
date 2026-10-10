@@ -235,7 +235,7 @@ const UpgradeMembershipPage = () => {
               <div className="w-12 h-12 bg-rose-50 rounded-full flex items-center justify-center mx-auto text-rose-500 shadow-sm border border-rose-100">
                 <Sparkles size={24} className="fill-rose-500/10" />
               </div>
-              <h2 className="text-lg font-black text-rose-950">MeriSamaj Premier Matchmaking</h2>
+              <h2 className="text-lg font-black text-rose-950">ApniSamaj Premier Matchmaking</h2>
               <p className="text-xs text-text-secondary leading-relaxed px-4">
                 Enjoy customized, handpicked matching handled by expert relationship managers. No effort required on your part.
               </p>
@@ -595,7 +595,7 @@ const UpgradeMembershipPage = () => {
                   <Heart size={16} className="fill-rose-600/10" />
                 </div>
                 <div>
-                  <h3 className="text-xs font-black text-rose-950">MeriSamaj Matrimony Pay</h3>
+                  <h3 className="text-xs font-black text-rose-950">ApniSamaj Matrimony Pay</h3>
                   <p className="text-[9px] font-bold text-text-secondary tracking-wide uppercase">Secure checkout</p>
                 </div>
               </div>
@@ -1021,7 +1021,7 @@ const UpgradeMembershipPage = () => {
               </button>
             </div>
             <p className="text-[11px] text-text-secondary font-medium leading-relaxed">
-              Thank you! A MeriSamaj Premier Relationship Manager will call you within 24 hours to discuss options and guide you on offline verification.
+              Thank you! A ApniSamaj Premier Relationship Manager will call you within 24 hours to discuss options and guide you on offline verification.
             </p>
             <button
               onClick={() => setShowPremierSuccess(false)}

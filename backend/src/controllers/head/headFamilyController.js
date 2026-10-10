@@ -82,7 +82,7 @@ exports.reviewRequest = async (req, res) => {
 };
 
 // GET /api/v1/head/family-requests/stats — KPI cards for the head's scope
-// Active = registered on MeriSamaj; Inactive = added by family but not registered
+// Active = registered on ApniSamaj; Inactive = added by family but not registered
 // (Dummy = no mobile number). Jangana = registered members + approved inactive/dummy members.
 exports.getStats = async (req, res) => {
   try {

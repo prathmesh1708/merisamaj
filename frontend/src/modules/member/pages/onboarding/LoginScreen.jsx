@@ -1,7 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-  Phone, ArrowRight, ArrowLeft, Bell, Lock, Eye, EyeOff, AlertCircle, Globe, Check, Loader2
+  Phone, ArrowRight, ArrowLeft, Lock, Eye, EyeOff, AlertCircle, Globe, Check, Loader2
 } from 'lucide-react';
 import { useData } from '../../context/DataProvider';
 import { useAuth } from '../../../../core/auth/useAuth';
@@ -13,24 +13,6 @@ import {
   validateConfirmPassword,
   validatePastedValue,
 } from '../../../../core/utils/validators';
-
-// ─── OTP NOTIFICATION BANNER ──────────────────────────────────────────────────
-const OtpBanner = ({ code, onDismiss }) => (
-  <div className="fixed top-4 left-4 right-4 z-50 bg-[#1e1145]/95 text-white rounded-2xl p-4 shadow-[0_8px_32px_rgba(124,58,237,0.25)] border border-purple-500/20 backdrop-blur-xl animate-slide-in flex items-start gap-3">
-    <div className="w-9 h-9 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-300 shrink-0 mt-0.5 animate-pulse-glow">
-      <Bell size={18} className="animate-wiggle" />
-    </div>
-    <div className="flex-1">
-      <p className="text-xs font-bold text-purple-300 tracking-wide uppercase">Security Verification</p>
-      <p className="text-sm font-medium mt-1 text-purple-50">
-        Your verification code is{' '}
-        <strong className="text-teal-400 text-base font-black tracking-widest bg-white/10 px-2 py-0.5 rounded ml-1 border border-white/10 shadow-inner">{code}</strong>
-      </p>
-      <p className="text-[10px] text-purple-300/60 mt-1">Do not share this code with anyone.</p>
-    </div>
-    <button onClick={onDismiss} className="text-xs font-bold text-purple-200 hover:text-white px-3 py-1.5 bg-white/10 hover:bg-white/15 rounded-xl press-scale border border-white/5 transition-all">Dismiss</button>
-  </div>
-);
 
 const LoginScreen = () => {
   const navigate = useNavigate();
@@ -64,45 +46,53 @@ const LoginScreen = () => {
   const [showForgotNewPass, setShowForgotNewPass] = useState(false);
   const [showForgotConfirmPass, setShowForgotConfirmPass] = useState(false);
 
-  // OTP notifications
-  const [generatedOtp, setGeneratedOtp] = useState('');
-  const [showOtpBanner, setShowOtpBanner] = useState(false);
+  // OTP (sent by SMS from the backend)
   const [otpError, setOtpError] = useState('');
   const [toastMessage, setToastMessage] = useState('');
+  const [resendIn, setResendIn] = useState(0);
 
-  const triggerOtpBanner = () => {
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    setGeneratedOtp(code);
-    setShowOtpBanner(true);
-    setOtpError('');
-    return code;
-  };
+  useEffect(() => {
+    if (resendIn <= 0) return undefined;
+    const timer = setTimeout(() => setResendIn(s => s - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendIn]);
 
-  const handleVerifyOtp = (enteredOtp, onSuccess) => {
-    const isDefaultOtp = enteredOtp === '1234' || enteredOtp.startsWith('1234');
-    if (isDefaultOtp || enteredOtp === generatedOtp) {
-      setShowOtpBanner(false);
-      setOtpError('');
-      onSuccess();
-    } else {
-      setOtpError('Invalid OTP. Please check the code shown in the notification banner or use default 1234.');
-    }
-  };
-
-  const handleForgotSendOtp = () => {
+  const handleForgotSendOtp = async () => {
     const phoneResult = validatePhone(forgotMobile);
     if (!phoneResult.valid) {
       setForgotMobileError(phoneResult.error);
       return;
     }
     setForgotMobileError('');
-    triggerOtpBanner();
-    setForgotPasswordStep(2);
+    setOtpError('');
+    setIsLoading(true);
+    try {
+      const res = await authService.sendOtp({ phone: forgotMobile, type: 'reset_password' });
+      setForgotOtp(['', '', '', '', '', '']);
+      setForgotPasswordStep(2);
+      setResendIn(30);
+      setToastMessage(res?.message || 'OTP sent to your mobile number');
+      setTimeout(() => setToastMessage(''), 3000);
+    } catch (error) {
+      const message = error?.response?.data?.message || 'Could not send OTP. Please try again.';
+      if (forgotPasswordStep === 2) setOtpError(message);
+      else setForgotMobileError(message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleForgotVerifyOtp = () => {
-    const entered = forgotOtp.join('');
-    handleVerifyOtp(entered, () => setForgotPasswordStep(3));
+  const handleForgotVerifyOtp = async () => {
+    setIsLoading(true);
+    setOtpError('');
+    try {
+      await authService.verifyOtp({ phone: forgotMobile, otp: forgotOtp.join(''), type: 'reset_password' });
+      setForgotPasswordStep(3);
+    } catch (error) {
+      setOtpError(error?.response?.data?.message || 'Invalid OTP. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleForgotResetPassword = async () => {
@@ -272,7 +262,6 @@ const LoginScreen = () => {
     return (
       <div className="h-screen bg-surface flex flex-col overflow-hidden relative">
         <div className="absolute inset-0 aura-bg z-0 animate-aura-pulse" />
-        {showOtpBanner && <OtpBanner code={generatedOtp} onDismiss={() => setShowOtpBanner(false)} />}
         {renderToast()}
 
         {/* Back navigation header */}
@@ -398,19 +387,20 @@ const LoginScreen = () => {
                         maxLength={10}
                         placeholder="Enter 10-digit mobile number" 
                         value={forgotMobile} 
-                        onChange={(e) => setForgotMobile(e.target.value.replace(/\D/g, ''))} 
-                        className="flex-1 text-sm text-text-primary outline-none bg-transparent placeholder-gray-400 font-bold" 
+                        onChange={(e) => { setForgotMobile(e.target.value.replace(/\D/g, '')); setForgotMobileError(''); }}
+                        className="flex-1 text-sm text-text-primary outline-none bg-transparent placeholder-gray-400 font-bold"
                       />
                     </div>
+                    {forgotMobileError && <p role="alert" className="text-[11px] text-red-500 font-semibold mt-1.5 ml-1">{forgotMobileError}</p>}
                   </div>
                   <button 
                     onClick={handleForgotSendOtp}
-                    disabled={forgotMobile.length !== 10}
+                    disabled={forgotMobile.length !== 10 || isLoading}
                     className={`w-full py-3.5 rounded-2xl text-sm font-semibold flex items-center justify-center gap-2 press-scale transition-all ${
                       forgotMobile.length === 10 ? 'bg-[#7C3AED] hover:bg-[#6D28D9] text-white shadow-md' : 'bg-purple-200/40 text-purple-400/60 cursor-not-allowed'
                     }`}
                   >
-                    Send OTP <ArrowRight size={16} />
+                    {isLoading ? <Loader2 size={16} className="animate-spin" /> : <>Send OTP <ArrowRight size={16} /></>}
                   </button>
                 </div>
               )}
@@ -443,11 +433,20 @@ const LoginScreen = () => {
                   {otpError && <p className="text-[10px] text-red-500 font-semibold text-center mt-1">{otpError}</p>}
                   <button 
                     onClick={handleForgotVerifyOtp}
-                    disabled={forgotOtp.some(d => d === '') && forgotOtp.slice(0, 4).join('') !== '1234'}
+                    disabled={forgotOtp.some(d => d === '') || isLoading}
                     className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl text-sm font-semibold flex items-center justify-center gap-2 press-scale disabled:opacity-45 mt-2"
                   >
-                    Verify OTP
+                    {isLoading ? <Loader2 size={16} className="animate-spin" /> : 'Verify OTP'}
                   </button>
+                  <div className="text-center">
+                    {resendIn > 0 ? (
+                      <p className="text-[11px] text-slate-400 font-semibold">Resend OTP in {resendIn}s</p>
+                    ) : (
+                      <button type="button" onClick={handleForgotSendOtp} disabled={isLoading} className="text-[11px] font-bold text-[#7C3AED] hover:underline disabled:opacity-50">
+                        Didn't get the code? Resend OTP
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
 

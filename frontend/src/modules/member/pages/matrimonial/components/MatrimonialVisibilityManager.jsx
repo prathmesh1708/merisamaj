@@ -2121,7 +2121,7 @@ export const MatrimonialVisibilityManager = ({
             </a>
 
             <a
-              href="https://wa.me/919876543210?text=Hello%20MeriSamaj%20Support"
+              href="https://wa.me/919876543210?text=Hello%20ApniSamaj%20Support"
               target="_blank"
               rel="noreferrer"
               className="flex items-center justify-between p-3.5 rounded-2xl bg-emerald-50/50 hover:bg-emerald-50 border border-emerald-100 text-emerald-700 font-bold text-sm transition-all"

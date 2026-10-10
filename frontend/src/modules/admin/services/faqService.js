@@ -20,7 +20,7 @@ const initialFAQs = [
     id: 'f-2',
     categoryId: 'cat-1',
     question: 'What is a member ID code?',
-    answer: 'The member ID code is a unique 8-character code assigned to each verified user in MeriSamaj. It is used to easily verify memberships, reference files, and build family trees.',
+    answer: 'The member ID code is a unique 8-character code assigned to each verified user in ApniSamaj. It is used to easily verify memberships, reference files, and build family trees.',
     status: 'Active',
     displayOrder: 2
   },
@@ -28,7 +28,7 @@ const initialFAQs = [
     id: 'f-3',
     categoryId: 'cat-2',
     question: 'Who can view my Matrimony profile?',
-    answer: 'Only verified members of MeriSamaj who have activated their matrimonial section can search and view profiles. Your privacy preferences can be set to hide contact numbers until request approval.',
+    answer: 'Only verified members of ApniSamaj who have activated their matrimonial section can search and view profiles. Your privacy preferences can be set to hide contact numbers until request approval.',
     status: 'Active',
     displayOrder: 1
   },

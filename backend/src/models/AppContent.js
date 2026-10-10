@@ -176,7 +176,7 @@ const appContentSchema = new mongoose.Schema({
     },
     hashtagText: {
       type: String,
-      default: '#MeriSamaj'
+      default: '#ApniSamaj'
     },
     caughtUpTitle: {
       type: String,

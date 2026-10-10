@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Phone, ArrowRight, Bell, Eye, EyeOff, Lock, Check, AlertCircle, Gift, CheckCircle2, Loader2
@@ -71,6 +71,14 @@ const RegisterScreen = () => {
 
   const isRegOtpComplete = registerOtp.every(d => d !== '');
 
+  // "Resend OTP" becomes available 30s after each send (the server enforces the same)
+  const [resendIn, setResendIn] = useState(0);
+  useEffect(() => {
+    if (resendIn <= 0) return undefined;
+    const timer = setTimeout(() => setResendIn(s => s - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendIn]);
+
   const handleRegisterSendOtp = async () => {
     const phoneResult = validatePhone(registerPhone);
     if (!phoneResult.valid) {
@@ -81,12 +89,17 @@ const RegisterScreen = () => {
     setIsLoading(true);
     setOtpError('');
     try {
-      await authService.sendOtp({ phone: registerPhone, type: 'register' });
+      const res = await authService.sendOtp({ phone: registerPhone, type: 'register' });
       setOtpSent(true);
-      setToastMessage('OTP sent successfully');
+      setRegisterOtp(['', '', '', '', '', '']);
+      setResendIn(30);
+      setToastMessage(res?.message || 'OTP sent successfully');
       setTimeout(() => setToastMessage(''), 3000);
     } catch (error) {
-      setToastMessage(error?.response?.data?.message || 'Failed to send OTP.');
+      const message = error?.response?.data?.message || 'Failed to send OTP.';
+      setToastMessage(message);
+      setTimeout(() => setToastMessage(''), 4000);
+      if (otpSent) setOtpError(message);
     } finally {
       setIsLoading(false);
     }
@@ -288,6 +301,15 @@ const RegisterScreen = () => {
                 >
                   {isLoading ? <Loader2 size={14} className="animate-spin" /> : 'Verify OTP'}
                 </button>
+                <div className="text-center pt-1">
+                  {resendIn > 0 ? (
+                    <p className="text-[10px] text-slate-400 font-semibold">Resend OTP in {resendIn}s</p>
+                  ) : (
+                    <button type="button" onClick={handleRegisterSendOtp} disabled={isLoading} className="text-[10px] font-bold text-[#7C3AED] hover:underline disabled:opacity-50">
+                      Didn't get the code? Resend OTP
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 

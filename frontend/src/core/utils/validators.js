@@ -1,6 +1,6 @@
 /**
  * validators.js — Centralized Frontend Validation Utility
- * MeriSamaj — Production-Level Auth Form Validation
+ * ApniSamaj — Production-Level Auth Form Validation
  *
  * RULES:
  * - All functions accept a raw value and return { valid: boolean, error: string }

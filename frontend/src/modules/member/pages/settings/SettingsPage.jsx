@@ -377,7 +377,7 @@ export const SettingsPage = () => {
                   <Info size={18} />
                 </div>
                 <div>
-                  <span className="text-[13px] font-extrabold text-slate-800 group-hover:text-purple-700 transition-colors block">About MeriSamaj</span>
+                  <span className="text-[13px] font-extrabold text-slate-800 group-hover:text-purple-700 transition-colors block">About ApniSamaj</span>
                   <span className="text-[10.5px] font-semibold text-slate-400 mt-0.5 block leading-none">Version info & details</span>
                 </div>
               </div>
@@ -708,13 +708,13 @@ export const SettingsPage = () => {
         </div>
       )}
 
-      {/* 6. About MeriSamaj Modal */}
+      {/* 6. About ApniSamaj Modal */}
       {showAboutModal && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-md p-6 animate-slide-up shadow-xl border border-purple-100/30">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-text-primary flex items-center gap-2">
-                <Info size={20} className="text-brand-primary" /> About MeriSamaj
+                <Info size={20} className="text-brand-primary" /> About ApniSamaj
               </h3>
               <button onClick={() => setShowAboutModal(false)} className="p-1 rounded-full bg-slate-100 text-slate-500">
                 <X size={18} />
@@ -723,12 +723,12 @@ export const SettingsPage = () => {
 
             <div className="space-y-4 text-slate-600 text-[13px] leading-relaxed">
               <div className="text-center py-4 bg-purple-50/50 rounded-2xl border border-purple-100/30 mb-2">
-                <div className="text-2xl font-black text-brand-primary">MeriSamaj</div>
+                <div className="text-2xl font-black text-brand-primary">ApniSamaj</div>
                 <div className="text-[11px] font-bold text-slate-400 mt-0.5">COMMUNITY CONNECT & SERVICES</div>
               </div>
 
               <p>
-                MeriSamaj is a unified platform created to connect family members, manage community bookings, publish announcements, and facilitate matrimonial matchmaking in a highly secure and private digital ecosystem.
+                ApniSamaj is a unified platform created to connect family members, manage community bookings, publish announcements, and facilitate matrimonial matchmaking in a highly secure and private digital ecosystem.
               </p>
 
               <div className="border-t border-slate-100 pt-3 flex flex-col gap-2">

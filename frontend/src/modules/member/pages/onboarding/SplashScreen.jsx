@@ -50,7 +50,7 @@ const SplashScreen = () => {
           <div className="w-22 h-22 bg-white/95 rounded-3xl flex items-center justify-center shadow-2xl shadow-purple-900/30 mb-5 backdrop-blur-md border border-white/20">
             <span className="text-brand-primary text-4xl font-bold font-serif">म</span>
           </div>
-          <h1 className="text-white text-3xl font-bold tracking-tight">MeriSamaj</h1>
+          <h1 className="text-white text-3xl font-bold tracking-tight">ApniSamaj</h1>
           <p className="text-white/50 text-sm mt-1.5 font-medium tracking-wide">Your Community, Your Family</p>
         </div>
 

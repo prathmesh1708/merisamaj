@@ -4,7 +4,7 @@ const initialBanners = [
   {
     id: 'b-1',
     type: 'hero',
-    title: 'Welcome to MeriSamaj Community',
+    title: 'Welcome to ApniSamaj Community',
     subtitle: 'Connecting hearts and minds of our community globally.',
     description: 'Join today and participate in exclusive events, matrimonial connections, and localized directory listings.',
     ctaText: 'Register Now',

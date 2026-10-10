@@ -6,7 +6,7 @@ const initialPages = [
     title: 'About Us',
     slug: 'about-us',
     type: 'static',
-    content: `# About MeriSamaj\n\nMeriSamaj is a global community platform designed to bridge connections and foster unity. Our vision is to digitize and empower families by providing robust directory, matrimonial, and event systems.\n\n### Our Mission\n- Preserve cultural heritage in the digital age.\n- Simplify event coordination and member directories.\n- Enable safe and verified match-making.\n\nThank you for being part of this initiative!`,
+    content: `# About ApniSamaj\n\nApniSamaj is a global community platform designed to bridge connections and foster unity. Our vision is to digitize and empower families by providing robust directory, matrimonial, and event systems.\n\n### Our Mission\n- Preserve cultural heritage in the digital age.\n- Simplify event coordination and member directories.\n- Enable safe and verified match-making.\n\nThank you for being part of this initiative!`,
     status: 'Published',
     updatedAt: '2026-07-01T10:00:00Z',
     updatedBy: 'Council Admin',
@@ -14,14 +14,14 @@ const initialPages = [
       {
         versionId: 1,
         title: 'About Us (V1)',
-        content: '# About MeriSamaj\n\nInitial draft of the community about page.',
+        content: '# About ApniSamaj\n\nInitial draft of the community about page.',
         updatedAt: '2026-06-15T09:00:00Z',
         updatedBy: 'Council Admin'
       },
       {
         versionId: 2,
         title: 'About Us',
-        content: `# About MeriSamaj\n\nMeriSamaj is a global community platform designed to bridge connections and foster unity. Our vision is to digitize and empower families by providing robust directory, matrimonial, and event systems.\n\n### Our Mission\n- Preserve cultural heritage in the digital age.\n- Simplify event coordination and member directories.\n- Enable safe and verified match-making.\n\nThank you for being part of this initiative!`,
+        content: `# About ApniSamaj\n\nApniSamaj is a global community platform designed to bridge connections and foster unity. Our vision is to digitize and empower families by providing robust directory, matrimonial, and event systems.\n\n### Our Mission\n- Preserve cultural heritage in the digital age.\n- Simplify event coordination and member directories.\n- Enable safe and verified match-making.\n\nThank you for being part of this initiative!`,
         updatedAt: '2026-07-01T10:00:00Z',
         updatedBy: 'Council Admin'
       }
@@ -32,7 +32,7 @@ const initialPages = [
     title: 'Terms & Conditions',
     slug: 'terms-and-conditions',
     type: 'static',
-    content: `# Terms and Conditions\n\nWelcome to MeriSamaj. By accessing or using our services, you agree to comply with the terms set forth in this document.\n\n### 1. Membership Eligibility\nOnly members of approved community clusters may create verified accounts. False profiles will be suspended immediately.\n\n### 2. Code of Conduct\nUsers are expected to communicate respectfully in matrimonial chats and community forums. Bulk-messaging or data-scraping is strictly forbidden.\n\n*Last updated: July 2026*`,
+    content: `# Terms and Conditions\n\nWelcome to ApniSamaj. By accessing or using our services, you agree to comply with the terms set forth in this document.\n\n### 1. Membership Eligibility\nOnly members of approved community clusters may create verified accounts. False profiles will be suspended immediately.\n\n### 2. Code of Conduct\nUsers are expected to communicate respectfully in matrimonial chats and community forums. Bulk-messaging or data-scraping is strictly forbidden.\n\n*Last updated: July 2026*`,
     status: 'Published',
     updatedAt: '2026-07-05T12:00:00Z',
     updatedBy: 'Master Admin',
@@ -89,7 +89,7 @@ const initialPages = [
     title: 'Community Guidelines',
     slug: 'community-guidelines',
     type: 'static',
-    content: `# MeriSamaj Community Guidelines\n\nTo ensure a peaceful and beneficial community environment, all members must abide by the following guidelines:\n\n1. **Authenticity First**: Use your real name, photo, and verifiable credentials.\n2. **No Harassment**: Matrimonial inquiries must be respectful. Harassment will lead to permanent IP bans.\n3. **Local News Verification**: Do not spread unverified rumors or forward political/sectarian posts.`,
+    content: `# ApniSamaj Community Guidelines\n\nTo ensure a peaceful and beneficial community environment, all members must abide by the following guidelines:\n\n1. **Authenticity First**: Use your real name, photo, and verifiable credentials.\n2. **No Harassment**: Matrimonial inquiries must be respectful. Harassment will lead to permanent IP bans.\n3. **Local News Verification**: Do not spread unverified rumors or forward political/sectarian posts.`,
     status: 'Published',
     updatedAt: '2026-07-03T16:00:00Z',
     updatedBy: 'Moderator Desk',

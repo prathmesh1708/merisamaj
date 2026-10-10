@@ -19,7 +19,7 @@ export const HeadCensusManagement = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCity, setSelectedCity] = useState('all');
   const [selectedGender, setSelectedGender] = useState('all');
-  // Active = registered on MeriSamaj; Inactive = approved family-added member without an account
+  // Active = registered on ApniSamaj; Inactive = approved family-added member without an account
   const [activityFilter, setActivityFilter] = useState('all');
 
   // Notification Toast
@@ -321,7 +321,7 @@ export const HeadCensusManagement = () => {
             </div>
           </div>
           <p className="text-[11px] text-slate-500 font-medium">
-            Inactive members were added by their family and approved, but have not registered on MeriSamaj yet. They are included in the Jangana total.
+            Inactive members were added by their family and approved, but have not registered on ApniSamaj yet. They are included in the Jangana total.
           </p>
 
           <div className="overflow-x-auto">

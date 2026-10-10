@@ -259,7 +259,7 @@ const SuccessStoriesManagement = () => {
               {/* Couple */}
               {linkedCouple ? (
                 <div className="px-3 py-2.5 rounded-lg bg-rose-50 border border-rose-100 text-sm text-rose-700 font-semibold">
-                  Couple: {linkedCouple.groom?.name} & {linkedCouple.bride?.name} (MeriSamaj members)
+                  Couple: {linkedCouple.groom?.name} & {linkedCouple.bride?.name} (ApniSamaj members)
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

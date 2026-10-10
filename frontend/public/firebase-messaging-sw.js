@@ -1,7 +1,7 @@
 /* eslint-disable no-undef */
 /**
  * firebase-messaging-sw.js
- * Service Worker for Firebase Web Push Notifications in MeriSamaj.
+ * Service Worker for Firebase Web Push Notifications in ApniSamaj.
  * Handles background push payloads when app is closed or backgrounded.
  */
 
@@ -15,7 +15,7 @@ self.addEventListener('push', function (event) {
 
   try {
     const payload = event.data.json();
-    const notificationTitle = payload.notification?.title || payload.data?.title || 'MeriSamaj Alert';
+    const notificationTitle = payload.notification?.title || payload.data?.title || 'ApniSamaj Alert';
     const notificationOptions = {
       body: payload.notification?.body || payload.data?.message || '',
       icon: payload.data?.icon || '/pwa-192x192.png',

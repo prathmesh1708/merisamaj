@@ -60,7 +60,7 @@ const ReferralDashboardPage = () => {
   const handleShare = async () => {
     const code = activeReferralCode;
     const shareData = {
-      title: 'Join MeriSamaj',
+      title: 'Join ApniSamaj',
       text: `Use my referral code ${code} to get 10% OFF on your first purchase and exclusive benefits!`,
       url: `https://app.merisamaj.com/register?ref=${code}`
     };
@@ -74,7 +74,7 @@ const ReferralDashboardPage = () => {
 
   const handleWhatsAppShare = () => {
     const code = activeReferralCode;
-    const text = `Join MeriSamaj! Use my referral code *${code}* to get exclusive community benefits, register events & connect with community members: https://app.merisamaj.com/register?ref=${code}`;
+    const text = `Join ApniSamaj! Use my referral code *${code}* to get exclusive community benefits, register events & connect with community members: https://app.merisamaj.com/register?ref=${code}`;
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
   };
 

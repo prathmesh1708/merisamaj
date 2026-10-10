@@ -112,7 +112,7 @@ export default function MyBookingsPage() {
         key: key || import.meta.env.VITE_RAZORPAY_KEY_ID,
         amount,
         currency: currency || 'INR',
-        name: 'MeriSamaj Dharmashala',
+        name: 'ApniSamaj Dharmashala',
         description: `Booking #${targetId}`,
         order_id: orderId,
         handler: async (response) => {

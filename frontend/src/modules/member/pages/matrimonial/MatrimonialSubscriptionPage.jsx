@@ -114,7 +114,7 @@ const MatrimonialSubscriptionPage = () => {
           key: order.razorpayKeyId,
           amount: order.amount,
           currency: order.currency || 'INR',
-          name: 'Meri Samaj Matrimonial',
+          name: 'Apni Samaj Matrimonial',
           description: selectedPlan.name,
           order_id: order.razorpayOrderId,
           handler: async (response) => {

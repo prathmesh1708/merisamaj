@@ -88,7 +88,7 @@ class ReceiptService {
               <div class="logo-sec">
                 <div class="logo-box">म</div>
                 <div>
-                  <h1 class="title-box">MeriSamaj Trust</h1>
+                  <h1 class="title-box">ApniSamaj Trust</h1>
                   <p class="subtitle">Empowering and Connecting Communities</p>
                 </div>
               </div>

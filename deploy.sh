@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # ==============================================================================
-#  Meri Samaj - Production Deployment Script
+#  Apni Samaj - Production Deployment Script
 # ==============================================================================
 
 set -euo pipefail
@@ -46,7 +46,7 @@ cleanup_on_failure() {
 trap cleanup_on_failure ERR
 
 echo -e "${CYAN}=====================================================${NC}"
-echo -e "${CYAN}          Starting Meri Samaj Deployment             ${NC}"
+echo -e "${CYAN}          Starting Apni Samaj Deployment             ${NC}"
 echo -e "${CYAN}=====================================================${NC}"
 echo "Project Path: ${PROJECT_ROOT}"
 echo "Target Branch: ${BRANCH}"
@@ -150,7 +150,7 @@ fi
 # ------------------------------------------------------------------------------
 echo ""
 echo -e "${GREEN}=====================================================${NC}"
-echo -e "${GREEN}       Meri Samaj Deployed Successfully! 🚀          ${NC}"
+echo -e "${GREEN}       Apni Samaj Deployed Successfully! 🚀          ${NC}"
 echo -e "${GREEN}=====================================================${NC}"
 echo -e "Frontend Build: ${FRONTEND_DIR}/dist"
 echo -e "Backend Server: ${BACKEND_DIR}/index.js"

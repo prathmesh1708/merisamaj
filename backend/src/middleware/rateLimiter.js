@@ -1,6 +1,6 @@
 /**
  * rateLimiter.js — In-Memory Rate Limiter Middleware
- * MeriSamaj — Production-Level Auth Rate Limiting
+ * ApniSamaj — Production-Level Auth Rate Limiting
  *
  * Limits:
  * - Login:          5 attempts per IP per 15 minutes

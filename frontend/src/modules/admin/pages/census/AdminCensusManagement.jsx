@@ -354,7 +354,7 @@ export const AdminCensusManagement = () => {
                     <td className="p-3 font-mono">{m.phone || '-'}</td>
                     <td className="p-3">{m.profession || 'Professional'}</td>
                     <td className="p-3">
-                      {/* Inactive/Dummy = approved family-added member without a MeriSamaj account */}
+                      {/* Inactive/Dummy = approved family-added member without a ApniSamaj account */}
                       <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase ${
                         m.active === false ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-700'
                       }`}>

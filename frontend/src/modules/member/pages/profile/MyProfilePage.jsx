@@ -1831,23 +1831,23 @@ const MyProfilePage = () => {
         document.body
       )}
 
-      {/* About MeriSamaj Modal */}
+      {/* About ApniSamaj Modal */}
       {showAboutModal && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" style={{ touchAction: 'none' }} onWheel={e => e.stopPropagation()} onTouchMove={e => e.stopPropagation()}>
           <div className="bg-white w-full max-w-md rounded-3xl p-5 shadow-2xl space-y-4 animate-scale-pop border border-purple-100/20" style={{ touchAction: 'auto' }}>
             <div className="flex items-center justify-between border-b border-purple-100/20 pb-2.5">
               <h3 className="text-[16px] font-bold text-text-primary flex items-center gap-2">
-                <span>ℹ️</span> About MeriSamaj
+                <span>ℹ️</span> About ApniSamaj
               </h3>
               <button onClick={() => setShowAboutModal(false)} className="text-purple-300 hover:text-brand-primary w-7 h-7 bg-purple-50 rounded-full flex items-center justify-center font-bold">✕</button>
             </div>
             <div className="space-y-4 text-slate-600 text-[13px] leading-relaxed pt-1">
               <div className="text-center py-4 bg-purple-50/50 rounded-2xl border border-purple-100/30 mb-2">
-                <div className="text-2xl font-black text-brand-primary">MeriSamaj</div>
+                <div className="text-2xl font-black text-brand-primary">ApniSamaj</div>
                 <div className="text-[11px] font-bold text-slate-400 mt-0.5">COMMUNITY CONNECT & SERVICES</div>
               </div>
               <p>
-                MeriSamaj is a unified platform created to connect family members, manage community bookings, publish announcements, and facilitate matrimonial matchmaking in a highly secure and private digital ecosystem.
+                ApniSamaj is a unified platform created to connect family members, manage community bookings, publish announcements, and facilitate matrimonial matchmaking in a highly secure and private digital ecosystem.
               </p>
               <div className="border-t border-slate-100 pt-3 flex flex-col gap-2">
                 <div className="flex justify-between font-medium">

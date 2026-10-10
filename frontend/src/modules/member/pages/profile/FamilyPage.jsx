@@ -421,11 +421,11 @@ const FamilyMemberForm = ({ initialMember, onCancel, onSave, saving, language })
 
         {isLinked ? (
           <p className="text-[11px] text-slate-500 font-semibold bg-slate-50 rounded-xl px-3 py-2.5 border border-slate-100">
-            {initialMember.name} has their own MeriSamaj account and manages their own details. You can only change the relation here.
+            {initialMember.name} has their own ApniSamaj account and manages their own details. You can only change the relation here.
           </p>
         ) : (
           <p className="text-[11px] text-slate-500 font-semibold bg-purple-50/50 rounded-xl px-3 py-2.5 border border-purple-100/40">
-            New members are reviewed by your Local Head and Community Head before they appear in the Jangana. If the mobile number is on MeriSamaj, they'll be invited to link their account.
+            New members are reviewed by your Local Head and Community Head before they appear in the Jangana. If the mobile number is on ApniSamaj, they'll be invited to link their account.
           </p>
         )}
 
@@ -445,7 +445,7 @@ const FamilyMemberForm = ({ initialMember, onCancel, onSave, saving, language })
           />
           <p className="text-[10px] text-slate-400 font-semibold mt-1.5 px-0.5">
             {form.phone
-              ? 'They will be Inactive until they register on MeriSamaj with this number, then Active.'
+              ? 'They will be Inactive until they register on ApniSamaj with this number, then Active.'
               : 'Without a mobile number this member is added as a Dummy ID (e.g. a child).'}
           </p>
         </div>
@@ -550,7 +550,7 @@ const FamilyMemberForm = ({ initialMember, onCancel, onSave, saving, language })
 
 export default FamilyPage;
 
-// Active = has a MeriSamaj account; Inactive = added by family, not registered; Dummy = no mobile
+// Active = has a ApniSamaj account; Inactive = added by family, not registered; Dummy = no mobile
 const ACTIVITY_BADGES = {
   active: { label: 'Active', className: 'bg-emerald-50 text-emerald-700' },
   inactive: { label: 'Inactive', className: 'bg-rose-50 text-rose-600' },

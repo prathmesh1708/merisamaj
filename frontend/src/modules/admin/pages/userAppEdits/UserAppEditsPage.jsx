@@ -126,7 +126,7 @@ export const UserAppEditsPage = () => {
   const [footerForm, setFooterForm] = useState({
     artworkType: 'svg', // 'svg' | 'image'
     backgroundImage: '',
-    hashtagText: '#MeriSamaj',
+    hashtagText: '#ApniSamaj',
     caughtUpTitle: "You're all caught up!",
     caughtUpSubtitle: 'Check back later for new updates',
     enabled: true
@@ -225,7 +225,7 @@ export const UserAppEditsPage = () => {
           setFooterForm({
             artworkType: res.data.footerArtwork.artworkType || 'svg',
             backgroundImage: res.data.footerArtwork.backgroundImage || '',
-            hashtagText: res.data.footerArtwork.hashtagText || '#MeriSamaj',
+            hashtagText: res.data.footerArtwork.hashtagText || '#ApniSamaj',
             caughtUpTitle: res.data.footerArtwork.caughtUpTitle || "You're all caught up!",
             caughtUpSubtitle: res.data.footerArtwork.caughtUpSubtitle || 'Check back later for new updates',
             enabled: res.data.footerArtwork.enabled !== false
@@ -1785,7 +1785,7 @@ export const UserAppEditsPage = () => {
                       type="text"
                       value={footerForm.hashtagText}
                       onChange={(e) => setFooterForm({ ...footerForm, hashtagText: e.target.value })}
-                      placeholder="#MeriSamaj"
+                      placeholder="#ApniSamaj"
                       className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 outline-none focus:border-purple-500 font-mono"
                     />
                     <p className="text-[10px] text-slate-400 mt-1">Displayed as the watermark branding at the end of the home feed</p>
@@ -2182,7 +2182,7 @@ const StoryFormModal = ({ isOpen, isEditing, initialData, onClose, onSave, savin
               rows={3}
               value={form.quote || form.shortDescription || ''}
               onChange={(e) => setForm({ ...form, quote: e.target.value, shortDescription: e.target.value })}
-              placeholder="Found their life partner through MeriSamaj within 3 months of verified listing."
+              placeholder="Found their life partner through ApniSamaj within 3 months of verified listing."
               className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 outline-none focus:border-purple-500"
             />
           </div>
