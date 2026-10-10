@@ -1,12 +1,26 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
+import { useHeadAuth } from '../../modules/head/auth/useHeadAuth';
 
 const MemberProtectedRoute = () => {
-  const { auth } = useAuth();
+  const { auth, adoptSession } = useAuth();
+  const { headAuth } = useHeadAuth();
   const location = useLocation();
 
-  if (!auth.isInitialized) {
+  // A Head/Local Head already logged into the Head Panel can switch here without logging in again
+  const headToken = headAuth.isAuthenticated ? localStorage.getItem('head_auth_token') : null;
+  const canAdoptHeadSession =
+    auth.isInitialized &&
+    !auth.isAuthenticated &&
+    !!headAuth.headUser &&
+    !!headToken;
+
+  useEffect(() => {
+    if (canAdoptHeadSession) adoptSession(headAuth.headUser, headToken);
+  }, [canAdoptHeadSession, adoptSession, headAuth.headUser, headToken]);
+
+  if (!auth.isInitialized || canAdoptHeadSession) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-surface">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-primary"></div>

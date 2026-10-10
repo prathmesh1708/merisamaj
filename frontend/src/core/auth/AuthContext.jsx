@@ -140,6 +140,25 @@ export const AuthProvider = ({ children }) => {
     return response;
   };
 
+  /**
+   * Take over an already-authenticated Head Panel session so a Community/Local
+   * Head can switch into the Member app without logging in again.
+   */
+  const adoptSession = (user, accessToken) => {
+    if (!user || !accessToken) return;
+    safeSetUserItem(user);
+    try {
+      localStorage.setItem('merisamaj_token', accessToken);
+      localStorage.setItem(SESSION_FLAG_KEY, '1');
+    } catch(e){}
+    setAuth({
+      user,
+      accessToken,
+      isAuthenticated: true,
+      isInitialized: true,
+    });
+  };
+
   const register = async (userData) => {
     clearAllUserData(true);
     const response = await authService.register(userData);
@@ -179,7 +198,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ auth, user: auth.user, setAuth, login, register, logout }}>
+    <AuthContext.Provider value={{ auth, user: auth.user, setAuth, login, register, logout, adoptSession }}>
       {children}
     </AuthContext.Provider>
   );

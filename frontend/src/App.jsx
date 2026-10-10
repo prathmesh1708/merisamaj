@@ -11,6 +11,7 @@ import { HeadAuthProvider } from './modules/head/auth/HeadAuthContext';
 import { AdminAuthProvider } from './modules/admin/auth/AdminAuthContext';
 import { useAxiosPrivate } from './core/auth/useAxiosPrivate';
 import ScrollToTop from './components/ScrollToTop';
+import LoginAsPage from './pages/LoginAsPage';
 
 const AxiosInterceptorProvider = ({ children }) => {
   const [isReady, setIsReady] = useState(false);
@@ -33,8 +34,11 @@ const AppContent = () => {
       <BrowserRouter>
         <ScrollToTop />
         <Routes>
-          {/* Default entry → splash screen for onboarding demo */}
+          {/* Default entry → splash screen, which then opens the "Login as" chooser */}
           <Route path="/" element={<Navigate to="/member/splash" replace />} />
+
+          {/* Single entry: login as Member / Local Head / Community Head */}
+          <Route path="/login" element={<LoginAsPage />} />
           
           {/* Route all /member/* requests to MemberRoutes */}
           <Route path="/member/*" element={<MemberRoutes />} />

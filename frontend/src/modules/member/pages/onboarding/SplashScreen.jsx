@@ -68,7 +68,7 @@ const SplashScreen = () => {
     <div className="min-h-screen bg-surface flex flex-col">
       {/* Skip */}
       <div className="flex justify-end p-5">
-        <button onClick={() => navigate('/member/login')} className="text-xs text-text-secondary font-medium press-scale px-3 py-1.5 rounded-full bg-gray-100/80 hover:bg-purple-50 transition-colors">
+        <button onClick={() => navigate('/login')} className="text-xs text-text-secondary font-medium press-scale px-3 py-1.5 rounded-full bg-gray-100/80 hover:bg-purple-50 transition-colors">
           Skip
         </button>
       </div>
@@ -93,7 +93,7 @@ const SplashScreen = () => {
 
         <button
           onClick={() => {
-            if (isLast) navigate('/member/login');
+            if (isLast) navigate('/login');
             else setCurrentSlide(prev => prev + 1);
           }}
           className="w-full py-3.5 bg-gradient-to-r from-brand-primary to-brand-glow text-white rounded-2xl text-sm font-semibold flex items-center justify-center gap-2 press-scale shadow-lg shadow-purple-500/25"

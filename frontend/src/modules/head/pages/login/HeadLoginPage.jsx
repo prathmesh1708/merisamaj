@@ -16,6 +16,13 @@ const HeadLoginPage = () => {
 
   const from = location.state?.from?.pathname || '/head/dashboard';
 
+  // Set by the "Login as" chooser (/login) — only changes the wording; Community Heads
+  // and Local Heads share this login and the same panel.
+  const loginAs = new URLSearchParams(location.search).get('as');
+  const roleTitle = loginAs === 'local_head' ? 'Local Head Login'
+    : loginAs === 'community_head' ? 'Community Head Login'
+    : 'Leadership Login';
+
   // Already logged in — go straight to dashboard
   useEffect(() => {
     if (headAuth.isInitialized && headAuth.isAuthenticated) {
@@ -108,6 +115,15 @@ const HeadLoginPage = () => {
         />
 
         <div className="px-8 pt-10 pb-8">
+          {loginAs && (
+            <button
+              type="button"
+              onClick={() => navigate('/login')}
+              className="mb-4 -mt-4 text-[12px] font-bold text-purple-300/80 hover:text-white transition-colors"
+            >
+              ← Login as someone else
+            </button>
+          )}
           {/* ─── Header ─── */}
           <div className="flex flex-col items-center mb-8">
             {/* Avatar / Shield Icon */}
@@ -147,7 +163,7 @@ const HeadLoginPage = () => {
                 <Award size={13} className="text-amber-400" />
               </div>
               <h1 className="text-[24px] font-black text-white leading-tight tracking-tight">
-                Leadership Login
+                {roleTitle}
               </h1>
               <p className="text-[13px] mt-1" style={{ color: 'rgba(167,139,250,0.7)' }}>
                 Sign in with your Login ID, Email, or Phone Number

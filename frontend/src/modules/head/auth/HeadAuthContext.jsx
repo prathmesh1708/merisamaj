@@ -1,4 +1,5 @@
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useEffect, useContext } from 'react';
+import { AuthContext } from '../../../core/auth/AuthContext';
 import axios from 'axios';
 import { getApiUrl } from '../../../core/api/axiosConfig';
 
@@ -11,6 +12,7 @@ const STORAGE_KEYS = {
 };
 
 export const HeadAuthProvider = ({ children }) => {
+  const { adoptSession: adoptMemberSession } = useContext(AuthContext);
   const [headAuth, setHeadAuth] = useState({
     headUser: null,
     isAuthenticated: false,
@@ -77,7 +79,7 @@ export const HeadAuthProvider = ({ children }) => {
         password: password
       });
 
-      const { user, accessToken } = response.data;
+      const { user, accessToken, refreshToken } = response.data;
 
       // Verify the user actually has Head Panel access (Community Head, Admin,
       // or a Community Sub-Head / Local Sub-Head / Local Head)
@@ -98,7 +100,12 @@ export const HeadAuthProvider = ({ children }) => {
         localStorage.setItem('merisamaj_user', JSON.stringify(user));
         localStorage.setItem('merisamaj_token', accessToken);
         localStorage.setItem('merisamaj_has_session', '1');
+        if (refreshToken) localStorage.setItem('merisamaj_refresh_token', refreshToken);
       } catch (e) {}
+
+      // Update the in-memory member session too, otherwise the already-mounted
+      // AuthProvider still thinks the user is logged out and asks for login again.
+      adoptMemberSession?.(user, accessToken);
 
       setHeadAuth({
         headUser: user,
@@ -134,7 +141,26 @@ export const HeadAuthProvider = ({ children }) => {
     });
   };
 
-  const updateHeadUser = (updatedUserFields) => {
+  /**
+   * Take over an already-authenticated Member session (for a Head/Local Head/Admin)
+   * so the user can switch into the Head Panel without logging in again.
+   */
+  const adoptHeadSession = (user, accessToken) => {
+    if (!user || !accessToken || !['head', 'sub_head', 'admin'].includes(user.role)) return false;
+    try {
+      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
+      localStorage.setItem(STORAGE_KEYS.TOKEN, accessToken);
+      localStorage.setItem(STORAGE_KEYS.SESSION, '1');
+    } catch (e) {}
+    setHeadAuth({
+      headUser: user,
+      isAuthenticated: true,
+      isInitialized: true,
+    });
+    return true;
+  };
+
+  const updateHeadUser =(updatedUserFields) => {
     setHeadAuth(prev => {
       const merged = { ...(prev.headUser || {}), ...updatedUserFields };
       localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(merged));
@@ -146,7 +172,7 @@ export const HeadAuthProvider = ({ children }) => {
   };
 
   return (
-    <HeadAuthContext.Provider value={{ headAuth, setHeadAuth, headLogin, headLogout, updateHeadUser }}>
+    <HeadAuthContext.Provider value={{ headAuth, setHeadAuth, headLogin, headLogout, updateHeadUser, adoptHeadSession }}>
       {children}
     </HeadAuthContext.Provider>
   );
