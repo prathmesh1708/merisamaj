@@ -185,6 +185,12 @@ export const AuthProvider = ({ children }) => {
       console.error('Logout error', error);
     } finally {
       clearAllUserData(false);
+      // Member and Head Panel share one login — end the Head session too, otherwise
+      // the route guard picks it up again and signs the user straight back in.
+      try {
+        ['head_auth_user', 'head_auth_token', 'head_has_session', 'head_refresh_token']
+          .forEach(key => localStorage.removeItem(key));
+      } catch(e){}
       setAuth({
         user: null,
         accessToken: null,

@@ -1,5 +1,6 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { AuthContext } from '../../../core/auth/AuthContext';
+import { authService, clearAllUserData } from '../../../core/auth/authService';
 import axios from 'axios';
 import { getApiUrl } from '../../../core/api/axiosConfig';
 
@@ -12,7 +13,7 @@ const STORAGE_KEYS = {
 };
 
 export const HeadAuthProvider = ({ children }) => {
-  const { adoptSession: adoptMemberSession } = useContext(AuthContext);
+  const { adoptSession: adoptMemberSession, setAuth: setMemberAuth } = useContext(AuthContext);
   const [headAuth, setHeadAuth] = useState({
     headUser: null,
     isAuthenticated: false,
@@ -127,12 +128,24 @@ export const HeadAuthProvider = ({ children }) => {
   };
 
   /**
-   * Clear Head session — does NOT touch Member auth.
+   * Clear Head session and the shared Member session.
    */
   const headLogout = () => {
     localStorage.removeItem(STORAGE_KEYS.USER);
     localStorage.removeItem(STORAGE_KEYS.TOKEN);
     localStorage.removeItem(STORAGE_KEYS.SESSION);
+    localStorage.removeItem('head_refresh_token');
+
+    // Member and Head Panel share one login — end the Member session too, otherwise
+    // the route guard picks it up again and signs the user straight back in.
+    authService.logout().catch(() => {});
+    clearAllUserData(false);
+    setMemberAuth?.({
+      user: null,
+      accessToken: null,
+      isAuthenticated: false,
+      isInitialized: true,
+    });
 
     setHeadAuth({
       headUser: null,

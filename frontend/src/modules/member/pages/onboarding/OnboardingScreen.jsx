@@ -151,11 +151,21 @@ const CustomSelect = ({ value, onChange, options, placeholder = 'Select', disabl
         listRef.current && !listRef.current.contains(e.target)
       ) setOpen(false);
     };
+    // The list is position:fixed, so if the page itself scrolls it would float away
+    // from its field — close it instead. Scrolling inside the list is ignored.
+    const scrollHandler = (e) => {
+      if (listRef.current && listRef.current.contains(e.target)) return;
+      // Opening the mobile keyboard for the search box scrolls the page too — keep it open
+      if (searchInputRef.current && document.activeElement === searchInputRef.current) return;
+      setOpen(false);
+    };
     document.addEventListener('mousedown', handler);
-    document.addEventListener('touchstart', handler);
+    document.addEventListener('touchstart', handler, { passive: true });
+    window.addEventListener('scroll', scrollHandler, true);
     return () => {
       document.removeEventListener('mousedown', handler);
       document.removeEventListener('touchstart', handler);
+      window.removeEventListener('scroll', scrollHandler, true);
     };
   }, [open]);
 
@@ -221,7 +231,10 @@ const CustomSelect = ({ value, onChange, options, placeholder = 'Select', disabl
           />
         </div>
       )}
-      <div className="max-h-64 overflow-y-auto py-1 divide-y divide-slate-100">
+      <div
+        className="max-h-64 overflow-y-auto overscroll-contain py-1 divide-y divide-slate-100"
+        style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+      >
         {filteredOptions.length === 0 && (
           <div className="px-4 py-6 text-center text-xs font-semibold text-slate-400">No matches found.</div>
         )}
@@ -253,8 +266,11 @@ const CustomSelect = ({ value, onChange, options, placeholder = 'Select', disabl
               )}
               <button
                 type="button"
-                onMouseDown={(e) => { e.preventDefault(); onChange(val); setOpen(false); }}
-                onTouchEnd={(e) => { e.preventDefault(); onChange(val); setOpen(false); }}
+                // Select on click only: touchend/mousedown also fire when the finger
+                // lifts after scrolling the list, which picked an option mid-swipe.
+                // Browsers don't fire click after a scroll gesture, so this is a real tap.
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => { onChange(val); setOpen(false); }}
                 className={`w-full text-left px-4 py-3 text-sm font-semibold transition-all flex items-center justify-between gap-3 ${
                   isSelected
                     ? 'bg-[#7C3AED] text-white'
