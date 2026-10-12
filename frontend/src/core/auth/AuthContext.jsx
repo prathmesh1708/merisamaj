@@ -1,5 +1,6 @@
 import React, { createContext, useState, useEffect } from 'react';
 import { authService, clearAllUserData } from './authService';
+import { unregisterPushDevice } from '../push/pushClient';
 
 export const AuthContext = createContext({});
 
@@ -179,6 +180,8 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
+    // Stop pushes to this device for this user — before the auth token is cleared
+    await unregisterPushDevice(auth.accessToken || localStorage.getItem('merisamaj_token'));
     try {
       await authService.logout();
     } catch (error) {

@@ -2,60 +2,65 @@
 /**
  * firebase-messaging-sw.js
  * Service Worker for Firebase Web Push Notifications in ApniSamaj.
- * Handles background push payloads when app is closed or backgrounded.
+ *
+ * FCM delivers web pushes as standard Push API events, so this worker handles them
+ * directly — no Firebase SDK is needed here (the old importScripts of the SDK from
+ * gstatic was unused, and if that CDN was blocked the whole worker failed to install).
+ *
+ * Payload sent by backend/src/services/pushNotificationService.js:
+ *   { notification: { title, body }, data: { type, icon, actionUrl, notificationId } }
  */
 
-// Import Firebase scripts for Service Worker
-importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js');
+// Drop your app logo here (192×192 PNG) to show it on notifications.
+// If the file is missing the browser simply shows the notification without an icon.
+const DEFAULT_ICON = '/notification-icon.png';
 
-// Handle background push messages
-self.addEventListener('push', function (event) {
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
+
+// data.icon is an emoji in the in-app list (e.g. "🔔"), not an image — only use real URLs
+const resolveIcon = (icon) =>
+  typeof icon === 'string' && (/^https?:\/\//.test(icon) || icon.startsWith('/')) ? icon : DEFAULT_ICON;
+
+self.addEventListener('push', (event) => {
   if (!event.data) return;
 
+  let payload;
   try {
-    const payload = event.data.json();
-    const notificationTitle = payload.notification?.title || payload.data?.title || 'ApniSamaj Alert';
-    const notificationOptions = {
-      body: payload.notification?.body || payload.data?.message || '',
-      icon: payload.data?.icon || '/pwa-192x192.png',
-      badge: '/badge-72x72.png',
-      data: {
-        actionUrl: payload.data?.actionUrl || '/member/notifications',
-        notificationId: payload.data?.notificationId
-      },
-      tag: payload.data?.type || 'merisamaj-notification',
-      renotify: true
-    };
-
-    event.waitUntil(
-      self.registration.showNotification(notificationTitle, notificationOptions)
-    );
+    payload = event.data.json();
   } catch (err) {
-    console.error('[ServiceWorker] Push event handling error:', err);
+    payload = { notification: { title: 'ApniSamaj', body: event.data.text() } };
   }
+
+  const data = payload.data || {};
+  const title = payload.notification?.title || data.title || 'ApniSamaj Alert';
+  const options = {
+    body: payload.notification?.body || data.message || '',
+    icon: resolveIcon(data.icon),
+    data: {
+      actionUrl: data.actionUrl || '/member/notifications',
+      notificationId: data.notificationId
+    },
+    // Unique tag per notification so several alerts don't overwrite each other
+    tag: data.notificationId || `${data.type || 'merisamaj'}-${Date.now()}`,
+    requireInteraction: data.type === 'emergency_alert'
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
 });
 
-// Handle notification click to navigate user
-self.addEventListener('notificationclick', function (event) {
+// Open (or focus) the app at the notification's target page
+self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetUrl = event.notification.data?.actionUrl || '/member/notifications';
+  const targetUrl = new URL(event.notification.data?.actionUrl || '/member/notifications', self.location.origin).href;
 
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
-      for (let i = 0; i < clientList.length; i++) {
-        const client = clientList[i];
-        if ('focus' in client) {
-          client.focus();
-          if ('navigate' in client) {
-            client.navigate(targetUrl);
-          }
-          return;
-        }
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      const appClient = clientList.find((c) => new URL(c.url).origin === self.location.origin);
+      if (appClient) {
+        return appClient.focus().then((client) => (client && 'navigate' in client ? client.navigate(targetUrl) : client));
       }
-      if (clients.openWindow) {
-        return clients.openWindow(targetUrl);
-      }
+      return clients.openWindow ? clients.openWindow(targetUrl) : undefined;
     })
   );
 });

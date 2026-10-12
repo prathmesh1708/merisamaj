@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { AuthContext } from '../../../core/auth/AuthContext';
 import { authService, clearAllUserData } from '../../../core/auth/authService';
+import { unregisterPushDevice } from '../../../core/push/pushClient';
 import axios from 'axios';
 import { getApiUrl } from '../../../core/api/axiosConfig';
 
@@ -131,6 +132,8 @@ export const HeadAuthProvider = ({ children }) => {
    * Clear Head session and the shared Member session.
    */
   const headLogout = () => {
+    // Stop pushes to this device for this user — token captured before storage is cleared
+    unregisterPushDevice(localStorage.getItem(STORAGE_KEYS.TOKEN) || localStorage.getItem('merisamaj_token'));
     localStorage.removeItem(STORAGE_KEYS.USER);
     localStorage.removeItem(STORAGE_KEYS.TOKEN);
     localStorage.removeItem(STORAGE_KEYS.SESSION);

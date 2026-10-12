@@ -128,7 +128,7 @@ exports.sendMarriageRequest = async (req, res) => {
       sendPushNotification({
         userId: receiverId,
         notificationId: notifReceived._id,
-        type: 'marriage_request_received',
+        type: 'matrimonial_marriage_request_received',
         title: 'Marriage Request Received 💍',
         message: `${req.user.name} sent you a marriage confirmation request.`,
         icon: '💍',
@@ -285,7 +285,7 @@ exports.respondToMarriageRequest = async (req, res) => {
       sendPushNotification({
         userId: marriageRequest.requesterId,
         notificationId: notifAccepted._id,
-        type: 'marriage_accepted',
+        type: 'matrimonial_marriage_accepted',
         title: 'Marriage Confirmed! 🎉💍',
         message: `${req.user.name} accepted your marriage confirmation request! Congratulations!`,
         icon: '💍',

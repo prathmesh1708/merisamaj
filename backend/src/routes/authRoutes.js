@@ -20,6 +20,7 @@ const {
   verifyAadhaarOtp
 } = require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
+const notifCtrl = require('../controllers/notificationController');
 const upload = require('../middleware/uploadMiddleware');
 const {
   validateRegister,
@@ -51,6 +52,10 @@ router.post('/aadhaar/verify-otp', verifyAadhaarOtp);
 
 // Private routes
 router.get('/me', protect, getMe);
+
+// FCM push token for the logged-in user's device (web / android / ios)
+router.post('/fcm-token', protect, notifCtrl.registerPushToken);
+router.delete('/fcm-token', protect, notifCtrl.unregisterPushToken);
 
 // Profile update handles avatar & cover upload via Cloudinary / memory fallback
 router.put('/update-profile', protect, upload.uploadProfileMedia, validateUpdateProfile, updateProfile);

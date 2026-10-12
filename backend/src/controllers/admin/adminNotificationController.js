@@ -80,7 +80,7 @@ exports.getPushDeliveryAnalytics = async (req, res) => {
 const AdminBroadcastLog = require('../../models/AdminBroadcastLog');
 const User = require('../../models/User');
 const { createNotification } = require('../../services/notificationService');
-const { sendPushNotification } = require('../../services/pushNotificationService');
+const { sendPushToUsers } = require('../../services/pushNotificationService');
 
 /**
  * POST /api/v1/admin/notifications/broadcast
@@ -142,7 +142,7 @@ exports.sendAdminBroadcast = async (req, res) => {
     const notificationsToInsert = recipientUsers.map(u => ({
       userId: u._id,
       communityId: u.communityId || communityId,
-      module: 'system',
+      module: 'announcement',
       type: 'admin_broadcast',
       title: title.trim(),
       message: message.trim(),
@@ -163,11 +163,11 @@ exports.sendAdminBroadcast = async (req, res) => {
       if (io) {
         if (communityId) {
           io.to(`community:${communityId}`).emit('notification:new', {
-            title, message, icon: '📢', module: 'system', actionUrl
+            title, message, icon: '📢', module: 'announcement', actionUrl
           });
         } else {
           io.emit('notification:new', {
-            title, message, icon: '📢', module: 'system', actionUrl
+            title, message, icon: '📢', module: 'announcement', actionUrl
           });
         }
       }
@@ -177,16 +177,21 @@ exports.sendAdminBroadcast = async (req, res) => {
 
     // Optional FCM Push Dispatch
     if (channel === 'in_app_push') {
-      recipientUsers.forEach(u => {
-        sendPushNotification({
-          userId: u._id,
-          type: 'admin_broadcast',
-          title: `📢 ${title}`,
-          message,
-          icon: '📢',
-          actionUrl
-        }).catch(err => console.warn('[BroadcastPushError]', err.message));
-      });
+      // One batched multicast to every recipient device (non-blocking)
+      sendPushToUsers({
+        userIds: recipientUsers.map(u => u._id),
+        type: 'admin_broadcast',
+        title: `📢 ${title}`,
+        message,
+        icon: '📢',
+        actionUrl
+      }).then(result => {
+        const pushStatus = result.status === 'success' && result.successCount > 0 ? 'sent' : 'failed';
+        return UserNotification.updateMany(
+          { type: 'admin_broadcast', pushStatus: 'pending', createdAt: now },
+          { $set: { pushStatus, pushSent: pushStatus === 'sent' } }
+        );
+      }).catch(err => console.warn('[BroadcastPushError]', err.message));
     }
 
     // Create Audit Log Record

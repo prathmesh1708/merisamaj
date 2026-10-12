@@ -1,6 +1,5 @@
 const Invitation = require('../../models/Invitation');
 const { notifyInvitationReceived, createNotification } = require('../../services/notificationService');
-const { sendPushNotification } = require('../../services/pushNotificationService');
 const { applyScopeFilter } = require('../../utils/queryScopeHelper');
 
 /**
@@ -99,16 +98,7 @@ exports.createInvitation = async (req, res) => {
           if (typeof notifyInvitationReceived === 'function') {
             await notifyInvitationReceived(parsedMemberIds, hostName || req.user?.name || 'A member', title, createdInvitation._id, req.communityId);
           }
-          parsedMemberIds.forEach(mId => {
-            sendPushNotification({
-              userId: mId,
-              type: 'invitation_received',
-              title: `You're Invited! 🎉`,
-              message: `${hostName || req.user?.name || 'A member'} has invited you to "${title}".`,
-              icon: '🎉',
-              actionUrl: `/member/invitations/${createdInvitation._id}`
-            }).catch(err => console.error('[InvitationPushError]', err.message));
-          });
+          // Push is sent by createNotification() inside notifyInvitationReceived
         } catch (notifErr) {
           console.warn('[Notify] createInvitation background error:', notifErr.message);
         }
@@ -534,14 +524,7 @@ exports.cancelInvitation = async (req, res) => {
               referenceType: 'Invitation'
             }).catch(err => console.error('[CancelNotifError]', err.message));
 
-            sendPushNotification({
-              userId: mId,
-              type: 'invitation_cancelled',
-              title: `Event Cancelled ❌`,
-              message: `"${invitation.title}" has been cancelled. Reason: ${cancellationReason}`,
-              icon: '❌',
-              actionUrl: `/member/invitations/${invitation._id}`
-            }).catch(err => console.error('[CancelPushError]', err.message));
+            // Push is sent by createNotification() above
           }
         });
       }

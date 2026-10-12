@@ -91,10 +91,19 @@ exports.deleteNotification = async (req, res) => {
 
 const { registerPushToken, unregisterPushToken } = require('../services/pushNotificationService');
 
+// Mobile apps send the token / platform under different names — accept the common ones
+const readFcmToken = (body = {}) => body.fcmToken || body.fcm_token || body.token || null;
+const readDeviceType = (body = {}) => {
+  const raw = String(body.deviceType || body.device_type || body.platform || 'web').toLowerCase();
+  return ['web', 'android', 'ios'].includes(raw) ? raw : 'web';
+};
+
 // ─── Register Push Token ──────────────────────────────────────────────────────
+// Also served at POST /api/v1/auth/fcm-token for the mobile apps.
 exports.registerPushToken = async (req, res) => {
   try {
-    const { fcmToken, deviceType = 'web' } = req.body;
+    const fcmToken = readFcmToken(req.body);
+    const deviceType = readDeviceType(req.body);
     if (!fcmToken) {
       return res.status(400).json({ status: 'error', message: 'fcmToken is required.' });
     }
@@ -112,9 +121,10 @@ exports.registerPushToken = async (req, res) => {
 };
 
 // ─── Unregister Push Token ────────────────────────────────────────────────────
+// Also served at DELETE /api/v1/auth/fcm-token for the mobile apps.
 exports.unregisterPushToken = async (req, res) => {
   try {
-    const { fcmToken } = req.body;
+    const fcmToken = readFcmToken(req.body);
     if (fcmToken) {
       await unregisterPushToken({ userId: req.user._id, fcmToken });
     }

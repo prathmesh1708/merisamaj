@@ -19,7 +19,8 @@ const UserNotification = require('../models/UserNotification');
 let fcmInitialized = false;
 
 const initFCM = () => {
-  if (fcmInitialized || !admin) return true;
+  if (!admin) return false;
+  if (fcmInitialized) return true;
 
   const projectId   = process.env.FCM_PROJECT_ID || process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FCM_CLIENT_EMAIL || process.env.FIREBASE_CLIENT_EMAIL;
@@ -89,8 +90,87 @@ const PUSH_ELIGIBLE_TYPES = new Set([
   // Invitations & Referrals
   'invitation_received', 'referral_bonus_earned',
   // Account
-  'account_security_alert', 'account_status_changed'
+  'account_security_alert', 'account_status_changed', 'account_blocked', 'account_activated', 'head_assigned',
+  // Broadcasts from the Head / Admin panels
+  'head_broadcast', 'admin_broadcast',
+  // Community-wide news
+  'event_created', 'campaign_created', 'fund_created',
+  // Requests that need a Head's action
+  'leadership_claim_submitted', 'member_verification_request', 'listing_submitted',
+  'booking_received', 'payment_received', 'group_join_request', 'obituary_head_notice',
+  // Replies to the member
+  'group_join_approved', 'invitation_cancelled', 'invitation_accepted', 'mention',
+  'matrimonial_marriage_rejected'
 ]);
+
+// FCM error codes meaning the token is dead and should not be used again
+const DEAD_TOKEN_CODES = new Set([
+  'messaging/invalid-registration-token',
+  'messaging/registration-token-not-registered',
+  'messaging/invalid-argument'
+]);
+
+const MULTICAST_LIMIT = 500; // FCM maximum tokens per sendEachForMulticast call
+
+const buildPayload = ({ tokens, type, title, message, icon, actionUrl, notificationId }) => ({
+  tokens,
+  notification: {
+    title: title || 'ApniSamaj Alert',
+    body: message || ''
+  },
+  // FCM data values must all be strings
+  data: {
+    type: type || 'general',
+    icon: icon || '🔔',
+    actionUrl: actionUrl || '/member/notifications',
+    notificationId: notificationId ? notificationId.toString() : ''
+  },
+  webpush: {
+    headers: {
+      Urgency: type === 'emergency_alert' ? 'high' : 'normal'
+    }
+  }
+});
+
+/**
+ * Send one payload to many tokens in chunks of 500 and deactivate dead tokens.
+ * Returns { successCount, failureCount }.
+ */
+const sendToTokens = async (tokenStrings, fields) => {
+  let successCount = 0;
+  let failureCount = 0;
+  const deadTokens = [];
+
+  for (let i = 0; i < tokenStrings.length; i += MULTICAST_LIMIT) {
+    const chunk = tokenStrings.slice(i, i + MULTICAST_LIMIT);
+    const response = await admin.messaging().sendEachForMulticast(buildPayload({ ...fields, tokens: chunk }));
+    successCount += response.successCount;
+    failureCount += response.failureCount;
+    response.responses.forEach((resp, idx) => {
+      if (!resp.success && DEAD_TOKEN_CODES.has(resp.error?.code)) deadTokens.push(chunk[idx]);
+    });
+  }
+
+  if (deadTokens.length > 0) {
+    await UserPushToken.updateMany({ fcmToken: { $in: deadTokens } }, { $set: { isActive: false } });
+  }
+  return { successCount, failureCount };
+};
+
+/**
+ * Atomically mark a notification as being pushed. Returns false if another code
+ * path already pushed it — createNotification() pushes centrally and many
+ * controllers also call sendPushNotification() for the same notification.
+ */
+const claimNotificationPush = async (notificationId) => {
+  const res = await UserNotification.updateOne(
+    { _id: notificationId, pushStatus: { $nin: ['sending', 'sent'] } },
+    { $set: { pushStatus: 'sending' } }
+  );
+  if (res.modifiedCount > 0) return true;
+  // Not modified: either already claimed (skip) or the document doesn't exist (send anyway)
+  return !(await UserNotification.exists({ _id: notificationId }));
+};
 
 /**
  * Register or update an FCM token for a user
@@ -161,68 +241,26 @@ const sendPushNotification = async ({
       return { status: 'no_tokens', reason: 'Recipient has no registered active push tokens' };
     }
 
-    const tokenStrings = tokens.map(t => t.fcmToken);
-
-    // 4. Construct FCM Multicast Message Payload
-    const payload = {
-      tokens: tokenStrings,
-      notification: {
-        title: title || 'ApniSamaj Alert',
-        body: message || ''
-      },
-      data: {
-        type: type || 'general',
-        icon: icon || '🔔',
-        actionUrl: actionUrl || '/member/notifications',
-        notificationId: notificationId ? notificationId.toString() : ''
-      },
-      webpush: {
-        headers: {
-          Urgency: type === 'emergency_alert' ? 'high' : 'normal'
-        },
-        fcmOptions: {
-          link: actionUrl || '/member/notifications'
-        }
-      }
-    };
-
-    // 5. Send FCM Multicast
-    const response = await admin.messaging().sendEachForMulticast(payload);
-
-    // 6. Clean up failed tokens
-    if (response.failureCount > 0) {
-      const failedTokens = [];
-      response.responses.forEach((resp, idx) => {
-        if (!resp.success) {
-          const errCode = resp.error?.code;
-          if (errCode === 'messaging/invalid-registration-token' || errCode === 'messaging/registration-token-not-registered') {
-            failedTokens.push(tokenStrings[idx]);
-          }
-        }
-      });
-
-      if (failedTokens.length > 0) {
-        await UserPushToken.updateMany(
-          { fcmToken: { $in: failedTokens } },
-          { $set: { isActive: false } }
-        );
-      }
+    // 4. Push each notification only once
+    if (notificationId && !(await claimNotificationPush(notificationId))) {
+      return { status: 'skipped', reason: 'Notification already pushed' };
     }
 
-    // 7. Update UserNotification document push tracking status
+    // 5. Send and deactivate dead tokens
+    const { successCount, failureCount } = await sendToTokens(
+      tokens.map(t => t.fcmToken),
+      { type, title, message, icon, actionUrl, notificationId }
+    );
+
+    // 6. Update UserNotification document push tracking status
     if (notificationId) {
-      const status = response.successCount > 0 ? 'sent' : 'failed';
       await UserNotification.findByIdAndUpdate(notificationId, {
-        pushSent: response.successCount > 0,
-        pushStatus: status
+        pushSent: successCount > 0,
+        pushStatus: successCount > 0 ? 'sent' : 'failed'
       });
     }
 
-    return {
-      status: 'success',
-      successCount: response.successCount,
-      failureCount: response.failureCount
-    };
+    return { status: 'success', successCount, failureCount };
   } catch (err) {
     console.error('[PushService] sendPushNotification error:', err.message);
     if (notificationId) {
@@ -232,9 +270,50 @@ const sendPushNotification = async ({
   }
 };
 
+/**
+ * Send the same push to many users at once (community broadcasts).
+ * Looks up all their active devices in one query and multicasts in chunks of 500.
+ */
+const sendPushToUsers = async ({
+  userIds,
+  type,
+  title,
+  message,
+  icon = '📢',
+  actionUrl = '/member/notifications'
+}) => {
+  try {
+    if (!PUSH_ELIGIBLE_TYPES.has(type)) {
+      return { status: 'skipped', reason: 'Not in push-eligible event subset' };
+    }
+    if (!userIds || userIds.length === 0) {
+      return { status: 'no_tokens', reason: 'No recipients' };
+    }
+    if (!initFCM()) {
+      return { status: 'disabled', reason: 'FCM SDK not initialized' };
+    }
+
+    const tokens = await UserPushToken.find({ userId: { $in: userIds }, isActive: true })
+      .select('fcmToken').lean();
+    if (tokens.length === 0) {
+      return { status: 'no_tokens', reason: 'No recipient has a registered active push token' };
+    }
+
+    const { successCount, failureCount } = await sendToTokens(
+      tokens.map(t => t.fcmToken),
+      { type, title, message, icon, actionUrl }
+    );
+    return { status: 'success', successCount, failureCount };
+  } catch (err) {
+    console.error('[PushService] sendPushToUsers error:', err.message);
+    return { status: 'error', message: err.message };
+  }
+};
+
 module.exports = {
   registerPushToken,
   unregisterPushToken,
   sendPushNotification,
+  sendPushToUsers,
   PUSH_ELIGIBLE_TYPES
 };

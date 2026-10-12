@@ -8,6 +8,7 @@ import { memberChatService } from '../../../core/api/memberChatService';
 import { groupService } from '../../../core/api/groupService';
 import { getSocket } from '../hooks/useChatSocket';
 import { PushPermissionModal } from '../components/layout/PushPermissionModal';
+import { registerPushDevice } from '../../../core/push/pushClient';
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 const NotificationContext = createContext(null);
@@ -18,6 +19,17 @@ export const NotificationProvider = ({ children }) => {
   const { headAuth } = useHeadAuth();
   const { adminAuth } = useAdminAuth();
   const activeUser = user || headAuth?.headUser || adminAuth?.adminUser;
+  // Push tokens are linked through the member API, so only member/head sessions qualify
+  const pushUser = user || headAuth?.headUser;
+  const pushUserId = pushUser?._id || pushUser?.id;
+
+  // ── Link this device for Web Push whenever someone is logged in ─────────────
+  // Runs only when permission was already granted (never prompts). Covers users who
+  // allowed notifications earlier, FCM token rotation, and a new user on a shared device.
+  useEffect(() => {
+    if (!pushUserId) return;
+    registerPushDevice().catch((err) => console.warn('[Push] Device registration failed:', err?.message || err));
+  }, [pushUserId]);
 
   const [unreadCount, setUnreadCount]               = useState(0);
   const [unreadChatCount, setUnreadChatCount]       = useState(0);
@@ -245,7 +257,7 @@ export const NotificationProvider = ({ children }) => {
       )}
 
       {/* ── Non-Intrusive Push Permission Prompt Modal ────────────────────── */}
-      <PushPermissionModal />
+      {pushUserId && <PushPermissionModal />}
     </NotificationContext.Provider>
   );
 };

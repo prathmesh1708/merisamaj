@@ -2,6 +2,7 @@ const mongoose         = require('mongoose');
 const User             = require('../models/User');
 const UserNotification = require('../models/UserNotification');
 const { getIO }        = require('./socketRegistry');
+const { sendPushNotification, sendPushToUsers, PUSH_ELIGIBLE_TYPES } = require('./pushNotificationService');
 
 /**
  * Single Recipient Notification Creator
@@ -39,6 +40,20 @@ const createNotification = async (params) => {
     if (io) {
       // Emit to recipient's user room
       io.to(`user:${params.userId}`).emit('notification:new', notification);
+    }
+
+    // Web/Mobile push for important types (non-blocking). Controllers that also call
+    // sendPushNotification with this notification's id are de-duplicated there.
+    if (PUSH_ELIGIBLE_TYPES.has(params.type)) {
+      sendPushNotification({
+        userId:         params.userId,
+        notificationId: notification._id,
+        type:           params.type,
+        title:          params.title,
+        message:        params.message,
+        icon:           notification.icon,
+        actionUrl:      params.actionUrl || '/member/notifications'
+      });
     }
     return notification;
   } catch (err) {
@@ -125,6 +140,18 @@ const createBroadcastNotification = async (params) => {
         }
       } catch (batchErr) {
         console.error('[NotificationService] Broadcast insertMany error:', batchErr.message);
+      }
+
+      // Push to every member's devices in one batched multicast
+      if (PUSH_ELIGIBLE_TYPES.has(params.type)) {
+        await sendPushToUsers({
+          userIds:   users.map(u => u._id),
+          type:      params.type,
+          title:     params.title,
+          message:   params.message,
+          icon:      params.icon || '📢',
+          actionUrl: params.actionUrl || '/member/notifications'
+        });
       }
     })();
   } catch (err) {

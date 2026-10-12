@@ -74,7 +74,7 @@ const userNotificationSchema = new mongoose.Schema(
 
     // ─── Push Notification Delivery Tracking (FCM - Phase 3) ─────────────────
     pushSent:   { type: Boolean, default: false },
-    pushStatus: { type: String, enum: ['none', 'pending', 'sent', 'failed'], default: 'none' }
+    pushStatus: { type: String, enum: ['none', 'pending', 'sending', 'sent', 'failed'], default: 'none' }
   },
   { timestamps: true }
 );
