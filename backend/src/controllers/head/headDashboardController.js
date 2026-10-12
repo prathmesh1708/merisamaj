@@ -11,6 +11,17 @@ const Contribution = require('../../models/Contribution');
 const Donation = require('../../models/Donation');
 const { applyScopeFilter } = require('../../utils/queryScopeHelper');
 
+// Everything a Head needs to review a member — never the password fields
+const MEMBER_PROFILE_FIELDS = [
+  'name phone email alternatePhone alternateEmail avatar cover bio about',
+  'gender dob bloodGroup maritalStatus gotra familyType',
+  'community communityId subCommunity',
+  'city district state country pincode houseNumber streetAddress landmark areaAddress detailedAddress',
+  'qualification school passingYear profession company annualIncome workCity',
+  'familyMembers',
+  'isAadharVerified isFaceVerified isPhoneVerified isEmailVerified verificationStatus accountStatus registrationSource referredBy createdAt'
+].join(' ');
+
 /**
  * @desc    Get consolidated Head Dashboard Stats
  * @route   GET /api/v1/head/dashboard/stats
@@ -77,7 +88,10 @@ exports.getDashboardStats = async (req, res) => {
 
     const pendingMembersCount = await User.countDocuments(pendingQuery);
     const pendingMembersList = await User.find(pendingQuery)
-      .select('name phone email city state profession avatar verificationStatus accountStatus isAadharVerified gotra gender createdAt')
+      // Full profile so the Head can review the applicant properly (never the password)
+      .select(MEMBER_PROFILE_FIELDS)
+      .populate('communityId', 'name')
+      .populate('referredBy', 'name phone')
       .sort({ createdAt: -1 })
       .limit(10)
       .lean();
@@ -233,6 +247,31 @@ exports.getDashboardStats = async (req, res) => {
  * @desc    Approve member account (Scoped & Validated)
  * @route   PATCH /api/v1/head/dashboard/members/:id/approve
  */
+/**
+ * @desc    Full profile of one member, for reviewing a verification request (Scoped)
+ * @route   GET /api/v1/head/dashboard/members/:id
+ */
+exports.getMemberProfile = async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ status: 'fail', message: 'Invalid member ID format.' });
+    }
+    const filter = applyScopeFilter(req, { _id: new mongoose.Types.ObjectId(req.params.id) }, { includeUnassignedCity: true });
+    const member = await User.findOne(filter)
+      .select(MEMBER_PROFILE_FIELDS)
+      .populate('communityId', 'name')
+      .populate('referredBy', 'name phone')
+      .lean();
+    if (!member) {
+      return res.status(404).json({ status: 'fail', message: 'Member not found or not in your community.' });
+    }
+    res.status(200).json({ status: 'success', data: member });
+  } catch (error) {
+    console.error('Get Member Profile Error:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to load member profile' });
+  }
+};
+
 exports.approveMember = async (req, res) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {

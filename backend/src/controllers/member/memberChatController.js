@@ -13,7 +13,8 @@ const User    = require('../../models/User');
 const Conversation = require('../../models/Conversation');
 const { findOrCreateConversation, getUserConversations } = require('../../services/conversationService');
 const { createMessage, getMessages, markMessagesSeen, markConversationSeen, deleteMessageForMe, deleteMessageForEveryone, editMessage: editMessageService, clearConversationMessages } = require('../../services/messageService');
-const { notifyNewMessage } = require('../../services/notificationService');
+const { notifyNewMessage, pushChatMessage, chatMessagePreview } = require('../../services/notificationService');
+const { isOnline } = require('../../services/chatSocketService');
 const { getIO } = require('../../services/socketRegistry');
 
 const getSocketIO = (req) => req?.app?.get('io') || getIO();
@@ -213,9 +214,14 @@ exports.sendMessage = async (req, res) => {
       }
     }
 
-    // Notify offline participants
+    // Offline → bell notification + push; online → push only (their phone may be in a pocket)
+    const preview = chatMessagePreview(msgType, message);
     for (const pid of otherParticipants) {
-      notifyNewMessage(pid, req.user.name, conversationId, 'chat');
+      if (isOnline(pid.toString())) {
+        pushChatMessage({ userId: pid, senderName: req.user.name, preview, conversationId });
+      } else {
+        notifyNewMessage(pid, req.user.name, conversationId, 'chat', preview);
+      }
     }
 
     res.status(201).json({ status: 'success', data: { message: populatedMsg } });

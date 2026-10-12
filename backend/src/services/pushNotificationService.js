@@ -82,7 +82,7 @@ const PUSH_ELIGIBLE_TYPES = new Set([
   // Social
   'emergency_alert', 'official_announcement', 'post_mention',
   // Chat
-  'chat_new_message', 'group_invite', 'group_role_promoted', 'chat_mention',
+  'chat_new_message', 'group_new_message', 'group_invite', 'group_role_promoted', 'chat_mention',
   // Directory
   'listing_approved', 'listing_rejected', 'business_enquiry',
   // Voting
@@ -112,7 +112,7 @@ const DEAD_TOKEN_CODES = new Set([
 
 const MULTICAST_LIMIT = 500; // FCM maximum tokens per sendEachForMulticast call
 
-const buildPayload = ({ tokens, type, title, message, icon, actionUrl, notificationId }) => ({
+const buildPayload = ({ tokens, type, title, message, icon, actionUrl, notificationId, tag }) => ({
   tokens,
   notification: {
     title: title || 'ApniSamaj Alert',
@@ -123,7 +123,9 @@ const buildPayload = ({ tokens, type, title, message, icon, actionUrl, notificat
     type: type || 'general',
     icon: icon || '🔔',
     actionUrl: actionUrl || '/member/notifications',
-    notificationId: notificationId ? notificationId.toString() : ''
+    notificationId: notificationId ? notificationId.toString() : '',
+    // Same tag = replaces the previous notification on the device (one per chat)
+    tag: tag || ''
   },
   webpush: {
     headers: {
@@ -222,7 +224,8 @@ const sendPushNotification = async ({
   title,
   message,
   icon = '🔔',
-  actionUrl = '/member/notifications'
+  actionUrl = '/member/notifications',
+  tag
 }) => {
   try {
     // 1. Strict Push Eligibility Check
@@ -249,7 +252,7 @@ const sendPushNotification = async ({
     // 5. Send and deactivate dead tokens
     const { successCount, failureCount } = await sendToTokens(
       tokens.map(t => t.fcmToken),
-      { type, title, message, icon, actionUrl, notificationId }
+      { type, title, message, icon, actionUrl, notificationId, tag }
     );
 
     // 6. Update UserNotification document push tracking status

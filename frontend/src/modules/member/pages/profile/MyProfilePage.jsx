@@ -9,6 +9,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import socialService from '../../../../core/api/socialService';
 import { getMemberById } from '../../services/directoryApi';
 import { resolvePostMediaUrl, isMediaVideo } from '../../utils/mediaUtils';
+import { cropImageFile } from '../../../../core/components/ImageCropper';
 
 // ── Profile Post Thumbnail Component (Handles media aliases, resolution & graceful fallbacks) ──
 const ProfilePostThumbnail = ({ post, onClick }) => {
@@ -625,8 +626,9 @@ const MyProfilePage = () => {
                   type="file" 
                   accept="image/*" 
                   className="hidden" 
-                  onChange={(e) => {
-                    const file = e.target.files[0];
+                  onChange={async (e) => {
+                    const file = await cropImageFile(e.target.files[0], { aspect: 3, shape: 'rect', title: 'Adjust cover photo' });
+                    e.target.value = ''; // allow picking the same file again
                     if (file) {
                       const reader = new FileReader();
                       reader.onload = (event) => {
@@ -662,8 +664,9 @@ const MyProfilePage = () => {
                       type="file" 
                       accept="image/*" 
                       className="hidden" 
-                      onChange={(e) => {
-                        const file = e.target.files[0];
+                      onChange={async (e) => {
+                        const file = await cropImageFile(e.target.files[0], { title: 'Adjust profile photo' });
+                        e.target.value = ''; // allow picking the same file again
                         if (file) {
                           const reader = new FileReader();
                           reader.onload = (event) => {

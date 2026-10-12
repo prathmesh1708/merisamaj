@@ -503,6 +503,14 @@ const adaptPosts = (postsList, community) => {
   });
 };
 
+// "5m ago" / "3h ago" for story headers (stories last 24h)
+const formatStoryTime = (date) => {
+  const mins = Math.max(0, Math.floor((Date.now() - new Date(date).getTime()) / 60000));
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  return `${Math.floor(mins / 60)}h ago`;
+};
+
 const adaptStories = (storiesList, community) => {
   const surname = getCommunitySurname(community);
   return storiesList.map(s => {
@@ -1269,27 +1277,42 @@ export const DataProvider = ({ children }) => {
     return promise;
   };
 
+  // Story from the API → shape used by the story bar and viewer.
+  // `fallbackUser` covers responses where userId isn't populated (e.g. right after creating).
+  const formatStory = (s, fallbackUser = null) => {
+    const owner = (s.userId && typeof s.userId === 'object') ? s.userId : fallbackUser;
+    const ownerId = owner?._id || owner?.id || (typeof s.userId === 'string' ? s.userId : null);
+    const name = owner?.name || 'Member';
+    return {
+      id: s._id,
+      memberId: ownerId ? String(ownerId) : null,
+      name,
+      initials: name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'U',
+      avatar: owner?.avatar,
+      image: s.media,
+      mediaType: s.mediaType || 'image',
+      background: s.background,
+      text: s.text,
+      textPosition: s.textPosition || { x: 50, y: 50 },
+      textStyle: s.textStyle || {
+        color: '#ffffff',
+        fontSize: 'base',
+        align: 'center',
+        bgStyle: 'pill-dark'
+      },
+      createdAt: s.createdAt,
+      timestamp: s.createdAt ? formatStoryTime(s.createdAt) : 'Just now',
+      hasSeen: false
+    };
+  };
+
   const fetchStoriesList = async () => {
     try {
       const res = await socialService.getStories();
-      const formatted = (res.data || []).map(s => ({
-        id: s._id,
-        memberId: s.userId?._id || s.userId?.id,
-        name: s.userId?.name || 'Member',
-        initials: s.userId?.name ? s.userId.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'U',
-        avatar: s.userId?.avatar,
-        image: s.media,
-        text: s.text,
-        textPosition: s.textPosition || { x: 50, y: 50 },
-        textStyle: s.textStyle || {
-          color: '#ffffff',
-          fontSize: 'base',
-          align: 'center',
-          bgStyle: 'pill-dark'
-        },
-        timestamp: 'Active',
-        hasSeen: false
-      }));
+      const formatted = (res.data || [])
+        .map(s => formatStory(s))
+        // Oldest first, so each person's stories play in the order they were posted
+        .sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
       setStories(formatted);
     } catch (error) {
       console.error('Failed to fetch stories:', error);
@@ -1887,30 +1910,21 @@ export const DataProvider = ({ children }) => {
         bgStyle: 'pill-dark'
       };
 
+      const media = storyImage || 'linear-gradient(135deg, #f472b6 0%, #7c3aed 100%)';
+      const isGradient = /-gradient\(/.test(media);
       const res = await socialService.createStory({
-        media: storyImage || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800',
-        mediaType: 'image',
+        media,
+        mediaType: media.startsWith('data:video/') ? 'video' : 'image',
         text: storyText,
         textPosition,
         textStyle,
-        background: storyImage.startsWith('http') ? undefined : storyImage
+        // Text-only stories keep their colour here too, so they render as a background
+        background: isGradient ? media : undefined
       });
 
-      const formatted = {
-        id: res.data._id,
-        memberId: res.data.userId?._id || res.data.userId?.id,
-        name: res.data.userId?.name || 'Member',
-        initials: res.data.userId?.name ? res.data.userId.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'U',
-        avatar: res.data.userId?.avatar,
-        image: res.data.media,
-        text: res.data.text,
-        textPosition: res.data.textPosition || textPosition,
-        textStyle: res.data.textStyle || textStyle,
-        timestamp: 'Active',
-        hasSeen: false
-      };
-
-      setStories(prev => [formatted, ...prev]);
+      const formatted = formatStory(res.data, currentUser);
+      // Append: the viewer plays a person's stories oldest → newest
+      setStories(prev => [...prev, formatted]);
     } catch (error) {
       console.error('Failed to add story:', error);
     }

@@ -7,6 +7,7 @@ import {
 import { useData } from '../../../member/context/DataProvider';
 import { useHeadAuth } from '../../auth/useHeadAuth';
 import { axiosPrivate } from '../../../../core/api/axiosPrivate';
+import { cropImageFile } from '../../../../core/components/ImageCropper';
 
 // ─────────────────────────────────────────────
 // Heritage Monument SVG Illustrations
@@ -206,8 +207,9 @@ export default function LocalCommunityManagement() {
     }
   });
   const [assignAvatarFile, setAssignAvatarFile] = useState(null);
-  const handleAssignAvatarSelect = (e) => {
-    const file = e.target.files?.[0];
+  const handleAssignAvatarSelect = async (e) => {
+    const file = await cropImageFile(e.target.files?.[0], { title: 'Adjust profile photo' });
+    e.target.value = ''; // allow picking the same file again
     if (file) {
       setAssignAvatarFile(file);
       const reader = new FileReader();

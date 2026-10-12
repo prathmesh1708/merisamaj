@@ -112,6 +112,15 @@ app.use('/uploads', (req, res, next) => {
 // Root API Router
 app.use('/api/v1', rootRouter);
 
+// Short alias without /v1 for mobile apps: /api/auth/fcm-token
+{
+  const { protect } = require('./middleware/authMiddleware');
+  const notifCtrl = require('./controllers/notificationController');
+  app.get('/api/auth/fcm-token', notifCtrl.getPushTokenEndpointStatus);
+  app.post('/api/auth/fcm-token', protect, notifCtrl.registerPushToken);
+  app.delete('/api/auth/fcm-token', protect, notifCtrl.unregisterPushToken);
+}
+
 // 404 Route handler
 app.use('*', (req, res) => {
   res.status(404).json({

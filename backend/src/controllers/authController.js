@@ -977,6 +977,8 @@ const getPublicCommunities = async (req, res) => {
 const getPublicCities = async (req, res) => {
   try {
     const { communityId } = req.query;
+    // Optional: scope locations & Local Heads to one sub-community (?subCommunity=…)
+    const subKey = (req.query.subCommunity || '').toString().trim().toLowerCase();
     const City = require('../models/City');
     const Community = require('../models/Community');
 
@@ -999,18 +1001,23 @@ const getPublicCities = async (req, res) => {
         role: 'sub_head',
         accountType: 'local_head',
         accountStatus: 'active'
-      }).select('name avatar city').lean();
+      }).select('name avatar city subCommunity').lean();
 
       localHeads.forEach(lh => {
+        // Heads tagged with another sub-community don't cover this one
+        if (subKey && lh.subCommunity && lh.subCommunity.trim().toLowerCase() !== subKey) return;
         if (lh.city) {
           localHeadsByCity.set(lh.city.trim().toLowerCase(), lh);
         }
       });
     }
 
-    const assignedCityIdsSet = new Set(
-      (targetCommunity?.cityIds || []).map(id => id.toString())
-    );
+    // The chosen sub-community's own locations when it has them, else the community's
+    const subDoc = subKey
+      ? (targetCommunity?.subCommunities || []).find(s => (s.name || '').trim().toLowerCase() === subKey)
+      : null;
+    const scopedCityIds = subDoc && Array.isArray(subDoc.cityIds) ? subDoc.cityIds : (targetCommunity?.cityIds || []);
+    const assignedCityIdsSet = new Set(scopedCityIds.map(id => id.toString()));
     const assignedCityNamesSet = new Set(
       [targetCommunity?.city].filter(Boolean).map(c => c.toLowerCase().trim())
     );

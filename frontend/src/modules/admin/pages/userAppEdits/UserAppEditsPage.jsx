@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { appContentService } from '../../services/appContentService';
 import { getAllCommunities } from '../../services/communityService';
 import { CityLandscape } from '../../../member/components/common/CityLandscape';
+import { isRealPhoto, getInitials } from '../../../../core/utils/photo';
 
 const AVAILABLE_ICONS = [
   'Briefcase', 'BookOpen', 'Users', 'Vote', 'Building', 'Wallet', 
@@ -1280,11 +1281,17 @@ export const UserAppEditsPage = () => {
                 {/* Head Card Preview */}
                 <div className="rounded-[24px] bg-gradient-to-r from-[#1e1145] via-[#2d1b69] to-[#4C1D95] p-5 text-white flex flex-col md:flex-row items-center justify-between gap-5 relative overflow-hidden shadow-xl">
                   <div className="flex items-center gap-4 relative z-10">
-                    <img
-                      src={appContent?.coreMembers?.communityHead?.avatar || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=800&q=80'}
-                      alt="Head Avatar"
-                      className="w-16 h-16 rounded-2xl object-cover border-2 border-amber-400/60 shadow-md"
-                    />
+                    {isRealPhoto(appContent?.coreMembers?.communityHead?.avatar) ? (
+                      <img
+                        src={appContent.coreMembers.communityHead.avatar}
+                        alt="Head Avatar"
+                        className="w-16 h-16 rounded-2xl object-cover border-2 border-amber-400/60 shadow-md"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-2xl border-2 border-amber-400/60 shadow-md bg-white/10 flex items-center justify-center text-[20px] font-black">
+                        {getInitials(appContent?.coreMembers?.communityHead?.name || 'Head')}
+                      </div>
+                    )}
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="bg-purple-500/80 text-white text-[9px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider border border-purple-400/30">

@@ -137,12 +137,13 @@ const SocialHubPage = ({ initialTab = 'city-feed' }) => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const scrollContainerRef = useRef(null);
-  const isTransitioningRef = useRef(false);
+  const containerRef = useRef(null);   // visible viewport of the pager
+  const trackRef = useRef(null);       // row of tab pages, moved with translateX
+  const indicatorRef = useRef(null);   // purple underline in the tab bar
   const [triggerCreateGroup, setTriggerCreateGroup] = useState(false);
-  const touchStartXRef = useRef(0);
-  const touchStartYRef = useRef(0);
-  const touchTriggeredRef = useRef(false);
+  // Live swipe state kept in a ref: updating React state on every finger move
+  // would re-render all four tabs and make the swipe stutter.
+  const swipeRef = useRef({ startX: 0, startY: 0, startTime: 0, mode: null, offset: 0, frame: null, target: null });
   const isWheelingRef = useRef(false);
   const wheelTimeoutRef = useRef(null);
   const lastTabScrollY = useRef({});
@@ -161,50 +162,51 @@ const SocialHubPage = ({ initialTab = 'city-feed' }) => {
     }
   }, [activeTab]);
 
-  // Set initial scroll position based on route state, sessionStorage, or initialTab
+  // Pick the starting tab from route state, sessionStorage, or initialTab
   useEffect(() => {
     let passedTabId = location.state?.tab || sessionStorage.getItem('socialHub_activeTab') || initialTab;
     if (passedTabId === 'feed') passedTabId = 'city-feed';
     if (passedTabId === 'connect') passedTabId = 'community-feed';
     const tabIndex = tabs.findIndex(t => t.id === passedTabId);
-    if (tabIndex !== -1 && scrollContainerRef.current) {
+    if (tabIndex !== -1) {
       setActiveTab(tabIndex);
       sessionStorage.setItem('socialHub_activeTab', tabs[tabIndex].id);
-      // Use setTimeout to ensure the DOM is fully rendered and clientWidth is available
-      setTimeout(() => {
-        if (scrollContainerRef.current) {
-          scrollContainerRef.current.scrollTo({
-            left: tabIndex * scrollContainerRef.current.clientWidth,
-            behavior: 'instant'
-          });
-        }
-      }, 50);
     }
   }, [initialTab, location.state]);
 
-  // Keep scroll position aligned on resize/rotation
+  // ── Pager positioning ─────────────────────────────────────────────────────
+  // Moves the track (and the tab underline) to `index`, shifted by `dragPx` while
+  // the finger is down. `animate` adds the snap animation after release.
+  const positionPager = (index, dragPx = 0, animate = true) => {
+    const track = trackRef.current;
+    const indicator = indicatorRef.current;
+    const width = containerRef.current?.clientWidth || 1;
+    const transition = animate ? 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)' : 'none';
+    if (track) {
+      track.style.transition = transition;
+      track.style.transform = `translate3d(${-index * width + dragPx}px, 0, 0)`;
+    }
+    if (indicator) {
+      indicator.style.transition = transition;
+      indicator.style.transform = `translateX(${(index - dragPx / width) * 100}%)`;
+    }
+  };
+
+  // Snap to the active tab whenever it changes (tap, swipe or route state).
+  // The first placement after opening the page is instant, not animated.
+  const hasPositionedRef = useRef(false);
   useEffect(() => {
-    const handleResize = () => {
-      if (scrollContainerRef.current) {
-        scrollContainerRef.current.scrollTo({
-          left: activeTab * scrollContainerRef.current.clientWidth,
-          behavior: 'instant'
-        });
-      }
-    };
+    positionPager(activeTab, 0, hasPositionedRef.current);
+    const t = setTimeout(() => { hasPositionedRef.current = true; }, 100);
+    return () => clearTimeout(t);
+  }, [activeTab]);
+
+  // Keep aligned on resize/rotation (pixel based, so recompute without animation)
+  useEffect(() => {
+    const handleResize = () => positionPager(activeTab, 0, false);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [activeTab]);
-
-  const handleScroll = (e) => {
-    if (!e.target) return;
-    const scrollLeft = e.target.scrollLeft;
-    const clientWidth = e.target.clientWidth;
-    const newIndex = Math.round(scrollLeft / clientWidth);
-    if (newIndex !== activeTab && newIndex >= 0 && newIndex < tabs.length) {
-      setActiveTab(newIndex);
-    }
-  };
 
   const handleTabScroll = (e) => {
     const tabId = e.currentTarget.dataset.tabId;
@@ -262,85 +264,125 @@ const SocialHubPage = ({ initialTab = 'city-feed' }) => {
   }, [activeTab]);
 
   const scrollToTab = (index) => {
-    if (scrollContainerRef.current && !isTransitioningRef.current) {
-      isTransitioningRef.current = true;
-      scrollContainerRef.current.scrollTo({
-        left: index * scrollContainerRef.current.clientWidth,
-        behavior: 'smooth'
-      });
-      setActiveTab(index);
-      
-      // Lock swiping transitions for 400ms to prevent multi-page skips
-      setTimeout(() => {
-        isTransitioningRef.current = false;
-      }, 400);
-    }
+    const clamped = Math.max(0, Math.min(tabs.length - 1, index));
+    if (clamped === activeTab) positionPager(clamped, 0, true);
+    else setActiveTab(clamped);
   };
 
   // Clean up timers on unmount
   useEffect(() => {
     return () => {
-      if (wheelTimeoutRef.current) {
-        clearTimeout(wheelTimeoutRef.current);
-      }
+      if (wheelTimeoutRef.current) clearTimeout(wheelTimeoutRef.current);
+      if (swipeRef.current.frame) cancelAnimationFrame(swipeRef.current.frame);
     };
   }, []);
 
-  // Custom Touch Gestures
+  // True if the touch started on something that scrolls sideways by itself (stories
+  // row, filter chips...). Those rows own the whole gesture — even at their end — so
+  // scrolling chips never drags the page to another tab.
+  const insideHorizontalScroller = (target) => {
+    let el = target;
+    while (el && el !== containerRef.current && !el.dataset?.tabId) {
+      if (el.dataset?.swipeBlock === 'true') return true;
+      if (el.scrollWidth > el.clientWidth + 1) {
+        const overflowX = getComputedStyle(el).overflowX;
+        if (overflowX === 'auto' || overflowX === 'scroll') return true;
+      }
+      el = el.parentElement;
+    }
+    return false;
+  };
+
+  // While a sideways swipe is in progress, stop the page from also scrolling up/down.
+  // React's touch listeners are passive, so this needs a native one.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const blockVerticalScroll = (e) => {
+      if (swipeRef.current.mode === 'swipe' && e.cancelable) e.preventDefault();
+    };
+    el.addEventListener('touchmove', blockVerticalScroll, { passive: false });
+    return () => el.removeEventListener('touchmove', blockVerticalScroll);
+  }, []);
+
+  // overflow:hidden boxes can still be scrolled sideways by the browser (focusing an
+  // input, scrollIntoView...), which leaves the pager half-way between tabs. Undo it.
+  const resetStrayScroll = (e) => {
+    if (e.currentTarget.scrollLeft !== 0) e.currentTarget.scrollLeft = 0;
+  };
+
+  // ── Finger-following swipe ────────────────────────────────────────────────
   const handleTouchStart = (e) => {
-    if (isTransitioningRef.current) return;
-    if (e.target.closest('[data-swipe-block="true"]')) return;
-    touchStartXRef.current = e.touches[0].clientX;
-    touchStartYRef.current = e.touches[0].clientY;
-    touchTriggeredRef.current = false;
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    const sw = swipeRef.current;
+    sw.startX = t.clientX;
+    sw.startY = t.clientY;
+    sw.startTime = performance.now();
+    sw.mode = null;
+    sw.offset = 0;
+    sw.target = e.target;
   };
 
   const handleTouchMove = (e) => {
-    if (isTransitioningRef.current || touchTriggeredRef.current) return;
-    if (e.target.closest('[data-swipe-block="true"]')) return;
-    
-    const diffX = e.touches[0].clientX - touchStartXRef.current;
-    const diffY = e.touches[0].clientY - touchStartYRef.current;
+    const sw = swipeRef.current;
+    if (sw.mode === 'ignore' || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    const diffX = t.clientX - sw.startX;
+    const diffY = t.clientY - sw.startY;
 
-    // Trigger horizontal swipe if horizontal movement is dominant and exceeds threshold
-    if (Math.abs(diffX) > Math.abs(diffY)) {
-      if (Math.abs(diffX) > 60) {
-        touchTriggeredRef.current = true;
-        if (diffX < 0) {
-          if (activeTab < tabs.length - 1) {
-            scrollToTab(activeTab + 1);
-          }
-        } else {
-          if (activeTab > 0) {
-            scrollToTab(activeTab - 1);
-          }
-        }
+    // Decide once per gesture whether this is a sideways swipe or a vertical scroll
+    if (!sw.mode) {
+      if (Math.abs(diffX) < 8 && Math.abs(diffY) < 8) return;
+      if (Math.abs(diffX) > Math.abs(diffY) * 1.2 && !insideHorizontalScroller(sw.target)) {
+        sw.mode = 'swipe';
+      } else {
+        sw.mode = 'ignore';
+        return;
       }
+    }
+
+    // Rubber-band resistance past the first and last tab
+    const atEdge = (activeTab === 0 && diffX > 0) || (activeTab === tabs.length - 1 && diffX < 0);
+    sw.offset = atEdge ? diffX * 0.3 : diffX;
+
+    if (!sw.frame) {
+      sw.frame = requestAnimationFrame(() => {
+        sw.frame = null;
+        if (sw.mode === 'swipe') positionPager(activeTab, sw.offset, false);
+      });
     }
   };
 
-  const handleWheel = (e) => {
-    if (e.target.closest('[data-swipe-block="true"]')) return;
-    if (Math.abs(e.deltaX) > 15) {
-      if (!isTransitioningRef.current && !isWheelingRef.current) {
-        isWheelingRef.current = true;
-        if (e.deltaX > 0) {
-          if (activeTab < tabs.length - 1) {
-            scrollToTab(activeTab + 1);
-          }
-        } else {
-          if (activeTab > 0) {
-            scrollToTab(activeTab - 1);
-          }
-        }
-      }
+  const handleTouchEnd = () => {
+    const sw = swipeRef.current;
+    if (sw.frame) { cancelAnimationFrame(sw.frame); sw.frame = null; }
+    if (sw.mode !== 'swipe') { sw.mode = null; return; }
+    sw.mode = null;
 
-      if (wheelTimeoutRef.current) {
-        clearTimeout(wheelTimeoutRef.current);
+    const width = containerRef.current?.clientWidth || 1;
+    const elapsed = Math.max(1, performance.now() - sw.startTime);
+    const velocity = sw.offset / elapsed; // px per ms
+    // Change tab if dragged past 25% of the screen, or flicked quickly
+    const passed = Math.abs(sw.offset) > width * 0.25 || (Math.abs(velocity) > 0.45 && Math.abs(sw.offset) > 30);
+
+    let next = activeTab;
+    if (passed) next = sw.offset < 0 ? activeTab + 1 : activeTab - 1;
+    scrollToTab(next);
+  };
+
+  // Trackpad / mouse horizontal wheel: one tab per gesture
+  const handleWheel = (e) => {
+    if (insideHorizontalScroller(e.target)) return;
+    if (Math.abs(e.deltaX) > 15 && Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+      if (!isWheelingRef.current) {
+        isWheelingRef.current = true;
+        scrollToTab(e.deltaX > 0 ? activeTab + 1 : activeTab - 1);
       }
+      if (wheelTimeoutRef.current) clearTimeout(wheelTimeoutRef.current);
       wheelTimeoutRef.current = setTimeout(() => {
         isWheelingRef.current = false;
-      }, 150);
+      }, 250);
     }
   };
 
@@ -461,7 +503,7 @@ const SocialHubPage = ({ initialTab = 'city-feed' }) => {
             );
           })}
           {/* Active Tab Indicator */}
-          <div className="absolute bottom-0 left-0 h-[3px] bg-gradient-to-r from-purple-600 to-indigo-600 rounded-t-full transition-all duration-300 ease-out" 
+          <div ref={indicatorRef} className="absolute bottom-0 left-0 h-[3px] bg-gradient-to-r from-purple-600 to-indigo-600 rounded-t-full will-change-transform" 
                style={{ width: `${100 / tabs.length}%`, transform: `translateX(${activeTab * 100}%)` }} 
           />
         </div>
@@ -469,14 +511,18 @@ const SocialHubPage = ({ initialTab = 'city-feed' }) => {
 
 
       {/* ─── SWIPEABLE CONTENT CONTAINER ─── */}
-      <div 
-        ref={scrollContainerRef}
-        onScroll={handleScroll}
+      <div
+        ref={containerRef}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
         onWheel={handleWheel}
-        className="flex overflow-x-hidden scrollbar-hide flex-1"
+        onScroll={resetStrayScroll}
+        className="flex-1 min-h-0 overflow-hidden"
+        style={{ touchAction: 'pan-y' }}
       >
+        <div ref={trackRef} className="flex h-full w-full will-change-transform">
         {tabs.map((tab) => {
           const Component = tab.component;
           const extraProps = tab.feedProps || {};
@@ -488,13 +534,14 @@ const SocialHubPage = ({ initialTab = 'city-feed' }) => {
             <div 
               key={tab.id} 
               data-tab-id={tab.id}
-              onScroll={handleTabScroll}
-              className="w-full h-full flex-shrink-0 overflow-y-auto pb-28"
+              onScroll={(e) => { resetStrayScroll(e); handleTabScroll(e); }}
+              className="w-full min-w-0 h-full flex-shrink-0 overflow-y-auto overflow-x-hidden overscroll-y-contain pb-28"
             >
               <Component isHub={true} {...extraProps} {...groupsProps} searchQuery={searchQuery} isFilterOpen={isFilterOpen} setIsFilterOpen={setIsFilterOpen} />
             </div>
           );
         })}
+        </div>
       </div>
 
       {/* ─── UNIFIED FAB ─── */}

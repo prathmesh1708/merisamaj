@@ -6,7 +6,11 @@ const mongoose = require('mongoose');
 const subCommunitySchema = new mongoose.Schema(
   {
     name: { type: String, trim: true, required: true },
-    isActive: { type: Boolean, default: true }
+    isActive: { type: Boolean, default: true },
+    // Locations (City ids) of THIS sub-community only. `undefined` = never set
+    // (older data): it then shares the community-level cityIds list.
+    cityIds: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'City' }], default: undefined },
+    inactiveCityIds: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'City' }], default: undefined }
   },
   { timestamps: true }
 );

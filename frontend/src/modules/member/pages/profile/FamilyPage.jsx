@@ -6,6 +6,7 @@ import { t } from '../../utils/translations';
 import { PageHeader } from '../../components/layout/PageHeader';
 import InteractiveFamilyTree from '../../components/family/InteractiveFamilyTree';
 import { familyService } from '../../services/familyService';
+import { cropImageFile } from '../../../../core/components/ImageCropper';
 
 const CustomSelect = ({ value, onChange, options }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -383,8 +384,9 @@ const FamilyMemberForm = ({ initialMember, onCancel, onSave, saving, language })
                 type="file" 
                 accept="image/*" 
                 className="hidden" 
-                onChange={(e) => {
-                  const file = e.target.files[0];
+                onChange={async (e) => {
+                  const file = await cropImageFile(e.target.files[0], { title: 'Adjust profile photo' });
+                  e.target.value = ''; // allow picking the same file again
                   if (file) {
                     const reader = new FileReader();
                     reader.onload = (event) => {

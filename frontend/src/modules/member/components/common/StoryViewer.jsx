@@ -4,6 +4,7 @@ import { X, Heart, Send } from 'lucide-react';
 import { Avatar } from './Avatar';
 import { useData } from '../../context/DataProvider';
 import { createPortal } from 'react-dom';
+import { StoryMedia } from './StoryMedia';
 
 const slideVariants = {
   enter: (direction) => ({
@@ -23,7 +24,9 @@ const slideVariants = {
 export const StoryViewer = ({ story, stories = [], onStoryChange, onClose }) => {
   const [progress, setProgress] = useState(0);
   const [likedStories, setLikedStories] = useState({});
-  const { sendChatMessage, getOrCreateChat } = useData();
+  const { sendChatMessage, getOrCreateChat, currentUser } = useData();
+  const myUserId = String(currentUser?._id || currentUser?.id || '');
+  const isMyStory = !!story && !!myUserId && story.memberId === myUserId;
   const [replyText, setReplyText] = useState('');
   const [showToast, setShowToast] = useState(false);
   
@@ -50,7 +53,7 @@ export const StoryViewer = ({ story, stories = [], onStoryChange, onClose }) => 
     if (!trimmed || !story) return;
 
     const posterId = story.memberId;
-    if (posterId === 'me' || posterId === 'u1') {
+    if (!posterId || isMyStory) {
       setReplyText('');
       return;
     }
@@ -95,6 +98,15 @@ export const StoryViewer = ({ story, stories = [], onStoryChange, onClose }) => 
   const tappedSideRef = useRef('right');
   const touchStartXRef = useRef(0);
   const touchStartYRef = useRef(0);
+
+  // Next story of this person → first story of the next person → close
+  function goToNextStory() {
+    if (activeStoryIndex !== -1 && activeStoryIndex < currentMemberStories.length - 1) {
+      onStoryChange(currentMemberStories[activeStoryIndex + 1]);
+    } else {
+      goToNextUser();
+    }
+  }
 
   const goToNextUser = () => {
     if (currentMemberIndex < memberIds.length - 1) {
@@ -182,7 +194,7 @@ export const StoryViewer = ({ story, stories = [], onStoryChange, onClose }) => 
     };
   }, []);
 
-  // Auto advance timeline (5 seconds total)
+  // Auto advance timeline (5 seconds per story)
   useEffect(() => {
     if (!story || isPaused) return;
 
@@ -191,57 +203,23 @@ export const StoryViewer = ({ story, stories = [], onStoryChange, onClose }) => 
     const step = (interval / duration) * 100;
 
     const timer = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(timer);
-          
-          // 1. Check if there is another story for the current member
-          if (activeStoryIndex !== -1 && activeStoryIndex < currentMemberStories.length - 1) {
-            onStoryChange(currentMemberStories[activeStoryIndex + 1]);
-          } 
-          // 2. If current member's stories are finished, move to the next member's first story
-          else if (currentMemberIndex !== -1 && currentMemberIndex < memberIds.length - 1) {
-            const nextMemberId = memberIds[currentMemberIndex + 1];
-            const nextMemberStories = stories.filter(s => s.memberId === nextMemberId);
-            if (nextMemberStories.length > 0) {
-              onStoryChange(nextMemberStories[0]);
-            } else {
-              onClose();
-            }
-          } 
-          // 3. Otherwise close the story viewer
-          else {
-            onClose();
-          }
-          return 100;
-        }
-        return prev + step;
-      });
+      setProgress((prev) => Math.min(100, prev + step));
     }, interval);
 
     return () => clearInterval(timer);
-  }, [story?.id, isPaused, activeStoryIndex, currentMemberIndex, onStoryChange, onClose]);
+  }, [story?.id, isPaused]);
+
+  // When the bar fills up, move on (kept out of the state updater so it runs exactly once)
+  useEffect(() => {
+    if (progress >= 100) goToNextStory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [progress]);
 
   if (!story) return null;
 
-  const mockStoryImage = story.image || '';
-
   const handleTap = (tapDirection) => {
     if (tapDirection === 'right') {
-      // Tap right -> next story for current member, or first story of next member, or close
-      if (activeStoryIndex < currentMemberStories.length - 1) {
-        onStoryChange(currentMemberStories[activeStoryIndex + 1]);
-      } else if (currentMemberIndex < memberIds.length - 1) {
-        const nextMemberId = memberIds[currentMemberIndex + 1];
-        const nextMemberStories = stories.filter(s => s.memberId === nextMemberId);
-        if (nextMemberStories.length > 0) {
-          onStoryChange(nextMemberStories[0]);
-        } else {
-          onClose();
-        }
-      } else {
-        onClose();
-      }
+      goToNextStory();
     } else {
       // Tap left -> previous story for current member, or last story of previous member, or restart
       if (activeStoryIndex > 0) {
@@ -297,11 +275,7 @@ export const StoryViewer = ({ story, stories = [], onStoryChange, onClose }) => 
           >
             {/* Story Image Background */}
             <div className="absolute top-0 left-0 w-full bg-gray-900 pointer-events-none" style={{ height: fixedHeight }}>
-              <img 
-                src={mockStoryImage} 
-                alt="Story" 
-                className="w-full h-full object-cover"
-              />
+              <StoryMedia key={story.id} story={story} autoPlay className="w-full h-full object-cover" />
             </div>
             {/* Progress Bar Container - ONLY for the current member's stories */}
             <div className="absolute top-0 pt-4 left-0 right-0 z-20 px-2 flex gap-1.5">
@@ -378,7 +352,8 @@ export const StoryViewer = ({ story, stories = [], onStoryChange, onClose }) => 
             <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/60 to-transparent pointer-events-none z-10" />
             <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black/80 to-transparent pointer-events-none z-10" />
 
-            {/* Story Reply Footer */}
+            {/* Story Reply Footer — not shown on your own story */}
+            {!isMyStory && (
             <div className="absolute bottom-0 pb-6 left-0 right-0 z-20 px-4">
               <div className="flex items-center gap-3">
                 <input 
@@ -418,6 +393,7 @@ export const StoryViewer = ({ story, stories = [], onStoryChange, onClose }) => 
                 )}
               </div>
             </div>
+            )}
 
             {/* Float Sent Toast */}
             {showToast && (
@@ -432,21 +408,17 @@ export const StoryViewer = ({ story, stories = [], onStoryChange, onClose }) => 
         <div className="absolute top-20 bottom-24 left-0 right-0 z-30 flex select-none">
           <div 
             className="w-1/3 h-full cursor-pointer" 
-            onMouseDown={(e) => handleTouchStart('left', e)}
-            onMouseUp={(e) => handleTouchEnd(e)}
-            onMouseLeave={handleTouchCancel}
-            onTouchStart={(e) => { handleTouchStart('left', e); }}
-            onTouchEnd={(e) => { handleTouchEnd(e); }}
-            onTouchCancel={handleTouchCancel}
+            onPointerDown={(e) => handleTouchStart('left', e)}
+            onPointerUp={(e) => handleTouchEnd(e)}
+            onPointerLeave={handleTouchCancel}
+            onPointerCancel={handleTouchCancel}
           />
           <div 
             className="w-2/3 h-full cursor-pointer" 
-            onMouseDown={(e) => handleTouchStart('right', e)}
-            onMouseUp={(e) => handleTouchEnd(e)}
-            onMouseLeave={handleTouchCancel}
-            onTouchStart={(e) => { handleTouchStart('right', e); }}
-            onTouchEnd={(e) => { handleTouchEnd(e); }}
-            onTouchCancel={handleTouchCancel}
+            onPointerDown={(e) => handleTouchStart('right', e)}
+            onPointerUp={(e) => handleTouchEnd(e)}
+            onPointerLeave={handleTouchCancel}
+            onPointerCancel={handleTouchCancel}
           />
         </div>
 

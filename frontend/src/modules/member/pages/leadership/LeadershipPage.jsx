@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useData } from '../../context/DataProvider';
 import { axiosPrivate } from '../../../../core/api/axiosPrivate';
+import { isRealPhoto, getInitials } from '../../../../core/utils/photo';
 
 // ─── ROLE BADGE COLOR ─────────────────────────────────────────────────────────
 const getBadgeColor = (role) => {
@@ -29,8 +30,6 @@ const MISSION_PILLARS = [
 // ─── GROUP HEAD BANNER (Community Head / Local Head hero card) ───────────────
 const GroupHeadBanner = ({ head, navigate }) => {
   const designation = head.designation || head.role || 'Community Head';
-  const defaultPhoto = 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=800&q=80';
-  const avatarUrl = (head.avatar && !head.avatar.includes('ui-avatars.com')) ? head.avatar : defaultPhoto;
   const locationText = [head.city, head.state].filter(Boolean).join(', ');
   const targetId = head._id || head.id;
 
@@ -40,12 +39,18 @@ const GroupHeadBanner = ({ head, navigate }) => {
       className="relative w-full rounded-[24px] overflow-hidden shadow-xl shadow-sky-500/10 border border-sky-200 cursor-pointer active:scale-[0.99] transition-all duration-300 min-h-[172px]"
       style={{ background: '#FFFFFF' }}
     >
-      <img
-        src={avatarUrl}
-        className="absolute right-0 top-0 bottom-0 w-[58%] h-full object-cover object-[center_20%] pointer-events-none z-0"
-        alt={head.name}
-        onError={(e) => { e.target.onerror = null; e.target.src = defaultPhoto; }}
-      />
+      {/* Leader photo — only a real uploaded photo; otherwise their initials */}
+      <div className="absolute right-0 top-0 bottom-0 w-[58%] h-full pointer-events-none z-0 bg-gradient-to-br from-sky-100 via-indigo-50 to-purple-100 flex items-center justify-center">
+        <span className="text-[56px] font-black text-sky-700/25 tracking-tight select-none">{getInitials(head.name)}</span>
+      </div>
+      {isRealPhoto(head.avatar) && (
+        <img
+          src={head.avatar}
+          className="absolute right-0 top-0 bottom-0 w-[58%] h-full object-cover object-[center_20%] pointer-events-none z-0"
+          alt={head.name}
+          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+        />
+      )}
 
       <div className="relative z-10 p-5 flex flex-col justify-between h-full max-w-[55%] min-h-[172px]">
         <div className="w-9 h-9 rounded-full border-2 border-amber-400 flex items-center justify-center bg-white shadow-sm shrink-0">

@@ -26,6 +26,7 @@ import {
   removeMantriMandalMember,
 } from '../../services/communityService';
 import { axiosPrivate } from '../../../../core/api/axiosPrivate';
+import { cropImageFile } from '../../../../core/components/ImageCropper';
 
 // ─────────────────────────────────────────────
 // FULL 14 HEAD MODULES CONFIGURATION (matching CommunityHeadForm)
@@ -1409,8 +1410,9 @@ const SubLocalHeadLocationWiseView = ({
     }
   });
   const [assignAvatarFile, setAssignAvatarFile] = useState(null);
-  const handleAssignAvatarSelect = (e) => {
-    const file = e.target.files?.[0];
+  const handleAssignAvatarSelect = async (e) => {
+    const file = await cropImageFile(e.target.files?.[0], { title: 'Adjust profile photo' });
+    e.target.value = ''; // allow picking the same file again
     if (file) {
       setAssignAvatarFile(file);
       const reader = new FileReader();
@@ -1522,11 +1524,14 @@ const SubLocalHeadLocationWiseView = ({
     fetchLocationData();
   }, [commId, subName]);
 
-  // Locations are the community's assigned Cities — every change is saved.
+  // Locations belong to the sub-community being viewed — adding Bhopal here must not
+  // add it to the other sub-communities of the same community.
+  const subScopeParams = subName ? { subName } : {};
+
   const handleToggleLocStatus = async (loc) => {
     if (!loc.cityId) return;
     try {
-      const res = await axiosPrivate.patch(`/admin/communities/${commId}/locations/${loc.cityId}/toggle`);
+      const res = await axiosPrivate.patch(`/admin/communities/${commId}/locations/${loc.cityId}/toggle`, null, { params: subScopeParams });
       alert(res.data?.message || 'Location updated');
       fetchLocationData();
     } catch (err) {
@@ -1536,9 +1541,9 @@ const SubLocalHeadLocationWiseView = ({
 
   const handleDeleteLoc = async (loc) => {
     if (!loc.cityId) return;
-    if (!window.confirm(`Remove "${loc.fullName || loc.name}" from this community?`)) return;
+    if (!window.confirm(`Remove "${loc.fullName || loc.name}" from "${subName}"?`)) return;
     try {
-      const res = await axiosPrivate.delete(`/admin/communities/${commId}/locations/${loc.cityId}`);
+      const res = await axiosPrivate.delete(`/admin/communities/${commId}/locations/${loc.cityId}`, { params: subScopeParams });
       alert(res.data?.message || 'Location removed');
       fetchLocationData();
       if (onRefreshCommunities) onRefreshCommunities();
@@ -1557,7 +1562,7 @@ const SubLocalHeadLocationWiseView = ({
     setShowAddLocationModal(true);
     setLoadingAvailableCities(true);
     try {
-      const res = await axiosPrivate.get(`/admin/communities/${commId}/locations/available`);
+      const res = await axiosPrivate.get(`/admin/communities/${commId}/locations/available`, { params: subScopeParams });
       setAvailableCities(res.data?.data || []);
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to load cities');
@@ -1571,7 +1576,7 @@ const SubLocalHeadLocationWiseView = ({
     if (!newLocationCity) return;
     setSavingLocation(true);
     try {
-      const res = await axiosPrivate.post(`/admin/communities/${commId}/locations`, { cityId: newLocationCity });
+      const res = await axiosPrivate.post(`/admin/communities/${commId}/locations`, { cityId: newLocationCity, ...subScopeParams });
       alert(res.data?.message || 'Location added');
       setShowAddLocationModal(false);
       setNewLocationCity('');
@@ -3007,8 +3012,9 @@ const SubCommunityLocationView = ({
   });
   const [leaderAvatarFile, setLeaderAvatarFile] = useState(null);
 
-  const handleLeaderAvatarSelect = (e) => {
-    const file = e.target.files?.[0];
+  const handleLeaderAvatarSelect = async (e) => {
+    const file = await cropImageFile(e.target.files?.[0], { title: 'Adjust profile photo' });
+    e.target.value = ''; // allow picking the same file again
     if (file) {
       setLeaderAvatarFile(file);
       const reader = new FileReader();

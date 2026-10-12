@@ -4,6 +4,7 @@ import { axiosPublic } from '../../../../core/api/axiosConfig';
 import { ArrowLeft, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Users, Building2, Sparkles } from 'lucide-react';
 import { useData } from '../../context/DataProvider';
 import { Avatar } from '../../components/common/Avatar';
+import { cropImageFile } from '../../../../core/components/ImageCropper';
 
 const DEFAULT_INDIAN_STATES_AND_CITIES = {
   'Madhya Pradesh': [],
@@ -245,8 +246,9 @@ const EditProfilePage = () => {
                 type="file" 
                 accept="image/*" 
                 className="hidden" 
-                onChange={(e) => {
-                  const file = e.target.files[0];
+                onChange={async (e) => {
+                  const file = await cropImageFile(e.target.files[0], { title: 'Adjust profile photo' });
+                  e.target.value = ''; // allow picking the same file again
                   if (file) {
                     const reader = new FileReader();
                     reader.onload = (event) => {

@@ -44,13 +44,15 @@ const createNotification = async (params) => {
 
     // Web/Mobile push for important types (non-blocking). Controllers that also call
     // sendPushNotification with this notification's id are de-duplicated there.
+    // `push` can override the device text (e.g. chat shows the actual message there).
     if (PUSH_ELIGIBLE_TYPES.has(params.type)) {
       sendPushNotification({
         userId:         params.userId,
         notificationId: notification._id,
         type:           params.type,
-        title:          params.title,
-        message:        params.message,
+        title:          params.push?.title   || params.title,
+        message:        params.push?.message || params.message,
+        tag:            params.push?.tag,
         icon:           notification.icon,
         actionUrl:      params.actionUrl || '/member/notifications'
       });
@@ -314,8 +316,47 @@ const notifySubscriptionActivated = (userId, planName) =>
  * @param {string} conversationId
  * @param {string} [module='matrimonial'] - 'matrimonial' | 'chat'
  */
-const notifyNewMessage = (receiverId, senderName, conversationId, module = 'matrimonial') =>
+/**
+ * Text shown on the device for a chat push: sender (or group) as the title and the
+ * actual message as the body, like WhatsApp. `tag` keeps one notification per chat.
+ */
+const chatPushContent = ({ senderName, preview, groupName, conversationId }) => ({
+  title:   groupName || senderName || 'New Message',
+  message: groupName ? `${senderName || 'Someone'}: ${preview || 'New message'}` : (preview || 'Sent you a message'),
+  tag:     `chat-${conversationId}`
+});
+
+/** Short preview of a chat message for notifications */
+const chatMessagePreview = (type, text) => {
+  if (type === 'image') return '📷 Photo';
+  if (type === 'audio' || type === 'voice') return '🎤 Voice message';
+  if (type === 'file') return '📎 File';
+  if (!text) return 'Sent you a message';
+  return text.length > 100 ? `${text.substring(0, 100)}…` : text;
+};
+
+/**
+ * Push a chat message to someone who is online somewhere (so no bell notification
+ * is created) — their phone may still be in their pocket. The service worker
+ * hides it if the app is open and visible on that device.
+ */
+const pushChatMessage = ({ userId, senderName, preview, groupName, groupId, conversationId, module = 'chat' }) => {
+  const content = chatPushContent({ senderName, preview, groupName, conversationId });
+  let actionUrl = `/member/chat/${conversationId}`;
+  if (groupId) actionUrl = `/member/groups/${groupId}`;
+  else if (module === 'matrimonial') actionUrl = `/member/matrimonial/chat/${conversationId}`;
+  return sendPushNotification({
+    userId,
+    type:  groupId ? 'group_new_message' : 'chat_new_message',
+    ...content,
+    icon:  groupId ? '👥' : '💬',
+    actionUrl
+  });
+};
+
+const notifyNewMessage = (receiverId, senderName, conversationId, module = 'matrimonial', preview = null) =>
   createNotification({
+    push:          chatPushContent({ senderName, preview, conversationId }),
     userId:        receiverId,
     module,
     type:          'chat_new_message',
@@ -351,9 +392,10 @@ const notifyProfileViewed = (profileOwnerId, viewerName) =>
  * @param {string}   groupId
  * @param {string}   groupName
  */
-const notifyGroupMessage = (memberIds, senderName, groupId, groupName) => {
+const notifyGroupMessage = (memberIds, senderName, groupId, groupName, preview = null, conversationId = null) => {
   const promises = (memberIds || []).map(memberId =>
     createNotification({
+      push:          chatPushContent({ senderName, preview, groupName, conversationId: conversationId || groupId }),
       userId:        memberId,
       module:        'chat',
       type:          'group_new_message',
@@ -1295,6 +1337,8 @@ module.exports = {
   notifySubscriptionExpired,
   notifySubscriptionActivated,
   notifyNewMessage,
+  pushChatMessage,
+  chatMessagePreview,
   notifyProfileViewed,
   // ─── Group & Community Chat ─────────────────────────────────────────────────
   notifyGroupMessage,

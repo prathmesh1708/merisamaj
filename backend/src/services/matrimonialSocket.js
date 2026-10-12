@@ -6,7 +6,8 @@
 const Conversation  = require('../models/Conversation');
 const Message       = require('../models/Message');
 const InterestRequest = require('../models/InterestRequest');
-const { notifyNewMessage } = require('../services/notificationService');
+const { notifyNewMessage, chatMessagePreview } = require('../services/notificationService');
+const User          = require('../models/User');
 const { markConversationSeen, markMessagesSeen } = require('../services/messageService');
 
 // Track online users: { userId: socketId }
@@ -110,8 +111,9 @@ const matrimonialSocket = (io) => {
                 messageId: newMsg._id, conversationId
               });
             } else {
-              // Participant is offline — send push notification
-              notifyNewMessage(participantId, 'Someone', conversationId);
+              // Participant is offline — bell notification + push with sender name and message
+              const sender = await User.findById(userId).select('name').lean();
+              notifyNewMessage(participantId, sender?.name || 'Someone', conversationId, 'matrimonial', chatMessagePreview(type, message));
             }
           }
         }

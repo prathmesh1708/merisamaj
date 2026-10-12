@@ -9,6 +9,7 @@ import {
   CreditCard, Gift, BarChart3, Settings, LayoutTemplate, Upload, User
 } from 'lucide-react';
 import { axiosPrivate } from '../../../../core/api/axiosPrivate';
+import { cropImageFile } from '../../../../core/components/ImageCropper';
 
 const PERMISSION_CATEGORIES = [
   {
@@ -99,8 +100,9 @@ export const AdminSubHeadManagement = () => {
   });
   const [avatarFile, setAvatarFile] = useState(null);
 
-  const handleAvatarSelect = (e) => {
-    const file = e.target.files?.[0];
+  const handleAvatarSelect = async (e) => {
+    const file = await cropImageFile(e.target.files?.[0], { title: 'Adjust profile photo' });
+    e.target.value = ''; // allow picking the same file again
     if (file) {
       setAvatarFile(file);
       const reader = new FileReader();

@@ -26,6 +26,7 @@ import { axiosPrivate } from '../../../../core/api/axiosPrivate';
 import { AnimatedIconCards } from '../../components/common/AnimatedIconCards';
 import { useAuth } from '../../../../core/auth/useAuth';
 import { isMemberApproved, showApprovalRequiredNotice } from '../../utils/approvalUtils';
+import { isRealPhoto, getInitials } from '../../../../core/utils/photo';
 
 
 
@@ -248,9 +249,6 @@ const HomePage = () => {
   }, [currentUser?.communityId]);
 
   const displayTopDonors = liveTopDonors;
-
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning,' : hour < 18 ? 'Good afternoon,' : 'Good evening,';
 
   // Dynamic counts for quick actions (with 0 default if no unread)
   const invitationCount = getUnreadCountForModule('nimantran') || 0;
@@ -480,11 +478,11 @@ const HomePage = () => {
               <img 
                 src={currentUser.avatar} 
                 alt={currentUser.name} 
-                className="w-11 h-11 rounded-xl object-cover border-2 border-purple-100 shadow-xs group-hover:scale-105 transition-transform duration-200"
+                className="w-14 h-14 rounded-2xl object-cover border-2 border-purple-100 shadow-xs group-hover:scale-105 transition-transform duration-200"
               />
             ) : (
               <div 
-                className="w-11 h-11 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 text-white font-black text-[15px] flex items-center justify-center shadow-xs border border-purple-200/50 group-hover:scale-105 transition-transform duration-200"
+                className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 text-white font-black text-[20px] flex items-center justify-center shadow-xs border border-purple-200/50 group-hover:scale-105 transition-transform duration-200"
               >
                 {(currentUser?.name || userCommunity || 'M').substring(0, 1).toUpperCase()}
               </div>
@@ -492,7 +490,6 @@ const HomePage = () => {
           </div>
 
           <div className="text-left min-w-0">
-            <span className="text-[10px] font-extrabold tracking-wider uppercase text-slate-500 block">{greeting}</span>
             <h1 className="text-[16px] sm:text-[18px] font-black text-slate-900 tracking-tight leading-tight truncate">
               {currentUser?.name || 'Member'}
             </h1>
@@ -1305,8 +1302,6 @@ const HomePage = () => {
           on the Home page — "View All" always shows every group, visible or not. */}
       <div className="px-3 mb-8">
         {(() => {
-          const defaultLeaderPhoto = 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=800&q=80';
-
           const badgeColorFor = (role) => {
             const r = (role || '').toLowerCase();
             if (r.includes('vice')) return 'bg-[#7c3aed]';
@@ -1360,7 +1355,6 @@ const HomePage = () => {
                 homeVisibleGroups.map((g, gIdx) => {
                   const head = g.head || {};
                   const headId = head._id || head.id;
-                  const leaderAvatarPhoto = (head.avatar && !head.avatar.includes('ui-avatars.com')) ? head.avatar : defaultLeaderPhoto;
                   const scopeLabel = g.scope === 'local_head' ? 'Local Community Head' : 'Community Head';
                   const subLabel = g.scope === 'local_head' ? 'Local Sub-Head' : 'Sub-Community Head';
                   const groupSubHeads = g.subHeads || [];
@@ -1380,12 +1374,18 @@ const HomePage = () => {
                         className="relative w-full rounded-[24px] shadow-xl shadow-sky-500/10 border border-sky-200 overflow-hidden p-5 shrink-0 cursor-pointer active:scale-[0.99] transition-all duration-300 min-h-[170px]"
                         style={{ background: '#FFFFFF' }}
                       >
-                        <img
-                          src={leaderAvatarPhoto}
-                          className="absolute right-0 top-0 bottom-0 w-[58%] h-full object-cover object-[center_20%] pointer-events-none z-0"
-                          alt={head.name}
-                          onError={(e) => { e.target.onerror = null; e.target.src = defaultLeaderPhoto; }}
-                        />
+{/* Leader photo — only a real uploaded photo; otherwise their initials */}
+                        <div className="absolute right-0 top-0 bottom-0 w-[58%] h-full pointer-events-none z-0 bg-gradient-to-br from-sky-100 via-indigo-50 to-purple-100 flex items-center justify-center">
+                          <span className="text-[56px] font-black text-sky-700/25 tracking-tight select-none">{getInitials(head.name)}</span>
+                        </div>
+                        {isRealPhoto(head.avatar) && (
+                          <img
+                            src={head.avatar}
+                            className="absolute right-0 top-0 bottom-0 w-[58%] h-full object-cover object-[center_20%] pointer-events-none z-0"
+                            alt={head.name}
+                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                          />
+                        )}
 
                         <div className="relative z-10 flex flex-col justify-between h-full max-w-[55%]">
                           <div className="flex items-center gap-2">

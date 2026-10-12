@@ -18,7 +18,7 @@ const {
   unpinMessage,
   getPinnedMessages
 } = require('../../services/messageService');
-const { notifyGroupMessage } = require('../../services/notificationService');
+const { notifyGroupMessage, pushChatMessage, chatMessagePreview } = require('../../services/notificationService');
 const { isOnline } = require('../../services/chatSocketService');
 const { getIO } = require('../../services/socketRegistry');
 
@@ -180,13 +180,16 @@ exports.sendGroupMessage = async (req, res) => {
       }
     }
 
-    // Notify offline members
+    // Offline members → bell notification + push; online members → push only
     if (group) {
-      const offlineMembers = group.members
-        .filter(m => m.userId.toString() !== userId.toString() && !isOnline(m.userId.toString()))
-        .map(m => m.userId);
+      const preview = chatMessagePreview(msgType, message);
+      const others = group.members.filter(m => m.userId.toString() !== userId.toString());
+      const offlineMembers = others.filter(m => !isOnline(m.userId.toString())).map(m => m.userId);
+      others.filter(m => isOnline(m.userId.toString())).forEach(m =>
+        pushChatMessage({ userId: m.userId, senderName: req.user.name, preview, groupName: group.name, groupId: group._id, conversationId })
+      );
       if (offlineMembers.length > 0) {
-        notifyGroupMessage(offlineMembers, req.user.name, group._id, group.name);
+        notifyGroupMessage(offlineMembers, req.user.name, group._id, group.name, preview, conversationId);
       }
     }
 

@@ -2,6 +2,29 @@ const User = require('../../models/User');
 const Follower = require('../../models/Follower');
 const UserBlock = require('../../models/UserBlock');
 const { applyScopeFilter } = require('../../utils/queryScopeHelper');
+const Category = require('../../models/Category');
+
+// ── Directory occupation categories (managed by Admin → Professionals → Categories) ──
+// A member belongs to a category when their free-text profession contains the
+// category's name, key or Hindi name. The category with key "others" collects
+// everyone who matches no other category (including members with no profession).
+const escapeRegex = (str) => String(str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const isOthersCategory = (cat) => /^others?$/i.test((cat.key || '').trim()) || /^others?$/i.test((cat.name || '').trim());
+const categoryRegex = (cat) => {
+  const words = [cat.name, cat.key, cat.nameHi].map(w => (w || '').trim()).filter(w => w.length > 1);
+  return new RegExp(Array.from(new Set(words.map(escapeRegex))).join('|'), 'i');
+};
+const loadDirectoryCategories = () =>
+  Category.find({ isActive: true }).select('name nameHi key icon color order').sort({ order: 1, createdAt: 1 }).lean();
+
+/** Mongo filter for members of one directory category */
+const directoryCategoryFilter = (cat, allCats) => {
+  if (isOthersCategory(cat)) {
+    const others = allCats.filter(c => !isOthersCategory(c)).map(categoryRegex);
+    return others.length ? { profession: { $not: new RegExp(others.map(r => r.source).join('|'), 'i') } } : {};
+  }
+  return { profession: categoryRegex(cat) };
+};
 
 // ─────────────────────────────────────────────
 // @desc    Get members of the logged-in user's community
@@ -16,6 +39,7 @@ exports.getCommunityMembers = async (req, res) => {
       profession,
       age,
       category,
+      occupationCategory,
       page = 1,
       limit = 10
     } = req.query;
@@ -55,6 +79,22 @@ exports.getCommunityMembers = async (req, res) => {
         filter.profession = { $regex: 'Engineer', $options: 'i' };
       } else if (category === 'Business Owners') {
         filter.profession = { $regex: 'Business', $options: 'i' };
+      }
+    }
+
+    // Admin-managed directory category (tile tapped in the Directory)
+    if (occupationCategory) {
+      const cats = await loadDirectoryCategories();
+      const cat = cats.find(c => String(c._id) === String(occupationCategory) || c.key === occupationCategory);
+      if (cat) {
+        const catFilter = directoryCategoryFilter(cat, cats);
+        // Combine with any profession filter instead of overwriting it
+        if (filter.profession && catFilter.profession) {
+          filter.$and = [...(filter.$and || []), { profession: filter.profession }, catFilter];
+          delete filter.profession;
+        } else {
+          Object.assign(filter, catFilter);
+        }
       }
     }
 
@@ -306,9 +346,25 @@ exports.getMemberStats = async (req, res) => {
       ])
     ]);
 
+    // Member count per admin-managed directory category (same rule as the list filter)
+    const directoryCats = await loadDirectoryCategories();
+    const occupationCategories = await Promise.all(directoryCats.map(async (cat) => ({
+      _id: cat._id,
+      name: cat.name,
+      nameHi: cat.nameHi || '',
+      key: cat.key,
+      icon: cat.icon || 'Briefcase',
+      color: cat.color || '',
+      isOthers: isOthersCategory(cat),
+      count: await User.countDocuments({ $and: [scopeFilter, directoryCategoryFilter(cat, directoryCats)] })
+    })));
+    // "Others" goes last
+    occupationCategories.sort((a, b) => Number(a.isOthers) - Number(b.isOthers));
+
     res.json({
       success: true,
       data: {
+        occupationCategories,
         cities: cityStats.map(s => ({ name: s._id, count: s.count })),
         professions: professionStats.map(s => ({ name: s._id, count: s.count })),
         age: ageStats.length > 0 ? [

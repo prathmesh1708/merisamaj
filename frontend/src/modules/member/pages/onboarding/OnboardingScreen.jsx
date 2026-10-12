@@ -847,8 +847,10 @@ const OnboardingScreen = () => {
   useEffect(() => {
     const loadCities = async () => {
       try {
+        // Locations & Local Heads of the chosen sub-community only
+        const subParam = selectedSubCommunity ? `&subCommunity=${encodeURIComponent(selectedSubCommunity)}` : '';
         const url = selectedCommunity && selectedCommunity !== 'other'
-          ? `/auth/cities?communityId=${selectedCommunity}`
+          ? `/auth/cities?communityId=${selectedCommunity}${subParam}`
           : '/auth/cities';
         const res = await axiosPublic.get(url);
         if (res.data.success && res.data.data.length > 0) {
@@ -887,7 +889,7 @@ const OnboardingScreen = () => {
       }
     };
     loadCities();
-  }, [selectedCommunity]);
+  }, [selectedCommunity, selectedSubCommunity]);
 
   // Step 4 Personal
   const [avatar, setAvatar] = useState(null);

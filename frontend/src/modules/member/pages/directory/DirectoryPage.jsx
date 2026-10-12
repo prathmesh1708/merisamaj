@@ -30,6 +30,9 @@ import {
   MoreHorizontal,
   Presentation,
   User,
+  Heart,
+  Hammer,
+  Building,
 } from 'lucide-react';
 import { Avatar } from '../../components/common/Avatar';
 import { getMembers, getMemberStats } from '../../services/directoryApi';
@@ -37,108 +40,32 @@ import { getProfessionVisual } from './professionVisuals';
 
 /* ─────────────────────────────── CATEGORY CONFIG ─────────────────────────────── */
 
-const OCCUPATION_CATEGORIES = [
-  {
-    id: 'doctor',
-    name: 'Doctor',
-    regex: /doctor|physician|surgeon|dentist|mbbs|md|bds|medic/i,
-    bg: '#FFF0F0',
-    border: '#FFE2E2',
-    iconColor: '#D32F2F',
-    countColor: '#D32F2F',
-    Icon: Stethoscope,
-  },
-  {
-    id: 'engineer',
-    name: 'Engineer',
-    regex: /engineer|b\.?tech|developer|software|civil|mechanical|electrical|it\b|architect/i,
-    bg: '#EBF5FF',
-    border: '#D6EBFF',
-    iconColor: '#1976D2',
-    countColor: '#1976D2',
-    Icon: HardHat,
-  },
-  {
-    id: 'business',
-    name: 'Merchant / Business',
-    regex: /business|merchant|vyapari|trader|shop|owner|retail|entrepreneur|store/i,
-    bg: '#FFF8E7',
-    border: '#FFECC0',
-    iconColor: '#E65100',
-    countColor: '#E65100',
-    Icon: Store,
-  },
-  {
-    id: 'farmer',
-    name: 'Farmer / Agriculture',
-    regex: /farmer|kisan|agricult|farming|krishi/i,
-    bg: '#F0FAF0',
-    border: '#D8F3D8',
-    iconColor: '#2E7D32',
-    countColor: '#2E7D32',
-    Icon: Leaf,
-  },
-  {
-    id: 'teacher',
-    name: 'Teacher',
-    regex: /teacher|professor|lecturer|educat|shikshak|faculty/i,
-    bg: '#F4F0FF',
-    border: '#E4DAFF',
-    iconColor: '#6A1B9A',
-    countColor: '#6A1B9A',
-    Icon: Presentation,
-  },
-  {
-    id: 'govt',
-    name: 'Govt. Employee',
-    regex: /govt|government|civil servant|sarkari|police|ias|ips|officer|bank/i,
-    bg: '#E8F8F8',
-    border: '#CEF0F0',
-    iconColor: '#00838F',
-    countColor: '#00838F',
-    Icon: Landmark,
-  },
-  {
-    id: 'private',
-    name: 'Private Job',
-    regex: /private|corporate|manager|executive|sales|consultant|employee|analyst|associate/i,
-    bg: '#FFF0F5',
-    border: '#FFE0EC',
-    iconColor: '#C2185B',
-    countColor: '#C2185B',
-    Icon: Briefcase,
-  },
-  {
-    id: 'student',
-    name: 'Student',
-    regex: /student|chhatra|graduate|studying|learner|undergrad/i,
-    bg: '#FFFDE7',
-    border: '#FFF9B3',
-    iconColor: '#F57F17',
-    countColor: '#F57F17',
-    Icon: GraduationCap,
-  },
-  {
-    id: 'homemaker',
-    name: 'Homemaker',
-    regex: /homemaker|housewife|grihini/i,
-    bg: '#FFF0F5',
-    border: '#FFE0EB',
-    iconColor: '#D81B60',
-    countColor: '#D81B60',
-    Icon: User,
-  },
-  {
-    id: 'others',
-    name: 'Others',
-    regex: null, // Fallback for unmatched
-    bg: '#F3F4F6',
-    border: '#E5E7EB',
-    iconColor: '#374151',
-    countColor: '#374151',
-    Icon: MoreHorizontal,
-  },
-];
+// Occupation tiles come from Admin → Professionals → Categories. Only the
+// categories the admin created (and kept active) are shown.
+const CATEGORY_ICONS = {
+  GraduationCap, Heart, Hammer, Building, Building2, Briefcase, MoreHorizontal,
+  Stethoscope, HardHat, Store, Leaf, Landmark, Presentation, User, Home, Users,
+};
+
+// Colours used when the admin hasn't picked one (cycled by position)
+const TILE_PALETTE = ['#D32F2F', '#1976D2', '#E65100', '#2E7D32', '#6A1B9A', '#00838F', '#C2185B', '#F57F17', '#374151'];
+
+const hexToRgba = (hex, alpha) => {
+  const m = /^#?([0-9a-f]{6})$/i.exec((hex || '').trim());
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+};
+
+const tileStyle = (cat, index) => {
+  const color = hexToRgba(cat.color, 1) ? cat.color : TILE_PALETTE[index % TILE_PALETTE.length];
+  return {
+    color,
+    bg: hexToRgba(color, 0.07),
+    border: hexToRgba(color, 0.18),
+    Icon: CATEGORY_ICONS[cat.icon] || (cat.isOthers ? MoreHorizontal : Briefcase),
+  };
+};
 
 /* ═══════════════════════════════ COMPONENT ═══════════════════════════════ */
 
@@ -161,7 +88,7 @@ const DirectoryPage = () => {
   const [totalCount, setTotalCount] = useState(0);
 
   /* Stats breakdown from backend */
-  const [rawStats, setRawStats] = useState({ cities: [], professions: [] });
+  const [rawStats, setRawStats] = useState({ cities: [], professions: [], occupationCategories: [] });
   const [statsLoading, setStatsLoading] = useState(true);
 
   /* Active occupation filter */
@@ -178,11 +105,15 @@ const DirectoryPage = () => {
 
   /* Dynamic cities */
   const [cities, setCities] = useState(['All Cities']);
-  const professions = [
-    'All Professions', 'Architect', 'Doctor', 'Software Engineer', 'Teacher',
-    'CA', 'Pharmacist', 'Lawyer', 'Business Owner', 'Interior Designer', 'Homemaker',
-  ];
-  const categories = ['All Categories', 'Executive Members', 'Business Owners', 'Teachers', 'Doctors', 'Engineers'];
+  // Professions members actually entered, and the admin's categories
+  const professions = useMemo(
+    () => ['All Professions', ...rawStats.professions.map(p => p.name).filter(Boolean)],
+    [rawStats.professions]
+  );
+  const categories = useMemo(
+    () => ['All Categories', ...rawStats.occupationCategories.map(c => c.name)],
+    [rawStats.occupationCategories]
+  );
   const ageGroups = ['All Ages', 'youth', 'senior'];
 
   /* ── Load Cities ── */
@@ -210,6 +141,7 @@ const DirectoryPage = () => {
           setRawStats({
             cities: res.data.cities || [],
             professions: res.data.professions || [],
+            occupationCategories: res.data.occupationCategories || [],
           });
         }
       } catch (err) {
@@ -221,44 +153,16 @@ const DirectoryPage = () => {
     loadStats();
   }, []);
 
-  /* ── Aggregate Occupation Counts ── */
-  const categoryCounts = useMemo(() => {
-    const counts = {};
-    OCCUPATION_CATEGORIES.forEach(c => {
-      counts[c.id] = 0;
-    });
-
-    let matchedTotal = 0;
-    rawStats.professions.forEach(({ name, count }) => {
-      const cat = OCCUPATION_CATEGORIES.find(c => c.regex && c.regex.test(name));
-      if (cat) {
-        counts[cat.id] += count;
-        matchedTotal += count;
-      } else {
-        counts.others += count;
-      }
-    });
-
-    // If total count is larger than matched professions, add unassigned to others
-    if (totalCount > matchedTotal && rawStats.professions.length > 0) {
-      counts.others += Math.max(0, totalCount - (matchedTotal + counts.others));
-    }
-
-    return counts;
-  }, [rawStats, totalCount]);
-
   /* ── Fetch Members ── */
   const fetchMembersData = async (isLoadMore = false) => {
     try {
       if (isLoadMore) setLoadingMore(true);
       else setLoading(true);
 
-      let professionParam;
-      if (selectedOccupation) {
-        professionParam = selectedOccupation.name;
-      } else if (selectedProfession !== 'All Professions') {
-        professionParam = selectedProfession;
-      }
+      const professionParam = selectedProfession !== 'All Professions' ? selectedProfession : undefined;
+      // Tile tapped, or a category picked in the filter sheet
+      const categoryFromFilter = rawStats.occupationCategories.find(c => c.name === selectedCategory);
+      const occupationCategory = (selectedOccupation || categoryFromFilter)?._id;
 
       const params = {
         page: isLoadMore ? page + 1 : 1,
@@ -266,7 +170,7 @@ const DirectoryPage = () => {
         search: searchQuery || undefined,
         city: selectedCity !== 'All Cities' ? selectedCity : undefined,
         profession: professionParam,
-        category: selectedCategory !== 'All Categories' ? selectedCategory : undefined,
+        occupationCategory: occupationCategory || undefined,
         age: selectedAge !== 'All Ages' ? selectedAge : undefined,
       };
 
@@ -432,52 +336,54 @@ const DirectoryPage = () => {
           )}
         </div>
 
-        {/* ── Category-wise Occupation Grid (2 Columns, Exact Reference Styling) ── */}
+        {/* ── Occupation Grid: the admin's categories (2 columns) ── */}
+        {!statsLoading && rawStats.occupationCategories.length === 0 ? (
+          <p className="text-xs font-semibold text-slate-400 text-center py-3">No occupation categories have been added yet.</p>
+        ) : (
         <div className="grid grid-cols-2 gap-2.5">
-          {OCCUPATION_CATEGORIES.map((cat) => {
-            const Icon = cat.Icon;
-            const count = categoryCounts[cat.id] || 0;
-            const isSelected = selectedOccupation?.id === cat.id;
+          {statsLoading && rawStats.occupationCategories.length === 0
+            ? Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="rounded-2xl h-[70px] bg-slate-100 animate-pulse" />
+              ))
+            : rawStats.occupationCategories.map((cat, index) => {
+            const { color, bg, border, Icon } = tileStyle(cat, index);
+            const isSelected = selectedOccupation?._id === cat._id;
 
             return (
               <button
-                key={cat.id}
+                key={cat._id}
                 onClick={() => setSelectedOccupation(isSelected ? null : cat)}
                 className={`rounded-2xl p-3 flex items-center gap-3 text-left transition-all duration-200 border-2 cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.03)] hover:shadow-md ${
                   isSelected ? 'ring-2 ring-offset-1 ring-slate-800' : ''
                 }`}
                 style={{
-                  background: cat.bg,
-                  borderColor: isSelected ? cat.iconColor : cat.border,
+                  background: bg,
+                  borderColor: isSelected ? color : border,
                 }}
               >
-                {/* Left: Distinct Category Icon */}
                 <div
                   className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-sm"
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.85)',
-                    color: cat.iconColor,
-                  }}
+                  style={{ background: 'rgba(255, 255, 255, 0.85)', color }}
                 >
                   <Icon size={22} strokeWidth={2.2} />
                 </div>
 
-                {/* Right: Title on Top & Bold Colored Count Below */}
                 <div className="text-left min-w-0 flex-1">
                   <p className="text-[11px] font-bold text-slate-700 truncate leading-tight">
                     {cat.name}
                   </p>
-                  <p
-                    className="text-xl font-black leading-none mt-1 tracking-tight"
-                    style={{ color: cat.countColor }}
-                  >
-                    {statsLoading ? '...' : count.toLocaleString()}
+                  {cat.nameHi && (
+                    <p className="text-[10px] font-semibold text-slate-500 truncate leading-tight">{cat.nameHi}</p>
+                  )}
+                  <p className="text-xl font-black leading-none mt-1 tracking-tight" style={{ color }}>
+                    {(cat.count || 0).toLocaleString()}
                   </p>
                 </div>
               </button>
             );
           })}
         </div>
+        )}
 
         {/* ── Search Bar & Filter Button ── */}
         <div className="flex gap-2 items-center pt-2">

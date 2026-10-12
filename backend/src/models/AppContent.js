@@ -122,10 +122,7 @@ const appContentSchema = new mongoose.Schema({
       name: { type: String, default: 'Dr. Rajesh Agrawal' },
       role: { type: String, default: 'Community Head (President)' },
       designation: { type: String, default: 'Community Head (President)' },
-      avatar: { 
-        type: String, 
-        default: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=800&q=80' 
-      },
+      avatar: { type: String, default: '' }, // only a real uploaded photo
       city: { type: String, default: 'Indore' },
       state: { type: String, default: 'Madhya Pradesh' },
       phone: { type: String, default: '+91 98260 12345' },

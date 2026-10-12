@@ -10,6 +10,7 @@ import {
 import { axiosPrivate } from '../../../../core/api/axiosPrivate';
 import { useHeadAuth } from '../../auth/useHeadAuth';
 import LocalCommunityManagement from '../local-community/LocalCommunityManagement';
+import { cropImageFile } from '../../../../core/components/ImageCropper';
 
 const HEAD_PERMISSION_CATEGORIES = [
   {
@@ -172,8 +173,9 @@ export const HeadSubHeadManagement = () => {
   });
   const [avatarFile, setAvatarFile] = useState(null);
 
-  const handleAvatarSelect = (e) => {
-    const file = e.target.files?.[0];
+  const handleAvatarSelect = async (e) => {
+    const file = await cropImageFile(e.target.files?.[0], { title: 'Adjust profile photo' });
+    e.target.value = ''; // allow picking the same file again
     if (file) {
       setAvatarFile(file);
       const reader = new FileReader();

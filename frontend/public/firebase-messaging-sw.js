@@ -41,12 +41,21 @@ self.addEventListener('push', (event) => {
       actionUrl: data.actionUrl || '/member/notifications',
       notificationId: data.notificationId
     },
-    // Unique tag per notification so several alerts don't overwrite each other
-    tag: data.notificationId || `${data.type || 'merisamaj'}-${Date.now()}`,
+    // Chats share one tag per conversation, so new messages replace the old pop-up
+    // (and still buzz via renotify); other alerts each get their own.
+    tag: data.tag || data.notificationId || `${data.type || 'merisamaj'}-${Date.now()}`,
+    renotify: Boolean(data.tag),
     requireInteraction: data.type === 'emergency_alert'
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // The app is open and on screen — it already shows the message live, so skip the pop-up
+      const appVisible = clientList.some((c) => c.visibilityState === 'visible' && c.focused);
+      if (appVisible) return undefined;
+      return self.registration.showNotification(title, options);
+    })
+  );
 });
 
 // Open (or focus) the app at the notification's target page

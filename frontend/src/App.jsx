@@ -11,6 +11,7 @@ import { HeadAuthProvider } from './modules/head/auth/HeadAuthContext';
 import { AdminAuthProvider } from './modules/admin/auth/AdminAuthContext';
 import { useAxiosPrivate } from './core/auth/useAxiosPrivate';
 import ScrollToTop from './components/ScrollToTop';
+import { ImageCropHost } from './core/components/ImageCropper';
 import LoginAsPage from './pages/LoginAsPage';
 
 const AxiosInterceptorProvider = ({ children }) => {
@@ -65,6 +66,7 @@ const App = () => {
       <DataProvider>
         <FundProvider>
           <AppContent />
+          <ImageCropHost />
         </FundProvider>
       </DataProvider>
     </AxiosInterceptorProvider>

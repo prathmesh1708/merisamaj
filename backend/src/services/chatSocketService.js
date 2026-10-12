@@ -16,8 +16,7 @@ const User         = require('../models/User');
 const Conversation = require('../models/Conversation');
 const Group        = require('../models/Group');
 const { createMessage, markMessagesSeen, markConversationSeen, markMessagesDelivered } = require('./messageService');
-const { notifyNewMessage, notifyMention } = require('./notificationService');
-const { sendPushNotification } = require('./pushNotificationService');
+const { notifyNewMessage, notifyMention, notifyGroupMessage, pushChatMessage, chatMessagePreview } = require('./notificationService');
 
 // ─── Online Users Registry ────────────────────────────────────────────────────
 // Shared with matrimonialSocket via module scope on app.set('onlineUsers', map)
@@ -184,8 +183,9 @@ const chatSocketService = (io) => {
         }
 
         // For group conversations, check chatPermissions
+        let group = null;
         if (conversation.type === 'group' && conversation.referenceId) {
-          const group = await Group.findById(conversation.referenceId);
+          group = await Group.findById(conversation.referenceId);
           if (group) {
             const msgType = type === 'image' || type === 'file' ? 'Media' : 'Messages';
             const permKey = msgType === 'Media' ? 'canSendMedia' : 'canSendMessages';
@@ -212,6 +212,8 @@ const chatSocketService = (io) => {
         io.to(`conv:${conversationId}`).emit('chat:new_message', populatedMsg);
 
         // Handle delivery and notifications for each participant
+        const senderName = populatedMsg.senderId?.name || 'Someone';
+        const preview = chatMessagePreview(type, message);
         for (const participantId of conversation.participants) {
           const pid = participantId.toString();
           if (pid === userId.toString()) continue;
@@ -220,43 +222,24 @@ const chatSocketService = (io) => {
           io.to(`user:${pid}`).emit('chat:new_message', populatedMsg);
 
           if (isOnline(pid)) {
-            // Participant is online → mark delivered
+            // Participant is online → mark delivered, and push in case the app is in the background
             io.to(`user:${pid}`).emit('chat:message_delivered', {
               messageId: populatedMsg._id,
               conversationId
             });
+            pushChatMessage({ userId: pid, senderName, preview, groupName: group?.name, groupId: group?._id, conversationId });
+          } else if (group) {
+            // Offline → bell notification + push (sent by createNotification)
+            notifyGroupMessage([pid], senderName, group._id, group.name, preview, conversationId);
           } else {
-            // Participant is offline → push notification
-            const notifMsg = await notifyNewMessage(pid, populatedMsg.senderId?.name || 'Someone', conversationId);
-            if (notifMsg) {
-              sendPushNotification({
-                userId: pid,
-                notificationId: notifMsg._id,
-                type: 'chat_new_message',
-                title: `New message from ${populatedMsg.senderId?.name || 'A member'} 💬`,
-                message: message ? (message.length > 80 ? message.substring(0, 80) + '...' : message) : 'Sent you a media attachment',
-                icon: '💬',
-                actionUrl: '/member/chat'
-              }).catch(err => console.error('[ChatPushError]', err.message));
-            }
+            notifyNewMessage(pid, senderName, conversationId, 'chat', preview);
           }
         }
 
-        // Handle @mentions
+        // Handle @mentions (push is sent by createNotification)
         for (const mentionedId of mentionedUsers) {
           if (mentionedId.toString() !== userId.toString()) {
-            const notifMention = await notifyMention(mentionedId, populatedMsg.senderId?.name || 'Someone', conversationId);
-            if (notifMention) {
-              sendPushNotification({
-                userId: mentionedId,
-                notificationId: notifMention._id,
-                type: 'chat_mention',
-                title: 'You were mentioned in chat 🏷️',
-                message: `${populatedMsg.senderId?.name || 'Someone'} mentioned you in a message.`,
-                icon: '🏷️',
-                actionUrl: '/member/chat'
-              }).catch(err => console.error('[MentionPushError]', err.message));
-            }
+            notifyMention(mentionedId, senderName, conversationId);
           }
         }
       } catch (err) {

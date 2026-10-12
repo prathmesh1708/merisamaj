@@ -11,6 +11,7 @@ import { Avatar } from '../../../member/components/common/Avatar';
 import { useHeadAuth } from '../../auth/useHeadAuth';
 import { filterMembersForHead } from '../../utils/headCommunityFilter';
 import { axiosPrivate } from '../../../../core/api/axiosPrivate';
+import { MemberApplicationModal } from '../dashboard/MemberApplicationModal';
 
 export const MemberManagement = () => {
   const { headAuth } = useHeadAuth();
@@ -891,71 +892,12 @@ export const MemberManagement = () => {
       {/* ─── DOCUMENT VERIFICATION ARCHIVE DRAWER ─── */}
       <AnimatePresence>
         {verificationDoc && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setVerificationDoc(null)}
-              className="absolute inset-0 bg-black/60 backdrop-blur-xs"
-            />
-            
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0, y: 15 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 15 }}
-              className="w-full max-w-md bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xl relative z-10 p-6 space-y-4"
-            >
-              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-                <div>
-                  <h3 className="text-base font-bold text-slate-900">Document Audit Desk</h3>
-                  <p className="text-xs text-slate-600 font-semibold mt-0.5">Auditing: {verificationDoc.name}</p>
-                </div>
-                <button onClick={() => setVerificationDoc(null)} className="w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer">
-                  <X size={16} />
-                </button>
-              </div>
-
-              <div className="w-full rounded-2xl bg-indigo-900 p-5 border border-indigo-800 flex flex-col justify-between text-white select-none relative overflow-hidden shadow-md">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h4 className="text-xs font-bold tracking-wider text-purple-200 uppercase">COMMUNITY DIRECTORY ARCHIVE</h4>
-                    <p className="text-[11px] text-purple-300 font-bold uppercase mt-0.5">Identity Verification Record</p>
-                  </div>
-                  <span className="text-base">🇮🇳</span>
-                </div>
-
-                <div className="flex items-center gap-3 my-4">
-                  <Avatar initials={verificationDoc.initials} size="md" />
-                  <div>
-                    <p className="text-base font-bold text-white">{verificationDoc.name}</p>
-                    <p className="text-xs text-purple-200 font-medium">City: {verificationDoc.city}</p>
-                    <p className="text-xs text-purple-200 font-medium">Profession: {verificationDoc.profession || 'Member'}</p>
-                  </div>
-                </div>
-
-                <div className="border-t border-white/20 pt-2.5 flex items-center justify-between text-xs font-mono tracking-widest text-purple-200">
-                  <span>9024 1002 9948</span>
-                  <span className="text-[11px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded border border-emerald-400/30 font-sans font-bold">DIGI-SIGNED</span>
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button 
-                  onClick={() => handleReject(verificationDoc.id, verificationDoc.name)}
-                  className="flex-1 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold border border-rose-200 active:scale-95 transition-all text-center cursor-pointer"
-                >
-                  Reject Proof
-                </button>
-                <button 
-                  onClick={() => handleApprove(verificationDoc.id, verificationDoc.name)}
-                  className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs active:scale-95 transition-all text-center cursor-pointer"
-                >
-                  Approve & Verify
-                </button>
-              </div>
-            </motion.div>
-          </div>
+          <MemberApplicationModal
+            member={verificationDoc}
+            onClose={() => setVerificationDoc(null)}
+            onApprove={handleApprove}
+            onReject={handleReject}
+          />
         )}
       </AnimatePresence>
 

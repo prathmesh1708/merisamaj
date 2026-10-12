@@ -125,7 +125,7 @@ exports.getMemberAppContent = async (req, res) => {
             name: 'Dr. Rajesh Agrawal',
             role: 'Community Head (President)',
             designation: 'Community Head (President)',
-            avatar: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=800&q=80',
+            avatar: '',
             city: 'Indore',
             state: 'Madhya Pradesh',
             phone: '+91 98260 12345',

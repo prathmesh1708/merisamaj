@@ -7,6 +7,7 @@ import {
 import { useAdminAuth } from '../../auth/useAdminAuth';
 import { axiosPrivate } from '../../../../core/api/axiosPrivate';
 import { authService } from '../../../../core/auth/authService';
+import { cropImageFile } from '../../../../core/components/ImageCropper';
 
 // ── Toast Notification ──
 const Toast = ({ message, type, onClose }) => {
@@ -93,8 +94,9 @@ const AdminProfileSettings = () => {
 
   const handleChange = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
 
-  const handleAvatarSelect = (e) => {
-    const file = e.target.files?.[0];
+  const handleAvatarSelect = async (e) => {
+    const file = await cropImageFile(e.target.files?.[0], { title: 'Adjust profile photo' });
+    e.target.value = ''; // allow picking the same file again
     if (file) {
       setAvatarFile(file);
       const reader = new FileReader();

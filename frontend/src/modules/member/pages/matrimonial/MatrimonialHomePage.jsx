@@ -645,14 +645,14 @@ const MatrimonialHomePage = () => {
         <button
           key={key}
           onClick={() => { setActiveBottomTab(key); setCurrentSubView(null); }}
-          className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-[15px] font-bold transition-all shrink-0 ${
-            active ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'text-slate-700 hover:bg-slate-50 border border-transparent'
+          className={`flex-1 min-w-0 flex items-center justify-center gap-1.5 px-2 py-1.5 sm:py-2 rounded-xl text-[12.5px] sm:text-[13.5px] font-bold transition-all active:scale-[0.97] ${
+            active ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
           }`}
         >
-          <Icon size={18} className={active ? 'text-rose-500' : 'text-slate-600'} />
-          <span>{label}</span>
+          <Icon size={15} className={`shrink-0 ${active ? 'text-rose-500' : 'text-slate-500'}`} />
+          <span className="truncate">{label}</span>
           {badge > 0 && (
-            <span className="min-w-[20px] h-5 px-1.5 bg-rose-500 text-white text-[11px] font-bold rounded-full flex items-center justify-center">
+            <span className="min-w-[16px] h-4 px-1 bg-rose-500 text-white text-[9.5px] font-bold rounded-full flex items-center justify-center shrink-0">
               {badge > 99 ? '99+' : badge}
             </span>
           )}
@@ -660,8 +660,8 @@ const MatrimonialHomePage = () => {
       );
     };
     return (
-      <div className="bg-white px-3 py-2 border-b border-slate-100 shrink-0 z-40">
-        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide max-w-lg mx-auto">
+      <div className="bg-white px-3 py-1.5 border-b border-slate-100 shrink-0 z-40">
+        <div className="flex items-center gap-1 p-1 bg-slate-100/80 rounded-2xl max-w-md mx-auto">
           {tab('matches', 'Matches', Users, 0)}
           {tab('activity', 'Activity', Clock, receivedCount)}
           {tab('messenger', 'Chat', MessageCircle, chatUnread)}

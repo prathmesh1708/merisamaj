@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Building2, Check, X, AlertCircle, CheckCircle2, Search, Sparkles, Layers } from 'lucide-react';
+import { Building2, Check, X, AlertCircle, CheckCircle2, Search, Sparkles, Layers, ChevronDown } from 'lucide-react';
 import { axiosPrivate } from '../../../../../core/api/axiosPrivate';
 import { userService } from '../../../services/userService';
 
@@ -15,6 +15,9 @@ export const EditUserCommunityModal = ({ user, isOpen, onClose, onSuccess }) => 
   const [fetchLoading, setFetchLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  // Dropdown open states: the community list closes once one is picked
+  const [communityListOpen, setCommunityListOpen] = useState(false);
+  const [subListOpen, setSubListOpen] = useState(false);
 
   useEffect(() => {
     if (isOpen && user) {
@@ -22,6 +25,7 @@ export const EditUserCommunityModal = ({ user, isOpen, onClose, onSuccess }) => 
       setSuccessMsg('');
       setSearchQuery('');
       setSubCommunity(user.subCommunity || '');
+      setSubListOpen(false);
 
       const initialCommId = user.communityId?._id || user.communityId || '';
       const initialCommName = user.communityId?.name || user.community || '';
@@ -42,8 +46,11 @@ export const EditUserCommunityModal = ({ user, isOpen, onClose, onSuccess }) => 
           if (matched) {
             setSelectedCommunityId(matched._id || matched.id);
             setIsCustomMode(false);
+            setCommunityListOpen(false);
           } else if (initialCommName) {
             setIsCustomMode(true);
+          } else {
+            setCommunityListOpen(true); // nothing chosen yet → show the list
           }
         })
         .catch(err => {
@@ -63,6 +70,28 @@ export const EditUserCommunityModal = ({ user, isOpen, onClose, onSuccess }) => 
   );
 
   const selectedCommunityDoc = communities.find(c => (c._id || c.id) === selectedCommunityId);
+
+  // All sub-communities of the chosen community (stored as {name, isActive} or plain strings)
+  const subCommunityOptions = !isCustomMode && selectedCommunityDoc
+    ? (selectedCommunityDoc.subCommunities || [])
+        .map(sc => (typeof sc === 'string' ? { name: sc, isActive: true } : sc))
+        .filter(sc => sc && sc.name)
+    : [];
+  // Keep the member's current value visible even if it isn't in the list
+  const currentSubMissing = subCommunity && !subCommunityOptions.some(sc => sc.name === subCommunity);
+
+  const pickCommunity = (comm) => {
+    const id = comm._id || comm.id;
+    if (id !== selectedCommunityId) {
+      // Sub-communities differ per community — clear one that doesn't exist in the new one
+      const names = (comm.subCommunities || []).map(sc => (typeof sc === 'string' ? sc : sc?.name));
+      if (!names.includes(subCommunity)) setSubCommunity('');
+    }
+    setSelectedCommunityId(id);
+    setCustomCommunityName(comm.name);
+    setCommunityListOpen(false);
+    setSearchQuery('');
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -181,56 +210,83 @@ export const EditUserCommunityModal = ({ user, isOpen, onClose, onSuccess }) => 
             </div>
 
             {!isCustomMode ? (
-              <div className="space-y-3">
-                <div className="relative">
-                  <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Search community name..."
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 outline-none focus:border-purple-600"
-                  />
-                </div>
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  Samaj / Community *
+                </label>
 
-                <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 divide-y divide-slate-50">
-                  {fetchLoading ? (
-                    <p className="text-xs text-slate-400 text-center py-4">Loading communities...</p>
-                  ) : filteredCommunities.length === 0 ? (
-                    <p className="text-xs text-slate-400 text-center py-4">No communities match your search.</p>
+                {/* Closed: shows the chosen community — click to open the list */}
+                <button
+                  type="button"
+                  onClick={() => setCommunityListOpen(o => !o)}
+                  className={`w-full p-3 rounded-xl border flex items-center justify-between gap-3 text-left transition-all cursor-pointer ${
+                    communityListOpen ? 'border-purple-500 ring-4 ring-purple-500/10 bg-white' : 'border-slate-200 bg-slate-50 hover:border-purple-300'
+                  }`}
+                >
+                  {selectedCommunityDoc ? (
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-slate-900 truncate">{selectedCommunityDoc.name}</p>
+                      <p className="text-[10px] text-slate-500 mt-0.5 truncate">
+                        {selectedCommunityDoc.headId?.name ? `Head: ${selectedCommunityDoc.headId.name}` : 'No head assigned'}
+                        {selectedCommunityDoc.city ? ` • Base: ${selectedCommunityDoc.city}` : ''}
+                      </p>
+                    </div>
                   ) : (
-                    filteredCommunities.map(comm => {
-                      const isSelected = selectedCommunityId === (comm._id || comm.id);
-                      return (
-                        <div
-                          key={comm._id || comm.id}
-                          onClick={() => {
-                            setSelectedCommunityId(comm._id || comm.id);
-                            setCustomCommunityName(comm.name);
-                          }}
-                          className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
-                            isSelected
-                              ? 'bg-purple-50/80 border-purple-400 shadow-xs'
-                              : 'bg-white hover:bg-slate-50 border-slate-200'
-                          }`}
-                        >
-                          <div>
-                            <p className="text-xs font-bold text-slate-900">{comm.name}</p>
-                            <p className="text-[10px] text-slate-500 mt-0.5">
-                              {comm.headId?.name ? `Head: ${comm.headId.name}` : 'No head assigned'} 
-                              {comm.city ? ` • Base: ${comm.city}` : ''}
-                            </p>
-                          </div>
-                          {isSelected && (
-                            <div className="w-5 h-5 rounded-full bg-purple-600 text-white flex items-center justify-center shrink-0">
-                              <Check size={12} />
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })
+                    <span className="text-xs font-semibold text-slate-400">{fetchLoading ? 'Loading communities...' : 'Select a community'}</span>
                   )}
-                </div>
+                  <ChevronDown size={16} className={`shrink-0 text-slate-500 transition-transform ${communityListOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {communityListOpen && (
+                  <div className="border border-slate-200 rounded-xl p-2 bg-white shadow-sm space-y-2">
+                    <div className="relative">
+                      <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Search community name..."
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 outline-none focus:border-purple-600"
+                      />
+                    </div>
+
+                    <div className="max-h-48 overflow-y-auto overscroll-contain space-y-1.5 pr-1">
+                      {fetchLoading ? (
+                        <p className="text-xs text-slate-400 text-center py-4">Loading communities...</p>
+                      ) : filteredCommunities.length === 0 ? (
+                        <p className="text-xs text-slate-400 text-center py-4">No communities match your search.</p>
+                      ) : (
+                        filteredCommunities.map(comm => {
+                          const isSelected = selectedCommunityId === (comm._id || comm.id);
+                          return (
+                            <div
+                              key={comm._id || comm.id}
+                              onClick={() => pickCommunity(comm)}
+                              className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                                isSelected
+                                  ? 'bg-purple-50/80 border-purple-400 shadow-xs'
+                                  : 'bg-white hover:bg-slate-50 border-slate-200'
+                              }`}
+                            >
+                              <div>
+                                <p className="text-xs font-bold text-slate-900">{comm.name}</p>
+                                <p className="text-[10px] text-slate-500 mt-0.5">
+                                  {comm.headId?.name ? `Head: ${comm.headId.name}` : 'No head assigned'}
+                                  {comm.city ? ` • Base: ${comm.city}` : ''}
+                                </p>
+                              </div>
+                              {isSelected && (
+                                <div className="w-5 h-5 rounded-full bg-purple-600 text-white flex items-center justify-center shrink-0">
+                                  <Check size={12} />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div>
@@ -248,18 +304,79 @@ export const EditUserCommunityModal = ({ user, isOpen, onClose, onSuccess }) => 
               </div>
             )}
 
-            {/* Sub-Community Field */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+            {/* Sub-Community Field — every sub-community of the chosen community */}
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                 Sub-Samaj / Gotra (उप-समाज / शाखा - ऐच्छिक)
               </label>
-              <input
-                type="text"
-                placeholder="e.g. Shakha, Gotra, or Sub-community"
-                value={subCommunity}
-                onChange={e => setSubCommunity(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 outline-none focus:border-purple-600"
-              />
+
+              {subCommunityOptions.length > 0 ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setSubListOpen(o => !o)}
+                    className={`w-full px-3.5 py-2.5 rounded-xl border flex items-center justify-between gap-3 text-left transition-all cursor-pointer ${
+                      subListOpen ? 'border-purple-500 ring-4 ring-purple-500/10 bg-white' : 'border-slate-200 bg-slate-50 hover:border-purple-300'
+                    }`}
+                  >
+                    <span className={`text-sm font-semibold truncate ${subCommunity ? 'text-slate-900' : 'text-slate-400'}`}>
+                      {subCommunity || 'Select sub-community'}
+                    </span>
+                    <span className="flex items-center gap-2 shrink-0">
+                      <span className="text-[10px] font-bold text-purple-600">{subCommunityOptions.length} options</span>
+                      <ChevronDown size={16} className={`text-slate-500 transition-transform ${subListOpen ? 'rotate-180' : ''}`} />
+                    </span>
+                  </button>
+
+                  {subListOpen && (
+                    <div className="border border-slate-200 rounded-xl bg-white shadow-sm max-h-52 overflow-y-auto overscroll-contain p-1.5 space-y-1">
+                      {/* No sub-community */}
+                      <div
+                        onClick={() => { setSubCommunity(''); setSubListOpen(false); }}
+                        className={`px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer flex items-center justify-between ${
+                          !subCommunity ? 'bg-purple-50 text-purple-900' : 'text-slate-500 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span>— None —</span>
+                        {!subCommunity && <Check size={13} className="text-purple-600" />}
+                      </div>
+                      {currentSubMissing && (
+                        <div className="px-3 py-2 rounded-lg text-xs font-bold bg-purple-50 text-purple-900 flex items-center justify-between">
+                          <span>{subCommunity} <span className="font-medium text-slate-400">(current, not in list)</span></span>
+                          <Check size={13} className="text-purple-600" />
+                        </div>
+                      )}
+                      {subCommunityOptions.map(sc => {
+                        const isSelected = sc.name === subCommunity;
+                        return (
+                          <div
+                            key={sc._id || sc.name}
+                            onClick={() => { setSubCommunity(sc.name); setSubListOpen(false); }}
+                            className={`px-3 py-2 rounded-lg text-xs font-bold cursor-pointer flex items-center justify-between ${
+                              isSelected ? 'bg-purple-50 text-purple-900' : 'text-slate-800 hover:bg-slate-50'
+                            }`}
+                          >
+                            <span className="truncate">
+                              {sc.name}
+                              {sc.isActive === false && <span className="ml-1.5 font-medium text-slate-400">(inactive)</span>}
+                            </span>
+                            {isSelected && <Check size={13} className="text-purple-600 shrink-0" />}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              ) : (
+                // Custom samaj, or a community without sub-communities → type it
+                <input
+                  type="text"
+                  placeholder={selectedCommunityDoc && !isCustomMode ? 'This community has no sub-communities — type one (optional)' : 'e.g. Shakha, Gotra, or Sub-community'}
+                  value={subCommunity}
+                  onChange={e => setSubCommunity(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 outline-none focus:border-purple-600"
+                />
+              )}
             </div>
 
             {/* Error Message */}

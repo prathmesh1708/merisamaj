@@ -25,6 +25,7 @@ import { Avatar } from '../../components/common/Avatar';
 import { useData } from '../../context/DataProvider';
 import { PostSkeleton } from '../../components/common/Skeleton';
 import { StoryViewer } from '../../components/common/StoryViewer';
+import { StoryMedia } from '../../components/common/StoryMedia';
 import { useDraggableScroll } from '../../../../hooks/useDraggableScroll';
 import socialService from '../../../../core/api/socialService';
 import { SharePostModal } from './components/SharePostModal';
@@ -1085,6 +1086,18 @@ const FeedPage = ({ isHub = false, feedType = 'city', searchQuery = '', isFilter
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const storiesRef = useDraggableScroll();
 
+  // Split stories into "mine" and one group per other member, in the same order the
+  // bar shows them, so the viewer moves to the next card's person after each group.
+  const myUserId = String(currentUser?._id || currentUser?.id || '');
+  const myStories = stories.filter(s => myUserId && s.memberId === myUserId);
+  const otherStoryGroups = [];
+  stories.forEach(s => {
+    if (myUserId && s.memberId === myUserId) return;
+    const group = otherStoryGroups.find(g => g[0].memberId === s.memberId);
+    if (group) group.push(s); else otherStoryGroups.push([s]);
+  });
+  const orderedStories = [...myStories, ...otherStoryGroups.flat()];
+
   const lang = 'en'; // Force English for Feed Section as requested
 
   useEffect(() => {
@@ -1256,13 +1269,12 @@ const FeedPage = ({ isHub = false, feedType = 'city', searchQuery = '', isFilter
             onTouchMove={(e) => e.stopPropagation()}
             data-swipe-block="true"
           >
-            {/* Create Story Card */}
+            {/* Your Story Card — shows your latest story once you've posted (Instagram style) */}
             <motion.div 
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="relative w-[92px] h-[146px] rounded-xl shrink-0 cursor-pointer overflow-hidden border border-slate-200 bg-white shadow-sm flex flex-col"
+              className={`relative w-[92px] h-[146px] rounded-xl shrink-0 cursor-pointer overflow-hidden shadow-sm flex flex-col ${myStories.length > 0 ? 'group' : 'border border-slate-200 bg-white'}`}
               onClick={() => {
-                const myStories = stories.filter(s => s.memberId === 'me');
                 if (myStories.length > 0) {
                   setActiveStory(myStories[0]);
                 } else {
@@ -1270,55 +1282,81 @@ const FeedPage = ({ isHub = false, feedType = 'city', searchQuery = '', isFilter
                 }
               }}
             >
-              <div className="h-[65%] w-full bg-slate-100 overflow-hidden">
-                {currentUser?.avatar ? (
-                  <img src={currentUser.avatar} alt="Me" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full bg-brand-primary/10 flex items-center justify-center text-[28px] font-black text-brand-primary">
-                    {currentUser?.initials || 'ME'}
+              {myStories.length > 0 ? (
+                <>
+                  <StoryMedia story={myStories[myStories.length - 1]} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                  <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black/70 pointer-events-none" />
+                  <div className="absolute top-2.5 left-2.5 w-9 h-9 rounded-full p-[2px] bg-blue-500 z-10 shadow-sm">
+                    <div className="w-full h-full rounded-full border-2 border-white bg-white overflow-hidden flex items-center justify-center">
+                      <Avatar initials={currentUser?.initials} avatar={currentUser?.avatar} size="xs" />
+                    </div>
                   </div>
-                )}
-              </div>
-              <div className="h-[35%] w-full relative flex items-end justify-center pb-2.5 bg-white">
-                <div className="absolute -top-4 w-8 h-8 bg-blue-500 rounded-full border-4 border-white flex items-center justify-center shadow-sm" onClick={(e) => {
-                    e.stopPropagation();
-                    navigate('/member/social/create', { state: { createStoryMode: true } });
-                  }}>
-                  <PlusCircle size={18} className="text-white" strokeWidth={2.5} fill="currentColor" />
-                </div>
-                <span className="text-[11px] font-bold text-slate-800 tracking-tight">Create story</span>
-              </div>
+                  {/* Add another story */}
+                  <button
+                    type="button"
+                    aria-label="Add to your story"
+                    className="absolute top-2 right-2 w-6 h-6 bg-blue-500 rounded-full border-2 border-white flex items-center justify-center shadow-sm z-10"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate('/member/social/create', { state: { createStoryMode: true } });
+                    }}
+                  >
+                    <PlusCircle size={14} className="text-white" strokeWidth={2.5} fill="currentColor" />
+                  </button>
+                  <span className="absolute bottom-2.5 left-2.5 right-2 text-[11px] font-semibold text-white leading-tight drop-shadow-md z-10">
+                    Your story{myStories.length > 1 ? ` · ${myStories.length}` : ''}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <div className="h-[65%] w-full bg-slate-100 overflow-hidden">
+                    {currentUser?.avatar ? (
+                      <img src={currentUser.avatar} alt="Me" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full bg-brand-primary/10 flex items-center justify-center text-[28px] font-black text-brand-primary">
+                        {currentUser?.initials || 'ME'}
+                      </div>
+                    )}
+                  </div>
+                  <div className="h-[35%] w-full relative flex items-end justify-center pb-2.5 bg-white">
+                    <div className="absolute -top-4 w-8 h-8 bg-blue-500 rounded-full border-4 border-white flex items-center justify-center shadow-sm">
+                      <PlusCircle size={18} className="text-white" strokeWidth={2.5} fill="currentColor" />
+                    </div>
+                    <span className="text-[11px] font-bold text-slate-800 tracking-tight">Create story</span>
+                  </div>
+                </>
+              )}
             </motion.div>
 
-            {/* Other User Stories */}
-            {stories
-              .filter(s => s.memberId !== 'me')
-              .filter((story, index, self) => index === self.findIndex((t) => t.memberId === story.memberId))
-              .map((story, idx) => (
+            {/* Other Members' Stories — one card per person, showing their latest */}
+            {otherStoryGroups.map((group, idx) => {
+              const latest = group[group.length - 1];
+              return (
               <motion.div 
-                key={story.id} 
+                key={latest.memberId || latest.id} 
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: idx * 0.04 }}
                 className="relative w-[92px] h-[146px] rounded-xl shrink-0 cursor-pointer overflow-hidden shadow-sm animate-fade-in group"
-                onClick={() => setActiveStory(story)}
+                onClick={() => setActiveStory(group[0])}
               >
-                <img src={story.image || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600'} alt="Story" className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                <StoryMedia story={latest} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
                 <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black/70 pointer-events-none" />
                 
                 {/* User Avatar Circle */}
                 <div className="absolute top-2.5 left-2.5 w-9 h-9 rounded-full p-[2px] bg-blue-500 z-10 shadow-sm">
                   <div className="w-full h-full rounded-full border-2 border-white bg-white overflow-hidden flex items-center justify-center">
-                    <Avatar initials={story.initials} avatar={story.avatar} size="xs" />
+                    <Avatar initials={latest.initials} avatar={latest.avatar} size="xs" />
                   </div>
                 </div>
                 
                 {/* User Name */}
                 <span className="absolute bottom-2.5 left-2.5 right-2 text-[11px] font-semibold text-white leading-tight drop-shadow-md z-10">
-                  {story.name}
+                  {latest.name}
                 </span>
               </motion.div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -1370,7 +1408,7 @@ const FeedPage = ({ isHub = false, feedType = 'city', searchQuery = '', isFilter
       {/* Floating Story Viewer Modal */}
       <StoryViewer 
         story={activeStory} 
-        stories={stories}
+        stories={orderedStories}
         onStoryChange={(nextStory) => setActiveStory(nextStory)}
         onClose={() => setActiveStory(null)} 
       />

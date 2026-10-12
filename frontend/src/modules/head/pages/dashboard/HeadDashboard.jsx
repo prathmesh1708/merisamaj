@@ -10,6 +10,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { useHeadAuth } from '../../auth/useHeadAuth';
 import { axiosPrivate } from '../../../../core/api/axiosPrivate';
+import { MemberApplicationModal } from './MemberApplicationModal';
 
 export const HeadDashboard = () => {
   const navigate = useNavigate();
@@ -956,70 +957,14 @@ export const HeadDashboard = () => {
           </div>
         )}
 
-        {/* Modal 4: Member Verification Details / Proof Viewer */}
+        {/* Modal 4: Full profile of a member waiting for approval */}
         {selectedProofMember && (
-          <div className="fixed inset-0 z-[55] flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedProofMember(null)} className="absolute inset-0 bg-black/60 backdrop-blur-xs" />
-            <motion.div initial={{ scale: 0.95, opacity: 0, y: 15 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.95, opacity: 0, y: 15 }} className="w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-2xl relative z-10 overflow-hidden">
-              <div className="px-6 py-5 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">Member Credential Summary</h3>
-                  <p className="text-xs text-slate-600 mt-0.5 font-medium">Profile audit for {selectedProofMember.name}</p>
-                </div>
-                <button onClick={() => setSelectedProofMember(null)} className="w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"><X size={16} /></button>
-              </div>
-              <div className="p-6 space-y-4">
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5 text-xs text-slate-800">
-                  <div className="flex justify-between">
-                    <span className="text-slate-600 font-bold">Full Name:</span>
-                    <span className="font-extrabold text-slate-900">{selectedProofMember.name}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600 font-bold">Phone:</span>
-                    <span className="font-extrabold text-slate-900">{selectedProofMember.phone || 'N/A'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600 font-bold">City / Location:</span>
-                    <span className="font-extrabold text-slate-900">{selectedProofMember.city || 'Indore'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600 font-bold">Profession:</span>
-                    <span className="font-extrabold text-slate-900">{selectedProofMember.profession || 'Member'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600 font-bold">Aadhaar Status:</span>
-                    <span className={`font-extrabold ${selectedProofMember.isAadharVerified ? 'text-emerald-700' : 'text-amber-700'}`}>
-                      {selectedProofMember.isAadharVerified ? 'Aadhaar Verified' : 'Aadhaar Pending'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-indigo-50 border border-indigo-200 text-center text-xs text-indigo-900">
-                  <Shield size={18} className="mx-auto mb-1 text-indigo-700" />
-                  <p className="font-semibold">
-                    {selectedProofMember.isAadharVerified 
-                      ? 'Identity verified through government credential check.' 
-                      : 'No document image uploaded yet. Verification pending manual head approval.'}
-                  </p>
-                </div>
-
-                <div className="flex gap-3">
-                  <button 
-                    onClick={() => handleRejectMember(selectedProofMember._id || selectedProofMember.id, selectedProofMember.name)} 
-                    className="flex-1 py-2.5 rounded-xl bg-rose-50 text-rose-700 text-xs font-bold border border-rose-200 hover:bg-rose-100 transition-all text-center cursor-pointer"
-                  >
-                    Reject Account
-                  </button>
-                  <button 
-                    onClick={() => handleApproveMember(selectedProofMember._id || selectedProofMember.id, selectedProofMember.name)} 
-                    className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all text-center shadow-xs cursor-pointer"
-                  >
-                    Approve Account
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
+          <MemberApplicationModal
+            member={selectedProofMember}
+            onClose={() => setSelectedProofMember(null)}
+            onApprove={handleApproveMember}
+            onReject={handleRejectMember}
+          />
         )}
 
       </AnimatePresence>

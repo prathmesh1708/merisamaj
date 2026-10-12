@@ -7,7 +7,7 @@ const Conversation = require('../../models/Conversation');
 const Message      = require('../../models/Message');
 const InterestRequest = require('../../models/InterestRequest');
 const { checkFeature, getEffectiveFeatures } = require('../../middleware/subscriptionMiddleware');
-const { notifyNewMessage } = require('../../services/notificationService');
+const { notifyNewMessage, chatMessagePreview } = require('../../services/notificationService');
 const { markConversationSeen, markMessagesSeen } = require('../../services/messageService');
 
 // ─── Open or Find Conversation by Profile ID ──────────────────────────────────
@@ -288,8 +288,9 @@ exports.sendMessage = async (req, res) => {
 
     // Notify other participants
     const otherParticipants = conversation.participants.filter(p => !p.equals(req.user._id));
+    const preview = chatMessagePreview(type, message);
     for (const participantId of otherParticipants) {
-      notifyNewMessage(participantId, req.user.name, conversationId);
+      notifyNewMessage(participantId, req.user.name, conversationId, 'matrimonial', preview);
     }
 
     res.status(201).json({ status: 'success', data: { message: populatedMsg } });

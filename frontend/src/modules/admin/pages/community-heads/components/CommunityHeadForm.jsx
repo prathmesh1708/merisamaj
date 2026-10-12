@@ -5,6 +5,7 @@ import {
   LayoutDashboard, Wallet, Vote, Send, Users, Calendar, Briefcase, Heart, HeartHandshake, Home, Mail, Share2, Award, LayoutTemplate
 } from 'lucide-react';
 import { axiosPrivate } from '../../../../../core/api/axiosPrivate';
+import { cropImageFile } from '../../../../../core/components/ImageCropper';
 
 const defaultPermissions = {
   canViewDashboard: true,
@@ -190,8 +191,9 @@ export const CommunityHeadForm = ({ isOpen, onClose, onSubmit, initialData, exis
   };
   
   // ── Handle avatar file selection ──
-  const handleAvatarSelect = (e) => {
-    const file = e.target.files?.[0];
+  const handleAvatarSelect = async (e) => {
+    const file = await cropImageFile(e.target.files?.[0], { title: 'Adjust profile photo' });
+    e.target.value = ''; // allow picking the same file again
     if (file) {
       setAvatarFile(file);
       const reader = new FileReader();
