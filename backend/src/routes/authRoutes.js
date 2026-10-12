@@ -54,6 +54,7 @@ router.post('/aadhaar/verify-otp', verifyAadhaarOtp);
 router.get('/me', protect, getMe);
 
 // FCM push token for the logged-in user's device (web / android / ios)
+router.get('/fcm-token', notifCtrl.getPushTokenEndpointStatus);  // status check, opens in a browser
 router.post('/fcm-token', protect, notifCtrl.registerPushToken);
 router.delete('/fcm-token', protect, notifCtrl.unregisterPushToken);
 

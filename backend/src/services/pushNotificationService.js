@@ -310,7 +310,11 @@ const sendPushToUsers = async ({
   }
 };
 
+/** True when the Firebase Admin SDK is configured and ready to send */
+const isPushConfigured = () => initFCM();
+
 module.exports = {
+  isPushConfigured,
   registerPushToken,
   unregisterPushToken,
   sendPushNotification,

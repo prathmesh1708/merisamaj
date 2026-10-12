@@ -89,13 +89,29 @@ exports.deleteNotification = async (req, res) => {
   }
 };
 
-const { registerPushToken, unregisterPushToken } = require('../services/pushNotificationService');
+const { registerPushToken, unregisterPushToken, isPushConfigured } = require('../services/pushNotificationService');
 
 // Mobile apps send the token / platform under different names — accept the common ones
 const readFcmToken = (body = {}) => body.fcmToken || body.fcm_token || body.token || null;
 const readDeviceType = (body = {}) => {
   const raw = String(body.deviceType || body.device_type || body.platform || 'web').toLowerCase();
   return ['web', 'android', 'ios'].includes(raw) ? raw : 'web';
+};
+
+// ─── Push Endpoint Status (public, for checking in a browser) ─────────────────
+// GET /api/v1/auth/fcm-token — reports whether the endpoint is live and FCM is set up.
+exports.getPushTokenEndpointStatus = (req, res) => {
+  const firebaseConfigured = isPushConfigured();
+  res.json({
+    status: 'success',
+    message: 'FCM token endpoint is live. Use POST to save a device token and DELETE to remove it.',
+    firebaseConfigured,
+    usage: {
+      method: 'POST | DELETE',
+      headers: { Authorization: 'Bearer <accessToken>', 'Content-Type': 'application/json' },
+      body: { fcmToken: '<device FCM token>', deviceType: 'android | ios | web' }
+    }
+  });
 };
 
 // ─── Register Push Token ──────────────────────────────────────────────────────
