@@ -493,9 +493,15 @@ const HomePage = () => {
             <h1 className="text-[16px] sm:text-[18px] font-black text-slate-900 tracking-tight leading-tight truncate">
               {currentUser?.name || 'Member'}
             </h1>
-            {((currentUser?.subCommunity || userCommunity) || currentUser?.city) && (
-              <p className="text-[11px] font-semibold text-slate-500 truncate mt-0.5">
-                📍 {[currentUser?.subCommunity || userCommunity, currentUser?.city].filter(Boolean).join(' · ')}
+            {/* Sub-community, then location on its own line */}
+            {(currentUser?.subCommunity || userCommunity) && (
+              <p className="text-[12px] font-bold text-slate-600 truncate mt-0.5">
+                {currentUser?.subCommunity || userCommunity}
+              </p>
+            )}
+            {currentUser?.city && (
+              <p className="text-[11px] font-semibold text-slate-500 truncate leading-tight">
+                📍 {currentUser.city}
               </p>
             )}
           </div>

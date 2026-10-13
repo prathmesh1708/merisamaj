@@ -3,6 +3,7 @@ const router = express.Router();
 const votingController = require('../../controllers/head/votingController');
 
 router.get('/target-options', votingController.getTargetOptions);
+router.post('/upload-banner', require('../../middleware/uploadMiddleware').single('image'), votingController.uploadBanner);
 router.get('/', votingController.getElections);
 router.post('/', votingController.createElection);
 router.put('/:id', votingController.updateElection);

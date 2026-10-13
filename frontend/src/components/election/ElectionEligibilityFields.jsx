@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
+import { ImagePlus, Link2, Loader2, X } from 'lucide-react';
+import { axiosPrivate } from '../../core/api/axiosPrivate';
 
 export const ELECTION_ROLES = [
   ['community_head', 'Community Head'],
@@ -54,6 +56,94 @@ export const electionFieldsFromElection = (el) => ({
   targetCommunityIds: (el.targetCommunityIds || []).map(c => c._id || c)
 });
 
+/**
+ * Election banner: upload an image OR paste an image URL. The preview shows the
+ * whole picture (object-contain), exactly as voters will see it.
+ */
+function BannerImageField({ value, onChange, labelClass, inputClass }) {
+  const fileRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow picking the same file again
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { setError('Please choose an image file.'); return; }
+    if (file.size > 10 * 1024 * 1024) { setError('Image must be smaller than 10 MB.'); return; }
+    setError('');
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('image', file);
+      // Admin panel and Head/Local Head panel each have their own route
+      const base = window.location.pathname.startsWith('/admin') ? '/admin/voting' : '/head/voting';
+      const res = await axiosPrivate.post(`${base}/upload-banner`, fd);
+      const url = res.data?.data?.url;
+      if (!url) throw new Error('Upload failed');
+      onChange(url);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Could not upload the image. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <label className={labelClass}>Banner image</label>
+
+      <button
+        type="button"
+        onClick={() => fileRef.current?.click()}
+        disabled={uploading}
+        className="w-full px-4 py-2 rounded-xl border border-dashed border-indigo-300 bg-indigo-50/50 text-indigo-700 text-xs font-bold flex items-center justify-center gap-2 hover:bg-indigo-50 transition-colors cursor-pointer disabled:opacity-60"
+      >
+        {uploading ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />}
+        {uploading ? 'Uploading…' : value ? 'Change image' : 'Upload image'}
+      </button>
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+
+      <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase">
+        <span className="flex-1 h-px bg-slate-200" /> or <span className="flex-1 h-px bg-slate-200" />
+      </div>
+
+      <div className="relative">
+        <Link2 size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <input
+          type="url"
+          placeholder="Paste image URL: https://..."
+          value={value || ''}
+          onChange={(e) => { setError(''); onChange(e.target.value); }}
+          className={`${inputClass} pl-8`}
+        />
+      </div>
+
+      {error && <p className="text-[10px] text-rose-600 font-semibold">{error}</p>}
+
+      {value && (
+        <div className="relative rounded-xl border border-slate-200 bg-slate-100 overflow-hidden">
+          {/* Whole image visible — never cropped */}
+          <img
+            src={value}
+            alt="Banner preview"
+            className="w-full max-h-48 object-contain"
+            onError={() => setError('This image could not be loaded. Check the URL.')}
+          />
+          <button
+            type="button"
+            onClick={() => { onChange(''); setError(''); }}
+            aria-label="Remove banner"
+            className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/55 text-white flex items-center justify-center cursor-pointer"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const toggle = (list, value) => (list.includes(value) ? list.filter(v => v !== value) : [...list, value]);
 
 /**
@@ -79,10 +169,12 @@ export default function ElectionEligibilityFields({ formData, setFormData, citie
           <input type="datetime-local" value={formData.resultDate || ''} onChange={(e) => set({ resultDate: e.target.value })} className={input} />
           <p className="text-[10px] text-slate-400 font-semibold">Leave empty to show the result as soon as voting ends.</p>
         </div>
-        <div className="space-y-1">
-          <label className={label}>Banner image URL</label>
-          <input type="url" placeholder="https://..." value={formData.bannerImage || ''} onChange={(e) => set({ bannerImage: e.target.value })} className={input} />
-        </div>
+        <BannerImageField
+          value={formData.bannerImage}
+          onChange={(url) => setFormData(prev => ({ ...prev, bannerImage: url }))}
+          labelClass={label}
+          inputClass={input}
+        />
       </div>
 
       <div className="space-y-1.5">

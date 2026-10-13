@@ -96,6 +96,15 @@ exports.createObituary = async (req, res) => {
 
     const fullName = `${prefix || ''} ${deceasedName}`.trim();
 
+    // Legacy community-name text: older accounts have it on the user, newer ones only have
+    // communityId — look the name up so the record is complete either way.
+    let communityName = req.user.community || '';
+    if (!communityName && payload.communityId) {
+      const Community = require('../../models/Community');
+      const communityDoc = await Community.findById(payload.communityId).select('name').lean();
+      communityName = communityDoc?.name || '';
+    }
+
     const obituary = new Obituary({
       deceasedName: fullName,
       deceasedNameEn: deceasedName,
@@ -120,7 +129,7 @@ exports.createObituary = async (req, res) => {
       creatorId: req.user._id,
       relation: relation || 'Family Member',
       communityId: payload.communityId,
-      community: req.user.community || '',
+      community: communityName,
       privacy: privacy || 'public',
       familyContact: familyContact || '',
       status: status || 'Approved'
@@ -165,7 +174,12 @@ exports.createObituary = async (req, res) => {
     res.status(201).json(populated);
   } catch (error) {
     console.error('Error creating obituary:', error);
-    res.status(500).json({ message: 'Server Error' });
+    // Show the real reason for invalid input instead of a generic "Server Error"
+    if (error.name === 'ValidationError' || error.name === 'CastError') {
+      const detail = error.errors ? Object.values(error.errors).map(e => e.message).join(', ') : error.message;
+      return res.status(400).json({ message: `Please check the details: ${detail}` });
+    }
+    res.status(500).json({ message: 'Could not save the Shradhanjali. Please try again.' });
   }
 };
 

@@ -36,9 +36,31 @@ exports.getStories = async (req, res) => {
       ]
     })
     .populate('userId', 'name avatar role')
-    .sort({ createdAt: -1 });
+    .sort({ createdAt: -1 })
+    .lean();
 
-    res.json({ success: true, data: stories });
+    // View / like counts for every story, plus whether *I* viewed / liked each one
+    const ids = stories.map(s => s._id);
+    const [viewCounts, likeCounts, myViews, myLikes] = await Promise.all([
+      StoryView.aggregate([{ $match: { storyId: { $in: ids } } }, { $group: { _id: '$storyId', n: { $sum: 1 } } }]),
+      StoryLike.aggregate([{ $match: { storyId: { $in: ids } } }, { $group: { _id: '$storyId', n: { $sum: 1 } } }]),
+      StoryView.find({ storyId: { $in: ids }, userId }).select('storyId').lean(),
+      StoryLike.find({ storyId: { $in: ids }, userId }).select('storyId').lean()
+    ]);
+    const toMap = (rows) => new Map(rows.map(r => [String(r._id), r.n]));
+    const views = toMap(viewCounts), likes = toMap(likeCounts);
+    const viewedSet = new Set(myViews.map(v => String(v.storyId)));
+    const likedSet = new Set(myLikes.map(l => String(l.storyId)));
+
+    const data = stories.map(s => ({
+      ...s,
+      viewCount: views.get(String(s._id)) || 0,
+      likeCount: likes.get(String(s._id)) || 0,
+      viewedByMe: viewedSet.has(String(s._id)),
+      likedByMe: likedSet.has(String(s._id))
+    }));
+
+    res.json({ success: true, data });
   } catch (error) {
     console.error('getStories error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
@@ -101,7 +123,11 @@ exports.deleteStory = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
-    await Story.deleteOne({ _id: story._id });
+    await Promise.all([
+      Story.deleteOne({ _id: story._id }),
+      StoryView.deleteMany({ storyId: story._id }),
+      StoryLike.deleteMany({ storyId: story._id })
+    ]);
     res.json({ success: true, message: 'Story deleted successfully' });
   } catch (error) {
     console.error('deleteStory error:', error);
@@ -119,6 +145,9 @@ exports.viewStory = async (req, res) => {
 
     const story = await Story.findById(storyId);
     if (!story) return res.status(404).json({ success: false, message: 'Story not found' });
+
+    // The owner looking at their own story is not a "view"
+    if (story.userId.toString() === userId.toString()) return res.json({ success: true });
 
     const viewLogged = await StoryView.findOne({ storyId, userId });
     if (!viewLogged) {
@@ -146,11 +175,11 @@ exports.likeStory = async (req, res) => {
     const alreadyLiked = await StoryLike.findOne({ storyId, userId });
     if (alreadyLiked) {
       await StoryLike.deleteOne({ _id: alreadyLiked._id });
-      res.json({ success: true, liked: false });
     } else {
       await StoryLike.create({ storyId, userId });
-      res.json({ success: true, liked: true });
     }
+    const likeCount = await StoryLike.countDocuments({ storyId });
+    res.json({ success: true, liked: !alreadyLiked, likeCount });
   } catch (error) {
     console.error('likeStory error:', error);
     res.status(500).json({ success: false });
@@ -169,8 +198,27 @@ exports.getStoryViewers = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
-    const views = await StoryView.find({ storyId: story._id }).populate('userId', 'name avatar');
-    res.json({ success: true, data: views.map(v => v.userId) });
+    // Everyone who viewed (newest first), marked if they also liked; likers who
+    // somehow have no view record are listed too.
+    const [views, likes] = await Promise.all([
+      StoryView.find({ storyId: story._id }).sort({ createdAt: -1 }).populate('userId', 'name avatar').lean(),
+      StoryLike.find({ storyId: story._id }).populate('userId', 'name avatar').lean()
+    ]);
+    const likedIds = new Set(likes.map(l => String(l.userId?._id || l.userId)));
+    const seen = new Set();
+    const viewers = [];
+    views.forEach(v => {
+      if (!v.userId || seen.has(String(v.userId._id))) return;
+      seen.add(String(v.userId._id));
+      viewers.push({ _id: v.userId._id, name: v.userId.name, avatar: v.userId.avatar, liked: likedIds.has(String(v.userId._id)), viewedAt: v.createdAt });
+    });
+    likes.forEach(l => {
+      if (!l.userId || seen.has(String(l.userId._id))) return;
+      seen.add(String(l.userId._id));
+      viewers.push({ _id: l.userId._id, name: l.userId.name, avatar: l.userId.avatar, liked: true, viewedAt: l.createdAt });
+    });
+
+    res.json({ success: true, data: viewers, viewCount: views.length, likeCount: likes.length });
   } catch (error) {
     console.error('getStoryViewers error:', error);
     res.status(500).json({ success: false, message: 'Server error' });

@@ -1,4 +1,5 @@
 import React from 'react';
+import { FullImage } from '../../../../../core/components/FullImage';
 
 /**
  * TributeHeroImage — Full-bleed hero image for detail page.
@@ -9,12 +10,8 @@ const TributeHeroImage = ({ src, alt, deceasedName }) => {
     <div className="w-full pt-14">
       <div className="relative w-full h-[320px] sm:h-[360px] overflow-hidden bg-slate-900">
         {/* Photo */}
-        <img
-          src={src}
-          alt={alt || deceasedName}
-          className="w-full h-full object-cover"
-          style={{ objectPosition: 'center 20%' }}
-        />
+        {/* Whole photo, never cropped */}
+        <FullImage src={src} alt={alt || deceasedName} />
 
         {/* Decorative floral corners */}
         <div className="absolute bottom-2 left-3 right-3 flex justify-between pointer-events-none z-10">

@@ -12,6 +12,7 @@ import { useData } from '../../context/DataProvider';
 import { useMatrimonial } from './MatrimonialContext';
 import { matrimonialChatService, matrimonialProfileService } from '../../../../core/api/matrimonialService';
 import { MatrimonialVisibilityManager } from './components/MatrimonialVisibilityManager';
+import InterestsPage from './InterestsPage';
 
 const membershipRanks = {
   'Normal': 1,
@@ -31,7 +32,8 @@ const MatrimonialHomePage = () => {
     sendInterest, acceptInterest: acceptInterestAPI, rejectInterest: rejectInterestAPI,
     cancelInterest: cancelInterestAPI,
     visitors,
-    toggleShortlist, isShortlisted, searchFilters, setSearchFilters
+    toggleShortlist, isShortlisted, searchFilters, setSearchFilters,
+    shortlistedIds = []
   } = useMatrimonial();
 
   useEffect(() => {
@@ -137,6 +139,8 @@ const MatrimonialHomePage = () => {
   const [myPhotosCount, setMyPhotosCount] = useState(3);
   const [myMatrimonialBio, setMyMatrimonialBio] = useState(currentUser?.matrimonialBio || currentUser?.bio || "");
   const [myGotra, setMyGotra] = useState(currentUser?.gotra || "Not specified");
+  // Partner gotra filter in the filter drawer ('All' = no gotra filter)
+  const [selectedGotra, setSelectedGotra] = useState('All');
   const [myDiet, setMyDiet] = useState(currentUser?.diet || "Not specified");
   const [myIncome, setMyIncome] = useState(currentUser?.income || currentUser?.annualIncome || "Not specified");
   
@@ -245,7 +249,7 @@ const MatrimonialHomePage = () => {
   };
 
   // Sub-navigation view inside activity hub
-  const [currentSubView, setCurrentSubView] = useState(null); // null (default bottom nav matches/activity) | 'visits' | 'shortlisted' | 'contacts'
+  const [currentSubView, setCurrentSubView] = useState(null); // null (default bottom nav matches/activity) | 'visits' | 'shortlisted' | 'contacts' | 'interests'
   const [visitsTab, setVisitsTab] = useState('visitors'); // 'visitors' | 'visited'
   const [contactsTab, setContactsTab] = useState('viewed-my'); // 'viewed-my' | 'i-viewed'
   const [shortlistTab, setShortlistTab] = useState('they-shortlisted'); // 'they-shortlisted' | 'i-shortlisted'
@@ -1147,7 +1151,7 @@ const MatrimonialHomePage = () => {
               <div className="flex justify-between items-center mb-3">
                 <h3 className="text-[15px] font-black text-slate-800">Interests</h3>
                 <button 
-                  onClick={() => navigate('/member/matrimonial/interests')}
+                  onClick={() => setCurrentSubView('interests')}
                   className="text-[12px] font-extrabold text-rose-500 hover:text-rose-600"
                 >
                   View All
@@ -1756,6 +1760,29 @@ const MatrimonialHomePage = () => {
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ─── ALL INTERESTS (Activity → View All) — same fixed header & tabs on top ─── */}
+      {activeBottomTab === 'activity' && currentSubView === 'interests' && (
+        <div className="flex-1 flex flex-col overflow-hidden bg-slate-50">
+          {renderMatrimonialHeader()}
+
+          {renderMatrimonialSubTabs()}
+
+          <div className="flex-1 overflow-y-auto pb-24">
+            <div className="px-4 pt-3 flex items-center gap-2">
+              <button
+                onClick={() => setCurrentSubView(null)}
+                aria-label="Back to Activity"
+                className="w-8 h-8 rounded-xl bg-white border border-slate-100 flex items-center justify-center text-slate-800 hover:bg-rose-50 hover:text-rose-600 transition-colors press-scale"
+              >
+                <ArrowLeft size={16} />
+              </button>
+              <h2 className="text-[15px] font-black text-slate-800">All Interests</h2>
+            </div>
+            <InterestsPage isHub />
           </div>
         </div>
       )}

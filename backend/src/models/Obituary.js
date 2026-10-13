@@ -114,10 +114,11 @@ const obituarySchema = new mongoose.Schema({
     index: true,
     default: null,
   },
-  // @deprecated — use communityId (ObjectId) instead.
+  // @deprecated — use communityId (ObjectId) instead. Not required: many accounts only
+  // have communityId, and requiring this text made creating a Shradhanjali fail.
   community: {
     type: String,
-    required: true,
+    default: '',
     index: true
   },
   haathJodeUsers: [{

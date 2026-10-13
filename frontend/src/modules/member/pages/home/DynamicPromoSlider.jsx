@@ -163,7 +163,7 @@ export const DynamicPromoSlider = ({ customBanners = null }) => {
     <div className="px-3 mt-6 relative z-10 select-none animate-fade-in-up">
       {/* Slider Container */}
       <div
-        className="relative w-full h-[190px] sm:h-[220px] rounded-[26px] overflow-hidden shadow-lg shadow-purple-500/10 border border-slate-200/80 bg-slate-900 group"
+        className="relative w-full h-[260px] sm:h-[300px] rounded-[26px] overflow-hidden shadow-lg shadow-purple-500/10 border border-slate-200/80 bg-slate-900 group"
         onMouseEnter={() => setIsPaused(true)}
         onMouseLeave={() => setIsPaused(false)}
         onTouchStart={handleTouchStart}

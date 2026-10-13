@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Search, X, Eye, MessageCircle, Bell, Menu } from 'lucide-react';
 import { useData } from '../../context/DataProvider';
 import { AnimatedPage } from '../../components/layout/AnimatedPage';
+import { FullImage } from '../../../../core/components/FullImage';
 
 const FILTER_TABS = [
   { id: 'all', label: 'All' },
@@ -36,12 +37,8 @@ const MemorialCard = ({ obituary, index }) => {
     >
       {/* ── Hero photo ── */}
       <div className="relative h-[220px] bg-slate-900 flex items-center justify-center overflow-hidden">
-        <img
-          src={obituary.image}
-          alt={obituary.deceasedName}
-          className="w-full h-full object-cover"
-          style={{ objectPosition: 'center 20%' }}
-        />
+        {/* Whole photo, never cropped */}
+        <FullImage src={obituary.image} alt={obituary.deceasedName} />
 
         {/* Om Shanti badge */}
         <div

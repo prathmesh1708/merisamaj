@@ -6,6 +6,7 @@ import { useData } from '../../context/DataProvider';
 import { PageHeader } from '../../components/layout/PageHeader';
 import { AnimatedPage } from '../../components/layout/AnimatedPage';
 import { Avatar } from '../../components/common/Avatar';
+import { FullImage } from '../../../../core/components/FullImage';
 
 const ObituaryPage = () => {
   const navigate = useNavigate();
@@ -50,8 +51,8 @@ const ObituaryPage = () => {
 
             {/* Photo & Header */}
             <div className="p-5 flex gap-4 items-start relative z-10">
-              <div className="w-20 h-20 rounded-[20px] bg-gray-100 shrink-0 border border-gray-200 overflow-hidden shadow-sm">
-                <img src={ob.image} alt={ob.deceasedName} className="w-full h-full object-cover" />
+              <div className="relative w-20 h-20 rounded-[20px] bg-gray-100 shrink-0 border border-gray-200 overflow-hidden shadow-sm">
+                <FullImage src={ob.image} alt={ob.deceasedName} />
               </div>
               <div className="flex-1 pt-1">
                 <h3 className="font-serif font-bold text-[18px] text-gray-900 leading-tight">

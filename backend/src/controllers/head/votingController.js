@@ -597,3 +597,18 @@ exports.closeElection = async (req, res) => {
     res.status(500).json({ status: 'error', message: 'Failed to close election' });
   }
 };
+
+// ─── Upload election banner image ──────────────────────────────────────────
+// @route POST /api/v1/head/voting/upload-banner   (multipart field: image)
+// @route POST /api/v1/admin/voting/upload-banner  (same handler)
+// Returns the hosted URL to save as the election's bannerImage.
+exports.uploadBanner = async (req, res) => {
+  try {
+    const { resolveAvatarUpload } = require('../../utils/avatarUploadHelper');
+    const url = await resolveAvatarUpload(req, 'election_banners');
+    if (!url) return res.status(400).json({ status: 'error', message: 'Please choose an image to upload.' });
+    res.status(200).json({ status: 'success', data: { url } });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};

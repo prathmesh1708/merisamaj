@@ -20,6 +20,7 @@ import {
 import { useData } from '../../context/DataProvider';
 import { AnimatedPage } from '../../components/layout/AnimatedPage';
 import StepWizard from './components/StepWizard';
+import { FullImage } from '../../../../core/components/FullImage';
 
 const CEREMONY_TYPES = [
   'Funeral / Last Rites'
@@ -611,7 +612,7 @@ const CreateShradhanjaliPage = () => {
 
       {form.photoUrl ? (
         <div className="relative rounded-2xl overflow-hidden shadow-sm max-h-[300px] w-full flex items-center justify-center">
-          <img src={form.photoUrl} alt="preview" className="w-full h-auto max-h-[300px] object-cover rounded-2xl" />
+          <img src={form.photoUrl} alt="preview" className="w-full h-auto max-h-[300px] object-contain rounded-2xl bg-slate-100" />
           {/* Remove */}
           <button
             onClick={() => setForm(f => ({ ...f, photoUrl: '', photoFile: null }))}
@@ -1066,7 +1067,7 @@ const CreateShradhanjaliPage = () => {
           {/* Photo preview */}
           {form.photoUrl && (
             <div className="relative h-[200px]">
-              <img src={form.photoUrl} alt="preview" className="w-full h-full object-cover" style={{ objectPosition: 'top center' }} />
+              <FullImage src={form.photoUrl} alt="preview" />
               <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 60%)' }} />
               <div
                 className="absolute top-3 left-3 flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-bold"

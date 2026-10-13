@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, Clock, Calendar } from 'lucide-react';
+import { FullImage } from '../../../../../core/components/FullImage';
 
 /**
  * ShradhanjaliCard — Compact list card for the home screen.
@@ -28,12 +29,8 @@ const ShradhanjaliCard = ({ obituary, index = 0 }) => {
       <div className="flex gap-3 p-4">
         {/* Photo */}
         <div className="relative shrink-0">
-          <div className="w-[72px] h-[72px] rounded-2xl overflow-hidden border border-amber-100">
-            <img
-              src={obituary.image}
-              alt={obituary.deceasedName}
-              className="w-full h-full object-cover"
-            />
+          <div className="relative w-[72px] h-[72px] rounded-2xl overflow-hidden border border-amber-100 bg-slate-900">
+            <FullImage src={obituary.image} alt={obituary.deceasedName} />
           </div>
           {/* Om badge */}
           <div

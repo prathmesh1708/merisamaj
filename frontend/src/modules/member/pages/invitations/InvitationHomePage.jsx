@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '../../context/DataProvider';
 import { Mail, Search, Bell, Plus, ChevronLeft, Menu, Calendar, CheckCircle2 } from 'lucide-react';
@@ -187,13 +187,41 @@ export default function InvitationHomePage() {
     return true;
   });
 
+  // ── Hide the tabs & date-filter bar while scrolling down; show it again on scroll up ──
+  const pageRef = useRef(null);
+  const [filtersHidden, setFiltersHidden] = useState(false);
+  useEffect(() => {
+    // The page scrolls inside the app layout, so listen on the nearest scrolling ancestor
+    let scroller = pageRef.current?.parentElement;
+    while (scroller && !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)) scroller = scroller.parentElement;
+    const target = scroller || window;
+    const getY = () => (scroller ? scroller.scrollTop : window.scrollY);
+    let lastY = getY();
+    const onScroll = () => {
+      const y = getY();
+      const delta = y - lastY;
+      if (y < 80) setFiltersHidden(false);          // near the top: always visible
+      else if (delta > 6) setFiltersHidden(true);   // scrolling down
+      else if (delta < -6) setFiltersHidden(false); // scrolling up
+      if (Math.abs(delta) > 6) lastY = y;
+    };
+    target.addEventListener('scroll', onScroll, { passive: true });
+    return () => target.removeEventListener('scroll', onScroll);
+  }, []);
+
+  // The bottom navigation bar hides and shows together with the filter bar
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('toggle-bottom-nav', { detail: !filtersHidden }));
+  }, [filtersHidden]);
+  useEffect(() => () => window.dispatchEvent(new CustomEvent('toggle-bottom-nav', { detail: true })), []);
+
   // Resolved from the live list (not stored) so the modal reflects new opens/RSVPs as they arrive
   const analyticsInvitation = analyticsInvitationId
     ? invitations.find(inv => String(inv._id || inv.id) === String(analyticsInvitationId))
     : null;
 
   return (
-    <div className="bg-slate-50/70 flex flex-col font-sans pb-32">
+    <div ref={pageRef} className="bg-slate-50/70 flex flex-col font-sans pb-32">
       {/* Header Bar — Glass morphism */}
       <div className="bg-white/85 backdrop-blur-xl px-4 py-3 flex items-center justify-between sticky top-0 z-30 shadow-[0_2px_12px_rgba(124,58,237,0.03)] border-b border-purple-100/30">
         <div className="flex items-center gap-3">
@@ -247,7 +275,12 @@ export default function InvitationHomePage() {
       </AnimatePresence>
 
       {/* Category Tabs & Date Filter Bar */}
-      <div className="bg-white/80 backdrop-blur-md border-b border-purple-100/30 px-3.5 sm:px-4 py-2.5 sm:py-3 sticky top-[56px] z-20 shadow-xs space-y-2">
+      {/* Slides up behind the header (border and shadow hidden) while scrolling down the list */}
+      <div className={`bg-white/80 backdrop-blur-md border-b px-3.5 sm:px-4 py-2.5 sm:py-3 sticky top-[56px] z-20 space-y-2 transition-[transform,opacity,border-color,box-shadow] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        filtersHidden
+          ? '-translate-y-full opacity-0 pointer-events-none border-transparent shadow-none'
+          : 'translate-y-0 opacity-100 border-purple-100/30 shadow-xs'
+      }`}>
         {/* Primary Tabs: All | Received | Sent */}
         <div className="flex items-center gap-1 p-1 bg-slate-100/80 rounded-2xl">
           {[
@@ -329,7 +362,9 @@ export default function InvitationHomePage() {
       {/* Floating Action Button */}
       <button 
         onClick={() => navigate('/member/invitations/create')}
-        className="fixed bottom-[96px] sm:bottom-[92px] right-4 sm:right-5 w-12 h-12 sm:w-13 sm:h-13 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/25 active:scale-90 transition-transform z-30 press-scale hover:scale-105"
+        className={`fixed right-4 sm:right-5 w-12 h-12 sm:w-13 sm:h-13 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/25 active:scale-90 transition-[bottom,transform] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] z-30 press-scale hover:scale-105 ${
+          filtersHidden ? 'bottom-6' : 'bottom-[96px] sm:bottom-[92px]'
+        }`}
       >
         <Plus size={22} strokeWidth={2.5} />
       </button>

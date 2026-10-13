@@ -82,7 +82,8 @@ const PollDetailPage = () => {
       </div>
 
       <div className="max-w-xl mx-auto px-4 pt-4 space-y-4">
-        {election.bannerImage && <img src={election.bannerImage} alt="" className="w-full h-40 object-cover rounded-2xl" />}
+        {/* Whole banner at its natural shape, never cropped */}
+        {election.bannerImage && <img src={election.bannerImage} alt="" className="w-full h-auto max-h-[70vh] object-contain rounded-2xl bg-slate-100" />}
 
         <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-2">
           <p className="text-sm text-slate-600">{election.description}</p>

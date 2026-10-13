@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { createPortal } from 'react-dom';
 import { MapPin, X, Eye, PartyPopper, UserX, BarChart3, Edit3, Trash2, Ban, AlertOctagon } from 'lucide-react';
 import { useData } from '../../../context/DataProvider';
 import { buildInvitationAnalytics, isInvitationCreator } from '../utils/invitationAnalytics';
@@ -92,7 +93,9 @@ export default function EnvelopeInvitationCard({
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
-      className="bg-white rounded-[26px] border border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_10px_28px_rgba(124,58,237,0.08)] transition-shadow duration-300"
+      // `relative isolate z-0`: the card's own layered pieces (× button, badges, seal) stay
+      // inside the card and can never draw over the page's sticky header while scrolling
+      className="relative isolate z-0 bg-white rounded-[26px] border border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_10px_28px_rgba(124,58,237,0.08)] transition-shadow duration-300"
     >
       {/* ---------- Sealed envelope ---------- */}
       <motion.div
@@ -430,8 +433,9 @@ export default function EnvelopeInvitationCard({
         </div>
       )}
 
-      {/* Lightbox Fullscreen Image Modal */}
-      <AnimatePresence>
+      {/* Lightbox Fullscreen Image Modal — rendered on <body> so it covers the whole screen
+          (the card is its own layer and would otherwise keep it under the header) */}
+      {createPortal(<AnimatePresence>
         {fullscreenImg && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -454,7 +458,7 @@ export default function EnvelopeInvitationCard({
             />
           </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>, document.body)}
     </motion.div>
   );
 }

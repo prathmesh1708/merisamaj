@@ -101,6 +101,11 @@ const likeStory = async (id) => {
   return response.data;
 };
 
+const getStoryViewers = async (id) => {
+  const response = await axiosPrivate.get(`${API_URL}/stories/${id}/viewers`);
+  return response.data;
+};
+
 // Follower APIs
 const toggleFollow = async (userId) => {
   if (!userId || userId === 'undefined' || userId === 'null') {
@@ -232,6 +237,7 @@ const socialService = {
   deleteStory,
   viewStory,
   likeStory,
+  getStoryViewers,
   toggleFollow,
   getFollowers,
   getFollowing,

@@ -68,7 +68,11 @@ export const MemberLayout = () => {
 
   const shouldHideBottomNav = hiddenPaths.some(p => location.pathname.startsWith(p)) || location.pathname.split('/').filter(Boolean).length > 2;
   const shouldHideSideNav = sideNavHiddenPaths.some(p => location.pathname.startsWith(p)) || location.pathname.split('/').filter(Boolean).length > 2;
-  const isFullHeightRoute = location.pathname.startsWith('/member/social') || location.pathname === '/member/chat' || location.pathname === '/member/matrimonial';
+  // Full-height pages manage their own scrolling (fixed header + tabs). Compare without a
+  // trailing slash: "/member/matrimonial/" got the extra bottom padding, which made the whole
+  // page scroll and pushed the matrimonial header and tabs off the top.
+  const normalizedPath = location.pathname.replace(/\/+$/, '') || '/';
+  const isFullHeightRoute = normalizedPath.startsWith('/member/social') || normalizedPath === '/member/chat' || normalizedPath === '/member/matrimonial';
 
   const handleMenuLinkClick = (item) => {
     setMobileMenuOpen(false);

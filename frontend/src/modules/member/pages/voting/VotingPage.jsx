@@ -71,7 +71,8 @@ const VotingPage = () => {
           return (
             <div key={e.id} onClick={() => navigate(`/member/voting/${e.id}`)}
               className="bg-white rounded-2xl border border-slate-200 overflow-hidden cursor-pointer hover:border-purple-300 hover:shadow-md transition-all">
-              {e.bannerImage && <img src={e.bannerImage} alt="" className="w-full h-32 object-cover" />}
+              {/* Whole banner, never cropped */}
+              {e.bannerImage && <img src={e.bannerImage} alt="" className="w-full h-auto max-h-56 object-contain bg-slate-100" />}
               <div className="p-4">
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="text-sm font-extrabold text-slate-900 leading-snug">{e.title}</h3>

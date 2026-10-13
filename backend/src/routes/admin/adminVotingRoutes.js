@@ -8,6 +8,7 @@ router.use(protect, authorize('admin'));
 
 // Admin Voting & Elections Operations
 router.get('/target-options', adminVotingController.getTargetOptions);
+router.post('/upload-banner', require('../../middleware/uploadMiddleware').single('image'), require('../../controllers/head/votingController').uploadBanner);
 router.get('/', adminVotingController.getAllElections);
 router.post('/', adminVotingController.createElection);
 router.get('/stats', adminVotingController.getVotingStats);

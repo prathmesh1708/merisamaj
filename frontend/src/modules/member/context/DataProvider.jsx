@@ -1302,6 +1302,10 @@ export const DataProvider = ({ children }) => {
       },
       createdAt: s.createdAt,
       timestamp: s.createdAt ? formatStoryTime(s.createdAt) : 'Just now',
+      viewCount: s.viewCount || 0,
+      likeCount: s.likeCount || 0,
+      viewedByMe: Boolean(s.viewedByMe),
+      likedByMe: Boolean(s.likedByMe),
       hasSeen: false
     };
   };
@@ -1898,6 +1902,41 @@ export const DataProvider = ({ children }) => {
       console.error('Failed to add obituary:', error);
       throw error;
     }
+  };
+
+  // ── Story interactions ──
+  const patchStory = (id, patch) => setStories(prev => prev.map(st => (st.id === id ? { ...st, ...patch } : st)));
+
+  // Record that I saw someone else's story (once per story)
+  const markStoryViewed = async (story) => {
+    if (!story?.id || story.viewedByMe) return;
+    patchStory(story.id, { viewedByMe: true });
+    try { await socialService.viewStory(story.id); } catch { /* not critical */ }
+  };
+
+  // Like / unlike — updates the heart and count straight away, then syncs with the server
+  const toggleStoryLike = async (story) => {
+    if (!story?.id) return;
+    const liked = !story.likedByMe;
+    patchStory(story.id, { likedByMe: liked, likeCount: Math.max(0, (story.likeCount || 0) + (liked ? 1 : -1)) });
+    try {
+      const res = await socialService.likeStory(story.id);
+      if (res && typeof res.likeCount === 'number') patchStory(story.id, { likedByMe: res.liked, likeCount: res.likeCount });
+    } catch {
+      patchStory(story.id, { likedByMe: story.likedByMe, likeCount: story.likeCount }); // undo
+    }
+  };
+
+  // Who viewed my story (and whether they liked it)
+  const getStoryViewers = async (storyId) => {
+    const res = await socialService.getStoryViewers(storyId);
+    if (res?.success) patchStory(storyId, { viewCount: res.viewCount ?? res.data.length, likeCount: res.likeCount ?? 0 });
+    return res?.data || [];
+  };
+
+  const deleteStory = async (storyId) => {
+    await socialService.deleteStory(storyId);
+    setStories(prev => prev.filter(st => st.id !== storyId));
   };
 
   const addStory = async (storyImage, storyText = '', storyOptions = {}) => {
@@ -3167,6 +3206,10 @@ export const DataProvider = ({ children }) => {
     clearChatMessages,
     stories: adaptedStoriesList,
     addStory,
+    deleteStory,
+    markStoryViewed,
+    toggleStoryLike,
+    getStoryViewers,
 
     // Follow System & Privacy Exports
     profilePrivacy,

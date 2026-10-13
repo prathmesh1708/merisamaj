@@ -5,6 +5,7 @@ import {
   MapPin, Calendar, Clock, Sparkles, X, ChevronDown, Trash2, Globe, Flame
 } from 'lucide-react';
 import { axiosPrivate } from '../../../../core/api/axiosPrivate';
+import { FullImage } from '../../../../core/components/FullImage';
 
 export const AdminObituaryManagement = () => {
   const [obituaries, setObituaries] = useState([]);
@@ -318,11 +319,9 @@ export const AdminObituaryManagement = () => {
               >
                 {/* Header Image & Badge */}
                 <div className="relative h-64 bg-slate-900 overflow-hidden flex items-center justify-center">
-                  <img 
-                    src={ob.image || 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400'} 
-                    alt={ob.deceasedName}
-                    className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300"
-                  />
+                  {ob.image
+                    ? <FullImage src={ob.image} alt={ob.deceasedName} />
+                    : <span className="text-5xl opacity-60">🪔</span>}
                   <div className="absolute top-3 left-3 bg-black/70 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold text-amber-300 border border-amber-300/30">
                     🪔 {ob.community || 'Samaj Member'}
                   </div>
@@ -484,8 +483,8 @@ export const AdminObituaryManagement = () => {
               {/* Modal Header */}
               <div className="p-5 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-full border border-slate-200 overflow-hidden bg-slate-100 shadow-sm shrink-0">
-                    <img src={selectedObituary.image || 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=100'} alt="" className="w-full h-full object-cover object-top" />
+                  <div className="relative w-11 h-11 rounded-full border border-slate-200 overflow-hidden bg-slate-100 shadow-sm shrink-0 flex items-center justify-center">
+                    {selectedObituary.image ? <FullImage src={selectedObituary.image} alt="" /> : <span className="text-lg">🪔</span>}
                   </div>
                   <div>
                     <h3 className="text-base font-black text-slate-800 leading-tight">{selectedObituary.deceasedName}</h3>

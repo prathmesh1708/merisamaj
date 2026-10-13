@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Heart, Send } from 'lucide-react';
+import { X, Heart, Send, Eye, Trash2, Loader2 } from 'lucide-react';
 import { Avatar } from './Avatar';
 import { useData } from '../../context/DataProvider';
 import { createPortal } from 'react-dom';
@@ -23,8 +23,13 @@ const slideVariants = {
 
 export const StoryViewer = ({ story, stories = [], onStoryChange, onClose }) => {
   const [progress, setProgress] = useState(0);
-  const [likedStories, setLikedStories] = useState({});
-  const { sendChatMessage, getOrCreateChat, currentUser } = useData();
+  const {
+    sendChatMessage, getOrCreateChat, currentUser,
+    markStoryViewed, toggleStoryLike, getStoryViewers, deleteStory
+  } = useData();
+  // The story passed in is a snapshot from when it was opened — read the live copy
+  // from the list so view/like counts update while it is on screen
+  const liveStory = (story && stories.find(s => s.id === story.id)) || story;
   const myUserId = String(currentUser?._id || currentUser?.id || '');
   const isMyStory = !!story && !!myUserId && story.memberId === myUserId;
   const [replyText, setReplyText] = useState('');
@@ -36,17 +41,40 @@ export const StoryViewer = ({ story, stories = [], onStoryChange, onClose }) => 
     setFixedHeight(`${window.innerHeight}px`);
   }, []);
 
-  const isCurrentStoryLiked = story ? !!likedStories[story.id] : false;
+  const isCurrentStoryLiked = !!liveStory?.likedByMe;
 
   const toggleLike = (e) => {
     e.stopPropagation();
-    if (story) {
-      setLikedStories(prev => ({
-        ...prev,
-        [story.id]: !prev[story.id]
-      }));
+    if (liveStory && toggleStoryLike) toggleStoryLike(liveStory);
+  };
+
+  // Count a view when someone else's story is shown
+  useEffect(() => {
+    if (liveStory && !isMyStory && markStoryViewed) markStoryViewed(liveStory);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [story?.id]);
+
+  // ── Own story: viewers sheet & delete ──
+  const [viewersOpen, setViewersOpen] = useState(false);
+  const [viewers, setViewers] = useState([]);
+  const [viewersLoading, setViewersLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const openViewers = async (e) => {
+    e?.stopPropagation();
+    if (!liveStory || !getStoryViewers) return;
+    setViewersOpen(true);
+    setViewersLoading(true);
+    try {
+      setViewers(await getStoryViewers(liveStory.id));
+    } catch {
+      setViewers([]);
+    } finally {
+      setViewersLoading(false);
     }
   };
+
+  useEffect(() => { setViewersOpen(false); setViewers([]); }, [story?.id]);
 
   const handleSendReply = () => {
     const trimmed = replyText.trim();
@@ -196,7 +224,7 @@ export const StoryViewer = ({ story, stories = [], onStoryChange, onClose }) => 
 
   // Auto advance timeline (5 seconds per story)
   useEffect(() => {
-    if (!story || isPaused) return;
+    if (!story || isPaused || viewersOpen || deleting) return;
 
     const duration = 5000;
     const interval = 50; // Update every 50ms
@@ -207,7 +235,7 @@ export const StoryViewer = ({ story, stories = [], onStoryChange, onClose }) => 
     }, interval);
 
     return () => clearInterval(timer);
-  }, [story?.id, isPaused]);
+  }, [story?.id, isPaused, viewersOpen, deleting]);
 
   // When the bar fills up, move on (kept out of the state updater so it runs exactly once)
   useEffect(() => {
@@ -216,6 +244,24 @@ export const StoryViewer = ({ story, stories = [], onStoryChange, onClose }) => 
   }, [progress]);
 
   if (!story) return null;
+
+  const handleDelete = async (e) => {
+    e?.stopPropagation();
+    if (!liveStory || !deleteStory || deleting) return;
+    if (!window.confirm('Delete this story? It will be removed for everyone.')) return;
+    setDeleting(true);
+    // Where to go after deleting: my next story, else my previous one, else close
+    const next = currentMemberStories[activeStoryIndex + 1] || currentMemberStories[activeStoryIndex - 1];
+    try {
+      await deleteStory(liveStory.id);
+      if (next) onStoryChange(next);
+      else onClose();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Could not delete the story. Please try again.');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const handleTap = (tapDirection) => {
     if (tapDirection === 'right') {
@@ -242,7 +288,7 @@ export const StoryViewer = ({ story, stories = [], onStoryChange, onClose }) => 
     <AnimatePresence>
       {story && (
       <motion.div 
-        drag={!isPaused ? "y" : false}
+        drag={!isPaused && !viewersOpen ? "y" : false}
         dragConstraints={{ top: 0, bottom: 0 }}
         dragElastic={{ top: 0, bottom: 0.8 }}
         onDragEnd={(event, info) => {
@@ -352,6 +398,36 @@ export const StoryViewer = ({ story, stories = [], onStoryChange, onClose }) => 
             <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/60 to-transparent pointer-events-none z-10" />
             <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black/80 to-transparent pointer-events-none z-10" />
 
+            {/* Own story footer: views, likes, delete (like Instagram) */}
+            {isMyStory && (
+              <div className="absolute bottom-0 pb-6 left-0 right-0 z-20 px-4">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={openViewers}
+                    className="flex-1 flex items-center gap-3 bg-black/40 backdrop-blur-md border border-white/20 rounded-full px-4 py-2.5 text-white active:scale-[0.98] transition-transform"
+                  >
+                    <span className="flex items-center gap-1.5 text-[13px] font-bold">
+                      <Eye size={17} /> {liveStory?.viewCount || 0}
+                    </span>
+                    <span className="flex items-center gap-1.5 text-[13px] font-bold">
+                      <Heart size={16} className="text-rose-400 fill-rose-400" /> {liveStory?.likeCount || 0}
+                    </span>
+                    <span className="ml-auto text-[12px] font-semibold text-white/75">Activity</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    aria-label="Delete story"
+                    className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/20 text-white flex items-center justify-center shrink-0 active:scale-95 transition-transform disabled:opacity-60"
+                  >
+                    {deleting ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Story Reply Footer — not shown on your own story */}
             {!isMyStory && (
             <div className="absolute bottom-0 pb-6 left-0 right-0 z-20 px-4">
@@ -402,6 +478,59 @@ export const StoryViewer = ({ story, stories = [], onStoryChange, onClose }) => 
               </div>
             )}
           </motion.div>
+        </AnimatePresence>
+
+        {/* Viewers sheet (own story) */}
+        <AnimatePresence>
+          {viewersOpen && (
+            <motion.div
+              key="viewers-sheet"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-50 bg-black/50 flex items-end"
+              onClick={() => setViewersOpen(false)}
+            >
+              <motion.div
+                initial={{ y: '100%' }}
+                animate={{ y: 0 }}
+                exit={{ y: '100%' }}
+                transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full max-h-[65%] bg-white rounded-t-3xl flex flex-col"
+              >
+                <div className="pt-2.5 pb-3 px-5 border-b border-slate-100 shrink-0">
+                  <div className="w-10 h-1 rounded-full bg-slate-300 mx-auto mb-3" />
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-[15px] font-black text-slate-900">Story activity</h3>
+                    <div className="flex items-center gap-3 text-[13px] font-bold text-slate-700">
+                      <span className="flex items-center gap-1"><Eye size={15} /> {liveStory?.viewCount || 0}</span>
+                      <span className="flex items-center gap-1"><Heart size={14} className="text-rose-500 fill-rose-500" /> {liveStory?.likeCount || 0}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="overflow-y-auto overscroll-contain px-3 py-2 flex-1">
+                  {viewersLoading ? (
+                    <div className="py-10 flex justify-center text-slate-400"><Loader2 size={22} className="animate-spin" /></div>
+                  ) : viewers.length === 0 ? (
+                    <p className="py-10 text-center text-[13px] font-semibold text-slate-400">No one has viewed this story yet.</p>
+                  ) : (
+                    viewers.map(v => (
+                      <div key={v._id} className="flex items-center gap-3 px-2 py-2.5 rounded-xl">
+                        <Avatar
+                          initials={(v.name || '?').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                          avatar={v.avatar}
+                          size="sm"
+                        />
+                        <span className="flex-1 min-w-0 text-[14px] font-bold text-slate-800 truncate">{v.name || 'Member'}</span>
+                        {v.liked && <Heart size={17} className="text-rose-500 fill-rose-500 shrink-0" aria-label="Liked" />}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
         </AnimatePresence>
 
         {/* Static Overlay Tap Targets in the middle viewport */}
