@@ -50,9 +50,9 @@ const DonationDetailModal = ({ isOpen, onClose, campaignId }) => {
           ) : campaign ? (
             <>
               {/* Header */}
-              <div className="relative h-48 bg-gray-100 shrink-0">
+              <div className={`relative w-full shrink-0 overflow-hidden ${campaign.bannerImage ? '' : 'h-48 bg-gray-100'}`}>
                 {campaign.bannerImage ? (
-                  <img src={campaign.bannerImage} alt="Banner" className="w-full h-full object-cover" />
+                  <img src={campaign.bannerImage} alt="Banner" className="block w-full h-auto max-h-[70vh] object-contain" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-gray-400">No Banner Image</div>
                 )}

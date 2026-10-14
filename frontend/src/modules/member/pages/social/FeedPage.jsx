@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ThumbsUp, MessageCircle, Share2, MoreHorizontal, PlusCircle, Image as ImageIcon, Send, Search, Bell, Radio, Clock, Camera, Video, Calendar, Eye, Heart, Bookmark, Award, Sparkles, Smile, Phone, MapPin, Check, Gift, X, SlidersHorizontal, User, Settings, LogOut, Megaphone, HeartHandshake, AlertCircle, ChevronLeft, ChevronRight, Play } from 'lucide-react';
+import { MessageCircle, MoreHorizontal, PlusCircle, Image as ImageIcon, Send, Search, Bell, Radio, Clock, Camera, Video, Calendar, Eye, Heart, Bookmark, Award, Sparkles, Smile, Phone, MapPin, Check, Gift, X, SlidersHorizontal, User, Settings, LogOut, Megaphone, HeartHandshake, AlertCircle, ChevronLeft, ChevronRight, Play } from 'lucide-react';
 
 const InstagramIcon = (props) => (
   <svg
@@ -228,7 +228,7 @@ const AutoPauseVideo = ({ src, isSingle = true, onClick }) => {
   return (
     <div 
       ref={containerRef} 
-      className={isSingle ? "w-full rounded-2xl overflow-hidden bg-black flex items-center justify-center relative my-0.5" : "w-full h-full bg-black flex items-center justify-center relative"}
+      className={isSingle ? "w-full overflow-hidden bg-black flex items-center justify-center relative my-0.5" : "w-full h-full bg-black flex items-center justify-center relative"}
       onClick={onClick}
     >
       <video 
@@ -238,7 +238,7 @@ const AutoPauseVideo = ({ src, isSingle = true, onClick }) => {
         playsInline
         webkit-playsinline="true"
         preload="metadata"
-        className={isSingle ? "w-full max-h-[600px] object-contain rounded-2xl block mx-auto" : "w-full h-full object-cover"} 
+        className={isSingle ? "w-full max-h-[600px] object-contain block mx-auto" : "w-full h-full object-cover"} 
       />
     </div>
   );
@@ -288,7 +288,7 @@ const AutoPauseYouTube = ({ embedUrl }) => {
     return (
       <div 
         ref={containerRef} 
-        className="w-full aspect-video rounded-2xl overflow-hidden bg-black shadow-md relative group cursor-pointer" 
+        className="w-full aspect-video overflow-hidden bg-black shadow-md relative group cursor-pointer" 
         onClick={(e) => {
           e.stopPropagation();
           setIsPlaying(true);
@@ -310,7 +310,7 @@ const AutoPauseYouTube = ({ embedUrl }) => {
   }
 
   return (
-    <div ref={containerRef} className="w-full aspect-video rounded-2xl overflow-hidden bg-black shadow-md relative" onClick={(e) => e.stopPropagation()}>
+    <div ref={containerRef} className="w-full aspect-video overflow-hidden bg-black shadow-md relative" onClick={(e) => e.stopPropagation()}>
       <iframe 
         ref={iframeRef}
         src={finalEmbedUrl} 
@@ -404,13 +404,13 @@ const InstagramEmbedPlayer = ({ url }) => {
   return (
     <div 
       ref={containerRef} 
-      className="w-full rounded-2xl overflow-hidden bg-black shadow-md relative border border-slate-800/80 my-1 min-h-[480px] flex items-center justify-center" 
+      className="w-full overflow-hidden bg-black shadow-md relative border border-slate-800/80 my-1 min-h-[480px] flex items-center justify-center" 
       onClick={(e) => e.stopPropagation()}
     >
       {isInView ? (
         <iframe
           src={embedUrl}
-          className="w-full h-[480px] max-h-[75vh] border-0 rounded-2xl bg-black"
+          className="w-full h-[480px] max-h-[75vh] border-0 bg-black"
           scrolling="no"
           allowtransparency="true"
           loading="lazy"
@@ -489,13 +489,13 @@ export const RenderMedia = ({ url, isSingle = false, onClick }) => {
   }
 
   return (
-    <div className={isSingle ? "w-full rounded-2xl overflow-hidden" : "w-full h-full bg-slate-100 flex items-center justify-center"}>
+    <div className={isSingle ? "w-full overflow-hidden" : "w-full h-full bg-slate-100 flex items-center justify-center"}>
       <img 
         src={cleanUrl} 
         alt="Post Attachment" 
         loading="lazy"
         decoding="async"
-        className={isSingle ? "w-full h-auto max-h-[850px] object-cover rounded-2xl block cursor-pointer hover:scale-[1.005] transition-transform duration-300" : "w-full h-full object-cover cursor-pointer"} 
+        className={isSingle ? "w-full h-auto max-h-[850px] object-cover block cursor-pointer hover:scale-[1.005] transition-transform duration-300" : "w-full h-full object-cover cursor-pointer"} 
         onClick={onClick} 
       />
     </div>
@@ -510,7 +510,7 @@ const MultiImageGrid = ({ images, onClick }) => {
 
   if (images.length === 1) {
     return (
-      <div className="w-full mb-3 rounded-2xl overflow-hidden bg-slate-950/5 flex items-center justify-center">
+      <div className="w-full mb-3 overflow-hidden bg-slate-950/5 flex items-center justify-center">
         <RenderMedia url={images[0]} onClick={onClick} isSingle={true} />
       </div>
     );
@@ -550,7 +550,7 @@ const MultiImageGrid = ({ images, onClick }) => {
 
   return (
     <div 
-      className="relative w-full mb-3 rounded-2xl overflow-hidden bg-slate-950/5 group border border-slate-100/80 shadow-xs select-none"
+      className="relative w-full mb-3 overflow-hidden bg-slate-950/5 group border border-slate-100/80 shadow-xs select-none"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
@@ -921,7 +921,7 @@ const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDelete
             <MultiImageGrid images={post.images} onClick={() => navigate(`/member/social/${post.id}`)} />
           </div>
         ) : post.image ? (
-          <div className="mb-3 bg-slate-950/5 flex items-center justify-center cursor-pointer overflow-hidden relative rounded-2xl" onClick={() => navigate(`/member/social/${post.id}`)}>
+          <div className="mb-3 bg-slate-950/5 flex items-center justify-center cursor-pointer overflow-hidden relative" onClick={() => navigate(`/member/social/${post.id}`)}>
             <RenderMedia url={post.image} onClick={() => navigate(`/member/social/${post.id}`)} isSingle={true} />
           </div>
         ) : (() => {
@@ -930,7 +930,7 @@ const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDelete
             for (const u of match) {
               if (extractYouTubeVideoId(u)) {
                 return (
-                  <div className="mb-3 bg-slate-950/5 flex items-center justify-center overflow-hidden relative rounded-2xl">
+                  <div className="mb-3 bg-slate-950/5 flex items-center justify-center overflow-hidden relative">
                     <RenderMedia url={u} onClick={() => navigate(`/member/social/${post.id}`)} isSingle={true} />
                   </div>
                 );
@@ -955,65 +955,71 @@ const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDelete
         </AnimatePresence>
       </div>
 
-      {/* Stats (Likes, Comments & Views) */}
-      <div className="px-3 pb-3 flex items-center justify-between text-[11.5px] font-bold text-slate-400">
-        <div className="flex items-center gap-1.5">
-          <span className="flex items-center -space-x-1">
-            <span className="w-5.5 h-5.5 rounded-full bg-red-50 flex items-center justify-center border-2 border-white shadow-sm">
-              <Heart size={9} className="text-red-500 fill-red-500" />
-            </span>
-            <span className="w-5.5 h-5.5 rounded-full bg-blue-50 flex items-center justify-center border-2 border-white shadow-sm">
-              <ThumbsUp size={9} className="text-blue-500 fill-blue-500" />
-            </span>
-          </span>
-          <span className="text-slate-500 font-semibold">{post.likes} {localT[lang].likes}</span>
+      {/* Action Icons Row (Instagram style) */}
+      <div className="px-2 pt-1 flex items-center justify-between">
+        <div className="flex items-center">
+          <motion.button 
+            whileTap={{ scale: 0.85 }}
+            onClick={(e) => { e.stopPropagation(); togglePostLike(post.id); }}
+            className={`p-2 transition-colors ${post.isLiked ? 'text-red-500' : 'text-slate-800 hover:text-slate-500'}`}
+            aria-label={localT[lang].like}
+          >
+            <Heart size={24} strokeWidth={2} className={post.isLiked ? 'fill-red-500 text-red-500' : ''} />
+          </motion.button>
+          <motion.button 
+            whileTap={{ scale: 0.85 }}
+            onClick={(e) => { e.stopPropagation(); navigate(`/member/social/${post.id}`); }}
+            className="p-2 text-slate-800 hover:text-slate-500 transition-colors"
+            aria-label={localT[lang].comment}
+          >
+            <MessageCircle size={24} strokeWidth={2} className="-scale-x-100" />
+          </motion.button>
+          <motion.button 
+            whileTap={{ scale: 0.85 }}
+            onClick={(e) => { e.stopPropagation(); onShareClick(post); }}
+            className="p-2 text-slate-800 hover:text-slate-500 transition-colors"
+            aria-label={localT[lang].share}
+          >
+            <Send size={23} strokeWidth={2} />
+          </motion.button>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-slate-500 font-semibold">
-            {post.commentsList ? post.commentsList.length : (post.comments || 0)} {localT[lang].comments}
-          </span>
-          <span className="flex items-center gap-1 font-semibold text-slate-450">
-            <Eye size={13} className="text-slate-350" />
-            {post.views ? `${post.views >= 1000 ? (post.views / 1000).toFixed(1) + 'K' : post.views} ${localT[lang].views}` : `0 ${localT[lang].views}`}
-          </span>
-        </div>
+        <motion.button 
+          whileTap={{ scale: 0.85 }}
+          onClick={(e) => { e.stopPropagation(); togglePostSave(post.id); }}
+          className={`p-2 transition-colors ${post.isSaved ? 'text-slate-900' : 'text-slate-800 hover:text-slate-500'}`}
+          aria-label={localT[lang].save}
+        >
+          <Bookmark size={24} strokeWidth={2} className={post.isSaved ? 'fill-slate-900' : ''} />
+        </motion.button>
       </div>
 
-      {/* Action Triggers Row */}
-      <div className="flex items-center justify-evenly py-1.5 border-t border-slate-100 bg-slate-50/20">
-        <motion.button 
-          whileTap={{ scale: 0.95 }}
-          onClick={(e) => { e.stopPropagation(); togglePostLike(post.id); }}
-          className={`flex items-center justify-center gap-1.5 px-2 py-2 text-[13.5px] font-bold transition-all rounded-xl hover:bg-slate-100/50 ${post.isLiked ? 'text-red-500' : 'text-slate-500 hover:text-red-500'}`}
-        >
-          <Heart size={18} className={post.isLiked ? 'fill-red-500 text-red-500' : ''} /> 
-          {localT[lang].like}
-        </motion.button>
-        <motion.button 
-          whileTap={{ scale: 0.95 }}
-          onClick={(e) => { e.stopPropagation(); navigate(`/member/social/${post.id}`); }}
-          className="flex items-center justify-center gap-1.5 px-2 py-2 text-[13.5px] font-bold text-slate-500 hover:text-[#1877F2] hover:bg-slate-100/50 rounded-xl transition-all"
-        >
-          <MessageCircle size={18} /> 
-          {localT[lang].comment}
-        </motion.button>
-        <motion.button 
-          whileTap={{ scale: 0.95 }}
-          onClick={(e) => { e.stopPropagation(); onShareClick(post); }}
-          className="flex items-center justify-center gap-1.5 px-2 py-2 text-[13.5px] font-bold text-slate-500 hover:text-emerald-600 hover:bg-slate-100/50 rounded-xl transition-all"
-        >
-          <Share2 size={18} />
-          {localT[lang].share}
-        </motion.button>
-        <motion.button 
-          whileTap={{ scale: 0.95 }}
-          onClick={(e) => { e.stopPropagation(); togglePostSave(post.id); }}
-          className={`flex items-center justify-center gap-1.5 px-2 py-2 text-[13.5px] font-bold transition-all rounded-xl hover:bg-slate-100/50 ${post.isSaved ? 'text-amber-500' : 'text-slate-500 hover:text-amber-500'}`}
-        >
-          <Bookmark size={18} className={post.isSaved ? 'fill-amber-500 text-amber-500' : ''} /> 
-          {localT[lang].save}
-        </motion.button>
-      </div>
+      {/* Likes, Views & Comments summary */}
+      {(() => {
+        const likeCount = post.likes || 0;
+        const commentCount = post.commentsList ? post.commentsList.length : (post.comments || 0);
+        const views = post.views || 0;
+        return (
+          <div className="px-4 pb-3 space-y-0.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[13.5px] font-bold text-slate-900">
+                {likeCount.toLocaleString()} {likeCount === 1 ? 'like' : localT[lang].likes}
+              </span>
+              <span className="flex items-center gap-1 text-[11.5px] font-semibold text-slate-400">
+                <Eye size={13} />
+                {views >= 1000 ? (views / 1000).toFixed(1) + 'K' : views} {localT[lang].views}
+              </span>
+            </div>
+            {commentCount > 0 && (
+              <button
+                onClick={(e) => { e.stopPropagation(); navigate(`/member/social/${post.id}`); }}
+                className="block text-[13px] font-medium text-slate-400 hover:text-slate-500"
+              >
+                {commentCount === 1 ? 'View 1 comment' : `View all ${commentCount} ${localT[lang].comments}`}
+              </button>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 };
@@ -1033,7 +1039,7 @@ const FeedPage = ({ isHub = false, feedType = 'city', searchQuery = '', isFilter
     members: mockMembers, 
     currentUser, 
     language, 
-    stories = [], 
+    stories: allStories = [], 
     getUnreadCountForModule, 
     logoutUser 
   } = useData();
@@ -1089,6 +1095,14 @@ const FeedPage = ({ isHub = false, feedType = 'city', searchQuery = '', isFilter
   // Split stories into "mine" and one group per other member, in the same order the
   // bar shows them, so the viewer moves to the next card's person after each group.
   const myUserId = String(currentUser?._id || currentUser?.id || '');
+  // Each feed tab only shows the stories posted for it (or for both feeds);
+  // the City Feed is further limited to stories from the viewer's own city.
+  const stories = allStories.filter(s => {
+    const storyFeed = s.feedType || 'both';
+    if (feedType === 'community') return storyFeed !== 'city';
+    if (feedType === 'city') return storyFeed !== 'community' && s.sameCity;
+    return true;
+  });
   const myStories = stories.filter(s => myUserId && s.memberId === myUserId);
   const otherStoryGroups = [];
   stories.forEach(s => {
@@ -1278,7 +1292,7 @@ const FeedPage = ({ isHub = false, feedType = 'city', searchQuery = '', isFilter
                 if (myStories.length > 0) {
                   setActiveStory(myStories[0]);
                 } else {
-                  navigate('/member/social/create', { state: { createStoryMode: true } });
+                  navigate('/member/social/create', { state: { createStoryMode: true, feedType } });
                 }
               }}
             >
@@ -1298,7 +1312,7 @@ const FeedPage = ({ isHub = false, feedType = 'city', searchQuery = '', isFilter
                     className="absolute top-2 right-2 w-6 h-6 bg-blue-500 rounded-full border-2 border-white flex items-center justify-center shadow-sm z-10"
                     onClick={(e) => {
                       e.stopPropagation();
-                      navigate('/member/social/create', { state: { createStoryMode: true } });
+                      navigate('/member/social/create', { state: { createStoryMode: true, feedType } });
                     }}
                   >
                     <PlusCircle size={14} className="text-white" strokeWidth={2.5} fill="currentColor" />

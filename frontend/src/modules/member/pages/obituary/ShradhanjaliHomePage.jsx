@@ -36,29 +36,41 @@ const MemorialCard = ({ obituary, index }) => {
       }}
     >
       {/* ── Hero photo ── */}
-      <div className="relative h-[220px] bg-slate-900 flex items-center justify-center overflow-hidden">
-        {/* Whole photo, never cropped */}
-        <FullImage src={obituary.image} alt={obituary.deceasedName} />
+      {obituary.image ? (
+        <div className="relative w-full overflow-hidden">
+          {/* Full image capturing complete space without any border */}
+          <img
+            src={obituary.image}
+            alt={obituary.deceasedName}
+            className="w-full h-auto block"
+            loading="lazy"
+          />
 
-        {/* Om Shanti badge */}
-        <div
-          className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-bold"
-          style={{
-            background: 'rgba(20,12,0,0.78)',
-            backdropFilter: 'blur(14px)',
-            color: '#D4AF37',
-            border: '1px solid rgba(212,175,55,0.3)',
-          }}
-        >
-          🪔 Om Shanti
-        </div>
+          {/* Om Shanti badge */}
+          <div
+            className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-bold z-10"
+            style={{
+              background: 'rgba(20,12,0,0.78)',
+              backdropFilter: 'blur(14px)',
+              color: '#D4AF37',
+              border: '1px solid rgba(212,175,55,0.3)',
+            }}
+          >
+            🪔 Om Shanti
+          </div>
 
-        {/* Floral corners */}
-        <div className="absolute bottom-2 left-3 right-3 flex justify-between pointer-events-none">
-          <span className="text-[22px] opacity-50 select-none">🌸</span>
-          <span className="text-[22px] opacity-50 select-none">🌸</span>
+          {/* Floral corners */}
+          <div className="absolute bottom-2 left-3 right-3 flex justify-between pointer-events-none z-10">
+            <span className="text-[22px] opacity-50 select-none">🌸</span>
+            <span className="text-[22px] opacity-50 select-none">🌸</span>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="relative h-[180px] bg-gradient-to-b from-[#2D1A0E] to-[#1A0D05] flex flex-col items-center justify-center">
+          <span className="text-4xl">🪔</span>
+          <span className="text-xs font-bold text-amber-200/60 mt-2">Om Shanti</span>
+        </div>
+      )}
 
       {/* ── Info block ── */}
       <div className="px-4 pt-3 pb-4">

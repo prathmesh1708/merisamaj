@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Heart, Share2, MoreHorizontal, Send, ArrowLeft, Check, Camera, Smile, ThumbsUp, Calendar, Phone, Eye, MessageCircle, ChevronDown, Clock, X, Bookmark, ChevronLeft, ChevronRight, Play } from 'lucide-react';
+import { Heart, MoreHorizontal, Send, ArrowLeft, Check, Camera, Smile, ThumbsUp, Calendar, Phone, Eye, MessageCircle, ChevronDown, Clock, X, Bookmark, ChevronLeft, ChevronRight, Play } from 'lucide-react';
 
 const InstagramIcon = (props) => (
   <svg
@@ -102,7 +102,7 @@ const AutoPauseVideo = ({ src, isSingle = true }) => {
   return (
     <div 
       ref={containerRef} 
-      className={isSingle ? "w-full rounded-2xl overflow-hidden bg-black flex items-center justify-center relative my-0.5" : "w-full h-full bg-black flex items-center justify-center relative"}
+      className={isSingle ? "w-full overflow-hidden bg-black flex items-center justify-center relative my-0.5" : "w-full h-full bg-black flex items-center justify-center relative"}
     >
       <video 
         ref={videoRef}
@@ -111,7 +111,7 @@ const AutoPauseVideo = ({ src, isSingle = true }) => {
         playsInline
         webkit-playsinline="true"
         preload="metadata"
-        className={isSingle ? "w-full max-h-[600px] object-contain rounded-2xl block mx-auto" : "w-full h-full object-cover"} 
+        className={isSingle ? "w-full max-h-[600px] object-contain block mx-auto" : "w-full h-full object-cover"} 
       />
     </div>
   );
@@ -161,7 +161,7 @@ const AutoPauseYouTube = ({ embedUrl }) => {
     return (
       <div 
         ref={containerRef} 
-        className="w-full aspect-video rounded-2xl overflow-hidden bg-black shadow-md relative group cursor-pointer" 
+        className="w-full aspect-video overflow-hidden bg-black shadow-md relative group cursor-pointer" 
         onClick={(e) => {
           e.stopPropagation();
           setIsPlaying(true);
@@ -183,7 +183,7 @@ const AutoPauseYouTube = ({ embedUrl }) => {
   }
 
   return (
-    <div ref={containerRef} className="w-full aspect-video rounded-2xl overflow-hidden bg-black shadow-md relative" onClick={(e) => e.stopPropagation()}>
+    <div ref={containerRef} className="w-full aspect-video overflow-hidden bg-black shadow-md relative" onClick={(e) => e.stopPropagation()}>
       <iframe 
         ref={iframeRef}
         src={finalEmbedUrl} 
@@ -274,12 +274,12 @@ const InstagramEmbedPlayer = ({ url }) => {
   return (
     <div 
       ref={containerRef} 
-      className="w-full rounded-2xl overflow-hidden bg-black shadow-md relative border border-slate-800/80 my-1 min-h-[480px] flex items-center justify-center"
+      className="w-full overflow-hidden bg-black shadow-md relative border border-slate-800/80 my-1 min-h-[480px] flex items-center justify-center"
     >
       {isInView ? (
         <iframe
           src={embedUrl}
-          className="w-full h-[480px] max-h-[75vh] border-0 rounded-2xl bg-black"
+          className="w-full h-[480px] max-h-[75vh] border-0 bg-black"
           scrolling="no"
           allowtransparency="true"
           loading="lazy"
@@ -357,13 +357,13 @@ const RenderMedia = ({ url, isSingle = true }) => {
   }
 
   return (
-    <div className={isSingle ? "w-full rounded-2xl overflow-hidden" : "w-full h-full bg-slate-100 flex items-center justify-center"}>
+    <div className={isSingle ? "w-full overflow-hidden" : "w-full h-full bg-slate-100 flex items-center justify-center"}>
       <img 
         src={cleanUrl} 
         alt="Post Attachment" 
         loading="lazy"
         decoding="async"
-        className={isSingle ? "w-full h-auto max-h-[850px] object-cover rounded-2xl animate-fade-in block" : "w-full h-full object-cover"} 
+        className={isSingle ? "w-full h-auto max-h-[850px] object-cover animate-fade-in block" : "w-full h-full object-cover"} 
       />
     </div>
   );
@@ -377,7 +377,7 @@ const MultiImageGrid = ({ images }) => {
 
   if (images.length === 1) {
     return (
-      <div className="w-full mb-3 rounded-2xl overflow-hidden bg-slate-950/5 flex items-center justify-center">
+      <div className="w-full mb-3 overflow-hidden bg-slate-950/5 flex items-center justify-center">
         <RenderMedia url={images[0]} isSingle={true} />
       </div>
     );
@@ -417,7 +417,7 @@ const MultiImageGrid = ({ images }) => {
 
   return (
     <div 
-      className="relative w-full mb-3 rounded-2xl overflow-hidden bg-slate-950/5 group border border-slate-100/80 shadow-xs select-none"
+      className="relative w-full mb-3 overflow-hidden bg-slate-950/5 group border border-slate-100/80 shadow-xs select-none"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
@@ -504,6 +504,7 @@ const PostDetailPage = () => {
   const navigate = useNavigate();
   const { posts, togglePostLike, togglePostSave, addPostComment, fetchPostComments, recordPostView, addCommentReply, toggleCommentLike, currentUser, language, members, admins } = useData();
   const [commentText, setCommentText] = useState('');
+  const commentInputRef = React.useRef(null);
   const [activeSort, setActiveSort] = useState('newest'); // newest | oldest
   const [toastMessage, setToastMessage] = useState('');
   const [replyingToComment, setReplyingToComment] = useState(null);
@@ -707,65 +708,64 @@ const PostDetailPage = () => {
             </div>
           ) : (
             post.image && (
-              <div className="mx-5 mb-3.5 bg-slate-950/5 flex items-center justify-center overflow-hidden relative rounded-2xl border border-slate-100">
+              <div className="mx-5 mb-3.5 bg-slate-950/5 flex items-center justify-center overflow-hidden relative border border-slate-100">
                 <RenderMedia url={post.image} isSingle={true} />
               </div>
             )
           )}
 
-          {/* Interaction stats */}
-          <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between text-[11.5px] font-bold text-slate-400">
-            <div className="flex items-center gap-1.5">
-              <span className="flex items-center -space-x-1">
-                <span className="w-5.5 h-5.5 rounded-full bg-red-50 flex items-center justify-center border-2 border-white shadow-sm">
-                  <Heart size={9} className="text-red-500 fill-red-500 animate-pulse" />
-                </span>
-                <span className="w-5.5 h-5.5 rounded-full bg-blue-50 flex items-center justify-center border-2 border-white shadow-sm">
-                  <ThumbsUp size={9} className="text-blue-500 fill-blue-500" />
-                </span>
-              </span>
-              <span className="text-slate-500 font-semibold">{post.likes} likes</span>
+          {/* Action icons (Instagram style) */}
+          <div className="px-3 pt-1.5 border-t border-slate-100 flex items-center justify-between">
+            <div className="flex items-center">
+              <button 
+                onClick={handleLike} 
+                className={`p-2 transition-all active:scale-90 ${post.isLiked ? 'text-red-500' : 'text-slate-800 hover:text-slate-500'}`}
+                aria-label="Like"
+              >
+                <Heart size={24} strokeWidth={2} className={post.isLiked ? 'fill-red-500 text-red-500' : ''} />
+              </button>
+              <button 
+                onClick={() => commentInputRef.current?.focus()}
+                className="p-2 text-slate-800 hover:text-slate-500 transition-all active:scale-90"
+                aria-label="Comment"
+              >
+                <MessageCircle size={24} strokeWidth={2} className="-scale-x-100" />
+              </button>
+              <button 
+                onClick={() => setIsShareModalOpen(true)}
+                className="p-2 text-slate-800 hover:text-slate-500 transition-all active:scale-90"
+                aria-label="Share"
+              >
+                <Send size={23} strokeWidth={2} />
+              </button>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="text-slate-500 font-semibold">{rawComments.length} comments</span>
-              <span className="flex items-center gap-1 font-semibold text-slate-450">
-                <Eye size={13} className="text-slate-350" />
-                {post.views || 0} views
-              </span>
-            </div>
-          </div>
-
-          {/* Action triggers */}
-          <div className="flex items-center justify-evenly py-1.5 border-t border-slate-100 bg-slate-50/20">
-            <button 
-              onClick={handleLike} 
-              className={`flex items-center justify-center gap-1.5 px-3 py-2 text-[13.5px] font-bold transition-all rounded-xl hover:bg-slate-100/50 ${post.isLiked ? 'text-red-500' : 'text-slate-500 hover:text-red-500'}`}
-            >
-              <Heart size={18} className={post.isLiked ? 'fill-red-500 text-red-500' : ''} />
-              <span>Like</span>
-            </button>
-            <button 
-              onClick={() => setIsShareModalOpen(true)}
-              className="flex items-center justify-center gap-1.5 px-3 py-2 text-[13.5px] font-bold text-slate-500 hover:text-emerald-600 hover:bg-slate-100/50 rounded-xl transition-all"
-            >
-              <Share2 size={18} />
-              <span>Share</span>
-            </button>
             <button 
               onClick={handleSave} 
-              className={`flex items-center justify-center gap-1.5 px-3 py-2 text-[13.5px] font-bold transition-all rounded-xl hover:bg-slate-100/50 ${post.isSaved ? 'text-amber-500' : 'text-slate-500 hover:text-amber-500'}`}
+              className={`p-2 transition-all active:scale-90 ${post.isSaved ? 'text-slate-900' : 'text-slate-800 hover:text-slate-500'}`}
+              aria-label="Save"
             >
-              <Bookmark size={18} className={post.isSaved ? 'fill-amber-500 text-amber-500' : ''} />
-              <span>Save</span>
+              <Bookmark size={24} strokeWidth={2} className={post.isSaved ? 'fill-slate-900' : ''} />
             </button>
+          </div>
+
+          {/* Likes & views */}
+          <div className="px-5 pb-3 flex items-center justify-between">
+            <span className="text-[13.5px] font-bold text-slate-900">
+              {(post.likes || 0).toLocaleString()} {post.likes === 1 ? 'like' : 'likes'}
+            </span>
+            <span className="flex items-center gap-1 text-[11.5px] font-semibold text-slate-400">
+              <Eye size={13} />
+              {post.views || 0} views
+            </span>
           </div>
         </div>
 
         {/* ─── COMMENTS LIST SECTION ─── */}
         <div className="px-4.5 pt-2 pb-16">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-[13px] font-black text-slate-800 uppercase tracking-wider">
-              {lang === 'hi' ? `सभी कमेंट (${rawComments.length})` : `All Comments (${rawComments.length})`}
+            <h3 className="text-[15px] font-bold text-slate-900">
+              {lang === 'hi' ? 'कमेंट' : 'Comments'}
+              <span className="ml-1.5 text-[13px] font-semibold text-slate-400">{rawComments.length}</span>
             </h3>
             
             {/* Sort toggle */}
@@ -782,35 +782,26 @@ const PostDetailPage = () => {
               return (
                 <div key={commentKey} className="flex gap-3 items-start animate-fade-in" style={{ animationDelay: `${i * 50}ms` }}>
                   <Avatar initials={author.initials} src={author.avatar} size="sm" color="bg-indigo-50 text-indigo-700" />
-                  <div className="flex-1">
-                    <div className="bg-white rounded-2xl rounded-tl-xs px-4 py-3 border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.01)]">
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <h5 className="text-[13px] font-black text-slate-800 leading-tight">{author.name}</h5>
-                        {author.isVerified && (
-                          <span className="w-3.5 h-3.5 rounded-full bg-brand-primary text-white flex items-center justify-center scale-70">
-                            <Check size={9} strokeWidth={4} />
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[13px] text-slate-655 font-medium leading-relaxed">{comment.text}</p>
-                    </div>
-                    
-                    {/* Like / Reply / Edit / Delete Action buttons under comment */}
-                    <div className="flex items-center gap-4.5 mt-1.5 px-1.5 text-[11px] font-extrabold text-slate-400">
-                      <span>{comment.time || 'Just now'}</span>
-                      {comment.isEdited && (
-                        <span className="text-[10px] text-slate-400 font-bold italic">(edited)</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <h5 className="text-[13px] font-bold text-slate-900 leading-tight truncate">{author.name}</h5>
+                      {author.isVerified && (
+                        <span className="w-3.5 h-3.5 rounded-full bg-brand-primary text-white flex items-center justify-center scale-70 shrink-0">
+                          <Check size={9} strokeWidth={4} />
+                        </span>
                       )}
-                      <button 
-                        onClick={() => toggleCommentLike(post.id, commentKey)}
-                        className={`font-extrabold transition-colors flex items-center gap-1 cursor-pointer ${comment.isLiked ? 'text-red-500' : 'text-slate-400 hover:text-red-500'}`}
-                      >
-                        <ThumbsUp size={11} className={comment.isLiked ? 'fill-red-500 text-red-500' : ''} />
-                        <span>{comment.likes || 0} Likes</span>
-                      </button>
-                      <button 
-                        onClick={() => setReplyingToComment(comment)} 
-                        className="hover:text-brand-primary cursor-pointer transition-colors"
+                      <span className="text-[12px] text-slate-400 font-medium shrink-0">{comment.time || 'Just now'}</span>
+                      {comment.isEdited && (
+                        <span className="text-[11px] text-slate-400 font-medium shrink-0">· edited</span>
+                      )}
+                    </div>
+                    <p className="text-[13.5px] text-slate-800 leading-snug mt-0.5 break-words">{comment.text}</p>
+
+                    {/* Reply / Edit / Delete under the comment */}
+                    <div className="flex items-center gap-4 mt-1.5 text-[12px] font-semibold text-slate-400">
+                      <button
+                        onClick={() => setReplyingToComment(comment)}
+                        className="hover:text-slate-600 cursor-pointer transition-colors"
                       >
                         Reply
                       </button>
@@ -829,7 +820,7 @@ const PostDetailPage = () => {
                               }
                             }
                           }}
-                          className="hover:text-purple-600 cursor-pointer transition-colors"
+                          className="hover:text-slate-600 cursor-pointer transition-colors"
                         >
                           Edit
                         </button>
@@ -849,7 +840,7 @@ const PostDetailPage = () => {
                               }
                             }
                           }}
-                          className="hover:text-rose-600 cursor-pointer transition-colors"
+                          className="hover:text-slate-600 cursor-pointer transition-colors"
                         >
                           Delete
                         </button>
@@ -858,23 +849,23 @@ const PostDetailPage = () => {
 
                     {/* Comment Thread Replies */}
                     {comment.replies && comment.replies.length > 0 && (
-                      <div className="mt-3.5 pl-6 border-l-2 border-slate-100 space-y-3.5">
+                      <div className="mt-3 space-y-3">
                         {comment.replies.map((reply, ri) => {
                           const replyAuthor = getCommentAuthor(reply);
                           const replyKey = reply._id || reply.id || `r_${ri}`;
                           return (
                             <div key={replyKey} className="flex gap-2.5 items-start">
                               <Avatar initials={replyAuthor.initials} src={replyAuthor.avatar} size="sm" color="bg-indigo-50 text-indigo-700" />
-                              <div className="flex-1 bg-slate-50/60 rounded-2xl rounded-tl-xs px-3.5 py-2.5 border border-slate-100/40">
-                                <div className="flex items-center gap-1 mb-0.5">
-                                  <h6 className="text-[12.5px] font-black text-slate-800 leading-tight">{replyAuthor.name}</h6>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <h6 className="text-[12.5px] font-bold text-slate-900 leading-tight truncate">{replyAuthor.name}</h6>
                                   {replyAuthor.isVerified && (
                                     <span className="w-3.5 h-3.5 rounded-full bg-[#8B5CF6] text-white flex items-center justify-center scale-70 shrink-0">
                                       <Check size={9} strokeWidth={4} />
                                     </span>
                                   )}
                                 </div>
-                                <p className="text-[12px] text-slate-655 font-medium leading-relaxed">{reply.text}</p>
+                                <p className="text-[13px] text-slate-800 leading-snug mt-0.5 break-words">{reply.text}</p>
                               </div>
                             </div>
                           );
@@ -882,6 +873,18 @@ const PostDetailPage = () => {
                       </div>
                     )}
                   </div>
+
+                  {/* Comment like: Instagram-style heart on the right */}
+                  <button
+                    onClick={() => toggleCommentLike(post.id, commentKey)}
+                    className="flex flex-col items-center pt-1 w-6 shrink-0 cursor-pointer active:scale-90 transition-transform"
+                    aria-label="Like comment"
+                  >
+                    <Heart size={14} className={comment.isLiked ? 'fill-red-500 text-red-500' : 'text-slate-400 hover:text-slate-600'} />
+                    {comment.likes > 0 && (
+                      <span className="text-[11px] font-medium text-slate-400 mt-0.5">{comment.likes}</span>
+                    )}
+                  </button>
                 </div>
               );
             })}
@@ -934,6 +937,7 @@ const PostDetailPage = () => {
           
           <div className="flex-1 flex items-center bg-slate-50 rounded-full px-4.5 py-2 border border-slate-100 focus-within:border-brand-primary/20 focus-within:bg-white transition-all gap-2">
             <input
+              ref={commentInputRef}
               type="text"
               placeholder={replyingToComment ? `Reply to ${replyingToComment.author.name.split(' ')[0]}...` : 'Write a comment...'}
               value={commentText}

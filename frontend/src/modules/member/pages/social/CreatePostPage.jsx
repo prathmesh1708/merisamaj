@@ -59,7 +59,8 @@ const CreatePostPage = () => {
   const [caption, setCaption] = useState('');
   const [category, setCategory] = useState('Normal');
   const [isPinned, setIsPinned] = useState(false);
-  const [feedType, setFeedType] = useState('city');
+  // Start on the feed the user came from (City Feed or Community Feed tab)
+  const [feedType, setFeedType] = useState(location.state?.feedType || 'city');
   const [locationInput, setLocationInput] = useState(currentUser?.city || '');
   
   // Media attachments: array of { type: 'image'|'video'|'youtube'|'instagram', url: string, file?: File }
@@ -226,7 +227,8 @@ const CreatePostPage = () => {
       const storyBg = attachments.length > 0 ? attachments[0].url : 'linear-gradient(135deg, #f472b6 0%, #7c3aed 100%)';
       addStory(storyBg, storyText.trim(), {
         textPosition: storyTextPosition,
-        textStyle: storyTextStyle
+        textStyle: storyTextStyle,
+        feedType
       });
       navigate(-1);
     }
@@ -362,6 +364,42 @@ const CreatePostPage = () => {
       <div className="relative z-10 flex justify-between items-center text-[10px] text-white/80 font-semibold pointer-events-none">
         <span>📍 {currentUser?.city || 'Indore'}</span>
         <span>Expires in 24h</span>
+      </div>
+    </div>
+  );
+
+  // City / Samaj / Both picker, shared by posts and stories
+  const renderAudienceSelector = () => (
+    <div>
+      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2 px-0.5">Target Audience</label>
+      <div className="grid grid-cols-3 gap-1.5 bg-slate-100/90 rounded-2xl p-1 border border-slate-200/80">
+        <button
+          type="button"
+          onClick={() => setFeedType('city')}
+          className={`py-2 px-1 text-xs font-bold rounded-xl transition-all active:scale-95 cursor-pointer truncate ${
+            feedType === 'city' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          📍 City
+        </button>
+        <button
+          type="button"
+          onClick={() => setFeedType('community')}
+          className={`py-2 px-1 text-xs font-bold rounded-xl transition-all active:scale-95 cursor-pointer truncate ${
+            feedType === 'community' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          👥 Samaj
+        </button>
+        <button
+          type="button"
+          onClick={() => setFeedType('both')}
+          className={`py-2 px-1 text-xs font-bold rounded-xl transition-all active:scale-95 cursor-pointer truncate ${
+            feedType === 'both' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          🌐 Both
+        </button>
       </div>
     </div>
   );
@@ -534,39 +572,7 @@ const CreatePostPage = () => {
                   </div>
                 )}
 
-                {/* Target Audience */}
-                <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2 px-0.5">Target Audience</label>
-                  <div className="grid grid-cols-3 gap-1.5 bg-slate-100/90 rounded-2xl p-1 border border-slate-200/80">
-                    <button
-                      type="button"
-                      onClick={() => setFeedType('city')}
-                      className={`py-2 px-1 text-xs font-bold rounded-xl transition-all active:scale-95 cursor-pointer truncate ${
-                        feedType === 'city' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      📍 City
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFeedType('community')}
-                      className={`py-2 px-1 text-xs font-bold rounded-xl transition-all active:scale-95 cursor-pointer truncate ${
-                        feedType === 'community' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      👥 Samaj
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFeedType('both')}
-                      className={`py-2 px-1 text-xs font-bold rounded-xl transition-all active:scale-95 cursor-pointer truncate ${
-                        feedType === 'both' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      🌐 Both
-                    </button>
-                  </div>
-                </div>
+                {renderAudienceSelector()}
 
               </div>
             )}
@@ -599,6 +605,8 @@ const CreatePostPage = () => {
                     className="w-full bg-slate-50/80 border border-slate-200/80 rounded-2xl p-3.5 sm:p-4 text-[13.5px] font-medium text-slate-800 placeholder-slate-400 outline-none h-24 resize-none leading-relaxed transition-all focus:border-purple-500/50 focus:bg-white focus:ring-2 focus:ring-purple-500/10"
                   />
                 </div>
+
+                {renderAudienceSelector()}
 
                 {/* TEXT POSITION CONTROLS */}
                 <div className="bg-slate-50/80 border border-slate-200/70 rounded-2xl p-3.5 sm:p-4 space-y-3.5">

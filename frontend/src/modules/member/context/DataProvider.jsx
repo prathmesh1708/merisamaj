@@ -1300,6 +1300,9 @@ export const DataProvider = ({ children }) => {
         align: 'center',
         bgStyle: 'pill-dark'
       },
+      feedType: s.feedType || 'both',
+      // Own stories count as same-city even before the server has said so
+      sameCity: s.sameCity !== undefined ? Boolean(s.sameCity) : Boolean(fallbackUser),
       createdAt: s.createdAt,
       timestamp: s.createdAt ? formatStoryTime(s.createdAt) : 'Just now',
       viewCount: s.viewCount || 0,
@@ -1958,7 +1961,8 @@ export const DataProvider = ({ children }) => {
         textPosition,
         textStyle,
         // Text-only stories keep their colour here too, so they render as a background
-        background: isGradient ? media : undefined
+        background: isGradient ? media : undefined,
+        feedType: storyOptions.feedType || 'both'
       });
 
       const formatted = formatStory(res.data, currentUser);

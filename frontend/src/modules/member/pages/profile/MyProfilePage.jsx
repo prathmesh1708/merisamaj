@@ -113,9 +113,9 @@ const MyProfilePage = () => {
 
   // Social Links Modal State
   const [showSocialModal, setShowSocialModal] = useState(false);
-  const [facebook, setFacebook] = useState(currentUser.facebook || 'https://facebook.com/user');
-  const [twitter, setTwitter] = useState(currentUser.twitter || 'https://twitter.com/user');
-  const [linkedin, setLinkedin] = useState(currentUser.linkedin || 'https://linkedin.com/in/user');
+  const [facebook, setFacebook] = useState(currentUser?.facebook || 'https://facebook.com/user');
+  const [twitter, setTwitter] = useState(currentUser?.twitter || 'https://twitter.com/user');
+  const [linkedin, setLinkedin] = useState(currentUser?.linkedin || 'https://linkedin.com/in/user');
 
   // Blocked Users Modal State
   const [showBlockedModal, setShowBlockedModal] = useState(false);

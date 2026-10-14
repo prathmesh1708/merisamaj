@@ -53,6 +53,12 @@ const storySchema = new mongoose.Schema(
       enum: ['followers', 'community', 'public'],
       default: 'community',
     },
+    // Which Social Hub feed shows the story: City Feed, Community (Samaj) Feed, or both
+    feedType: {
+      type: String,
+      enum: ['city', 'community', 'both'],
+      default: 'both',
+    },
     expiresAt: {
       type: Date,
       required: true,

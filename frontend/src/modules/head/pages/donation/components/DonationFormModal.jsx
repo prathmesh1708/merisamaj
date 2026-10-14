@@ -220,7 +220,7 @@ const DonationFormModal = ({ isOpen, onClose, onSubmit, initialData }) => {
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -232,17 +232,17 @@ const DonationFormModal = ({ isOpen, onClose, onSubmit, initialData }) => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 20 }}
-          className="relative bg-white rounded-2xl shadow-xl w-full max-w-3xl flex flex-col max-h-[90vh] overflow-hidden"
+          className="relative bg-white rounded-t-3xl sm:rounded-2xl shadow-xl w-full max-w-3xl flex flex-col max-h-[92dvh] sm:max-h-[90vh] overflow-hidden"
         >
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gray-50/50">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">
+          <div className="flex items-start sm:items-center justify-between gap-3 p-4 sm:p-6 border-b border-gray-100 bg-gray-50/50 shrink-0">
+            <div className="min-w-0">
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900">
                 {initialData ? 'Edit Campaign' : 'Create New Campaign'}
               </h2>
-              <p className="text-sm text-gray-500 mt-1">Configure donation details and visibility.</p>
+              <p className="text-xs sm:text-sm text-gray-500 mt-0.5 sm:mt-1">Configure donation details and visibility.</p>
             </div>
-            <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+            <button type="button" onClick={onClose} className="p-2 -mr-1 hover:bg-gray-200 rounded-full transition-colors shrink-0">
               <X size={20} className="text-gray-500" />
             </button>
           </div>
@@ -250,39 +250,39 @@ const DonationFormModal = ({ isOpen, onClose, onSubmit, initialData }) => {
           <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
             <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
               {/* Sidebar Tabs */}
-              <div className="w-full md:w-48 border-b md:border-b-0 md:border-r border-gray-100 bg-gray-50/30 flex flex-row md:flex-col p-3 md:p-4 gap-2 overflow-x-auto hide-scrollbar shrink-0">
+              <div className="w-full md:w-48 border-b md:border-b-0 md:border-r border-gray-100 bg-gray-50/30 grid grid-cols-4 md:flex md:flex-col p-2 md:p-4 gap-1 md:gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => setActiveTab('basic')}
-                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors whitespace-nowrap ${activeTab === 'basic' ? 'bg-brand-50 text-brand-primary' : 'text-gray-600 hover:bg-gray-100'}`}
+                  className={`flex flex-col md:flex-row items-center justify-center md:justify-start gap-1 md:gap-2.5 px-1 md:px-3 py-2 md:py-2.5 rounded-xl text-[11px] md:text-sm font-semibold transition-colors whitespace-nowrap ${activeTab === 'basic' ? 'bg-brand-50 text-brand-primary' : 'text-gray-600 hover:bg-gray-100'}`}
                 >
                   <Info size={16} /> Basic Info
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveTab('financials')}
-                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors whitespace-nowrap ${activeTab === 'financials' ? 'bg-brand-50 text-brand-primary' : 'text-gray-600 hover:bg-gray-100'}`}
+                  className={`flex flex-col md:flex-row items-center justify-center md:justify-start gap-1 md:gap-2.5 px-1 md:px-3 py-2 md:py-2.5 rounded-xl text-[11px] md:text-sm font-semibold transition-colors whitespace-nowrap ${activeTab === 'financials' ? 'bg-brand-50 text-brand-primary' : 'text-gray-600 hover:bg-gray-100'}`}
                 >
                   <IndianRupee size={16} /> Financials
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveTab('bank')}
-                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors whitespace-nowrap ${activeTab === 'bank' ? 'bg-brand-50 text-brand-primary' : 'text-gray-600 hover:bg-gray-100'}`}
+                  className={`flex flex-col md:flex-row items-center justify-center md:justify-start gap-1 md:gap-2.5 px-1 md:px-3 py-2 md:py-2.5 rounded-xl text-[11px] md:text-sm font-semibold transition-colors whitespace-nowrap ${activeTab === 'bank' ? 'bg-brand-50 text-brand-primary' : 'text-gray-600 hover:bg-gray-100'}`}
                 >
                   <Landmark size={16} /> Bank & UPI
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveTab('visibility')}
-                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors whitespace-nowrap ${activeTab === 'visibility' ? 'bg-brand-50 text-brand-primary' : 'text-gray-600 hover:bg-gray-100'}`}
+                  className={`flex flex-col md:flex-row items-center justify-center md:justify-start gap-1 md:gap-2.5 px-1 md:px-3 py-2 md:py-2.5 rounded-xl text-[11px] md:text-sm font-semibold transition-colors whitespace-nowrap ${activeTab === 'visibility' ? 'bg-brand-50 text-brand-primary' : 'text-gray-600 hover:bg-gray-100'}`}
                 >
                   <Users size={16} /> Visibility
                 </button>
               </div>
 
               {/* Form Content */}
-              <div className="flex-1 p-6 overflow-y-auto">
+              <div className="flex-1 min-h-0 p-4 sm:p-6 overflow-y-auto">
                 {activeTab === 'basic' && (
                   <div className="space-y-4">
                     <div>
@@ -464,8 +464,8 @@ const DonationFormModal = ({ isOpen, onClose, onSubmit, initialData }) => {
                       <label className="block text-sm font-semibold text-gray-700 mb-1">Campaign Banner Image</label>
                       
                       {imagePreview ? (
-                        <div className="relative rounded-2xl overflow-hidden border border-gray-200 h-40 bg-gray-50 flex items-center justify-center">
-                          <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                        <div className="relative rounded-2xl overflow-hidden w-full">
+                          <img src={imagePreview} alt="Preview" className="block w-full h-auto max-h-[70vh] object-contain" />
                           <button
                             type="button"
                             onClick={removeImage}
@@ -486,7 +486,7 @@ const DonationFormModal = ({ isOpen, onClose, onSubmit, initialData }) => {
                           </div>
                           <div>
                             <p className="text-xs font-bold text-gray-700">Click to upload or drag & drop</p>
-                            <p className="text-[10px] text-gray-500 mt-1">PNG, JPG or JPEG (Max 5MB)</p>
+                            <p className="text-[10px] text-gray-500 mt-1">PNG, JPG or JPEG (Max 5MB) · Best size 1600 × 900 (16:9)</p>
                           </div>
                           <input
                             type="file"
@@ -899,17 +899,17 @@ const DonationFormModal = ({ isOpen, onClose, onSubmit, initialData }) => {
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-gray-100 bg-gray-50/50 flex justify-end gap-3 shrink-0">
+            <div className="p-3 sm:p-4 border-t border-gray-100 bg-gray-50/50 flex justify-end gap-2 sm:gap-3 shrink-0" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 12px)' }}>
               <button 
                 type="button" 
                 onClick={onClose}
-                className="px-5 py-2.5 rounded-xl font-bold text-gray-600 hover:bg-gray-200 transition-colors"
+                className="flex-1 sm:flex-none px-5 py-3 sm:py-2.5 rounded-xl font-bold text-gray-600 bg-white sm:bg-transparent border border-gray-200 sm:border-0 hover:bg-gray-200 transition-colors"
               >
                 Cancel
               </button>
               <button 
                 type="submit"
-                className="px-6 py-2.5 bg-brand-primary hover:bg-brand-secondary text-white rounded-xl font-bold flex items-center gap-2 transition-colors shadow-sm"
+                className="flex-[2] sm:flex-none px-4 sm:px-6 py-3 sm:py-2.5 bg-brand-primary hover:bg-brand-secondary text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-colors shadow-sm whitespace-nowrap"
               >
                 <Save size={18} /> {initialData ? 'Save Changes' : 'Create Campaign'}
               </button>

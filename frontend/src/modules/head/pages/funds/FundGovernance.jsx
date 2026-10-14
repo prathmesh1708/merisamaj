@@ -440,10 +440,10 @@ export const FundGovernance = () => {
   });
 
   return (
-    <div className="p-6 bg-slate-50 min-h-screen text-slate-800 font-sans rounded-3xl">
+    <div className="p-3 sm:p-6 bg-slate-50 min-h-screen text-slate-800 font-sans rounded-2xl sm:rounded-3xl">
       {/* Toast Alert */}
       {toast && (
-        <div className={`fixed bottom-5 right-5 px-5 py-3.5 rounded-2xl shadow-xl text-white font-bold text-xs z-55 flex items-center gap-2.5 animate-fade-in ${
+        <div className={`fixed bottom-24 md:bottom-5 left-4 right-4 sm:left-auto sm:right-5 px-5 py-3.5 rounded-2xl shadow-xl text-white font-bold text-xs z-55 flex items-center gap-2.5 animate-fade-in ${
           toast.type === 'success' ? 'bg-emerald-600 shadow-emerald-200' : 'bg-amber-600 shadow-amber-200'
         }`}>
           <CheckCircle2 size={16} />
@@ -452,10 +452,10 @@ export const FundGovernance = () => {
       )}
 
       {/* Header Panel */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <div>
-          <div className="flex items-center gap-2.5 mb-1">
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-5 sm:mb-6">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 mb-1">
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-tight">
               {isLocalHead ? `Local Chapter Funds (${userCity})` : 'Community Master Funds & Dues'}
             </h1>
             <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${
@@ -464,60 +464,66 @@ export const FundGovernance = () => {
               {isLocalHead ? 'Local Head Desk' : 'Community Head Desk'}
             </span>
           </div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-            {isLocalHead 
+          <p className="text-[11px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider leading-relaxed">
+            {isLocalHead  
               ? `Manage local chapter dues, verify donations & record cash payments for ${userCity}`
               : `Control community-wide and local chapter funds for ${headCommunityName}`}
           </p>
         </div>
         
-        <div className="flex items-center gap-3">
-          <Link to="accounts" className="px-4 h-10 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 flex items-center hover:bg-slate-50 shadow-sm">Accounts &amp; Cash</Link>
-          <button 
-            onClick={loadData}
-            title="Refresh Ledger Data"
-            className="w-10 h-10 rounded-xl bg-white border border-slate-200 text-slate-600 flex items-center justify-center hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-pointer shadow-sm"
-          >
-            <RefreshCw size={18} />
-          </button>
-          
+        <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:items-center sm:gap-3 sm:w-auto">
+          <div className="col-span-2 order-last flex gap-2 sm:contents">
+            <Link to="accounts" className="flex-1 sm:flex-none justify-center px-4 h-10 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 flex items-center hover:bg-slate-50 shadow-sm whitespace-nowrap">Accounts &amp; Cash</Link>
+            <button
+              onClick={loadData}
+              title="Refresh Ledger Data"
+              className="w-10 h-10 shrink-0 rounded-xl bg-white border border-slate-200 text-slate-600 flex items-center justify-center hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-pointer shadow-sm"
+            >
+              <RefreshCw size={18} />
+            </button>
+          </div>
+
           <button
             onClick={openManualCollectionModal}
-            className="bg-amber-500 text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 hover:bg-amber-600 transition-all shadow-md shadow-amber-200 cursor-pointer"
+            className="bg-amber-500 text-white px-3 sm:px-5 h-11 sm:h-auto sm:py-2.5 rounded-xl text-[11px] sm:text-xs font-bold uppercase tracking-wide sm:tracking-wider flex items-center justify-center gap-1.5 sm:gap-2 hover:bg-amber-600 transition-all shadow-md shadow-amber-200 cursor-pointer whitespace-nowrap"
           >
-            <Banknote size={16} /> Record Collection
+            <Banknote size={16} className="shrink-0" />
+            <span className="sm:hidden">Record Payment</span>
+            <span className="hidden sm:inline">Record Collection</span>
           </button>
 
           <button
             onClick={openCreateModal}
-            className="bg-[#7C3AED] text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 hover:bg-opacity-90 transition-all shadow-md shadow-purple-200 cursor-pointer"
+            className="bg-[#7C3AED] text-white px-3 sm:px-5 h-11 sm:h-auto sm:py-2.5 rounded-xl text-[11px] sm:text-xs font-bold uppercase tracking-wide sm:tracking-wider flex items-center justify-center gap-1.5 sm:gap-2 hover:bg-opacity-90 transition-all shadow-md shadow-purple-200 cursor-pointer whitespace-nowrap"
           >
-            <Plus size={16} /> {isLocalHead ? 'Launch Local Fund' : 'Launch Samaj Fund'}
+            <Plus size={16} className="shrink-0" />
+            <span className="sm:hidden">New Fund</span>
+            <span className="hidden sm:inline">{isLocalHead ? 'Launch Local Fund' : 'Launch Samaj Fund'}</span>
           </button>
         </div>
       </div>
 
       {/* Overview Cards */}
       {stats && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs relative overflow-hidden">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-5 sm:mb-6">
+          <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs relative overflow-hidden min-w-0">
             <p className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider mb-1">Target Pool</p>
-            <p className="text-2xl font-black text-slate-900">₹ {stats.overallTarget.toLocaleString('en-IN')}</p>
+            <p className="text-lg sm:text-2xl font-black text-slate-900 leading-tight break-words">₹ {stats.overallTarget.toLocaleString('en-IN')}</p>
             <p className="text-[10px] text-slate-400 font-semibold mt-2">{stats.totalFunds} Active Campaigns</p>
           </div>
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs relative overflow-hidden">
+          <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs relative overflow-hidden min-w-0">
             <p className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Collected</p>
-            <p className="text-2xl font-black text-emerald-600">₹ {stats.overallCollected.toLocaleString('en-IN')}</p>
+            <p className="text-lg sm:text-2xl font-black text-emerald-600 leading-tight break-words">₹ {stats.overallCollected.toLocaleString('en-IN')}</p>
             <p className="text-[10px] text-emerald-600/70 font-semibold mt-2">Online Gateway & Offline Cash</p>
           </div>
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs relative overflow-hidden">
+          <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs relative overflow-hidden min-w-0">
             <p className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Expenses</p>
-            <p className="text-2xl font-black text-rose-600">₹ {stats.overallExpenses.toLocaleString('en-IN')}</p>
+            <p className="text-lg sm:text-2xl font-black text-rose-600 leading-tight break-words">₹ {stats.overallExpenses.toLocaleString('en-IN')}</p>
             <p className="text-[10px] text-slate-400 font-semibold mt-2">Audited disbursements</p>
           </div>
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs relative overflow-hidden bg-gradient-to-br from-indigo-50/60 to-white">
-            <p className="text-[10.5px] font-bold text-indigo-700 uppercase tracking-wider mb-1">Net Balance Available</p>
-            <p className="text-2xl font-black text-indigo-950">₹ {stats.availableBalance.toLocaleString('en-IN')}</p>
+          <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs relative overflow-hidden min-w-0 bg-gradient-to-br from-indigo-50/60 to-white">
+            <p className="text-[10.5px] font-bold text-indigo-700 uppercase tracking-wider mb-1">Net Balance</p>
+            <p className="text-lg sm:text-2xl font-black text-indigo-950 leading-tight break-words">₹ {stats.availableBalance.toLocaleString('en-IN')}</p>
             <p className="text-[10px] text-rose-500 font-bold mt-2">₹ {stats.overallPending.toLocaleString('en-IN')} Remaining Dues</p>
           </div>
         </div>
@@ -525,13 +531,13 @@ export const FundGovernance = () => {
 
       {/* Samaj Income Sources — where the community's money comes from */}
       {incomeSources && (
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-xs p-5 mb-6">
-          <div className="flex items-center justify-between mb-4">
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-xs p-4 sm:p-5 mb-5 sm:mb-6">
+          <div className="flex items-start sm:items-center justify-between gap-3 mb-4">
             <div>
               <h3 className="text-sm font-black text-slate-800">Samaj Income Sources</h3>
               <p className="text-[10.5px] text-slate-400 font-semibold mt-0.5">Where the Samaj's income is coming from, all in one place</p>
             </div>
-            <p className="text-lg font-black text-slate-900">₹ {incomeSources.totals.grandTotal.toLocaleString('en-IN')}</p>
+            <p className="text-base sm:text-lg font-black text-slate-900 whitespace-nowrap">₹ {incomeSources.totals.grandTotal.toLocaleString('en-IN')}</p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -603,18 +609,18 @@ export const FundGovernance = () => {
       <div className="bg-white border border-slate-200 rounded-2xl shadow-xs mb-6 overflow-hidden">
         <button
           onClick={toggleReports}
-          className="w-full flex items-center justify-between p-5 cursor-pointer hover:bg-slate-50/50 transition-colors"
+          className="w-full flex items-center justify-between gap-3 p-4 sm:p-5 text-left cursor-pointer hover:bg-slate-50/50 transition-colors"
         >
           <div className="flex items-center gap-2">
-            <UserCheck size={16} className="text-indigo-600" />
-            <span className="text-sm font-black text-slate-800">Accountability Reports — Who Gave &amp; Who Collected</span>
+            <UserCheck size={16} className="text-indigo-600 shrink-0" />
+            <span className="text-[13px] sm:text-sm font-black text-slate-800 leading-snug">Accountability Reports — Who Gave &amp; Who Collected</span>
           </div>
-          <span className="text-[10px] font-bold text-indigo-600">{showReports ? 'Hide' : 'Show'}</span>
+          <span className="text-[10px] font-bold text-indigo-600 shrink-0">{showReports ? 'Hide' : 'Show'}</span>
         </button>
 
         {showReports && (
-          <div className="border-t border-slate-100 p-5 space-y-4">
-            <div className="flex gap-2">
+          <div className="border-t border-slate-100 p-4 sm:p-5 space-y-4">
+            <div className="grid grid-cols-2 sm:flex gap-2">
               <button
                 onClick={() => setReportTab('who-gave')}
                 className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${reportTab === 'who-gave' ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
@@ -697,7 +703,7 @@ export const FundGovernance = () => {
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4 mb-6">
+      <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-4 mb-5 sm:mb-6">
         <div className="w-full md:flex-1 md:max-w-sm relative">
           <Search size={16} className="absolute left-3.5 top-3.5 text-slate-400" />
           <input 
@@ -709,13 +715,13 @@ export const FundGovernance = () => {
           />
         </div>
 
-        <div className="flex items-center gap-4 w-full md:w-auto justify-end">
-          <div className="flex items-center gap-2">
+        <div className="grid grid-cols-2 gap-3 w-full md:flex md:items-center md:gap-4 md:w-auto md:justify-end">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 min-w-0">
             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Scope</label>
             <select 
               value={filters.scope}
               onChange={(e) => setFilters({ ...filters, scope: e.target.value })}
-              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-purple-400 text-slate-800"
+              className="w-full sm:w-auto bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 sm:py-2 text-xs font-bold outline-none focus:border-purple-400 text-slate-800"
             >
               <option value="All">All Scopes</option>
               <option value="COMMUNITY">Community Wide</option>
@@ -723,12 +729,12 @@ export const FundGovernance = () => {
             </select>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 min-w-0">
             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</label>
             <select 
               value={filters.status}
               onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-purple-400 text-slate-800"
+              className="w-full sm:w-auto bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 sm:py-2 text-xs font-bold outline-none focus:border-purple-400 text-slate-800"
             >
               <option value="All">All Statuses</option>
               <option value="Active">Active</option>
@@ -739,8 +745,88 @@ export const FundGovernance = () => {
         </div>
       </div>
 
-      {/* Funds Table */}
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+      {/* Funds: cards on phones */}
+      <div className="md:hidden space-y-3">
+        {filteredFunds.map(fund => {
+          const progress = fund.targetAmount > 0 ? Math.min(Math.round((fund.collectedAmount / fund.targetAmount) * 100), 100) : 0;
+          const isLocalFund = fund.scope === 'LOCAL' || fund.creatorType === 'LOCAL_HEAD';
+          return (
+            <div key={fund.id} className="bg-white border border-slate-200 rounded-2xl shadow-xs p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-bold text-slate-900 text-sm leading-snug">{fund.name}</p>
+                  {fund.purpose && <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-2">{fund.purpose}</p>}
+                </div>
+                <span className={`shrink-0 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider ${
+                  fund.status === 'Active' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-500 border border-slate-200'
+                }`}>
+                  {fund.status}
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-2">
+                <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${
+                  isLocalFund ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-purple-50 text-purple-800 border-purple-200'
+                }`}>
+                  {isLocalFund ? `Local (${fund.city || 'Chapter'})` : 'Community Master'}
+                </span>
+                <span className="text-[10px] text-slate-400 font-medium">By {fund.createdBy}</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 mt-3 pt-3 border-t border-slate-100">
+                <div>
+                  <p className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider">Target</p>
+                  <p className="text-[13px] font-black text-slate-900">₹ {fund.targetAmount.toLocaleString('en-IN')}</p>
+                </div>
+                <div>
+                  <p className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider">Per Member</p>
+                  <p className="text-[13px] font-bold text-slate-600">₹ {fund.contributionPerMember.toLocaleString('en-IN')}</p>
+                </div>
+                <div>
+                  <p className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider">Collected</p>
+                  <p className="text-[13px] font-black text-emerald-600">₹ {fund.collectedAmount.toLocaleString('en-IN')}</p>
+                </div>
+                <div>
+                  <p className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider">Remaining</p>
+                  <p className="text-[13px] font-black text-rose-600">₹ {fund.remainingAmount.toLocaleString('en-IN')}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 mt-2.5">
+                <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${progress}%` }} />
+                </div>
+                <span className="text-[10px] font-bold text-slate-500">{progress}%</span>
+              </div>
+
+              <div className="grid grid-cols-5 gap-1.5 mt-3 pt-3 border-t border-slate-100">
+                {[
+                  { label: 'View', icon: Eye, onClick: () => openDrawer(fund.id), cls: 'bg-slate-50 border-slate-200 text-slate-600' },
+                  { label: 'Collect', icon: Banknote, onClick: () => openCashCollectionModal(fund), cls: 'bg-emerald-50 border-emerald-200 text-emerald-700' },
+                  { label: 'Expense', icon: Receipt, onClick: () => openExpenseModal(fund), cls: 'bg-rose-50 border-rose-200 text-rose-600' },
+                  { label: 'Edit', icon: Edit3, onClick: () => openEditModal(fund), cls: 'bg-slate-50 border-slate-200 text-slate-600' },
+                  { label: 'Delete', icon: Trash2, onClick: () => { setSelectedFund(fund); setActiveModal('delete-confirm'); }, cls: 'bg-slate-50 border-slate-200 text-slate-600' }
+                ].map(({ label, icon: Icon, onClick, cls }) => (
+                  <button key={label} onClick={onClick}
+                    className={`flex flex-col items-center justify-center gap-1 py-2 rounded-xl border text-[9.5px] font-bold cursor-pointer active:scale-95 transition-transform ${cls}`}>
+                    <Icon size={15} />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+
+        {filteredFunds.length === 0 && (
+          <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-400 text-sm font-bold">
+            No funds found matching filter criteria.
+          </div>
+        )}
+      </div>
+
+      {/* Funds Table (tablet & desktop) */}
+      <div className="hidden md:block bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -861,12 +947,12 @@ export const FundGovernance = () => {
       {/* ─── CREATE & EDIT CAMPAIGN MODAL ─── */}
       <AnimatePresence>
         {activeModal && (activeModal === 'create' || activeModal === 'edit') && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
             <motion.div 
               initial={{ scale: 0.95, opacity: 0, y: 15 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 15 }}
-              className="w-full max-w-lg bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-2xl relative z-10 p-6 space-y-4 max-h-[90vh] overflow-y-auto"
+              className="w-full max-w-lg bg-white border border-slate-200 rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-2xl relative z-10 p-5 sm:p-6 pb-safe space-y-4 max-h-[92vh] sm:max-h-[90vh] overflow-y-auto"
             >
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <h3 className="text-md font-black text-slate-900 flex items-center gap-2">
@@ -940,7 +1026,7 @@ export const FundGovernance = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Start Date</label>
                     <input 
@@ -1028,12 +1114,12 @@ export const FundGovernance = () => {
       {/* ─── RECORD CASH PAYMENT MODAL ─── */}
       <AnimatePresence>
         {activeModal === 'collect-cash' && selectedFund && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
             <motion.div 
               initial={{ scale: 0.95, opacity: 0, y: 15 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 15 }}
-              className="w-full max-w-md bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-2xl relative z-10 p-6 space-y-4 text-left"
+              className="w-full max-w-md bg-white border border-slate-200 rounded-t-3xl sm:rounded-3xl shadow-2xl relative z-10 p-5 sm:p-6 space-y-4 text-left max-h-[92vh] sm:max-h-[90vh] overflow-y-auto"
             >
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2.5">
@@ -1159,12 +1245,12 @@ export const FundGovernance = () => {
       {/* ─── LOG EXPENSE MODAL ─── */}
       <AnimatePresence>
         {activeModal === 'add-expense' && selectedFund && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
             <motion.div 
               initial={{ scale: 0.95, opacity: 0, y: 15 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 15 }}
-              className="w-full max-w-md bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-2xl relative z-10 p-6 space-y-4"
+              className="w-full max-w-md bg-white border border-slate-200 rounded-t-3xl sm:rounded-3xl shadow-2xl relative z-10 p-5 sm:p-6 space-y-4 max-h-[92vh] sm:max-h-[90vh] overflow-y-auto"
             >
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <h3 className="text-md font-black text-slate-950 flex items-center gap-2">
@@ -1254,12 +1340,12 @@ export const FundGovernance = () => {
       {/* ─── DELETE CONFIRM MODAL ─── */}
       <AnimatePresence>
         {activeModal === 'delete-confirm' && selectedFund && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
             <motion.div 
               initial={{ scale: 0.95, opacity: 0, y: 15 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 15 }}
-              className="w-full max-w-sm bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-2xl relative z-10 p-6 space-y-4 text-slate-850"
+              className="w-full max-w-sm bg-white border border-slate-200 rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-2xl relative z-10 p-5 sm:p-6 space-y-4 text-slate-850"
             >
               <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mb-2">
                 <ShieldAlert size={22} />
@@ -1291,7 +1377,7 @@ export const FundGovernance = () => {
 
       {/* ─── DETAIL DRAWER ─── */}
       {isDrawerOpen && (
-        <div className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm flex justify-end">
+        <div className="fixed inset-0 z-[60] bg-slate-900/40 backdrop-blur-sm flex justify-end">
           <div className="flex-1" onClick={() => setIsDrawerOpen(false)} />
           
           <div className="w-full max-w-xl bg-white border-l border-slate-250 shadow-2xl h-screen flex flex-col overflow-hidden relative">
@@ -1420,8 +1506,8 @@ export const FundGovernance = () => {
                         </button>
                       </div>
 
-                      <div className="bg-white border border-slate-200 overflow-hidden rounded-2xl shadow-xs">
-                        <table className="w-full text-left border-collapse text-xs text-slate-800">
+                      <div className="bg-white border border-slate-200 overflow-x-auto rounded-2xl shadow-xs">
+                        <table className="w-full text-left border-collapse text-xs text-slate-800 min-w-[460px]">
                           <thead>
                             <tr className="bg-slate-50 border-b border-slate-200 text-[9px] font-black text-slate-400 uppercase tracking-wider">
                               <th className="p-3 pl-4">Member</th>
@@ -1538,8 +1624,8 @@ export const FundGovernance = () => {
 
       {/* Manual Collection Modal */}
       {showManualCollectionModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-4 my-8 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/40 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 sm:my-8 max-h-[92vh] sm:max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-start border-b border-slate-100 pb-3">
               <div>
                 <span className="text-[10px] font-extrabold text-amber-600 uppercase tracking-wider">Manual Entry</span>

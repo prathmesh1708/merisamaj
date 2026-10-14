@@ -318,11 +318,11 @@ export const AdminObituaryManagement = () => {
                 className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between group"
               >
                 {/* Header Image & Badge */}
-                <div className="relative h-64 bg-slate-900 overflow-hidden flex items-center justify-center">
+                <div className="relative w-full overflow-hidden flex items-center justify-center">
                   {ob.image
-                    ? <FullImage src={ob.image} alt={ob.deceasedName} />
-                    : <span className="text-5xl opacity-60">🪔</span>}
-                  <div className="absolute top-3 left-3 bg-black/70 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold text-amber-300 border border-amber-300/30">
+                    ? <img src={ob.image} alt={ob.deceasedName} className="w-full h-auto block" />
+                    : <div className="h-48 flex items-center justify-center"><span className="text-5xl opacity-60">🪔</span></div>}
+                  <div className="absolute top-3 left-3 bg-black/70 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold text-amber-300 border border-amber-300/30 z-10">
                     🪔 {ob.community || 'Samaj Member'}
                   </div>
                 </div>

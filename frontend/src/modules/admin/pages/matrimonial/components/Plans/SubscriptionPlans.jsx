@@ -22,16 +22,29 @@ const EMPTY_PLAN = {
     profileBadge: false,
     crossCommunityVisibility: false,
     communityFilter: false
-  }
+  },
+  customFeatures: []
 };
 
 const PlanModal = ({ plan, onClose, onSaved }) => {
-  const [form, setForm]       = useState(plan || EMPTY_PLAN);
+  const [form, setForm]       = useState(() => ({ ...EMPTY_PLAN, ...plan, customFeatures: plan?.customFeatures || [] }));
   const [saving, setSaving]   = useState(false);
   const [err, setErr]         = useState('');
+  const [newFeature, setNewFeature] = useState('');
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
   const setFeature = (key, val) => setForm(f => ({ ...f, features: { ...f.features, [key]: val } }));
+
+  const addCustomFeature = () => {
+    const label = newFeature.trim();
+    if (!label) return;
+    if (label.length > 80) { setErr('A custom feature cannot exceed 80 characters.'); return; }
+    if (form.customFeatures.some(f => f.toLowerCase() === label.toLowerCase())) { setErr('This feature is already added.'); return; }
+    setErr('');
+    set('customFeatures', [...form.customFeatures, label]);
+    setNewFeature('');
+  };
+  const removeCustomFeature = (idx) => set('customFeatures', form.customFeatures.filter((_, i) => i !== idx));
 
   const handleSave = async () => {
     if (!form.name || !form.name.trim()) { setErr('Plan name is required.'); return; }
@@ -166,6 +179,46 @@ const PlanModal = ({ plan, onClose, onSaved }) => {
               <span className="text-xs text-slate-500 font-semibold">Active</span>
             </label>
           </div>
+        </div>
+
+        {/* Extra features the admin types in, e.g. "Dedicated relationship manager" */}
+        <div className="border-t border-slate-100 pt-4 space-y-3">
+          <div>
+            <p className="text-[10px] text-gray-500 font-black uppercase tracking-wider">Extra Features</p>
+            <p className="text-[10.5px] text-gray-500 font-semibold mt-0.5">
+              Add any other benefit of this plan. It is shown to members on the plan card; it does not switch anything on in the app by itself.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <input
+              value={newFeature}
+              onChange={e => setNewFeature(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustomFeature(); } }}
+              placeholder="e.g. Dedicated relationship manager"
+              maxLength={80}
+              className="flex-1 min-w-0 bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-rose-500/50"
+            />
+            <button type="button" onClick={addCustomFeature} disabled={!newFeature.trim()}
+              className="flex items-center gap-1 px-3.5 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold disabled:opacity-40 hover:bg-slate-800 transition-colors shrink-0">
+              <Plus size={13} /> Add
+            </button>
+          </div>
+          {form.customFeatures.length > 0 && (
+            <ul className="space-y-1.5">
+              {form.customFeatures.map((label, idx) => (
+                <li key={`${label}-${idx}`} className="flex items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                  <span className="flex items-center gap-2 text-xs text-slate-700 font-semibold min-w-0">
+                    <Check size={13} className="text-emerald-600 shrink-0" />
+                    <span className="truncate">{label}</span>
+                  </span>
+                  <button type="button" onClick={() => removeCustomFeature(idx)} aria-label={`Remove ${label}`}
+                    className="text-slate-400 hover:text-red-600 p-0.5 shrink-0">
+                    <X size={14} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         <button onClick={handleSave} disabled={saving}
@@ -310,6 +363,7 @@ export const SubscriptionPlans = ({ data }) => {
               {plan.features?.contactDetailsAccess && <p>• Contact details access</p>}
               {plan.features?.crossCommunityVisibility && <p>• Sees other-community profiles</p>}
               {plan.features?.communityFilter && <p>• Community & sub-community filter</p>}
+              {(plan.customFeatures || []).map((label, i) => <p key={i}>• {label}</p>)}
             </div>
 
             <div className="flex gap-2 pt-2 border-t border-slate-100">

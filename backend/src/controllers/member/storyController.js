@@ -52,8 +52,16 @@ exports.getStories = async (req, res) => {
     const viewedSet = new Set(myViews.map(v => String(v.storyId)));
     const likedSet = new Set(myLikes.map(l => String(l.storyId)));
 
-    const data = stories.map(s => ({
+    // City-only stories are meant for the author's city, so hide them from other cities
+    const myCityId = await getCityId(req.user.city);
+    const isSameCity = (s) => Boolean(myCityId && s.cityId && String(s.cityId) === String(myCityId));
+    const isMine = (s) => String(s.userId?._id || s.userId) === String(userId);
+    const visibleStories = stories.filter(s => s.feedType !== 'city' || isMine(s) || isSameCity(s));
+
+    const data = visibleStories.map(s => ({
       ...s,
+      feedType: s.feedType || 'both',
+      sameCity: isMine(s) || isSameCity(s),
       viewCount: views.get(String(s._id)) || 0,
       likeCount: likes.get(String(s._id)) || 0,
       viewedByMe: viewedSet.has(String(s._id)),
@@ -72,7 +80,7 @@ exports.getStories = async (req, res) => {
 // @access  Private
 exports.createStory = async (req, res) => {
   try {
-    const { media, mediaType, text, textPosition, textStyle, background, visibility } = req.body;
+    const { media, mediaType, text, textPosition, textStyle, background, visibility, feedType } = req.body;
 
     if (!media) {
       return res.status(400).json({ success: false, message: 'Media attachment is required' });
@@ -96,6 +104,7 @@ exports.createStory = async (req, res) => {
       },
       background,
       visibility: visibility || 'community',
+      feedType: ['city', 'community', 'both'].includes(feedType) ? feedType : 'both',
       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // strict 24 hours expiry
     });
 

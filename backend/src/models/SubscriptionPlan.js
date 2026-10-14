@@ -59,6 +59,12 @@ const subscriptionPlanSchema = new mongoose.Schema(
       communityFilter:        { type: Boolean, default: false }  // Community & sub-community filter on matches
     },
 
+    // ─── Extra features typed in by the admin (shown to members as text only) ─
+    customFeatures: {
+      type: [{ type: String, trim: true, maxlength: [80, 'A custom feature cannot exceed 80 characters'] }],
+      default: []
+    },
+
     // ─── Audit ───────────────────────────────────────────────────────────────
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }

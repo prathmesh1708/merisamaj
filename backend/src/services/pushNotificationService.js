@@ -110,6 +110,9 @@ const DEAD_TOKEN_CODES = new Set([
   'messaging/invalid-argument'
 ]);
 
+// Pushes that must arrive immediately
+const URGENT_TYPES = new Set(['chat_new_message', 'group_new_message', 'chat_mention', 'mention', 'emergency_alert']);
+
 const MULTICAST_LIMIT = 500; // FCM maximum tokens per sendEachForMulticast call
 
 const buildPayload = ({ tokens, type, title, message, icon, actionUrl, notificationId, tag }) => ({
@@ -127,30 +130,84 @@ const buildPayload = ({ tokens, type, title, message, icon, actionUrl, notificat
     // Same tag = replaces the previous notification on the device (one per chat)
     tag: tag || ''
   },
+  // Time-sensitive pushes (chat, emergencies) go out as HIGH priority so Android's
+  // battery saver (Doze) delivers them at once instead of delaying or dropping them.
+  android: {
+    priority: URGENT_TYPES.has(type) ? 'high' : 'normal',
+    ttl: URGENT_TYPES.has(type) ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000, // ms
+    ...(tag ? { collapseKey: tag } : {}),
+    notification: {
+      // Same tag replaces the earlier notification of that chat instead of stacking
+      ...(tag ? { tag } : {}),
+      sound: 'default'
+    }
+  },
+  apns: {
+    headers: {
+      'apns-priority': URGENT_TYPES.has(type) ? '10' : '5',
+      ...(tag ? { 'apns-collapse-id': tag.slice(0, 64) } : {})
+    },
+    payload: { aps: { sound: 'default' } }
+  },
   webpush: {
     headers: {
-      Urgency: type === 'emergency_alert' ? 'high' : 'normal'
+      Urgency: URGENT_TYPES.has(type) ? 'high' : 'normal',
+      TTL: String(URGENT_TYPES.has(type) ? 60 * 60 : 24 * 60 * 60)
     }
   }
 });
 
+// Android apps build their own notification from the push data. If the push also
+// carries a "notification" block, Android shows it automatically AND the app shows
+// its own — two identical pop-ups. So Android devices get a data-only push (one
+// notification, made by the app). Set FCM_ANDROID_DATA_ONLY=false to switch back.
+const ANDROID_DATA_ONLY = String(process.env.FCM_ANDROID_DATA_ONLY ?? 'true').toLowerCase() !== 'false';
+
+/** Same push without the auto-displayed part; title/body travel in `data` instead */
+const toDataOnly = (payload) => {
+  const { notification, ...rest } = payload;
+  const { notification: _androidNotification, ...android } = payload.android || {};
+  return {
+    ...rest,
+    data: {
+      ...payload.data,
+      title: notification?.title || '',
+      body: notification?.body || '',
+      message: notification?.body || ''
+    },
+    android
+  };
+};
+
 /**
- * Send one payload to many tokens in chunks of 500 and deactivate dead tokens.
- * Returns { successCount, failureCount }.
+ * Send one push to many devices (chunks of 500) and deactivate dead tokens.
+ * `tokenDocs` are { fcmToken, deviceType }. Returns { successCount, failureCount }.
  */
-const sendToTokens = async (tokenStrings, fields) => {
+const sendToTokens = async (tokenDocs, fields) => {
   let successCount = 0;
   let failureCount = 0;
   const deadTokens = [];
 
-  for (let i = 0; i < tokenStrings.length; i += MULTICAST_LIMIT) {
-    const chunk = tokenStrings.slice(i, i + MULTICAST_LIMIT);
-    const response = await admin.messaging().sendEachForMulticast(buildPayload({ ...fields, tokens: chunk }));
-    successCount += response.successCount;
-    failureCount += response.failureCount;
-    response.responses.forEach((resp, idx) => {
-      if (!resp.success && DEAD_TOKEN_CODES.has(resp.error?.code)) deadTokens.push(chunk[idx]);
-    });
+  // Never send twice to the same token
+  const unique = Array.from(new Map(tokenDocs.map(t => [t.fcmToken, t])).values());
+  const groups = ANDROID_DATA_ONLY
+    ? [
+        { tokens: unique.filter(t => t.deviceType === 'android').map(t => t.fcmToken), dataOnly: true },
+        { tokens: unique.filter(t => t.deviceType !== 'android').map(t => t.fcmToken), dataOnly: false }
+      ]
+    : [{ tokens: unique.map(t => t.fcmToken), dataOnly: false }];
+
+  for (const group of groups) {
+    for (let i = 0; i < group.tokens.length; i += MULTICAST_LIMIT) {
+      const chunk = group.tokens.slice(i, i + MULTICAST_LIMIT);
+      const full = buildPayload({ ...fields, tokens: chunk });
+      const response = await admin.messaging().sendEachForMulticast(group.dataOnly ? toDataOnly(full) : full);
+      successCount += response.successCount;
+      failureCount += response.failureCount;
+      response.responses.forEach((resp, idx) => {
+        if (!resp.success && DEAD_TOKEN_CODES.has(resp.error?.code)) deadTokens.push(chunk[idx]);
+      });
+    }
   }
 
   if (deadTokens.length > 0) {
@@ -251,7 +308,7 @@ const sendPushNotification = async ({
 
     // 5. Send and deactivate dead tokens
     const { successCount, failureCount } = await sendToTokens(
-      tokens.map(t => t.fcmToken),
+      tokens,
       { type, title, message, icon, actionUrl, notificationId, tag }
     );
 
@@ -297,13 +354,13 @@ const sendPushToUsers = async ({
     }
 
     const tokens = await UserPushToken.find({ userId: { $in: userIds }, isActive: true })
-      .select('fcmToken').lean();
+      .select('fcmToken deviceType').lean();
     if (tokens.length === 0) {
       return { status: 'no_tokens', reason: 'No recipient has a registered active push token' };
     }
 
     const { successCount, failureCount } = await sendToTokens(
-      tokens.map(t => t.fcmToken),
+      tokens,
       { type, title, message, icon, actionUrl }
     );
     return { status: 'success', successCount, failureCount };

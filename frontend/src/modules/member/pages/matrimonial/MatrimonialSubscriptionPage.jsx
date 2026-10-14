@@ -396,6 +396,12 @@ const MatrimonialSubscriptionPage = () => {
                                   </li>
                                 );
                               })}
+                              {(plan.customFeatures || []).map((label, i) => (
+                                <li key={`custom-${i}`} className="flex items-center justify-between gap-2 text-[12px] text-slate-700">
+                                  <span className="font-semibold">{label}</span>
+                                  <Check size={15} className="text-emerald-600 stroke-[3px] shrink-0" />
+                                </li>
+                              ))}
                             </ul>
 
                             {isSel && (
@@ -483,6 +489,25 @@ const MatrimonialSubscriptionPage = () => {
                                   </div>
                                 );
                               })}
+                            </div>
+                          ))}
+
+                          {/* Admin-added extra features: one row per distinct label across all plans */}
+                          {[...new Set(plans.flatMap(p => p.customFeatures || []))].map(label => (
+                            <div key={`custom-${label}`} className="grid py-3.5 items-center text-center text-xs font-semibold"
+                                 style={{ gridTemplateColumns: `1fr repeat(${plans.length}, 1fr)` }}>
+                              <div className="text-left pl-4 pr-1">
+                                <span className="text-[11px] leading-tight font-bold text-slate-700">{label}</span>
+                              </div>
+                              {plans.map(plan => (
+                                <div key={plan._id} className={`py-1 ${selectedPlan?._id === plan._id ? 'bg-rose-50/50' : ''}`}>
+                                  {(plan.customFeatures || []).includes(label) ? (
+                                    <Check size={14} className="mx-auto text-emerald-600 stroke-[3px]" />
+                                  ) : (
+                                    <span className="text-slate-300 font-bold">—</span>
+                                  )}
+                                </div>
+                              ))}
                             </div>
                           ))}
                         </div>

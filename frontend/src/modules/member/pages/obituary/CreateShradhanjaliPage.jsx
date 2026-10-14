@@ -611,8 +611,8 @@ const CreateShradhanjaliPage = () => {
       </div>
 
       {form.photoUrl ? (
-        <div className="relative rounded-2xl overflow-hidden shadow-sm max-h-[300px] w-full flex items-center justify-center">
-          <img src={form.photoUrl} alt="preview" className="w-full h-auto max-h-[300px] object-contain rounded-2xl bg-slate-100" />
+        <div className="relative rounded-2xl overflow-hidden shadow-sm w-full">
+          <img src={form.photoUrl} alt="preview" className="w-full h-auto block rounded-2xl" />
           {/* Remove */}
           <button
             onClick={() => setForm(f => ({ ...f, photoUrl: '', photoFile: null }))}
@@ -1066,16 +1066,16 @@ const CreateShradhanjaliPage = () => {
         >
           {/* Photo preview */}
           {form.photoUrl && (
-            <div className="relative h-[200px]">
-              <FullImage src={form.photoUrl} alt="preview" />
+            <div className="relative w-full overflow-hidden">
+              <img src={form.photoUrl} alt="preview" className="w-full h-auto block" />
               <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 60%)' }} />
               <div
-                className="absolute top-3 left-3 flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-bold"
+                className="absolute top-3 left-3 flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-bold z-10"
                 style={{ background: 'rgba(20,12,0,0.75)', color: '#D4AF37' }}
               >
                 🪔 Om Shanti
               </div>
-              <div className="absolute bottom-0 left-0 right-0 px-4 pb-3">
+              <div className="absolute bottom-0 left-0 right-0 px-4 pb-3 z-10">
                 <p className="text-white text-[18px] font-bold" style={{ fontFamily: 'Outfit, serif' }}>{fullName}</p>
                 <p className="text-[12px]" style={{ color: 'rgba(212,175,55,0.9)' }}>
                   {form.age && `Age: ${form.age} Years`} {form.dateOfPassing && `• Passing: ${new Date(form.dateOfPassing).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })}`}

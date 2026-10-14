@@ -35,7 +35,7 @@ export default defineConfig({
             if (id.includes('framer-motion')) {
               return 'vendor-motion';
             }
-            if (id.includes('firebase')) {
+            if (id.includes('firebase')) { 
               return 'vendor-firebase';
             }
             if (id.includes('socket.io-client')) {

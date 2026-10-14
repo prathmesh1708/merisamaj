@@ -128,8 +128,8 @@ const DonationCampaignDetailPage = () => {
         {/* Campaign Info Card */}
         <div className="bg-card rounded-3xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
           {purpose.bannerImage && (
-            <div className="h-48 w-full overflow-hidden relative shrink-0">
-              <img src={purpose.bannerImage} alt={purpose.title} className="w-full h-full object-cover" />
+            <div className="w-full overflow-hidden relative shrink-0">
+              <img src={purpose.bannerImage} alt={purpose.title} className="block w-full h-auto max-h-[70vh] object-contain" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
             </div>
           )}

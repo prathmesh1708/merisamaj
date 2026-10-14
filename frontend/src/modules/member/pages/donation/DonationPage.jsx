@@ -195,8 +195,10 @@ const DonationPage = () => {
                   className="bg-card rounded-2xl border border-gray-100 shadow-sm cursor-pointer hover:border-purple-200 hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col justify-between"
                 >
                   {purpose.bannerImage && (
-                    <div className="h-36 w-full overflow-hidden relative shrink-0">
-                      <img src={purpose.bannerImage} alt={purpose.title} className="w-full h-full object-cover" />
+                    <div className="aspect-video w-full overflow-hidden relative shrink-0 bg-gray-100">
+                      {/* Blurred copy fills the empty space; the real image is shown whole on top */}
+                      <img src={purpose.bannerImage} alt="" aria-hidden="true" className="absolute inset-0 w-full h-full object-cover scale-110 blur-xl opacity-60" />
+                      <img src={purpose.bannerImage} alt={purpose.title} className="relative w-full h-full object-contain" />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
                     </div>
                   )}
