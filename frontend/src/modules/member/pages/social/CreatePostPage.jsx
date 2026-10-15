@@ -5,7 +5,7 @@ import {
   Heart, Sparkles, Folder, Layers, ImagePlus, UploadCloud, Play, 
   Trash2, Monitor, Smartphone, Link, AlertCircle, Move,
   AlignLeft, AlignCenter, AlignRight, Type, Palette, Sliders,
-  ArrowUp, ArrowDown, Check, GripHorizontal
+  ArrowUp, ArrowDown, Check, GripHorizontal, Video, Image as ImageIcon
 } from 'lucide-react';
 import { Avatar } from '../../components/common/Avatar';
 import { useData } from '../../context/DataProvider';
@@ -90,6 +90,10 @@ const CreatePostPage = () => {
   const [isDragging, setIsDragging] = useState(false);
 
   const fileInputRef = useRef(null);
+  // Phone galleries (and app WebViews) often honour only the first type of
+  // "image/*,video/*" and show photos only — so videos get their own picker.
+  const photoInputRef = useRef(null);
+  const videoInputRef = useRef(null);
 
   // Auto detect pasted media link format
   useEffect(() => {
@@ -146,10 +150,22 @@ const CreatePostPage = () => {
     if (e.target.files && e.target.files.length > 0) {
       handleFiles(Array.from(e.target.files));
     }
+    e.target.value = '';
   };
 
+  // Stories keep the video inside the story record (MongoDB caps a record at 16 MB);
+  // posts upload it to cloud storage but still travel in one request.
+  const MAX_VIDEO_MB = { story: 12, post: 35 };
+
   // Handle uploaded files (images, videos, gifs)
-  const handleFiles = (files) => {
+  const handleFiles = (incoming) => {
+    const limitMb = MAX_VIDEO_MB[activeTab] || 35;
+    const tooBig = incoming.filter(f => f.type.startsWith('video/') && f.size > limitMb * 1024 * 1024);
+    if (tooBig.length) {
+      alert(`This video is too large (max ${limitMb} MB for a ${activeTab}). Please choose a shorter video.`);
+    }
+    const files = incoming.filter(f => !tooBig.includes(f));
+    if (!files.length) return;
     setIsUploading(true);
     setUploadProgress(0);
 
@@ -413,8 +429,23 @@ const CreatePostPage = () => {
         ref={fileInputRef} 
         accept="image/*,video/*" 
         multiple={activeTab === 'post'} 
-        onChange={handleFileChange} 
-        className="hidden" 
+        onChange={handleFileChange}
+        className="hidden"
+      />
+      <input
+        type="file"
+        ref={photoInputRef}
+        accept="image/*"
+        multiple={activeTab === 'post'}
+        onChange={handleFileChange}
+        className="hidden"
+      />
+      <input
+        type="file"
+        ref={videoInputRef}
+        accept="video/*"
+        onChange={handleFileChange}
+        className="hidden"
       />
 
       {/* HEADER SECTION — Glassmorphism & Centered Width */}
@@ -854,6 +885,22 @@ const CreatePostPage = () => {
                 <div>
                   <p className="text-[13px] font-bold text-slate-800">Upload photo, video, or GIF</p>
                   <p className="text-[11px] text-slate-400 font-medium mt-0.5">Drag & drop files or tap to browse</p>
+                </div>
+                <div className="grid grid-cols-2 gap-2 w-full max-w-xs" onClick={e => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    onClick={() => photoInputRef.current?.click()}
+                    className="py-2.5 rounded-xl bg-white border border-purple-200 text-purple-700 text-[12px] font-bold flex items-center justify-center gap-1.5 active:scale-95 transition-transform"
+                  >
+                    <ImageIcon size={15} /> Photo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => videoInputRef.current?.click()}
+                    className="py-2.5 rounded-xl bg-white border border-purple-200 text-purple-700 text-[12px] font-bold flex items-center justify-center gap-1.5 active:scale-95 transition-transform"
+                  >
+                    <Video size={15} /> Video
+                  </button>
                 </div>
                 <div className="flex gap-2.5 text-[9.5px] font-bold text-slate-400 uppercase tracking-wider border-t border-purple-100/60 pt-2.5 mt-1 w-full justify-center">
                   <span>PNG, JPG, WEBP</span>

@@ -14,6 +14,7 @@ const { findOrCreateConversation } = require('../../services/conversationService
 const { createMessage } = require('../../services/messageService');
 const { notifyOfficialPost } = require('../../services/notificationService');
 const { applyScopeFilter, inheritTenantPayload, adminRoles } = require('../../utils/queryScopeHelper');
+const { getHiddenAuthorIds, canViewContentOf } = require('../../services/socialVisibilityService');
 const cloudinary = require('cloudinary').v2;
 const config = require('../../config/config');
 
@@ -133,7 +134,7 @@ exports.getPosts = async (req, res) => {
     }
 
     // Apply Centralized 2-Level Multi-Tenancy Scope (Community mandatory)
-    const filter = applyScopeFilter(req, baseFilter);
+    const filter = applyScopeFilter(req, baseFilter, { skipCityScope: true });
 
     // Resolve cityId for city feed queries
     if (feed === 'city' && cityName && cityName !== 'all' && cityName !== 'All') {
@@ -154,6 +155,10 @@ exports.getPosts = async (req, res) => {
     if (cursor) {
       filter.createdAt = { $lt: new Date(cursor) };
     }
+
+    // Hide non-married members and private accounts the viewer doesn't follow
+    const hiddenAuthors = await getHiddenAuthorIds(req.user);
+    if (hiddenAuthors.length) filter.userId = { $nin: hiddenAuthors };
 
     const posts = await Post.find(filter)
       .populate('userId', 'name avatar role city community communityId')
@@ -962,7 +967,9 @@ exports.searchSocial = async (req, res) => {
       isDeleted: false,
       $text: { $search: query }
     };
-    const filter = applyScopeFilter(req, baseFilter);
+    const filter = applyScopeFilter(req, baseFilter, { skipCityScope: true });
+    const hiddenAuthors = await getHiddenAuthorIds(req.user);
+    if (hiddenAuthors.length) filter.userId = { $nin: hiddenAuthors };
 
     const posts = await Post.find(filter)
       .populate('userId', 'name avatar role')
@@ -976,7 +983,9 @@ exports.searchSocial = async (req, res) => {
         isDeleted: false,
         content: new RegExp(query, 'i')
       };
-      const filter = applyScopeFilter(req, baseFilter);
+      const filter = applyScopeFilter(req, baseFilter, { skipCityScope: true });
+      const hiddenAuthors = await getHiddenAuthorIds(req.user);
+      if (hiddenAuthors.length) filter.userId = { $nin: hiddenAuthors };
 
       const posts = await Post.find(filter)
         .populate('userId', 'name avatar role')
@@ -997,7 +1006,7 @@ exports.getProfileStats = async (req, res) => {
     const targetUserId = req.query.userId || req.user._id;
     const isOwner = targetUserId.toString() === req.user._id.toString();
 
-    const postFilter = applyScopeFilter(req, { authorId: targetUserId, isDeleted: false });
+    const postFilter = applyScopeFilter(req, { authorId: targetUserId, isDeleted: false }, { skipCityScope: true });
 
     const [postsCount, followersCount, followingCount, savedCount] = await Promise.all([
       Post.countDocuments(postFilter),
@@ -1121,6 +1130,14 @@ exports.getUserPosts = async (req, res) => {
     const { userId } = req.params;
     const { limit = 10, cursor } = req.query;
 
+    // Private account (not followed) or non-married member → their posts are not shown
+    const targetUser = require('mongoose').Types.ObjectId.isValid(userId)
+      ? await User.findById(userId).select('_id role maritalStatus isPrivate').lean()
+      : null;
+    if (!(await canViewContentOf(req.user, targetUser))) {
+      return res.json({ success: true, data: [], hasMore: false, nextCursor: null, restricted: true });
+    }
+
     const baseFilter = {
       authorId: userId,
       status: 'published',
@@ -1131,7 +1148,7 @@ exports.getUserPosts = async (req, res) => {
       baseFilter.createdAt = { $lt: new Date(cursor) };
     }
 
-    const filter = applyScopeFilter(req, baseFilter);
+    const filter = applyScopeFilter(req, baseFilter, { skipCityScope: true });
 
     const posts = await Post.find(filter)
       .populate('userId', 'name avatar role city community communityId')

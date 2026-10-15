@@ -3,11 +3,12 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, Check, CreditCard, ShieldCheck, CheckCircle2,
   QrCode, Landmark, Sparkles, X, Heart, RefreshCw,
-  Star, ShieldAlert, FileText, Loader2, Crown, Download,
+  Star, ShieldAlert, Loader2, Crown, Download,
   ChevronRight, Info, HelpCircle
 } from 'lucide-react';
 import { matrimonialSubscriptionService } from '../../../../core/api/matrimonialService';
 import { loadRazorpayScript } from '../../../../core/utils/razorpayLoader';
+import { MySubscriptionPanel } from './components/MySubscriptionPanel';
 
 // ─── Feature Keys for Matrix ──────────────────────────────────────────────────
 const FEATURE_ROWS = [
@@ -50,8 +51,6 @@ const MatrimonialSubscriptionPage = () => {
   const [selectedBank, setSelectedBank] = useState('SBI');
   const [processing, setProcessing]     = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
-  const [invoices, setInvoices]         = useState([]);
-  const [showInvoices, setShowInvoices] = useState(false);
   const [toast, setToast]               = useState('');
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); };
@@ -83,13 +82,6 @@ const MatrimonialSubscriptionPage = () => {
       setLoadingPlans(false);
     }
   }, [selectedPlan]);
-
-  const loadHistory = useCallback(async () => {
-    try {
-      const res = await matrimonialSubscriptionService.getHistory();
-      setInvoices(res.data.data.history || []);
-    } catch {}
-  }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -165,7 +157,10 @@ const MatrimonialSubscriptionPage = () => {
     }
   };
 
-  const isActive = mySubscription?.status === 'active';
+  // /subscription/me only returns a plan that is still valid today (active, grace,
+  // or cancelled but paid until its end date), so any returned plan is manageable.
+  const isActive = Boolean(mySubscription);
+  const isCancelledPlan = mySubscription?.status === 'cancelled';
 
   if (loadingPlans) {
     return (
@@ -205,7 +200,7 @@ const MatrimonialSubscriptionPage = () => {
             <div className="bg-gradient-to-br from-rose-500 to-pink-600 text-white rounded-3xl p-6 shadow-lg shadow-rose-500/20 relative overflow-hidden">
               <div className="absolute -right-5 -bottom-5 opacity-10"><Heart size={130} fill="white" /></div>
               <span className="bg-white/20 text-white text-[9px] font-black uppercase px-3 py-1 rounded-full tracking-widest border border-white/15">
-                ✨ Active Member
+                {isCancelledPlan ? 'Cancelled · No Renewal' : '✨ Active Member'}
               </span>
               <h2 className="text-[24px] font-black mt-4 leading-none tracking-tight">{mySubscription.planName}</h2>
               <p className="text-rose-100 text-[11.5px] font-semibold mt-1.5">
@@ -226,35 +221,20 @@ const MatrimonialSubscriptionPage = () => {
               </div>
             </div>
 
+            {/* Days left, usage against each limit, and every plan bought */}
+            <MySubscriptionPanel refreshKey={mySubscription?._id} />
+
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 space-y-2.5">
               <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-wider">Subscription Controls</h4>
               <button onClick={() => setIsUpgrading(true)}
                 className="w-full py-3 bg-slate-50 text-slate-700 text-[12.5px] font-bold rounded-xl border border-slate-200 flex items-center justify-center gap-2 active:scale-95">
                 <RefreshCw size={14} /> Upgrade / Renew Plan
               </button>
-              <button onClick={async () => { await loadHistory(); setShowInvoices(!showInvoices); }}
-                className="w-full py-3 bg-slate-50 text-slate-700 text-[12.5px] font-bold rounded-xl border border-slate-200 flex items-center justify-center gap-2 active:scale-95">
-                <FileText size={14} /> Billing History
-              </button>
-              <button onClick={() => setShowCancelModal(true)}
-                className="w-full py-3 bg-red-50 text-red-500 text-[12.5px] font-bold rounded-xl border border-red-100 flex items-center justify-center gap-2 active:scale-95">
-                Cancel Membership
-              </button>
-              {showInvoices && (
-                <div className="pt-3 border-t border-slate-100 space-y-2">
-                  {invoices.length === 0
-                    ? <p className="text-[11px] text-slate-400 text-center font-semibold py-2">No billing records yet.</p>
-                    : invoices.map(inv => (
-                        <div key={inv._id} className="flex justify-between items-center px-3 py-2.5 bg-slate-50 rounded-xl border border-slate-100">
-                          <div>
-                            <p className="text-[12px] font-bold text-slate-800">{inv.planName}</p>
-                            <p className="text-[10px] text-slate-400 font-semibold">{new Date(inv.startDate).toLocaleDateString('en-IN')} · {inv.paymentStatus}</p>
-                          </div>
-                          <span className="text-[13px] font-black text-slate-800">₹{inv.pricePaid}</span>
-                        </div>
-                      ))
-                  }
-                </div>
+              {!isCancelledPlan && (
+                <button onClick={() => setShowCancelModal(true)}
+                  className="w-full py-3 bg-red-50 text-red-500 text-[12.5px] font-bold rounded-xl border border-red-100 flex items-center justify-center gap-2 active:scale-95">
+                  Cancel Membership
+                </button>
               )}
             </div>
           </div>

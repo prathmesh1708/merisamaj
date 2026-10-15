@@ -1,10 +1,10 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Heart, Send, Eye, Trash2, Loader2 } from 'lucide-react';
 import { Avatar } from './Avatar';
 import { useData } from '../../context/DataProvider';
 import { createPortal } from 'react-dom';
-import { StoryMedia } from './StoryMedia';
+import { StoryMedia, isVideo } from './StoryMedia';
 
 const slideVariants = {
   enter: (direction) => ({
@@ -205,9 +205,17 @@ export const StoryViewer = ({ story, stories = [], onStoryChange, onClose }) => 
     setIsPaused(false);
   };
 
+  // A video story lasts as long as the video; if it can't play we fall back to the timer
+  const [videoFailed, setVideoFailed] = useState(false);
+  const isVideoStory = Boolean(story) && isVideo(story) && !videoFailed;
+  const handleVideoProgress = useCallback((fraction) => setProgress(fraction * 100), []);
+  const handleVideoEnded = useCallback(() => setProgress(100), []);
+  const handleVideoError = useCallback(() => setVideoFailed(true), []);
+
   // Reset progress when story changes
   useEffect(() => {
     setProgress(0);
+    setVideoFailed(false);
   }, [story?.id]);
 
   // Lock body scroll when story viewer is open to prevent page scrolling behind it
@@ -222,9 +230,9 @@ export const StoryViewer = ({ story, stories = [], onStoryChange, onClose }) => 
     };
   }, []);
 
-  // Auto advance timeline (5 seconds per story)
+  // Auto advance timeline (5 seconds per photo / text story; videos drive their own progress)
   useEffect(() => {
-    if (!story || isPaused || viewersOpen || deleting) return;
+    if (!story || isVideoStory || isPaused || viewersOpen || deleting) return;
 
     const duration = 5000;
     const interval = 50; // Update every 50ms
@@ -235,7 +243,7 @@ export const StoryViewer = ({ story, stories = [], onStoryChange, onClose }) => 
     }, interval);
 
     return () => clearInterval(timer);
-  }, [story?.id, isPaused, viewersOpen, deleting]);
+  }, [story?.id, isVideoStory, isPaused, viewersOpen, deleting]);
 
   // When the bar fills up, move on (kept out of the state updater so it runs exactly once)
   useEffect(() => {
@@ -321,7 +329,17 @@ export const StoryViewer = ({ story, stories = [], onStoryChange, onClose }) => 
           >
             {/* Story Image Background */}
             <div className="absolute top-0 left-0 w-full bg-gray-900 pointer-events-none" style={{ height: fixedHeight }}>
-              <StoryMedia key={story.id} story={story} autoPlay className="w-full h-full object-cover" />
+              <StoryMedia
+                key={story.id}
+                story={story}
+                autoPlay
+                // Videos are shown whole (no zoom/crop); photos keep filling the screen
+                className={`w-full h-full ${isVideo(story) ? 'object-contain bg-black' : 'object-cover'}`}
+                paused={isPaused || viewersOpen || deleting}
+                onVideoProgress={handleVideoProgress}
+                onVideoEnded={handleVideoEnded}
+                onVideoError={handleVideoError}
+              />
             </div>
             {/* Progress Bar Container - ONLY for the current member's stories */}
             <div className="absolute top-0 pt-4 left-0 right-0 z-20 px-2 flex gap-1.5">

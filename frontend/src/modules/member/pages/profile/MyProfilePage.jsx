@@ -97,6 +97,7 @@ const MyProfilePage = () => {
     toggleFollowedAnnouncement,
     sendFollowRequest,
     cancelFollowRequest,
+    followRequests = [],
     blockUser,
     admins
   } = useData();
@@ -105,6 +106,7 @@ const MyProfilePage = () => {
   const isMe = !memberId || memberId === myId;
 
   const [activeTab, setActiveTab] = useState('posts');
+  const [profileReloadKey, setProfileReloadKey] = useState(0);
   const [loadedMember, setLoadedMember] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
 
@@ -264,7 +266,7 @@ const MyProfilePage = () => {
     return () => {
       isMounted = false;
     };
-  }, [memberId, isMe, myId]);
+  }, [memberId, isMe, myId, profileReloadKey]);
 
   // Fetch Saved and Liked posts dynamically on tab switch
   useEffect(() => {
@@ -467,7 +469,9 @@ const MyProfilePage = () => {
   const isMaritalRestricted = profileUser.isMaritalRestricted === true;
   const isFollowing = followRelations?.some(r => r.followerId === myId && r.followingId === profileUser.id && r.status === 'accepted') || (followRelations?.some(r => r.followerId === myId && r.followingId === profileUser._id && r.status === 'accepted'));
   const hasRequested = followRelations?.some(r => r.followerId === myId && r.followingId === profileUser.id && r.status === 'pending') || (followRelations?.some(r => r.followerId === myId && r.followingId === profileUser._id && r.status === 'pending'));
-  const privacySetting = profilePrivacy?.[profileUser.id] || profilePrivacy?.[profileUser._id] || (profileUser.isPrivate ? 'private' : 'public');
+  const privacySetting = isMe
+    ? (profilePrivacy?.[myId] || (currentUser?.isPrivate ? 'private' : 'public'))
+    : (profileUser.isPrivate ? 'private' : 'public');
   const isPrivate = privacySetting === 'private';
   const canAccess = isMe || !isPrivate || isFollowing;
 
@@ -904,6 +908,10 @@ const MyProfilePage = () => {
                 <button
                   onClick={async () => {
                     const res = await sendFollowRequest(profileUser.id || profileUser._id);
+                    if (res && res.success === false) {
+                      alert(res.message || 'Could not follow this member.');
+                      return;
+                    }
                     if (res && res.targetStats) {
                       setProfileStats(prev => ({
                         ...prev,
@@ -911,13 +919,31 @@ const MyProfilePage = () => {
                         followingCount: res.targetStats.followingCount
                       }));
                     }
+                    // Public account: following unlocks their posts right away
+                    if (res?.status === 'accepted') setProfileReloadKey(k => k + 1);
                   }}
                   className="flex-1 py-2 bg-brand-primary hover:bg-brand-dark text-white rounded-xl text-[13px] font-black shadow-sm press-scale transition-all"
                 >
-                  Follow
+                  {isPrivate ? 'Request to Follow' : 'Follow'}
                 </button>
               )}
             </div>
+          )}
+
+          {/* Pending follow requests (shown on my own profile) */}
+          {isMe && followRequests.length > 0 && (
+            <button
+              onClick={() => navigate('/member/settings?open=follow-requests')}
+              className="w-full flex items-center justify-between px-4.5 py-3 border-t border-purple-100/10 bg-purple-50/40 hover:bg-purple-50 transition-colors text-left"
+            >
+              <span className="text-[13px] font-bold text-slate-800">
+                Follow requests
+                <span className="ml-2 min-w-[20px] h-5 px-1.5 inline-flex items-center justify-center rounded-full bg-rose-500 text-white text-[10.5px] font-black align-middle">
+                  {followRequests.length}
+                </span>
+              </span>
+              <span className="text-[12px] font-bold text-brand-primary">Review →</span>
+            </button>
           )}
         </div>
 

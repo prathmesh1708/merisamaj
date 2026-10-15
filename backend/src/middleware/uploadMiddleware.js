@@ -155,7 +155,7 @@ if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && proce
   }
 }
 
-const CHAT_MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
+const CHAT_MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB — room for short phone videos
 
 const uploadChatImageFn = multer({
   storage: chatStorage,

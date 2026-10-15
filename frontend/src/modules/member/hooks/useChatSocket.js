@@ -35,6 +35,9 @@ export const getResolvedSocketUrl = () => {
     || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5001');
 };
 
+// The chat counts as "seen" only while the page is actually on screen
+const isPageVisible = () => typeof document === 'undefined' || document.visibilityState === 'visible';
+
 export const getSocket = (userId) => {
   if (!userId) return null;
   const targetUserId = userId.toString();
@@ -112,13 +115,15 @@ export const useChatSocket = ({
   onMemberAdded,
   onMemberRemoved,
   onMemberPromoted,
-  onMemberDemoted
+  onMemberDemoted,
+  onReconnect
 } = {}) => {
   const { user } = useAuth();
   const [isConnected, setIsConnected]   = useState(false);
   const [onlineUsers, setOnlineUsers]   = useState([]);
   const typingTimeoutRef = useRef(null);
   const socketRef        = useRef(null);
+  const wasDisconnectedRef = useRef(false);
 
   // Store active callbacks in ref so listeners always call the latest functions without stale closures
   const callbacksRef = useRef({});
@@ -135,7 +140,8 @@ export const useChatSocket = ({
     onMemberAdded,
     onMemberRemoved,
     onMemberPromoted,
-    onMemberDemoted
+    onMemberDemoted,
+    onReconnect
   };
 
   const convIdRef = useRef(conversationId);
@@ -156,11 +162,30 @@ export const useChatSocket = ({
       setIsConnected(true);
       const activeConvId = convIdRef.current;
       if (activeConvId) {
-        socket.emit('chat:join_conversation', { conversationId: activeConvId });
+        socket.emit('chat:join_conversation', { conversationId: activeConvId, visible: isPageVisible() });
+      }
+      // Messages sent while we were offline never arrived live — fetch them now
+      if (wasDisconnectedRef.current) {
+        wasDisconnectedRef.current = false;
+        callbacksRef.current.onReconnect?.();
       }
     };
 
-    const onDisconnect = () => setIsConnected(false);
+    const onDisconnect = () => {
+      setIsConnected(false);
+      wasDisconnectedRef.current = true;
+    };
+
+    // Coming back to the app: mark the open chat seen and catch up on anything missed
+    const onVisibilityChange = () => {
+      if (!isPageVisible()) return;
+      const activeConvId = convIdRef.current;
+      if (activeConvId && socket.connected) {
+        socket.emit('chat:join_conversation', { conversationId: activeConvId, visible: true });
+      }
+      callbacksRef.current.onReconnect?.();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
 
     // Dynamic callback wrappers
     const handleNewMessage        = (msg) => callbacksRef.current.onNewMessage?.(msg);
@@ -199,11 +224,12 @@ export const useChatSocket = ({
     if (socket.connected) {
       setIsConnected(true);
       if (conversationId) {
-        socket.emit('chat:join_conversation', { conversationId });
+        socket.emit('chat:join_conversation', { conversationId, visible: isPageVisible() });
       }
     }
 
     return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       socket.off('connect',                  onConnect);
       socket.off('disconnect',               onDisconnect);
       socket.off('chat:new_message',          handleNewMessage);
@@ -228,7 +254,7 @@ export const useChatSocket = ({
     if (!conversationId) return;
     const socket = socketRef.current || (user && getSocket(user.id || user._id));
     if (socket && socket.connected) {
-      socket.emit('chat:join_conversation', { conversationId });
+      socket.emit('chat:join_conversation', { conversationId, visible: isPageVisible() });
     }
   }, [conversationId, user]);
 
@@ -269,7 +295,7 @@ export const useChatSocket = ({
   /** Join a new conversation room (if changed dynamically) */
   const joinConversation = useCallback((convId) => {
     if (socketRef.current?.connected && convId) {
-      socketRef.current.emit('chat:join_conversation', { conversationId: convId });
+      socketRef.current.emit('chat:join_conversation', { conversationId: convId, visible: isPageVisible() });
     }
   }, []);
 

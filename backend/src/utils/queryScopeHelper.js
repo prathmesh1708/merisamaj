@@ -114,7 +114,9 @@ const applyScopeFilter = (req, baseFilter = {}, options = {}) => {
   ) && user?.city;
 
   const activeCity = options.overrideCity || req?.query?.city || (isLocalScope ? user.city : null);
-  if (activeCity && typeof activeCity === 'string' && activeCity !== 'all' && activeCity !== 'All') {
+  // skipCityScope: for collections that don't store a city name (e.g. Post uses cityId),
+  // where a city-name filter would match nothing; the caller handles city itself.
+  if (activeCity && !options.skipCityScope && typeof activeCity === 'string' && activeCity !== 'all' && activeCity !== 'All') {
     if (options.includeUnassignedCity) {
       const cityRegex = new RegExp(`^${activeCity.trim()}$`, 'i');
       const unassignedCondition = [

@@ -38,7 +38,7 @@ export const useMemberConversations = () => {
       setConversations(prev => {
         const convId = msg.conversationId?.toString();
         const idx = prev.findIndex(c => c._id === convId);
-        const preview = msg.message || (msg.type === 'image' ? '📷 Photo' : msg.type === 'file' ? '📎 File' : '💬 Message');
+        const preview = msg.message || (msg.type === 'image' ? '📷 Photo' : msg.type === 'video' ? '🎥 Video' : msg.type === 'file' ? '📎 File' : '💬 Message');
         const msgTime = msg.createdAt || new Date().toISOString();
 
         if (idx === -1) {
@@ -105,7 +105,10 @@ export const useMemberChat = (conversationId) => {
     if (!conversationId) return;
     setLoading(true);
     try {
-      const res = await memberChatService.getMessages(conversationId, { page: pageNum, limit: LIMIT });
+      // Opening the chat in a background tab must not mark it seen
+      const params = { page: pageNum, limit: LIMIT };
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') params.markSeen = 'false';
+      const res = await memberChatService.getMessages(conversationId, params);
       const fetched   = res.data?.data?.messages || [];
       const total     = res.data?.data?.total || 0;
       const targetUser = res.data?.data?.otherUser;
@@ -158,9 +161,10 @@ export const useMemberChat = (conversationId) => {
         return [...prev, msg];
       });
 
-      // Auto mark as seen if message is from another user
+      // Auto mark as seen if message is from another user — only while the chat is on screen
       const msgSenderId = (msg.senderId?._id || msg.senderId?.id || msg.senderId)?.toString();
-      if (msgSenderId && currentUserId && msgSenderId !== currentUserId) {
+      const onScreen = typeof document === 'undefined' || document.visibilityState === 'visible';
+      if (msgSenderId && currentUserId && msgSenderId !== currentUserId && onScreen) {
         markSeen([msg._id]);
       }
     },
@@ -212,16 +216,38 @@ export const useMemberChat = (conversationId) => {
       ));
     },
 
-    onMessagesDelivered: ({ userId: deliveredTo }) => {
-      setMessages(prev => prev.map(m => ({
-        ...m,
-        deliveredTo: [...new Set([...(m.deliveredTo || []), deliveredTo])]
-      })));
+    onMessagesDelivered: ({ userId: deliveredTo, conversationId: cId }) => {
+      if (cId && cId.toString() !== conversationId?.toString()) return;
+      const who = deliveredTo?.toString();
+      setMessages(prev => prev.map(m => {
+        const sender = (m.senderId?._id || m.senderId)?.toString();
+        if (!who || sender === who) return m; // my own messages aren't "delivered to me"
+        const already = (m.deliveredTo || []).some(d => (d?._id || d)?.toString() === who);
+        return already ? m : { ...m, deliveredTo: [...(m.deliveredTo || []), who] };
+      }));
+    },
+
+    // Back online / back in the app: pull in messages that never arrived live
+    onReconnect: async () => {
+      if (!conversationId) return;
+      try {
+        const res = await memberChatService.getMessages(conversationId, { page: 1, limit: LIMIT, markSeen: 'false' });
+        const fetched = res.data?.data?.messages || [];
+        setMessages(prev => {
+          const temps = prev.filter(m => typeof m._id === 'string' && m._id.startsWith('temp_'));
+          const byId = new Map(prev.filter(m => !temps.includes(m)).map(m => [m._id?.toString(), m]));
+          fetched.forEach(m => byId.set(m._id?.toString(), { ...(byId.get(m._id?.toString()) || {}), ...m }));
+          const merged = [...byId.values()].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+          return [...merged, ...temps];
+        });
+      } catch {
+        /* next reconnect / focus will retry */
+      }
     }
   });
 
   // ── Send message ───────────────────────────────────────────────────────────
-  const sendMessage = useCallback(async ({ text, imageFile, audioBlob, file, replyTo, metadata }) => {
+  const sendMessage = useCallback(async ({ text, imageFile, videoFile, audioBlob, file, replyTo, metadata }) => {
     if (!conversationId) return;
     setSending(true);
 
@@ -236,6 +262,9 @@ export const useMemberChat = (conversationId) => {
     if (imageFile) {
       optimisticType = 'image';
       optimisticMediaUrl = URL.createObjectURL(imageFile);
+    } else if (videoFile) {
+      optimisticType = 'video';
+      optimisticMediaUrl = URL.createObjectURL(videoFile);
     } else if (audioBlob) {
       optimisticType = 'audio';
       optimisticMediaUrl = URL.createObjectURL(audioBlob);
@@ -262,10 +291,11 @@ export const useMemberChat = (conversationId) => {
 
     try {
       let res;
-      if (imageFile || audioBlob || file) {
+      if (imageFile || videoFile || audioBlob || file) {
         const formData = new FormData();
         if (text) formData.append('message', text);
         if (imageFile) formData.append('photo', imageFile);
+        if (videoFile) { formData.append('photo', videoFile); formData.append('type', 'video'); }
         if (audioBlob) formData.append('photo', audioBlob, `voice_${Date.now()}.webm`);
         if (file) formData.append('photo', file);
         if (replyTo) formData.append('replyTo', replyTo);

@@ -4,12 +4,14 @@ const chatCtrl = require('../../controllers/member/memberChatController');
 const { uploadChatImage } = require('../../middleware/uploadMiddleware');
 const rateLimit = require('express-rate-limit');
 
-const imageLimiter = rateLimit({
+const uploadRateLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 10,
+  max: 20,
   keyGenerator: (req) => req.user?._id?.toString() || req.ip,
   message: { status: 'error', message: 'Upload limit exceeded.' }
 });
+// Only file uploads count towards the limit — plain text messages are never throttled
+const imageLimiter = (req, res, next) => (req.is('multipart/form-data') ? uploadRateLimiter(req, res, next) : next());
 
 // ─── Conversations ────────────────────────────────────────────────────────────
 router.post('/conversations',                                    chatCtrl.openConversation);

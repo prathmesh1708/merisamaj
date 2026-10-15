@@ -8,23 +8,33 @@ export const DiscoverContent = () => {
   const { members = [], followRelations = [], sendFollowRequest, unfollowUser, currentUser } = useData();
   const [searchText, setSearchText] = useState('');
   
-  const followedIds = useMemo(() => {
-    return followRelations
-      .filter(rel => rel.followerId === currentUser?.id)
-      .map(rel => rel.followingId);
-  }, [followRelations, currentUser]);
+  // userId → 'accepted' | 'pending' for people I follow or asked to follow
+  const myId = String(currentUser?._id || currentUser?.id || '');
+  const followStatusById = useMemo(() => {
+    const map = {};
+    followRelations
+      .filter(rel => rel.followerId === myId)
+      .forEach(rel => { map[rel.followingId] = rel.status; });
+    return map;
+  }, [followRelations, myId]);
+
+  // Only married members (and community leaders) appear on Social
+  const socialMembers = useMemo(() => members.filter(m =>
+    String(m.id || m._id) !== myId &&
+    (['head', 'sub_head', 'admin', 'admin_sub_head'].includes(m.role) || /^married$/i.test(m.maritalStatus || ''))
+  ), [members, myId]);
 
   const filteredMembers = useMemo(() => {
-    if (!searchText.trim()) return members;
+    if (!searchText.trim()) return socialMembers;
     const query = searchText.toLowerCase();
-    return members.filter(m => 
+    return socialMembers.filter(m =>  
       m.id !== currentUser?.id && (
         m.name?.toLowerCase().includes(query) ||
         m.phone?.toLowerCase().includes(query) ||
         m.id?.toLowerCase().includes(query)
       )
     );
-  }, [members, searchText, currentUser]);
+  }, [socialMembers, searchText, currentUser]);
 
   const handleFollowToggle = (userId, isFollowing) => {
     if (isFollowing) {
@@ -90,7 +100,8 @@ export const DiscoverContent = () => {
       ) : (
         <div className="grid grid-cols-2 gap-3.5">
           {filteredMembers.map(user => {
-            const isFollowing = followedIds.includes(user.id);
+            const followStatus = followStatusById[String(user.id)];
+            const isFollowing = Boolean(followStatus); // following or requested → tapping undoes it
             const targetId = user.id || user._id;
             return (
               <div 
@@ -101,7 +112,9 @@ export const DiscoverContent = () => {
                 <div className="w-14 h-14 rounded-2xl bg-purple-50 text-purple-700 font-black text-base flex items-center justify-center mb-2.5 shadow-2xs border border-purple-100/60 shrink-0 overflow-hidden">
                   {user.avatar ? <img src={user.avatar} alt={user.name} className="w-full h-full object-cover rounded-2xl" /> : (user.initials || (user.name || 'U').substring(0, 2).toUpperCase())}
                 </div>
-                <h5 className="text-[13.5px] font-extrabold text-slate-800 line-clamp-1 leading-tight hover:text-purple-700 transition-colors">{user.name}</h5>
+                <h5 className="text-[13.5px] font-extrabold text-slate-800 line-clamp-1 leading-tight hover:text-purple-700 transition-colors">
+                  {user.name}{user.isPrivate && <span className="ml-1" title="Private account">🔒</span>}
+                </h5>
                 <p className="text-[11px] text-slate-500 mt-1 font-bold flex items-center justify-center gap-1 truncate w-full">
                   <MapPin size={11} className="text-slate-400 shrink-0" /> <span className="truncate">{user.city || 'Indore'}</span>
                 </p>
@@ -118,7 +131,12 @@ export const DiscoverContent = () => {
                       : 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-2xs hover:opacity-95'
                   }`}
                 >
-                  {isFollowing ? (
+                  {followStatus === 'pending' ? (
+                    <>
+                      <UserCheck size={13} strokeWidth={2.5} />
+                      Requested
+                    </>
+                  ) : isFollowing ? (
                     <>
                       <UserCheck size={13} strokeWidth={2.5} />
                       Following

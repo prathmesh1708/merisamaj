@@ -1381,33 +1381,33 @@ const HomePage = () => {
                         style={{ background: '#FFFFFF' }}
                       >
 {/* Leader photo — only a real uploaded photo; otherwise their initials */}
-                        <div className="absolute right-0 top-0 bottom-0 w-[58%] h-full pointer-events-none z-0 bg-gradient-to-br from-sky-100 via-indigo-50 to-purple-100 flex items-center justify-center">
+                        <div className="absolute right-0 top-0 bottom-0 w-[45%] h-full pointer-events-none z-0 bg-gradient-to-br from-sky-100 via-indigo-50 to-purple-100 flex items-center justify-center">
                           <span className="text-[56px] font-black text-sky-700/25 tracking-tight select-none">{getInitials(head.name)}</span>
                         </div>
                         {isRealPhoto(head.avatar) && (
                           <img
                             src={head.avatar}
-                            className="absolute right-0 top-0 bottom-0 w-[58%] h-full object-cover object-[center_20%] pointer-events-none z-0"
+                            className="absolute right-0 top-0 bottom-0 w-[45%] h-full object-cover object-[center_20%] pointer-events-none z-0"
                             alt={head.name}
                             onError={(e) => { e.currentTarget.style.display = 'none'; }}
                           />
                         )}
 
-                        <div className="relative z-10 flex flex-col justify-between h-full max-w-[55%]">
-                          <div className="flex items-center gap-2">
+                        <div className="relative z-10 flex flex-col justify-between h-full w-[52%] min-w-0">
+                          <div className="flex items-center gap-2 min-w-0">
                             <div className="w-9 h-9 rounded-full border-2 border-amber-400 flex items-center justify-center bg-white shadow-sm shrink-0">
                               <Crown size={16} className="text-amber-500 fill-amber-500" />
                             </div>
-                            <span className="bg-sky-600 text-white text-[9px] font-bold px-3 py-0.5 rounded-full uppercase tracking-wider truncate">
+                            <span className="bg-sky-600 text-white text-[9px] font-bold px-3 py-0.5 rounded-full uppercase tracking-wider truncate min-w-0">
                               {head.designation || scopeLabel}
                             </span>
                           </div>
 
                           <div className="mt-3.5">
-                            <h4 className="text-slate-900 text-[18px] font-bold leading-tight tracking-tight">
+                            <h4 className="text-slate-900 text-[17px] font-bold leading-tight tracking-tight break-words">
                               {head.name}
                             </h4>
-                            <p className="text-sky-700 text-[11px] font-bold mt-0.5 uppercase tracking-wide">
+                            <p className="text-sky-700 text-[11px] font-bold mt-0.5 uppercase tracking-wide break-words">
                               {head.designation || scopeLabel}
                             </p>
                           </div>
@@ -1418,9 +1418,9 @@ const HomePage = () => {
                             <div className="h-[1px] flex-1 bg-amber-400/40" />
                           </div>
 
-                          <div className="flex items-center gap-2 text-slate-600 text-[10px] font-medium mb-3.5">
-                            <MapPin size={11} className="text-slate-500 shrink-0" />
-                            <span>{[head.city, head.state].filter(Boolean).join(', ') || scopeLabel}</span>
+                          <div className="flex items-start gap-1.5 text-slate-600 text-[10px] font-medium mb-3.5 min-w-0">
+                            <MapPin size={11} className="text-slate-500 shrink-0 mt-px" />
+                            <span className="break-words min-w-0">{[head.city, head.state].filter(Boolean).join(', ') || scopeLabel}</span>
                           </div>
 
                           <div className="flex gap-2 w-full" onClick={(e) => e.stopPropagation()}>

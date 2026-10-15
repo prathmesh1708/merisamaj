@@ -3,6 +3,7 @@ const StoryView = require('../../models/StoryView');
 const StoryLike = require('../../models/StoryLike');
 const Follower = require('../../models/Follower');
 const City = require('../../models/City');
+const { getHiddenAuthorIds } = require('../../services/socialVisibilityService');
 
 const getCityId = async (cityName) => {
   if (!cityName) return null;
@@ -26,9 +27,13 @@ exports.getStories = async (req, res) => {
 
     const now = new Date();
 
+    // Non-married members and private accounts I don't follow never show up in my stories
+    const hiddenAuthors = await getHiddenAuthorIds(req.user);
+
     // Query active (non-expired) stories from followed users OR public/community stories in this community
     const stories = await Story.find({
       expiresAt: { $gt: now },
+      ...(hiddenAuthors.length ? { userId: { $nin: hiddenAuthors } } : {}),
       $or: [
         { userId: { $in: followingUserIds } },
         { communityId: req.user.communityId, visibility: 'community' },

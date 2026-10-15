@@ -1,7 +1,8 @@
 const User = require('../../models/User');
 const Follower = require('../../models/Follower');
 const UserBlock = require('../../models/UserBlock');
-const { applyScopeFilter } = require('../../utils/queryScopeHelper');
+const { applyScopeFilter, adminRoles } = require('../../utils/queryScopeHelper');
+const { isHiddenOnSocial } = require('../../services/socialVisibilityService');
 const Category = require('../../models/Category');
 
 // ── Directory occupation categories (managed by Admin → Professionals → Categories) ──
@@ -102,7 +103,7 @@ exports.getCommunityMembers = async (req, res) => {
 
     const [members, total] = await Promise.all([
       User.find(filter)
-        .select('name avatar city profession phone email gender gotra community communityId assignedCommunityIds accountStatus verificationStatus isAadharVerified area familyMembers role maritalStatus createdAt')
+        .select('name avatar city profession phone email gender gotra community communityId assignedCommunityIds accountStatus verificationStatus isAadharVerified area familyMembers role maritalStatus isPrivate createdAt')
         .sort({ name: 1 })
         .skip(skip)
         .limit(Number(limit))
@@ -186,11 +187,10 @@ exports.getMemberProfile = async (req, res) => {
       }
     }
 
-    // 2. Marital Status Gate — directory listing shows everyone, but opening an
-    //    individual profile is only allowed for Married members (or yourself).
-    //    A member who never set maritalStatus is treated as viewable, not blocked —
-    //    otherwise almost every profile would be unopenable (most haven't set it).
-    if (!isMe && member.maritalStatus === 'Single') {
+    // 2. Marital Status Gate — opening an individual profile is only allowed for
+    //    Married members (or yourself). Single members and members who never set a
+    //    marital status are hidden; community leaders and admins always stay visible.
+    if (!isMe && !adminRoles.includes(req.user?.role) && isHiddenOnSocial(member)) {
       return res.json({
         success: true,
         data: {

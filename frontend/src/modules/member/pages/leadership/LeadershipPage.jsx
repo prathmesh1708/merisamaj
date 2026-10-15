@@ -40,29 +40,29 @@ const GroupHeadBanner = ({ head, navigate }) => {
       style={{ background: '#FFFFFF' }}
     >
       {/* Leader photo — only a real uploaded photo; otherwise their initials */}
-      <div className="absolute right-0 top-0 bottom-0 w-[58%] h-full pointer-events-none z-0 bg-gradient-to-br from-sky-100 via-indigo-50 to-purple-100 flex items-center justify-center">
+      <div className="absolute right-0 top-0 bottom-0 w-[45%] h-full pointer-events-none z-0 bg-gradient-to-br from-sky-100 via-indigo-50 to-purple-100 flex items-center justify-center">
         <span className="text-[56px] font-black text-sky-700/25 tracking-tight select-none">{getInitials(head.name)}</span>
       </div>
       {isRealPhoto(head.avatar) && (
         <img
           src={head.avatar}
-          className="absolute right-0 top-0 bottom-0 w-[58%] h-full object-cover object-[center_20%] pointer-events-none z-0"
+          className="absolute right-0 top-0 bottom-0 w-[45%] h-full object-cover object-[center_20%] pointer-events-none z-0"
           alt={head.name}
           onError={(e) => { e.currentTarget.style.display = 'none'; }}
         />
       )}
 
-      <div className="relative z-10 p-5 flex flex-col justify-between h-full max-w-[55%] min-h-[172px]">
+      <div className="relative z-10 p-5 pr-3 flex flex-col justify-between h-full w-[55%] min-w-0 min-h-[172px]">
         <div className="w-9 h-9 rounded-full border-2 border-amber-400 flex items-center justify-center bg-white shadow-sm shrink-0">
           <Crown size={16} className="text-amber-500 fill-amber-500" />
         </div>
 
         <div>
-          <h4 className="text-slate-900 text-[18px] font-black leading-tight tracking-tight">{head.name}</h4>
-          <p className="text-sky-700 text-[11px] font-black mt-0.5 uppercase tracking-wide">{designation}</p>
+          <h4 className="text-slate-900 text-[17px] font-black leading-tight tracking-tight break-words">{head.name}</h4>
+          <p className="text-sky-700 text-[11px] font-black mt-0.5 uppercase tracking-wide break-words">{designation}</p>
           {locationText && (
-            <p className="text-slate-600 text-[11px] font-semibold mt-1 flex items-center gap-1">
-              <MapPin size={11} className="shrink-0" /> {locationText}
+            <p className="text-slate-600 text-[11px] font-semibold mt-1 flex items-start gap-1 min-w-0">
+              <MapPin size={11} className="shrink-0 mt-0.5" /> <span className="break-words min-w-0">{locationText}</span>
             </p>
           )}
 

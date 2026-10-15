@@ -1986,7 +1986,7 @@ const SubLocalHeadLocationWiseView = ({
                         <h3 className="subcomm-card-title">{loc.fullName || `${loc.name} Location`}</h3>
                       )}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <p className="subcomm-card-subtitle" style={{ margin: 0 }}>Total Groups: {loc.groups?.length || 4}</p>
+                        <p className="subcomm-card-subtitle" style={{ margin: 0 }}>Total Groups: {loc.groups?.length || 0}</p>
                         {locHeadCount > 0 && (
                           <button
                             type="button"
@@ -2016,16 +2016,30 @@ const SubLocalHeadLocationWiseView = ({
                     <button
                       type="button"
                       className="subcomm-btn-add-group"
-                      onClick={() => setShowAddGroupModal(loc)}
+                      onClick={() => {
+                        // Suggest the next free "Group N" name for this location
+                        const used = new Set((loc.groups || []).map(g => (g.name || '').trim().toLowerCase()));
+                        let n = 1;
+                        while (used.has(`group ${n}`)) n++;
+                        setNewGroupName(`Group ${n}`);
+                        setShowAddGroupModal(loc);
+                      }}
                     >
                       + Add Group
                     </button>
                   </div>
                 </div>
 
-                {/* 4 Group Columns Matrix matching Image 2 */}
+                {/* No leaders yet → no groups (groups appear once someone is appointed) */}
+                {(loc.groups || []).length === 0 && (
+                  <div style={{ margin: '4px 0 12px', padding: '14px 16px', background: '#f8fafc', border: '1.5px dashed #cbd5e1', borderRadius: '14px', fontSize: '0.8rem', color: '#64748b', textAlign: 'center' }}>
+                    No groups yet. Click <strong>+ Add Group</strong> to create one and appoint its Local Head.
+                  </div>
+                )}
+
+                {/* Group columns: one per group that has leaders */}
                 <div className="subcomm-groups-columns">
-                  {loc.groups.map((grp, idx) => {
+                  {(loc.groups || []).map((grp, idx) => {
                     const grpHeadCount = grp.heads ?? 0;
                     const grpSubHeadCount = grp.subHeads ?? 0;
 

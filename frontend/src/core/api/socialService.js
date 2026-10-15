@@ -207,6 +207,37 @@ const getAnnouncementFollowStatus = async () => {
   return response.data;
 };
 
+// Follow requests & account privacy
+const getFollowRelations = async () => {
+  const response = await axiosPrivate.get(`${API_URL}/follow-relations`);
+  return response.data;
+};
+
+const getFollowRequests = async () => {
+  const response = await axiosPrivate.get(`${API_URL}/follow-requests`);
+  return response.data;
+};
+
+const acceptFollowRequest = async (followerId) => {
+  const response = await axiosPrivate.post(`${API_URL}/follow-requests/${followerId}/accept`);
+  return response.data;
+};
+
+const rejectFollowRequest = async (followerId) => {
+  const response = await axiosPrivate.post(`${API_URL}/follow-requests/${followerId}/reject`);
+  return response.data;
+};
+
+const removeFollower = async (followerId) => {
+  const response = await axiosPrivate.delete(`${API_URL}/followers/${followerId}`);
+  return response.data;
+};
+
+const updatePrivacy = async (isPrivate) => {
+  const response = await axiosPrivate.put(`${API_URL}/privacy`, { isPrivate });
+  return response.data;
+};
+
 const toggleFollowAnnouncements = async () => {
   const response = await axiosPrivate.post(`${API_URL}/announcements/toggle-follow`);
   return response.data;
@@ -239,6 +270,12 @@ const socialService = {
   likeStory,
   getStoryViewers,
   toggleFollow,
+  getFollowRelations,
+  getFollowRequests,
+  acceptFollowRequest,
+  rejectFollowRequest,
+  removeFollower,
+  updatePrivacy,
   getFollowers,
   getFollowing,
   getProfileStats,

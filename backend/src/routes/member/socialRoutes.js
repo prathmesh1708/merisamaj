@@ -80,5 +80,11 @@ router.delete('/highlights/:id', highlightController.deleteHighlight);
 router.post('/follow/:id', followerController.toggleFollow);
 router.get('/users/:id/followers', followerController.getFollowers);
 router.get('/users/:id/following', followerController.getFollowing);
+router.get('/follow-relations', followerController.getMyFollowRelations);
+router.get('/follow-requests', followerController.getFollowRequests);
+router.post('/follow-requests/:followerId/accept', followerController.acceptFollowRequest);
+router.post('/follow-requests/:followerId/reject', followerController.rejectFollowRequest);
+router.delete('/followers/:followerId', followerController.removeFollower);
+router.put('/privacy', followerController.updatePrivacy);
 
 module.exports = router;
