@@ -632,7 +632,7 @@ export default function LocalCommunityManagement() {
                     <div>
                       <h3 className="subcomm-card-title">{loc.fullName || `${loc.name} Location`}</h3>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <p className="subcomm-card-subtitle">Total Groups: {loc.groups?.length || 4}</p>
+                        <p className="subcomm-card-subtitle">Total Groups: {loc.groups?.length || 0}</p>
                         {locHeadCount > 0 && (
                           <button
                             type="button"

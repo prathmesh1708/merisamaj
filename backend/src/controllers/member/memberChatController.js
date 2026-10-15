@@ -11,6 +11,7 @@
 const mongoose = require('mongoose');
 const User    = require('../../models/User');
 const Conversation = require('../../models/Conversation');
+const Message = require('../../models/Message');
 const { findOrCreateConversation, getUserConversations } = require('../../services/conversationService');
 const { createMessage, getMessages, markMessagesSeen, markConversationSeen, deleteMessageForMe, deleteMessageForEveryone, editMessage: editMessageService, clearConversationMessages } = require('../../services/messageService');
 const { notifyNewMessage, pushChatMessage, chatMessagePreview } = require('../../services/notificationService');
@@ -114,12 +115,14 @@ exports.getMessages = async (req, res) => {
 
     const otherParticipant = conv?.participants?.find(p => p._id.toString() !== userId.toString());
 
-    // Mark messages as seen in DB immediately
-    await markConversationSeen(conversationId, userId);
+    // Opening the chat marks it seen. Background catch-up fetches pass
+    // ?markSeen=false so they don't turn the sender's ticks blue.
+    const shouldMarkSeen = req.query.markSeen !== 'false';
+    if (shouldMarkSeen) await markConversationSeen(conversationId, userId);
 
     // Emit seen event via socket to both conversation room & user personal rooms
     const io = getSocketIO(req);
-    if (io) {
+    if (io && shouldMarkSeen) {
       io.to(`conv:${conversationId}`).emit('chat:messages_seen', {
         conversationId,
         seenBy: userId,
@@ -178,8 +181,19 @@ exports.sendMessage = async (req, res) => {
         msgType = 'audio';
       } else if (req.file.mimetype && req.file.mimetype.startsWith('image/')) {
         msgType = 'image';
+      } else if (req.file.mimetype && req.file.mimetype.startsWith('video/')) {
+        msgType = 'video';
       } else {
-        msgType = req.body.type || 'file';
+        msgType = req.body.type === 'video' ? 'video' : 'file';
+      }
+
+      // Without cloud storage the file is kept inside the message record, which
+      // MongoDB caps at 16 MB — refuse big files clearly instead of failing.
+      if (req.file.buffer && req.file.size > 10 * 1024 * 1024) {
+        return res.status(413).json({
+          status: 'error',
+          message: 'This file is too large to send (max 10 MB). Please send a smaller or shorter video.'
+        });
       }
     }
 
@@ -207,6 +221,16 @@ exports.sendMessage = async (req, res) => {
     // Emit via socket
     const io = getSocketIO(req);
     const otherParticipants = conv.participants.filter(p => p.toString() !== userId.toString());
+
+    // Recipient's app is connected right now → delivered immediately (double grey tick)
+    const onlineRecipients = otherParticipants.filter(p => isOnline(p.toString()));
+    if (onlineRecipients.length) {
+      await Message.updateOne({ _id: populatedMsg._id }, { $addToSet: { deliveredTo: { $each: onlineRecipients } } });
+      onlineRecipients.forEach(p => {
+        if (!populatedMsg.deliveredTo.some(d => d.toString() === p.toString())) populatedMsg.deliveredTo.push(p);
+      });
+    }
+
     if (io) {
       io.to(`conv:${conversationId}`).emit('chat:new_message', populatedMsg);
       for (const pid of otherParticipants) {

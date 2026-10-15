@@ -16,7 +16,7 @@ import invitationService from '../../../core/api/invitationService';
 import obituaryService from '../../../core/api/obituaryService';
 import { eventService } from '../services/eventService';
 import { headEventService } from '../../../core/api/headEventService';
-import { matrimonialProfileService } from '../../../core/api/matrimonialService';
+import { matrimonialProfileService, notificationService as serverNotificationService } from '../../../core/api/matrimonialService';
 import socialService from '../../../core/api/socialService';
 
 const getCommunitySurname = (community) => {
@@ -207,18 +207,7 @@ const initialGroupMessages = {
   ]
 };
 
-const initialNotifications = [
-  { id: 'n1', type: 'announcement', title: 'Annual Samaj Mahotsav', message: 'Registration is now open for the Annual Mahotsav on Jul 15.', time: '10 min ago', isRead: false },
-  { id: 'n2', type: 'matrimonial', title: 'New Interest Received', message: 'Amit Agrawal has expressed interest in your matrimonial profile.', time: '1 hour ago', isRead: false },
-  { id: 'n3', type: 'event', title: 'Event Reminder', message: 'Youth Career Seminar is happening tomorrow at 3 PM.', time: '3 hours ago', isRead: true },
-  { id: 'n4', type: 'community', title: 'New Member Joined', message: 'Pooja Agrawal from Ahmedabad has joined the community.', time: '5 hours ago', isRead: true },
-  { id: 'n5', type: 'announcement', title: 'Office Bearers Meeting', message: 'Monthly meeting scheduled for Sunday, 10 AM at Samaj Bhawan.', time: '1 day ago', isRead: true },
-  { id: 'ng1', type: 'group', groupId: 'g1', groupName: 'Agrawal Youth Indore', title: 'New message in Agrawal Youth Indore', message: 'Vikas Jain: Has anyone got the details for the upcoming...', time: '12 min ago', isRead: false },
-  { id: 'nv1', type: 'voting', title: 'समाज चुनाव शुरू हुआ', message: 'Samaj Head election voting has started. Cast your vote before Jul 20.', time: '2 hours ago', isRead: false },
-  { id: 'nd1', type: 'donation', title: 'योगदान प्राप्त हुआ', message: 'आपके ₹5,000 के योगदान की रसीद जेनरेट हो गई है।', time: '4 hours ago', isRead: false },
-  { id: 'nn1', type: 'nimantran', title: 'नया आमंत्रण', message: 'राकेश गुप्ता ने आपको गृह प्रवेश कार्यक्रम में आमंत्रित किया है।', time: '30 min ago', isRead: false },
-  { id: 'ns1', type: 'shradhanjali', title: 'श्रद्धांजलि सभा सूचना', message: 'स्व. रामप्रसाद जी की पगड़ी रस्म कल दोपहर 2 बजे रखी गई है।', time: '1 day ago', isRead: false }
-];
+// Notifications come from the server (/member/notifications) — see loadServerNotifications.
 
 const defaultSentNotifications = [
   {
@@ -867,7 +856,11 @@ export const DataProvider = ({ children }) => {
   // Do NOT initialise from mockMatrimonial — that data is served by the backend.
   const [matrimonialProfiles, setMatrimonialProfiles] = useState([]);
   const [language, setLanguage] = useState(() => loadState('language', 'en'));
-  const [notifications, setNotifications] = useState(() => loadState('notifications', initialNotifications));
+  const [notifications, setNotifications] = useState([]);
+  // Remove the demo notifications older app versions saved in this browser
+  useEffect(() => {
+    try { localStorage.removeItem('merisamaj_v6_notifications'); } catch (e) { /* storage unavailable */ }
+  }, []);
   const [sentNotifications, setSentNotifications] = useState(() => loadState('sentNotifications', defaultSentNotifications));
   const [notificationTemplates, setNotificationTemplates] = useState(() => loadState('notificationTemplates', defaultTemplates));
 
@@ -898,8 +891,10 @@ export const DataProvider = ({ children }) => {
   const [chatMessages, setChatMessages] = useState({});
 
   // Follow System & Privacy States
-  const [profilePrivacy, setProfilePrivacy] = useState(() => loadState('profilePrivacy', defaultProfilePrivacy));
-  const [followRelations, setFollowRelations] = useState(() => loadState('followRelations', defaultFollowRelations));
+  // Real data from the server (see loadFollowData); not persisted locally
+  const [profilePrivacy, setProfilePrivacy] = useState({});
+  const [followRelations, setFollowRelations] = useState([]);
+  const [followRequests, setFollowRequests] = useState([]);
   const [blockedUsers, setBlockedUsers] = useState(() => loadState('blockedUsers', defaultBlockedUsers));
   const [granularPrivacy, setGranularPrivacy] = useState(() => loadState('granularPrivacy', defaultGranularPrivacy));
 
@@ -1013,7 +1008,6 @@ export const DataProvider = ({ children }) => {
   // useEffect(() => saveState('chatMessages', chatMessages), [chatMessages]);
 
   // Active localStorage effects
-  useEffect(() => saveState('notifications', notifications), [notifications]);
   useEffect(() => saveState('sentNotifications', sentNotifications), [sentNotifications]);
   useEffect(() => saveState('notificationTemplates', notificationTemplates), [notificationTemplates]);
   useEffect(() => saveState('eventReminders', eventReminders), [eventReminders]);
@@ -1021,90 +1015,162 @@ export const DataProvider = ({ children }) => {
   useEffect(() => saveState('surveyResponses', surveyResponses), [surveyResponses]);
 
   // Follow System Syncs
-  useEffect(() => saveState('profilePrivacy', profilePrivacy), [profilePrivacy]);
-  useEffect(() => saveState('followRelations', followRelations), [followRelations]);
   useEffect(() => saveState('blockedUsers', blockedUsers), [blockedUsers]);
   useEffect(() => saveState('granularPrivacy', granularPrivacy), [granularPrivacy]);
   // useEffect(() => saveState('invitations', invitations), [invitations]); // Disabled persistence so newly created cards reset on refresh
 
-  // Follow System Methods
-  const sendFollowRequest = async (targetUserId) => {
-    if (!targetUserId || targetUserId === 'undefined' || targetUserId === 'null') return;
-    const myId = currentUser?.id || currentUser?._id || 'u1';
-    setFollowRelations(prev => {
-      const exists = prev.some(r => r.followerId === myId && r.followingId === targetUserId);
-      if (exists) return prev;
-      const targetPrivacy = profilePrivacy[targetUserId] || 'public';
-      const status = targetPrivacy === 'private' ? 'pending' : 'accepted';
-      return [...prev, { followerId: myId, followingId: targetUserId, status }];
-    });
+  // Follow System Methods — all backed by the server (/member/social/follow*)
+  const myFollowId = () => String(currentUser?._id || currentUser?.id || '');
 
+  // Apply the server's answer from POST /follow/:id to the local relations list
+  const applyFollowResult = (targetUserId, res) => {
+    const me = myFollowId();
+    const target = String(targetUserId);
+    setFollowRelations(prev => {
+      const rest = prev.filter(r => !(r.followerId === me && r.followingId === target));
+      return (res?.status === 'accepted' || res?.status === 'pending')
+        ? [...rest, { followerId: me, followingId: target, status: res.status }]
+        : rest;
+    });
+  };
+
+  const findMyRelation = (targetUserId) =>
+    followRelations.find(r => r.followerId === myFollowId() && r.followingId === String(targetUserId));
+
+  const callToggleFollow = async (targetUserId) => {
     try {
       const res = await socialService.toggleFollow(targetUserId);
+      if (res?.success) applyFollowResult(targetUserId, res);
       return res;
     } catch (err) {
-      console.error('Failed to send follow request via API:', err);
+      console.error('Follow request failed:', err);
+      return { success: false, message: err?.response?.data?.message || 'Could not update follow status.' };
     }
   };
 
-  const cancelFollowRequest = (targetUserId) => {
+  // Follow a public account, or send a request to a private one
+  const sendFollowRequest = async (targetUserId) => {
     if (!targetUserId || targetUserId === 'undefined' || targetUserId === 'null') return;
-    const myId = currentUser?.id || currentUser?._id || 'u1';
-    setFollowRelations(prev => prev.filter(r => !(r.followerId === myId && r.followingId === targetUserId && r.status === 'pending')));
+    if (findMyRelation(targetUserId)) return { success: true, status: findMyRelation(targetUserId).status };
+    return callToggleFollow(targetUserId);
   };
 
-  const acceptFollowRequest = (senderUserId) => {
-    if (!senderUserId || senderUserId === 'undefined' || senderUserId === 'null') return;
-    const myId = currentUser?.id || currentUser?._id || 'u1';
-    setFollowRelations(prev => prev.map(r => {
-      if (r.followerId === senderUserId && r.followingId === myId && r.status === 'pending') {
-        return { ...r, status: 'accepted' };
-      }
-      return r;
-    }));
-
-    const sender = members.find(m => m.id === senderUserId) || admins.find(a => a.id === senderUserId);
-    const senderName = sender ? sender.name : 'A member';
-    const newNotification = {
-      id: `nf_accept_${Date.now()}`,
-      type: 'follow_accept',
-      title: 'Follow Request Accepted',
-      message: `You accepted ${senderName}'s follow request.`,
-      time: 'Just now',
-      isRead: false
-    };
-    setNotifications(prev => [newNotification, ...prev]);
-  };
-
-  const rejectFollowRequest = (senderUserId) => {
-    if (!senderUserId || senderUserId === 'undefined' || senderUserId === 'null') return;
-    const myId = currentUser?.id || currentUser?._id || 'u1';
-    setFollowRelations(prev => prev.filter(r => !(r.followerId === senderUserId && r.followingId === myId && r.status === 'pending')));
+  // Withdraw a request that hasn't been answered yet
+  const cancelFollowRequest = async (targetUserId) => {
+    if (!targetUserId || targetUserId === 'undefined' || targetUserId === 'null') return;
+    if (findMyRelation(targetUserId)?.status !== 'pending') return;
+    return callToggleFollow(targetUserId);
   };
 
   const unfollowUser = async (targetUserId) => {
     if (!targetUserId || targetUserId === 'undefined' || targetUserId === 'null') return;
-    const myId = currentUser?.id || currentUser?._id || 'u1';
-    setFollowRelations(prev => prev.filter(r => !(r.followerId === myId && r.followingId === targetUserId)));
+    if (!findMyRelation(targetUserId)) return;
+    return callToggleFollow(targetUserId);
+  };
 
+  const acceptFollowRequest = async (senderUserId) => {
+    if (!senderUserId || senderUserId === 'undefined' || senderUserId === 'null') return;
+    const sender = String(senderUserId);
     try {
-      const res = await socialService.toggleFollow(targetUserId);
+      const res = await socialService.acceptFollowRequest(sender);
+      if (res?.success) {
+        const me = myFollowId();
+        setFollowRelations(prev => prev.map(r =>
+          (r.followerId === sender && r.followingId === me) ? { ...r, status: 'accepted' } : r
+        ));
+        setFollowRequests(prev => prev.filter(r => String(r.id) !== sender));
+      }
       return res;
     } catch (err) {
-      console.error('Failed to unfollow user via API:', err);
+      console.error('Failed to accept follow request:', err);
     }
   };
 
-  const removeFollower = (targetUserId) => {
-    const myId = currentUser?.id || currentUser?._id || 'u1';
-    setFollowRelations(prev => prev.filter(r => !(r.followerId === targetUserId && r.followingId === myId)));
+  const rejectFollowRequest = async (senderUserId) => {
+    if (!senderUserId || senderUserId === 'undefined' || senderUserId === 'null') return;
+    const sender = String(senderUserId);
+    try {
+      const res = await socialService.rejectFollowRequest(sender);
+      if (res?.success) {
+        const me = myFollowId();
+        setFollowRelations(prev => prev.filter(r => !(r.followerId === sender && r.followingId === me)));
+        setFollowRequests(prev => prev.filter(r => String(r.id) !== sender));
+      }
+      return res;
+    } catch (err) {
+      console.error('Failed to reject follow request:', err);
+    }
   };
 
-  const updateProfilePrivacy = (privacySetting) => {
-    setProfilePrivacy(prev => ({
-      ...prev,
-      u1: privacySetting
-    }));
+  const removeFollower = async (targetUserId) => {
+    const me = myFollowId();
+    const target = String(targetUserId);
+    setFollowRelations(prev => prev.filter(r => !(r.followerId === target && r.followingId === me)));
+    try {
+      await socialService.removeFollower(target);
+    } catch (err) {
+      console.error('Failed to remove follower:', err);
+    }
+  };
+
+  // Load my follow relations and incoming requests from the server
+  const loadFollowData = async () => {
+    try {
+      const [relRes, reqRes] = await Promise.all([
+        socialService.getFollowRelations(),
+        socialService.getFollowRequests()
+      ]);
+      if (relRes?.success && Array.isArray(relRes.data)) setFollowRelations(relRes.data);
+      if (reqRes?.success && Array.isArray(reqRes.data)) {
+        setFollowRequests(reqRes.data.map(r => ({
+          ...r.user,
+          id: r.user?._id || r.user?.id,
+          requestedAt: r.requestedAt
+        })));
+      }
+    } catch (err) {
+      console.error('Failed to load follow data:', err);
+    }
+  };
+
+  const followUserKey = currentUser?._id || currentUser?.id;
+  useEffect(() => {
+    if (!followUserKey) {
+      setFollowRelations([]);
+      setFollowRequests([]);
+      return;
+    }
+    loadFollowData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [followUserKey]);
+
+  // My account type comes from the server's user record
+  useEffect(() => {
+    if (!followUserKey) return;
+    const setting = currentUser?.isPrivate ? 'private' : 'public';
+    setProfilePrivacy({ [String(followUserKey)]: setting, ...(currentUser?.id ? { [String(currentUser.id)]: setting } : {}) });
+  }, [followUserKey, currentUser?.isPrivate, currentUser?.id]);
+
+  // Public / private account, saved on the server
+  const updateProfilePrivacy = async (privacySetting) => {
+    const isPrivate = privacySetting === 'private';
+    try {
+      const res = await socialService.updatePrivacy(isPrivate);
+      if (res?.success) {
+        setCurrentUser(prev => {
+          if (!prev) return prev;
+          const next = { ...prev, isPrivate };
+          try { localStorage.setItem('merisamaj_user', JSON.stringify(next)); } catch (e) {}
+          return next;
+        });
+        // Going public accepts every pending request on the server
+        if (!isPrivate) loadFollowData();
+      }
+      return res;
+    } catch (err) {
+      console.error('Failed to update account privacy:', err);
+      return { success: false };
+    }
   };
 
   const updateGranularPrivacy = (field, setting) => {
@@ -2194,7 +2260,7 @@ export const DataProvider = ({ children }) => {
     setMatrimonialProfiles([]); // Matrimonial data is served by backend via MatrimonialContext
     setGroups(initialGroups);
     setGroupMessages(initialGroupMessages);
-    setNotifications(initialNotifications);
+    setNotifications([]);
   };
 
   const createGroup = (groupData) => {
@@ -2360,9 +2426,72 @@ export const DataProvider = ({ children }) => {
     }));
   };
 
+  // ── Real notifications from the server ───────────────────────────────────
+  const relativeTime = (date) => {
+    const mins = Math.max(0, Math.floor((Date.now() - new Date(date).getTime()) / 60000));
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins} min ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+    const days = Math.floor(hours / 24);
+    return `${days} day${days === 1 ? '' : 's'} ago`;
+  };
+
+  const loadServerNotifications = useCallback(async () => {
+    try {
+      const res = await serverNotificationService.getAll({ limit: 100 });
+      const list = res?.data?.data?.notifications || res?.data?.notifications || [];
+      setNotifications(list.map(n => ({
+        ...n,
+        id: n._id || n.id,
+        type: n.type,
+        module: n.module,
+        title: n.title,
+        message: n.message,
+        isRead: Boolean(n.isRead),
+        time: n.createdAt ? relativeTime(n.createdAt) : ''
+      })));
+    } catch (err) {
+      console.warn('Failed to load notifications:', err?.message || err);
+    }
+  }, []);
+
+  const notifUserKey = currentUser?._id || currentUser?.id;
+  useEffect(() => {
+    if (!notifUserKey) { setNotifications([]); return; }
+    loadServerNotifications();
+    // Refresh when a live notification arrives or a module is marked read
+    const refresh = () => loadServerNotifications();
+    window.addEventListener('app:refresh_unread_counts', refresh);
+    window.addEventListener('focus', refresh);
+    return () => {
+      window.removeEventListener('app:refresh_unread_counts', refresh);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [notifUserKey, loadServerNotifications]);
+
+  // App module key → module name the server stores on notifications
+  const SERVER_NOTIFICATION_MODULE = {
+    nimantran: 'invitations',
+    donation: 'donations',
+    shradhanjali: 'obituary',
+    fund: 'funds',
+    event: 'events',
+    voting: 'voting',
+    dharmashala: 'dharmashala',
+    professional: 'professional',
+    matrimonial: 'matrimonial'
+  };
+
   const markModuleAsVisited = useCallback((moduleName) => {
     if (!moduleName) return;
     const target = moduleName.toLowerCase();
+
+    // 0. Mark them read on the server too, so the badge doesn't come back after a refresh
+    const serverModule = SERVER_NOTIFICATION_MODULE[target];
+    const serverMarked = serverModule
+      ? serverNotificationService.markAllRead({ module: serverModule }).catch(() => {})
+      : Promise.resolve();
 
     // 1. Mark in-memory notifications for this module as read
     setNotifications(prev => prev.map(n => {
@@ -2378,10 +2507,11 @@ export const DataProvider = ({ children }) => {
       localStorage.setItem(`merisamaj_visited_module_${target}`, Date.now().toString());
     } catch (e) {}
 
-    // 3. Notify app components
+    // 3. Notify app components (after the server has saved the read state, so a
+    //    refresh doesn't bring the badge back)
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('app:module_visited', { detail: { module: target } }));
-      window.dispatchEvent(new CustomEvent('app:refresh_unread_counts'));
+      serverMarked.then(() => window.dispatchEvent(new CustomEvent('app:refresh_unread_counts')));
     }
   }, []);
 
@@ -3218,6 +3348,8 @@ export const DataProvider = ({ children }) => {
     // Follow System & Privacy Exports
     profilePrivacy,
     followRelations,
+    followRequests,
+    loadFollowData,
     blockedUsers,
     granularPrivacy,
     sendFollowRequest,

@@ -90,6 +90,8 @@ const updateLastMessage = async (conversationId, message) => {
   const preview =
     message.type === 'text' ? (message.message || '').substring(0, 80) :
     message.type === 'image' ? '📷 Photo' :
+    message.type === 'video' ? '🎥 Video' :
+    (message.type === 'audio' || message.type === 'voice') ? '🎤 Voice message' :
     message.type === 'file'  ? '📎 File' :
     message.type === 'announcement' ? '📢 Announcement' :
     message.type === 'system' ? message.message :

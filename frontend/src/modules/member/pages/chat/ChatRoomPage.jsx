@@ -5,7 +5,7 @@ import {
   Smile, Camera, CheckCheck, Search, X, FileText, Check,
   Square, CornerUpLeft, Star, BellOff, Trash2, Pin, Play,
   MapPin, UserSquare, Reply, Forward, Info, MessageCircle, Image as ImageIcon,
-  Headphones, AlertTriangle, Loader2, RefreshCcw, Pencil, Copy, ChevronDown, Plus, ExternalLink
+  Headphones, AlertTriangle, Loader2, RefreshCcw, Pencil, Copy, ChevronDown, Plus, ExternalLink, Clock
 } from 'lucide-react';
 import { useAuth } from '../../../../core/auth/useAuth';
 import { Avatar } from '../../components/common/Avatar';
@@ -45,15 +45,42 @@ const TypingIndicator = () => (
   </div>
 );
 
-// ─── Message Status ───────────────────────────────────────────────────────────
-const MessageStatusIcon = ({ status, seenBy, myId }) => {
-  const isSeen = Array.isArray(seenBy) && seenBy.some(s => (s.userId || s) !== myId);
-  if (isSeen) return <CheckCheck size={14} className="text-[#53bdeb]" />;
-  if (status === 'sending')   return <Check size={14} className="text-gray-400" />;
-  if (status === 'sent')      return <Check size={14} className="text-gray-500" />;
-  if (status === 'delivered') return <CheckCheck size={14} className="text-gray-500" />;
-  if (status === 'failed')    return <span className="text-red-500 text-[10px]">Failed</span>;
-  return <CheckCheck size={14} className="text-gray-500" />;
+// ─── Message Status (WhatsApp ticks) ──────────────────────────────────────────
+//  🕓 sending · ✓ sent (friend offline) · ✓✓ grey delivered (friend's app online) · ✓✓ blue seen
+const idOf = (v) => (v?.userId?._id || v?.userId || v?._id || v)?.toString();
+const MessageStatusIcon = ({ status, seenBy, deliveredTo, myId }) => {
+  if (status === 'failed')  return <span className="text-red-400 text-[10px] font-bold">Failed</span>;
+  if (status === 'sending') return <Clock size={12} className="opacity-70" />;
+  const seenByOther = Array.isArray(seenBy) && seenBy.some(s => idOf(s) && idOf(s) !== myId);
+  if (seenByOther) return <CheckCheck size={14} className="text-[#53bdeb]" />;
+  const deliveredToOther = Array.isArray(deliveredTo) && deliveredTo.some(d => idOf(d) && idOf(d) !== myId);
+  if (deliveredToOther) return <CheckCheck size={14} className="opacity-80" />;
+  return <Check size={14} className="opacity-80" />;
+};
+
+// ─── Clickable links inside message text ──────────────────────────────────────
+const URL_PATTERN = /((?:https?:\/\/|www\.)[^\s<]+[^\s<.,:;"')\]!?])/gi;
+const LinkifiedText = ({ text, isMine }) => {
+  if (!text) return null;
+  const parts = String(text).split(URL_PATTERN);
+  return parts.map((part, i) => {
+    if (i % 2 === 1) {
+      const href = /^https?:\/\//i.test(part) ? part : `https://${part}`;
+      return (
+        <a
+          key={i}
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={e => e.stopPropagation()}
+          className={`underline break-all ${isMine ? 'text-white font-semibold' : 'text-[#027eb5]'}`}
+        >
+          {part}
+        </a>
+      );
+    }
+    return <React.Fragment key={i}>{part}</React.Fragment>;
+  });
 };
 
 // ─── Main Chat Room Page ──────────────────────────────────────────────────────
@@ -185,8 +212,14 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
 
   // Mark messages as seen when new unseen messages arrive
   const lastMarkedIdsRef = useRef(new Set());
+  const [pageVisible, setPageVisible] = useState(() => typeof document === 'undefined' || document.visibilityState === 'visible');
   useEffect(() => {
-    if (!conversationId || messages.length === 0) return;
+    const onVis = () => setPageVisible(document.visibilityState === 'visible');
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
+  useEffect(() => {
+    if (!conversationId || messages.length === 0 || !pageVisible) return;
     const myId = (user?.id || user?._id)?.toString();
     const unseenIds = messages
       .filter(m => {
@@ -201,7 +234,7 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
       unseenIds.forEach(id => lastMarkedIdsRef.current.add(id.toString()));
       markSeen(unseenIds);
     }
-  }, [messages, conversationId, user, markSeen]);
+  }, [messages, conversationId, user, markSeen, pageVisible]);
 
   // Derive display info
   const myId = (user?.id || user?._id)?.toString();
@@ -281,6 +314,7 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
         await sendMessage({
           text: textToSend || (attachmentToSend?.caption || undefined),
           imageFile: attachmentToSend?.type === 'image' ? attachmentToSend.file : undefined,
+          videoFile: attachmentToSend?.type === 'video' ? attachmentToSend.file : undefined,
           file: attachmentToSend?.type === 'document' || attachmentToSend?.type === 'audio_file' ? attachmentToSend.file : undefined,
           metadata: attachmentToSend?.metadata || undefined,
           replyTo: replyToSend?._id || undefined
@@ -373,6 +407,22 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
   const handleGalleryChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.type.startsWith('video/')) {
+      if (file.size > 50 * 1024 * 1024) {
+        setSendError('This video is too large. Please choose one under 50 MB.');
+        e.target.value = '';
+        return;
+      }
+      setPendingAttachment({
+        type: 'video',
+        url: URL.createObjectURL(file),
+        name: file.name,
+        file,
+        size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`
+      });
+      e.target.value = '';
+      return;
+    }
     const reader = new FileReader();
     reader.onload = (ev) => {
       setPendingAttachment({ type: 'image', url: ev.target.result, name: file.name, file });
@@ -509,7 +559,7 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
       }}
     >
       {/* Hidden File Inputs */}
-      <input type="file" ref={galleryInputRef} accept="image/*" onChange={handleGalleryChange} className="hidden" />
+      <input type="file" ref={galleryInputRef} accept="image/*,video/*" onChange={handleGalleryChange} className="hidden" />
       <input type="file" ref={cameraInputRef} accept="image/*" capture="environment" onChange={handleGalleryChange} className="hidden" />
       <input type="file" ref={docInputRef} accept=".pdf,.doc,.docx,.txt" onChange={handleDocChange} className="hidden" />
       <input type="file" ref={audioInputRef} accept="audio/*" onChange={handleAudioFileChange} className="hidden" />
@@ -893,6 +943,7 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
                             <MessageStatusIcon
                               status={msg.status}
                               seenBy={msg.seenBy}
+                              deliveredTo={msg.deliveredTo}
                               myId={myId}
                             />
                           )}
@@ -904,7 +955,7 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
                     {msg.message && (
                       <div className="px-2 pt-1.5 pb-0.5 flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
                         <span className="text-[14px] leading-relaxed font-medium whitespace-pre-wrap break-words min-w-0 pr-1 flex-1">
-                          {msg.message}
+                          <LinkifiedText text={msg.message} isMine={isMine} />
                         </span>
                         <div className="flex items-center gap-1 shrink-0 ml-auto select-none pt-0.5 self-end">
                           <span className={`text-[10px] font-semibold leading-none ${isMine ? 'text-purple-200' : 'text-slate-400'}`}>
@@ -915,6 +966,7 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
                             <MessageStatusIcon
                               status={msg.status}
                               seenBy={msg.seenBy}
+                              deliveredTo={msg.deliveredTo}
                               myId={myId}
                             />
                           )}
@@ -936,6 +988,25 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
                           {(repliedMsg.senderId?._id || repliedMsg.senderId)?.toString() === myId ? 'You' : repliedMsg.senderId?.name || 'Member'}
                         </p>
                         <p className="text-[12px] truncate opacity-90">{repliedMsg.message || (repliedMsg.type === 'audio' ? '🎤 Voice note' : 'Attachment')}</p>
+                      </div>
+                    )}
+
+                    {/* Video */}
+                    {msg.type === 'video' && msg.mediaUrl && (
+                      <div className="relative -mx-1.5 -mt-1 mb-1.5 rounded-xl overflow-hidden bg-black max-w-[280px] sm:max-w-[340px]">
+                        <video
+                          src={msg.mediaUrl}
+                          controls
+                          playsInline
+                          preload="metadata"
+                          onClick={e => e.stopPropagation()}
+                          className="w-full max-h-[340px] block"
+                        />
+                        {msg.status === 'sending' && (
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center pointer-events-none">
+                            <Loader2 size={26} className="text-white animate-spin" />
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -1021,7 +1092,7 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
                     {msg.message && msg.type !== 'file' ? (
                       <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
                         <span className="text-[14px] leading-relaxed font-medium whitespace-pre-wrap break-words min-w-0 pr-1 flex-1">
-                          {msg.message}
+                          <LinkifiedText text={msg.message} isMine={isMine} />
                         </span>
                         <div className="flex items-center gap-1 shrink-0 ml-auto select-none pt-0.5 self-end">
                           <span className={`text-[10px] font-semibold leading-none ${isMine ? 'text-purple-200' : 'text-slate-400'}`}>
@@ -1032,6 +1103,7 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
                             <MessageStatusIcon
                               status={msg.status}
                               seenBy={msg.seenBy}
+                              deliveredTo={msg.deliveredTo}
                               myId={myId}
                             />
                           )}
@@ -1048,6 +1120,7 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
                           <MessageStatusIcon
                             status={msg.status}
                             seenBy={msg.seenBy}
+                            deliveredTo={msg.deliveredTo}
                             myId={myId}
                           />
                         )}
@@ -1200,6 +1273,11 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
           <div className="mx-1 flex items-center gap-3 bg-purple-50/70 rounded-xl px-3 py-2 shadow-2xs border border-purple-100/60">
             {pendingAttachment.type === 'image' ? (
               <img src={pendingAttachment.url} alt="" className="w-11 h-11 rounded-lg object-cover border border-purple-100 shrink-0" />
+            ) : pendingAttachment.type === 'video' ? (
+              <div className="relative w-11 h-11 rounded-lg overflow-hidden border border-purple-100 shrink-0 bg-black">
+                <video src={pendingAttachment.url} muted playsInline preload="metadata" className="w-full h-full object-cover" />
+                <Play size={14} className="absolute inset-0 m-auto text-white" fill="white" />
+              </div>
             ) : pendingAttachment.type === 'audio_file' ? (
               <div className="w-11 h-11 bg-purple-100 rounded-lg flex items-center justify-center shrink-0">
                 <Headphones size={20} className="text-purple-600" />

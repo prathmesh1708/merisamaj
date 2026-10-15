@@ -25,8 +25,33 @@ export const SettingsPage = () => {
     language,
     setLanguage,
     followedAnnouncements,
-    toggleFollowedAnnouncement
+    toggleFollowedAnnouncement,
+    followRequests = [],
+    acceptFollowRequest,
+    rejectFollowRequest,
+    loadFollowData
   } = useData();
+
+  // Follow requests (private account)
+  const [showRequestsModal, setShowRequestsModal] = useState(
+    () => new URLSearchParams(window.location.search).get('open') === 'follow-requests'
+  );
+  const [answeringId, setAnsweringId] = useState(null);
+  const [privacySaving, setPrivacySaving] = useState(false);
+
+  useEffect(() => {
+    if (showRequestsModal && loadFollowData) loadFollowData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showRequestsModal]);
+
+  const answerRequest = async (userId, accept) => {
+    setAnsweringId(userId);
+    try {
+      await (accept ? acceptFollowRequest(userId) : rejectFollowRequest(userId));
+    } finally {
+      setAnsweringId(null);
+    }
+  };
 
   // Social Links Modal State
   const [showSocialModal, setShowSocialModal] = useState(false);
@@ -96,8 +121,14 @@ export const SettingsPage = () => {
     setShowSocialModal(false);
   };
 
-  const handleSavePrivacy = () => {
-    updateProfilePrivacy(myPrivacySetting);
+  const handleSavePrivacy = async () => {
+    setPrivacySaving(true);
+    const res = await updateProfilePrivacy(myPrivacySetting);
+    setPrivacySaving(false);
+    if (res && res.success === false) {
+      alert('Could not save your account type. Please try again.');
+      return;
+    }
     updateGranularPrivacy('phone', myPhoneSetting);
     updateGranularPrivacy('email', myEmailSetting);
     updateGranularPrivacy('familyTree', myFamilySetting);
@@ -308,6 +339,30 @@ export const SettingsPage = () => {
               <ChevronRight size={16} className="text-slate-400 group-hover:text-purple-600 transition-colors" />
             </button>
 
+            {/* Action: Follow Requests */}
+            <button
+              onClick={() => setShowRequestsModal(true)}
+              className="w-full flex items-center justify-between p-3.5 hover:bg-purple-50/30 transition-colors text-left group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 border border-purple-100">
+                  <Users size={18} />
+                </div>
+                <div>
+                  <span className="text-[13px] font-extrabold text-slate-800 group-hover:text-purple-700 transition-colors block">Follow Requests</span>
+                  <span className="text-[10.5px] font-semibold text-slate-400 mt-0.5 block leading-none">People who want to follow your private account</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {followRequests.length > 0 && (
+                  <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-rose-500 text-white text-[10.5px] font-black flex items-center justify-center">
+                    {followRequests.length}
+                  </span>
+                )}
+                <ChevronRight size={16} className="text-slate-400 group-hover:text-purple-600 transition-colors" />
+              </div>
+            </button>
+
             {/* Action: Blocked Users */}
             <button 
               onClick={() => setShowBlockedModal(true)}
@@ -404,8 +459,8 @@ export const SettingsPage = () => {
 
       {/* 1. Social Links Modal */}
       {showSocialModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-md p-6 animate-scale-in shadow-xl border border-purple-100/30">
+        <div className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md p-5 sm:p-6 pb-[max(env(safe-area-inset-bottom),1.25rem)] sm:pb-6 max-h-[90dvh] overflow-y-auto animate-scale-in shadow-xl border border-purple-100/30">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-text-primary flex items-center gap-2">
                 <Globe size={20} className="text-brand-primary" /> Social Media Links
@@ -462,8 +517,8 @@ export const SettingsPage = () => {
 
       {/* 2. Privacy Settings Modal */}
       {showPrivacyModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-md p-6 animate-slide-up shadow-xl border border-purple-100/30">
+        <div className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md p-5 sm:p-6 pb-[max(env(safe-area-inset-bottom),1.25rem)] sm:pb-6 max-h-[90dvh] overflow-y-auto animate-slide-up shadow-xl border border-purple-100/30">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-bold text-text-primary flex items-center gap-2">
                 <Lock size={20} className="text-brand-primary" /> Privacy Settings
@@ -487,6 +542,11 @@ export const SettingsPage = () => {
                     </button>
                   ))}
                 </div>
+                <p className="text-[11px] font-semibold text-slate-400 leading-relaxed pt-1">
+                  {myPrivacySetting === 'private'
+                    ? 'Only followers you approve can see your posts and stories. New followers must send a request.'
+                    : 'Everyone in your community can see your posts and stories and follow you directly.'}
+                </p>
               </div>
 
               <div className="space-y-1.5 relative">
@@ -569,12 +629,71 @@ export const SettingsPage = () => {
                 )}
               </div>
 
-              <button 
+              <button
                 onClick={handleSavePrivacy}
-                className="w-full py-3 bg-brand-primary text-white rounded-xl text-[14px] font-bold hover:bg-brand-dark transition-colors mt-6 shadow-md shadow-brand-primary/10"
+                disabled={privacySaving}
+                className="w-full py-3 bg-brand-primary text-white rounded-xl text-[14px] font-bold hover:bg-brand-dark transition-colors mt-6 shadow-md shadow-brand-primary/10 disabled:opacity-60"
               >
-                Save Settings
+                {privacySaving ? 'Saving…' : 'Save Settings'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Follow Requests Modal */}
+      {showRequestsModal && (
+        <div className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md p-5 sm:p-6 animate-slide-up shadow-xl border border-purple-100/30 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4 shrink-0">
+              <h3 className="text-lg font-bold text-text-primary flex items-center gap-2">
+                <Users size={20} className="text-brand-primary" /> Follow Requests
+              </h3>
+              <button onClick={() => setShowRequestsModal(false)} className="p-1 rounded-full bg-slate-100 text-slate-500">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto -mx-1 px-1 space-y-2.5">
+              {followRequests.length === 0 ? (
+                <div className="py-10 text-center">
+                  <p className="text-[13px] font-bold text-slate-500">No pending requests</p>
+                  <p className="text-[11px] font-semibold text-slate-400 mt-1">
+                    {currentUser?.isPrivate
+                      ? 'When someone asks to follow you, they will appear here.'
+                      : 'Your account is public, so people follow you without a request.'}
+                  </p>
+                </div>
+              ) : followRequests.map(reqUser => (
+                <div key={reqUser.id} className="flex items-center gap-3 p-2.5 rounded-2xl border border-slate-100 bg-slate-50/50">
+                  <button onClick={() => navigate(`/member/profile/${reqUser.id}`)} className="shrink-0">
+                    <Avatar
+                      initials={(reqUser.name || '?').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                      src={reqUser.avatar}
+                      size="sm"
+                      color="bg-indigo-50 text-indigo-700"
+                    />
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-bold text-slate-800 truncate">{reqUser.name}</p>
+                    {reqUser.city && <p className="text-[11px] font-semibold text-slate-400 truncate">{reqUser.city}</p>}
+                  </div>
+                  <button
+                    onClick={() => answerRequest(reqUser.id, true)}
+                    disabled={answeringId === reqUser.id}
+                    className="px-3.5 py-2 rounded-xl bg-brand-primary text-white text-[12px] font-bold disabled:opacity-50"
+                  >
+                    Confirm
+                  </button>
+                  <button
+                    onClick={() => answerRequest(reqUser.id, false)}
+                    disabled={answeringId === reqUser.id}
+                    className="px-3.5 py-2 rounded-xl bg-slate-100 text-slate-600 text-[12px] font-bold disabled:opacity-50"
+                  >
+                    Delete
+                  </button>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -582,8 +701,8 @@ export const SettingsPage = () => {
 
       {/* 3. Blocked Users Modal */}
       {showBlockedModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-md p-6 animate-slide-up shadow-xl border border-purple-100/30">
+        <div className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md p-5 sm:p-6 pb-[max(env(safe-area-inset-bottom),1.25rem)] sm:pb-6 max-h-[90dvh] overflow-y-auto animate-slide-up shadow-xl border border-purple-100/30">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-text-primary flex items-center gap-2">
                 <span>🚫</span> Blocked Users
@@ -624,8 +743,8 @@ export const SettingsPage = () => {
 
       {/* 4. Notifications Preferences Modal */}
       {showNotificationsModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-md p-6 animate-slide-up shadow-xl border border-purple-100/30">
+        <div className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md p-5 sm:p-6 pb-[max(env(safe-area-inset-bottom),1.25rem)] sm:pb-6 max-h-[90dvh] overflow-y-auto animate-slide-up shadow-xl border border-purple-100/30">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-bold text-text-primary flex items-center gap-2">
                 <Bell size={20} className="text-brand-primary" /> Notifications
@@ -662,8 +781,8 @@ export const SettingsPage = () => {
 
       {/* 5. Help & Support Modal */}
       {showHelpModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-md p-6 animate-slide-up shadow-xl border border-purple-100/30">
+        <div className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md p-5 sm:p-6 pb-[max(env(safe-area-inset-bottom),1.25rem)] sm:pb-6 max-h-[90dvh] overflow-y-auto animate-slide-up shadow-xl border border-purple-100/30">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-text-primary flex items-center gap-2">
                 <Shield size={20} className="text-brand-primary" /> Contact Support
@@ -710,8 +829,8 @@ export const SettingsPage = () => {
 
       {/* 6. About ApniSamaj Modal */}
       {showAboutModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-md p-6 animate-slide-up shadow-xl border border-purple-100/30">
+        <div className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md p-5 sm:p-6 pb-[max(env(safe-area-inset-bottom),1.25rem)] sm:pb-6 max-h-[90dvh] overflow-y-auto animate-slide-up shadow-xl border border-purple-100/30">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-text-primary flex items-center gap-2">
                 <Info size={20} className="text-brand-primary" /> About ApniSamaj

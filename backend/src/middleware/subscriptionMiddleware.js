@@ -117,16 +117,10 @@ const checkInterestLimit = async (req, res, next) => {
       return next(); // Unlimited
     }
 
-    // Paid plans track usage on the subscription; free users have no subscription,
-    // so count the interests they actually sent this calendar month.
-    let used = subscription?.usage?.interestsSentThisMonth;
-    if (used === undefined || used === null) {
-      const InterestRequest = require('../models/InterestRequest');
-      const monthStart = new Date();
-      monthStart.setDate(1);
-      monthStart.setHours(0, 0, 0, 0);
-      used = await InterestRequest.countDocuments({ senderId: req.user._id, createdAt: { $gte: monthStart } });
-    }
+    // Count the interests actually sent this calendar month (same count the
+    // "My Subscription" screen shows), for free and paid plans alike.
+    const { countInterestsThisMonth } = require('../services/matrimonialUsageService');
+    const used = await countInterestsThisMonth(req.user._id);
     if (used >= limit) {
       return res.status(403).json({
         status:  'error',

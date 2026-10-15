@@ -329,6 +329,7 @@ const chatPushContent = ({ senderName, preview, groupName, conversationId }) => 
 /** Short preview of a chat message for notifications */
 const chatMessagePreview = (type, text) => {
   if (type === 'image') return '📷 Photo';
+  if (type === 'video') return '🎥 Video';
   if (type === 'audio' || type === 'voice') return '🎤 Voice message';
   if (type === 'file') return '📎 File';
   if (!text) return 'Sent you a message';

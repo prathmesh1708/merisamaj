@@ -37,6 +37,7 @@ export const matrimonialSubscriptionService = {
   listPlans:          ()     => axiosPrivate.get(`${BASE}/subscription/plans`),
   getMySubscription:  ()     => axiosPrivate.get(`${BASE}/subscription/me`),
   getHistory:         ()     => axiosPrivate.get(`${BASE}/subscription/history`),
+  getOverview:        ()     => axiosPrivate.get(`${BASE}/subscription/overview`),
   initiatePurchase:   (data) => axiosPrivate.post(`${BASE}/subscription/purchase`, data),
   verifyAndActivate:  (data) => axiosPrivate.post(`${BASE}/subscription/verify`, data),
   cancelSubscription: (data) => axiosPrivate.post(`${BASE}/subscription/cancel`, data),

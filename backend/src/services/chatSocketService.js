@@ -15,7 +15,7 @@
 const User         = require('../models/User');
 const Conversation = require('../models/Conversation');
 const Group        = require('../models/Group');
-const { createMessage, markMessagesSeen, markConversationSeen, markMessagesDelivered } = require('./messageService');
+const { createMessage, markMessagesSeen, markConversationSeen, markMessagesDelivered, markAllPendingDelivered } = require('./messageService');
 const { notifyNewMessage, notifyMention, notifyGroupMessage, pushChatMessage, chatMessagePreview } = require('./notificationService');
 
 // ─── Online Users Registry ────────────────────────────────────────────────────
@@ -78,10 +78,24 @@ const chatSocketService = (io) => {
 
     // Broadcast updated online list to all connected clients
     io.emit('chat:online_users', Array.from(onlineUsers.keys()));
+
+    // Their device is online now: messages sent while they were offline are delivered
+    markAllPendingDelivered(userId)
+      .then(async (convIds) => {
+        for (const cid of convIds) {
+          const conv = await Conversation.findById(cid).select('participants').lean();
+          for (const p of conv?.participants || []) {
+            if (p.toString() !== userId.toString()) {
+              io.to(`user:${p.toString()}`).emit('chat:messages_delivered', { conversationId: cid.toString(), userId });
+            }
+          }
+        }
+      })
+      .catch(err => console.warn('[ChatSocket] Delivered-on-connect failed:', err.message));
     console.log(`[ChatSocket] ${userId} connected (${socket.id}). Online: ${onlineUsers.size}`);
 
     // ── Join a conversation room ─────────────────────────────────────────────
-    socket.on('chat:join_conversation', async ({ conversationId }) => {
+    socket.on('chat:join_conversation', async ({ conversationId, visible }) => {
       try {
         let conversation = await Conversation.findOne({
           _id: conversationId,
@@ -135,14 +149,16 @@ const chatSocketService = (io) => {
         socket.join(`conv:${conversationId}`);
         socket.emit('chat:joined', { conversationId, type: conversation.type });
 
-        // Mark messages as delivered & seen when user joins
+        // Joining delivers everything; it only counts as "seen" (blue ticks) when the
+        // chat is actually on screen — not when the app is in the background.
         await markMessagesDelivered(conversationId, userId);
-        await markConversationSeen(conversationId, userId);
-
         socket.to(`conv:${conversationId}`).emit('chat:messages_delivered', {
           conversationId,
           userId
         });
+        if (visible === false) return;
+
+        await markConversationSeen(conversationId, userId);
         io.to(`conv:${conversationId}`).emit('chat:messages_seen', {
           conversationId,
           seenBy: userId,

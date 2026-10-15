@@ -6,6 +6,8 @@ const SubscriptionPlan   = require('../../models/SubscriptionPlan');
 const UserSubscription   = require('../../models/UserSubscription');
 const { initiatePayment, verifyPayment, processManualPayment } = require('../../services/paymentService');
 const { notifySubscriptionActivated, notifySubscriptionExpired } = require('../../services/notificationService');
+const { getEffectiveFeatures } = require('../../middleware/subscriptionMiddleware');
+const { getUsage } = require('../../services/matrimonialUsageService');
 
 // ─── List All Active Plans ────────────────────────────────────────────────────
 exports.listPlans = async (req, res) => {
@@ -47,6 +49,88 @@ exports.getSubscriptionHistory = async (req, res) => {
     const history = await UserSubscription.find({ userId: req.user._id })
       .sort({ createdAt: -1 });
     res.json({ status: 'success', data: { history } });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+// ─── Subscription Overview ("My Subscription" screen) ──────────────────────────
+// Current plan with days left, usage against each limit, and every plan bought.
+// @route GET /api/v1/member/matrimonial/subscription/overview
+exports.getSubscriptionOverview = async (req, res) => {
+  try {
+    const now = new Date();
+    const DAY = 24 * 60 * 60 * 1000;
+
+    const [{ features, subscription }, usage, purchases] = await Promise.all([
+      getEffectiveFeatures(req.user._id),
+      getUsage(req.user._id),
+      UserSubscription.find({ userId: req.user._id }).sort({ createdAt: -1 }).lean()
+    ]);
+
+    let current = null;
+    if (subscription) {
+      const start = new Date(subscription.startDate);
+      const end = new Date(subscription.endDate);
+      const totalDays = Math.max(1, Math.round((end - start) / DAY));
+      const daysLeft = Math.max(0, Math.ceil((end - now) / DAY));
+      current = {
+        _id: subscription._id,
+        planName: subscription.planName,
+        status: subscription.status,
+        pricePaid: subscription.pricePaid,
+        startDate: subscription.startDate,
+        endDate: subscription.endDate,
+        totalDays,
+        daysLeft,
+        daysUsed: Math.max(0, totalDays - daysLeft),
+        cancelledAt: subscription.cancelledAt || null,
+        paymentId: subscription.paymentId || null,
+        paymentGateway: subscription.paymentGateway || null
+      };
+    }
+
+    // How each past purchase stands today
+    const history = purchases.map(p => {
+      let state = p.status;
+      if (p.paymentStatus === 'pending') state = 'payment_pending';
+      else if (p.paymentStatus === 'failed') state = 'payment_failed';
+      else if (new Date(p.startDate) > now) state = 'upcoming';
+      else if (new Date(p.endDate) < now) state = 'expired';
+      return {
+        _id: p._id,
+        planName: p.planName,
+        pricePaid: p.pricePaid,
+        durationInDays: p.durationInDays,
+        startDate: p.startDate,
+        endDate: p.endDate,
+        purchasedAt: p.createdAt,
+        paymentId: p.paymentId || null,
+        paymentGateway: p.paymentGateway || null,
+        isCurrent: Boolean(current && String(p._id) === String(current._id)),
+        state
+      };
+    });
+
+    const limit = (v) => (typeof v === 'number' ? v : null);
+    res.json({
+      status: 'success',
+      data: {
+        isPremium: Boolean(subscription),
+        current,
+        limits: {
+          profileViewsPerDay: limit(features.profileViewsPerDay),
+          interestLimit: limit(features.interestLimit),
+          messageLimit: limit(features.messageLimit)
+        },
+        usage,
+        features,
+        history,
+        totalSpent: purchases
+          .filter(p => p.paymentStatus === 'success')
+          .reduce((sum, p) => sum + (p.pricePaid || 0), 0)
+      }
+    });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }

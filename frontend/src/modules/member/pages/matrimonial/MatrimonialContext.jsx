@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Outlet } from 'react-router-dom';
 import { useAuth } from '../../../../core/auth/useAuth';
+import { MarriedMatrimonialPoster } from './components/MarriedMatrimonialPoster';
 import {
   matrimonialDashboardService,
   matrimonialShortlistService,
@@ -22,6 +23,11 @@ export const MatrimonialProvider = () => {
   const userId = auth.user?._id || auth.user?.id;
   // ─── My Own Profile ──────────────────────────────────────────────────────
   const [myProfile, setMyProfile]           = useState(null);
+  // Set when the server refuses Matrimony because this account is Married
+  const [serverSaysMarried, setServerSaysMarried] = useState(false);
+  const checkMarriedRefusal = (err) => {
+    if (err?.response?.data?.code === 'MARRIED_ACCOUNT') setServerSaysMarried(true);
+  };
   const [myProfileLoading, setMyProfileLoading] = useState(false);
 
   // ─── Dashboard Data ───────────────────────────────────────────────────────
@@ -63,6 +69,7 @@ export const MatrimonialProvider = () => {
       const res = await matrimonialProfileService.getMyProfile();
       setMyProfile(res.data.data.profile || null);
     } catch (err) {
+      checkMarriedRefusal(err);
       console.error('[MatrimonialContext] My profile fetch failed:', err.response?.data?.message);
     } finally {
       setMyProfileLoading(false);
@@ -76,6 +83,7 @@ export const MatrimonialProvider = () => {
       const res = await matrimonialDashboardService.getDashboard();
       setDashboard(res.data.data.dashboard);
     } catch (err) {
+      checkMarriedRefusal(err);
       console.error('[MatrimonialContext] Dashboard fetch failed:', err.response?.data?.message);
     } finally {
       setDashboardLoading(false);
@@ -350,9 +358,13 @@ export const MatrimonialProvider = () => {
     isBlocked,
   };
 
+  // Members registered as Married don't use matchmaking themselves; they see a
+  // poster that sends them to register a separate account for a family member.
+  const isMarriedMember = /^married$/i.test(auth.user?.maritalStatus || '') || serverSaysMarried;
+
   return (
     <MatrimonialContext.Provider value={value}>
-      <Outlet />
+      {isMarriedMember ? <MarriedMatrimonialPoster /> : <Outlet />}
     </MatrimonialContext.Provider>
   );
 };

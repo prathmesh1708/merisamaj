@@ -2,7 +2,8 @@
  * matrimonialInterestController.js
  * Manages the full interest request lifecycle.
  */
-const InterestRequest = require('../../models/InterestRequest');
+const InterestRequest = require('../../models/InterestRequest');
+const { countInterestsThisMonth } = require('../../services/matrimonialUsageService');
 const MatrimonialProfile = require('../../models/MatrimonialProfile');
 const Conversation = require('../../models/Conversation');
 const UserBlock = require('../../models/UserBlock');
@@ -76,7 +77,7 @@ exports.sendInterest = async (req, res) => {
     // ─── Plan limit check ─────────────────────────────────────────────────────
     const { userSubscription } = req;
     if (userSubscription && req.userFeatures?.interestLimit !== -1) {
-      const used = userSubscription.usage?.interestsSentThisMonth ?? 0;
+      const used = await countInterestsThisMonth(req.user._id);
       const limit = req.userFeatures.interestLimit;
       if (used >= limit) {
         return res.status(403).json({ status: 'error', code: 'INTEREST_LIMIT_REACHED', message: `Monthly limit of ${limit} interests reached. Upgrade to Premium.` });

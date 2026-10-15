@@ -1093,14 +1093,10 @@ exports.getSubCommunityLocationBreakdown = async (req, res) => {
       const cityLocalSubHeads = localSubHeads.filter(u => u.city && u.city.trim().toLowerCase() === cLower);
 
       // Groups are matched by their exact label (a missing label counts as "Group 1",
-      // same as assignment). Renamed groups keep their own card; the standard
-      // "Group 1..N" slots pad the matrix to at least 4 cards.
+      // same as assignment). Only groups that actually have leaders are returned —
+      // the admin starts a new group with "+ Add Group" in the UI.
       const labelOf = (u) => (u.group && u.group.trim()) || 'Group 1';
-      const usedLabels = Array.from(new Set(cityLocalHeads.concat(cityLocalSubHeads).map(labelOf)));
-      const groupLabels = [...usedLabels];
-      for (let n = 1; groupLabels.length < 4; n++) {
-        if (!groupLabels.some(l => l.toLowerCase() === `group ${n}`)) groupLabels.push(`Group ${n}`);
-      }
+      const groupLabels = Array.from(new Set(cityLocalHeads.concat(cityLocalSubHeads).map(labelOf)));
       const groupNumber = (label) => { const m = /^group\s+(\d+)$/i.exec(label); return m ? Number(m[1]) : Number.MAX_SAFE_INTEGER; };
       groupLabels.sort((a, b) => groupNumber(a) - groupNumber(b) || a.localeCompare(b));
 
@@ -1403,12 +1399,44 @@ exports.assignLocalHeadToLocationGroup = async (req, res) => {
       }
     }
 
+    // A local leader works in one city: make sure that city is a location here,
+    // otherwise they are hidden from the location-wise view.
+    if (subHeadType === 'local') {
+      const leaderCity = (typeof city === 'string' && city.trim())
+        || (userId && mongoose.Types.ObjectId.isValid(userId)
+          ? (await User.findById(userId).select('city').lean())?.city
+          : '');
+      await ensureCityIsLocation(community, decodedSubName, leaderCity);
+    }
+
     // Promote existing user
     if (userId) {
       const user = await User.findById(userId);
       if (!user) {
         return res.status(404).json({ status: 'error', message: 'User not found' });
       }
+
+      // Identity & login fields edited in the admin form. Each must not belong to another account.
+      const newName = typeof name === 'string' ? name.trim() : '';
+      const newPhone = typeof phone === 'string' ? phone.trim() : '';
+      const newEmail = typeof email === 'string' ? email.toLowerCase().trim() : undefined;
+      const newLoginId = typeof req.body.loginId === 'string' ? req.body.loginId.trim() : '';
+
+      const takenBy = async (filter) => User.findOne({ ...filter, _id: { $ne: user._id } }).select('_id').lean();
+      if (newPhone && newPhone !== user.phone && await takenBy({ phone: newPhone })) {
+        return res.status(400).json({ status: 'error', message: 'This phone number is already used by another account.' });
+      }
+      if (newEmail && newEmail !== user.email && await takenBy({ email: newEmail })) {
+        return res.status(400).json({ status: 'error', message: 'This email is already used by another account.' });
+      }
+      if (newLoginId && newLoginId !== user.loginId && await takenBy({ $or: [{ loginId: newLoginId }, { loginId: newLoginId.toLowerCase() }] })) {
+        return res.status(400).json({ status: 'error', message: 'This Login ID is already used by another account.' });
+      }
+
+      if (newName) user.name = newName;
+      if (newPhone) user.phone = newPhone;
+      if (newEmail !== undefined) user.email = newEmail || undefined; // empty field clears the email
+      if (newLoginId) user.loginId = newLoginId;
 
       user.communityId = community._id;
       user.subCommunity = decodeURIComponent(subName || user.subCommunity || '');
@@ -1733,6 +1761,39 @@ const effectiveLocationLists = (community, sub) => ({
   cityIds: sub && Array.isArray(sub.cityIds) ? sub.cityIds : (community.cityIds || []),
   inactiveCityIds: sub && Array.isArray(sub.inactiveCityIds) ? sub.inactiveCityIds : (community.inactiveCityIds || [])
 });
+// Makes `cityName` (an existing, active City) a location of the sub-community — and of
+// the community-wide list — so a local leader appointed there shows up in the
+// location-wise view. Saves the community and returns true when something was added.
+const ensureCityIsLocation = async (community, subName, cityName) => {
+  const name = (cityName || '').trim();
+  if (!name) return false;
+  const City = mongoose.model('City');
+  const cityDoc = await City.findOne({ name: new RegExp(`^${escapeCityRegex(name)}$`, 'i'), isActive: true }).select('_id').lean();
+  if (!cityDoc) return false;
+
+  const id = String(cityDoc._id);
+  const has = (list) => (list || []).some(c => String(c._id || c) === id);
+  let changed = false;
+
+  let sub = findSubCommunity(community, subName);
+  if (sub) {
+    ensureSubLocationLists(community);
+    sub = findSubCommunity(community, sub.name);
+    if (!has(sub.cityIds)) { sub.cityIds.push(cityDoc._id); changed = true; }
+  }
+  if (!has(community.cityIds)) {
+    community.cityIds = community.cityIds || [];
+    community.cityIds.push(cityDoc._id);
+    changed = true;
+  }
+
+  if (changed) {
+    community.markModified('subCommunities');
+    await community.save();
+  }
+  return changed;
+};
+
 exports.findSubCommunity = findSubCommunity;
 exports.effectiveLocationLists = effectiveLocationLists;
 

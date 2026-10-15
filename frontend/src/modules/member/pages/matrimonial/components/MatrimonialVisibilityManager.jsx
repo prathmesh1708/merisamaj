@@ -953,6 +953,41 @@ export const MatrimonialVisibilityManager = ({
                   </span>
                 </button>
               )}
+
+              {/* Selected other communities — who else (outside my community) can see me */}
+              {(() => {
+                const picked = settings.otherCommunities.enabled && settings.otherCommunities.scope === 'selected'
+                  ? (settings.otherCommunities.selectedCommunities || [])
+                  : [];
+                return (
+                  <button
+                    type="button"
+                    onClick={() => (otherLocked ? navigate('/member/matrimonial/subscription') : setCurrentScreen('select-communities'))}
+                    className="mt-2.5 pt-2.5 border-t border-slate-100 pl-11 w-full flex items-center justify-between gap-2 text-left"
+                  >
+                    <span className="flex items-center gap-2 min-w-0">
+                      {otherLocked
+                        ? <Lock size={12} className="text-slate-400 shrink-0" />
+                        : <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span>}
+                      <span className="min-w-0">
+                        <span className="block text-[12px] font-semibold text-slate-700 truncate">
+                          {picked.length > 0 ? picked.map(samaj).join(', ') : 'Selected communities'}
+                        </span>
+                        <span className="block text-[10.5px] font-medium text-slate-400 truncate">
+                          {otherLocked
+                            ? 'Show your profile to other communities you choose'
+                            : picked.length > 0
+                              ? `${picked.length} other ${picked.length === 1 ? 'community' : 'communities'} can see your profile`
+                              : 'Also show your profile to other communities you choose'}
+                        </span>
+                      </span>
+                    </span>
+                    <span className={`text-[11.5px] font-bold flex items-center gap-0.5 shrink-0 ${otherLocked ? 'text-slate-500' : 'text-rose-600'}`}>
+                      {otherLocked ? 'Upgrade' : 'Choose'} <ChevronRight size={14} />
+                    </span>
+                  </button>
+                );
+              })()}
             </div>
 
             {/* Setting 4: Aadhar Verified Members */}
@@ -1220,7 +1255,12 @@ export const MatrimonialVisibilityManager = ({
           {/* Sticky Done Button */}
           <div className="pt-2">
             <button
-              onClick={() => setCurrentScreen('visibility')}
+              onClick={() => {
+                if (settings.otherCommunities.selectedCommunities.length > 0) {
+                  setSettings(s => ({ ...s, otherCommunities: { ...s.otherCommunities, enabled: true, scope: 'selected' } }));
+                }
+                setCurrentScreen('visibility');
+              }}
               className="w-full py-3.5 bg-gradient-to-r from-rose-500 to-pink-600 text-white rounded-2xl font-black text-[14px] shadow-lg shadow-rose-500/20 active:scale-98 transition-all"
             >
               Done

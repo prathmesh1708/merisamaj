@@ -5,6 +5,7 @@
  */
 const Message = require('../models/Message');
 const { updateLastMessage } = require('./conversationService');
+const Conversation = require('../models/Conversation');
 
 // ─── Create Message ───────────────────────────────────────────────────────────
 /**
@@ -239,7 +240,33 @@ const clearConversationMessages = async (conversationId, userId) => {
   );
 };
 
+/**
+ * Everything sent to `userId` while they were offline counts as delivered once
+ * their app connects (WhatsApp's second grey tick). Returns the ids of the
+ * conversations that changed, so their senders can be told.
+ */
+const markAllPendingDelivered = async (userId) => {
+  if (!userId) return [];
+  const mongoose = require('mongoose');
+  const userObjId = typeof userId === 'string' ? new mongoose.Types.ObjectId(userId) : userId;
+
+  const convIds = await Conversation.find({ participants: userObjId, isDeleted: false }).distinct('_id');
+  if (!convIds.length) return [];
+
+  const filter = {
+    conversationId: { $in: convIds },
+    senderId: { $ne: userObjId },
+    deliveredTo: { $ne: userObjId },
+    isDeleted: false
+  };
+  const changed = await Message.distinct('conversationId', filter);
+  if (!changed.length) return [];
+  await Message.updateMany(filter, { $addToSet: { deliveredTo: userObjId } });
+  return changed;
+};
+
 module.exports = {
+  markAllPendingDelivered,
   createMessage,
   getMessages,
   markMessagesSeen,

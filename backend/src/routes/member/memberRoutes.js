@@ -73,6 +73,10 @@ const matrimonialAuxRoutes          = require('./matrimonial/matrimonialAuxRoute
 
 // Matrimonial is open to every member of every community (not gated by the community plan);
 // what members see inside it (plans, settings, content) is managed by the Admin.
+// Married members can't use Matrimony on their own account (same rule as the app's poster)
+const { blockMarriedMembers } = require('../../middleware/matrimonialEligibility');
+router.use('/matrimonial', blockMarriedMembers);
+
 router.use('/matrimonial/profile',       matrimonialProfileRoutes);
 router.use('/matrimonial/subscription',  matrimonialSubscriptionRoutes);
 router.use('/matrimonial/interests',     matrimonialInterestRoutes);
