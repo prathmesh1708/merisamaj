@@ -9,6 +9,7 @@ import {
   Search
 } from 'lucide-react';
 import { useData } from '../../context/DataProvider';
+import { getDistrictsForState } from '../../data/indianDistricts';
 import { useAuth } from '../../../../core/auth/useAuth';
 import { authService } from '../../../../core/auth/authService';
 import { axiosPublic } from '../../../../core/api/axiosConfig';
@@ -108,14 +109,7 @@ const INDIAN_STATES = [
   'Chhattisgarh', 'Jharkhand', 'Uttarakhand', 'Himachal Pradesh', 'Other'
 ];
 
-const COMMON_DISTRICTS = [
-  'Indore', 'Bhopal', 'Ujjain', 'Ratlam', 'Gwalior', 'Jabalpur', 'Dewas', 'Khandwa',
-  'Jaipur', 'Udaipur', 'Jodhpur', 'Kota', 'Ajmer',
-  'Mumbai', 'Pune', 'Nagpur', 'Nashik',
-  'Ahmedabad', 'Surat', 'Vadodara', 'Rajkot',
-  'New Delhi', 'Lucknow', 'Kanpur', 'Agra', 'Varanasi',
-  'Bangalore', 'Hyderabad', 'Chennai', 'Kolkata', 'Other'
-];
+// Districts come from data/indianDistricts.js, filtered by the selected state
 
 // ─── SLIDE WRAPPER ────────────────────────────────────────────────────────────
 const SlideIn = ({ children, dir = 'right' }) => {
@@ -1814,7 +1808,12 @@ const OnboardingScreen = () => {
                       </label>
                       <CustomSelect
                         value={stateName}
-                        onChange={(val) => { setStateName(val); setStepErrors(prev => ({ ...prev, stateName: '' })); }}
+                        onChange={(val) => {
+                          setStateName(val);
+                          // A district from the previous state no longer fits — clear it
+                          if (district && !getDistrictsForState(val).includes(district)) setDistrict('');
+                          setStepErrors(prev => ({ ...prev, stateName: '' }));
+                        }}
                         options={INDIAN_STATES}
                         placeholder="Select State"
                         searchable={true}
@@ -1829,8 +1828,9 @@ const OnboardingScreen = () => {
                       <CustomSelect
                         value={district}
                         onChange={(val) => { setDistrict(val); setStepErrors(prev => ({ ...prev, district: '' })); }}
-                        options={COMMON_DISTRICTS}
-                        placeholder="Select District"
+                        options={getDistrictsForState(stateName)}
+                        placeholder={stateName ? 'Select District' : 'Select state first'}
+                        disabled={!stateName}
                         searchable={true}
                       />
                       {stepErrors.district && <p role="alert" className="text-[10px] text-red-500 font-bold mt-1 ml-1">{stepErrors.district}</p>}

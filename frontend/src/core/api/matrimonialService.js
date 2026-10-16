@@ -52,6 +52,7 @@ export const matrimonialInterestService = {
   withdrawInterest:     (id)     => axiosPrivate.post(`${BASE}/interests/cancel/${id}`),
   getSentInterests:     (params) => axiosPrivate.get(`${BASE}/interests/sent`, { params }),
   getReceivedInterests: (params) => axiosPrivate.get(`${BASE}/interests/received`, { params }),
+  getDeclinedInterests: ()       => axiosPrivate.get(`${BASE}/interests/declined`),
 };
 
 // ─── Chat ─────────────────────────────────────────────────────────────────────

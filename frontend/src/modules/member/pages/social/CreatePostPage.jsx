@@ -8,6 +8,7 @@ import {
   ArrowUp, ArrowDown, Check, GripHorizontal, Video, Image as ImageIcon
 } from 'lucide-react';
 import { Avatar } from '../../components/common/Avatar';
+import { InstagramStoryComposer } from './components/InstagramStoryComposer';
 import { useData } from '../../context/DataProvider';
 
 const Instagram = (props) => (
@@ -419,6 +420,23 @@ const CreatePostPage = () => {
       </div>
     </div>
   );
+
+  // Stories use the full-screen, Instagram-style editor
+  if (activeTab === 'story') {
+    return (
+      <InstagramStoryComposer
+        currentUser={currentUser}
+        feedType={feedType}
+        onFeedTypeChange={setFeedType}
+        onClose={() => navigate(-1)}
+        onSwitchToPost={() => setActiveTab('post')}
+        onPublish={async ({ media, text, textPosition, textStyle }) => {
+          await addStory(media, text, { textPosition, textStyle, feedType });
+          navigate(-1);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50/70 flex flex-col text-slate-800 select-none pb-8 md:pb-0 font-sans">

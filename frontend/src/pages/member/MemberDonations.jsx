@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu, Home, Heart, Search, Filter, ShieldCheck, Sparkles, AlertCircle } from 'lucide-react';
+import { Menu, Home, Heart, Search, Filter, ShieldCheck, Sparkles, AlertCircle, Users, ChevronRight } from 'lucide-react';
 import memberDonationApi from '../../api/memberDonationApi';
 import DonationCard from '../../components/member/DonationCard';
 import DonateModal from '../../components/member/DonateModal';
@@ -302,6 +302,13 @@ export const MemberDonations = () => {
           <p className="text-purple-100/90 text-[11px] sm:text-xs font-medium leading-relaxed">
             {donationBanner.subtitle}
           </p>
+          <button
+            type="button"
+            onClick={() => navigate('/member/donation/donors')}
+            className="mt-2.5 inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-white text-[#3B1578] text-[12px] font-extrabold shadow-md active:scale-95 transition-transform"
+          >
+            <Users size={14} /> View All Donors <ChevronRight size={14} />
+          </button>
         </div>
       </div>
 

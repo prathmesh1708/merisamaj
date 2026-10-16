@@ -305,3 +305,47 @@ exports.getReceivedInterests = async (req, res) => {
     res.status(500).json({ status: 'error', message: err.message });
   }
 };
+
+// ─── Declined / Cancelled Interests ───────────────────────────────────────────
+// "I declined"   → interests I declined + my own interests I cancelled
+// "They declined" → my interests they declined + their interests to me they cancelled
+// @route GET /api/v1/member/matrimonial/interests/declined
+exports.getDeclinedInterests = async (req, res) => {
+  try {
+    const me = req.user._id;
+    const closed = ['rejected', 'cancelled', 'withdrawn'];
+    const interests = await InterestRequest.find({
+      status: { $in: closed },
+      $or: [{ senderId: me }, { receiverId: me }]
+    }).sort({ updatedAt: -1 }).limit(200).lean();
+
+    const otherIds = [...new Set(interests.map(i =>
+      String(String(i.senderId) === String(me) ? i.receiverId : i.senderId)))];
+    const profiles = await MatrimonialProfile.find({ userId: { $in: otherIds }, isDeleted: false })
+      .populate('userId', 'name avatar subCommunity')
+      .lean({ virtuals: true });
+    const profileByUser = new Map(profiles.map(p => [String(p.userId?._id || p.userId), p]));
+
+    const iDeclined = [];
+    const theyDeclined = [];
+    for (const i of interests) {
+      const iSent = String(i.senderId) === String(me);
+      const otherId = String(iSent ? i.receiverId : i.senderId);
+      const profile = profileByUser.get(otherId);
+      const action = i.status === 'rejected' ? 'declined' : 'cancelled';
+      const entry = {
+        _id: i._id,
+        action,
+        date: (action === 'declined' ? i.rejectedAt : (i.cancelledAt || i.withdrawnAt)) || i.updatedAt,
+        profile: profile ? buildRestrictedProfile(profile) : null
+      };
+      // Who closed it: the receiver declines, the sender cancels
+      const closedByMe = action === 'declined' ? !iSent : iSent;
+      (closedByMe ? iDeclined : theyDeclined).push(entry);
+    }
+
+    res.json({ status: 'success', data: { iDeclined, theyDeclined } });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};

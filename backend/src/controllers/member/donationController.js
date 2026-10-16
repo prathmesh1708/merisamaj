@@ -728,10 +728,24 @@ exports.getStats = async (req, res) => {
     // "Community Global Donation" campaign are filtered out below (they should
     // only surface in the "View All" list), so we need extra headroom to still
     // land on 5 community-specific donors after that filter is applied.
-    const topFilter = applyScopeFilter(req, { amount: { $exists: true, $gt: 0 } });
+    // Only real, paid donations ('Pending' = payment not completed, 'Failed' = payment failed)
+    const PAID_STATUSES = ['Approved', 'Active', 'Completed'];
+    const topFilter = applyScopeFilter(req, { amount: { $exists: true, $gt: 0 }, status: { $in: PAID_STATUSES } });
 
-    // Execute all 4 queries concurrently in parallel
-    const [uniqueDonorsList, amountAggr, completedPurposes, topCandidates] = await Promise.all([
+    // Start of today in India time, so "today" resets at Indian midnight
+    const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+    const istNow = new Date(Date.now() + IST_OFFSET_MS);
+    istNow.setUTCHours(0, 0, 0, 0);
+    const startOfTodayIST = new Date(istNow.getTime() - IST_OFFSET_MS);
+    const todayFilter = applyScopeFilter(req, {
+      amount: { $gt: 0 },
+      status: { $in: PAID_STATUSES },
+      campaign: { $exists: true, $ne: null },
+      createdAt: { $gte: startOfTodayIST }
+    });
+
+    // Execute all queries concurrently in parallel
+    const [uniqueDonorsList, amountAggr, completedPurposes, topCandidates, todayDonations] = await Promise.all([
       Donation.distinct('user', scopeFilter),
       Donation.aggregate([
         { $match: matchQuery },
@@ -742,6 +756,12 @@ exports.getStats = async (req, res) => {
         .sort({ amount: -1 })
         .limit(50)
         .populate('user', 'name avatar role city designation phone profession')
+        .populate('campaign', 'title isGlobalCampaign')
+        .lean(),
+      Donation.find(todayFilter)
+        .sort({ createdAt: -1 })
+        .limit(500)
+        .populate('user', 'name avatar')
         .populate('campaign', 'title isGlobalCampaign')
         .lean()
     ]);
@@ -785,12 +805,48 @@ exports.getStats = async (req, res) => {
       });
     }
 
+    // Today's Top 5: everyone who donated today, totalled per person, biggest first.
+    // Resets every day at midnight (India time).
+    const todayByDonor = new Map();
+    todayDonations
+      .filter(d => !(d.campaign && d.campaign.isGlobalCampaign))
+      .forEach(d => {
+        const key = d.user?._id ? `u_${d.user._id}` : `n_${(d.donorName || 'Anonymous').trim().toLowerCase()}`;
+        const entry = todayByDonor.get(key) || {
+          name: d.user?.name || d.donorName || 'Anonymous',
+          avatar: d.user?.avatar || '',
+          userId: d.user?._id ? d.user._id.toString() : null,
+          amount: 0,
+          donations: 0,
+          purpose: d.campaign?.title || d.purpose || 'General Relief',
+          lastAt: d.createdAt
+        };
+        entry.amount += d.amount || 0;
+        entry.donations += 1;
+        todayByDonor.set(key, entry);
+      });
+    const todayTopDonors = [...todayByDonor.entries()]
+      .sort((a, b) => b[1].amount - a[1].amount)
+      .slice(0, 5)
+      .map(([key, e]) => ({
+        id: `today_${key}`,
+        name: e.name,
+        initials: e.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase(),
+        amount: e.amount,
+        donations: e.donations,
+        purpose: e.purpose,
+        date: 'Today',
+        avatar: e.avatar,
+        userId: e.userId
+      }));
+
     const payload = {
       success: true,
       status: 'success',
       data: {
         impactStats,
-        topDonors
+        topDonors,
+        todayTopDonors
       }
     };
 

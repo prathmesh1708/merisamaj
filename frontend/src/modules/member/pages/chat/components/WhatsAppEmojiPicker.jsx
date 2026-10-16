@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, X, Smile, Heart, Users, Trees, Coffee, Trophy, Car, Lightbulb, Flag } from 'lucide-react';
+import { Smile, Heart, Users, Trees, Coffee, Trophy, Car, Flag } from 'lucide-react';
 
 const EMOJI_CATEGORIES = [
   {
@@ -68,118 +68,64 @@ const EMOJI_CATEGORIES = [
   }
 ];
 
-export const WhatsAppEmojiPicker = ({ onSelectEmoji, onClose }) => {
+/**
+ * WhatsApp-style emoji panel: shown in place of the keyboard, below the message box.
+ * Big emojis without highlight circles; the category bar sits at the bottom.
+ */
+export const WhatsAppEmojiPicker = ({ onSelectEmoji }) => {
   const [activeCategory, setActiveCategory] = useState('smileys');
-  const [searchQuery, setSearchQuery] = useState('');
-
-  const filteredEmojis = useMemo(() => {
-    if (!searchQuery.trim()) return null;
-    const q = searchQuery.toLowerCase();
-    const all = [];
-    EMOJI_CATEGORIES.forEach(cat => {
-      cat.emojis.forEach(e => {
-        if (!all.includes(e)) all.push(e);
-      });
-    });
-    // In actual use, matching against common unicode or listing matching set
-    return all.filter(e => e.includes(q) || true).slice(0, 80);
-  }, [searchQuery]);
 
   const currentCategoryObj = useMemo(() => {
     return EMOJI_CATEGORIES.find(c => c.id === activeCategory) || EMOJI_CATEGORIES[0];
   }, [activeCategory]);
 
   return (
-    <div 
-      className="w-full bg-white rounded-3xl shadow-2xl border border-slate-200/80 overflow-hidden flex flex-col z-30 animate-scale-in"
-      style={{ maxHeight: '310px' }}
+    <div
+      className="w-full bg-white border-t border-slate-200 flex flex-col"
+      style={{ height: '290px', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       onClick={e => e.stopPropagation()}
+      onPointerDown={e => e.preventDefault()} // keep the keyboard closed while picking
     >
-      {/* Search and Close Bar */}
-      <div className="px-3 pt-2.5 pb-1.5 flex items-center gap-2 border-b border-slate-100 bg-slate-50/50">
-        <div className="flex-1 bg-white border border-slate-200 rounded-full px-3 py-1 flex items-center gap-1.5 shadow-2xs">
-          <Search size={14} className="text-slate-400 shrink-0" />
-          <input
-            type="text"
-            placeholder="Search emoji..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className="w-full bg-transparent text-[13px] font-medium text-slate-800 placeholder-slate-400 outline-none"
-          />
-          {searchQuery && (
-            <button onClick={() => setSearchQuery('')} className="text-slate-400 hover:text-slate-600">
-              <X size={13} />
+      {/* Emoji grid */}
+      <div className="flex-1 overflow-y-auto overscroll-contain px-2 pt-2">
+        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1.5 mb-1">
+          {currentCategoryObj.name}
+        </p>
+        <div className="grid grid-cols-7 sm:grid-cols-9">
+          {currentCategoryObj.emojis.map((emoji, idx) => (
+            <button
+              key={`${emoji}-${idx}`}
+              type="button"
+              onClick={() => onSelectEmoji(emoji)}
+              className="h-12 flex items-center justify-center text-[30px] leading-none bg-transparent active:scale-90 transition-transform select-none"
+              style={{ WebkitTapHighlightColor: 'transparent' }}
+            >
+              {emoji}
             </button>
-          )}
+          ))}
         </div>
-        {onClose && (
-          <button 
-            onClick={onClose}
-            className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 press-scale"
-          >
-            <X size={14} />
-          </button>
-        )}
       </div>
 
-      {/* Emoji Grid View */}
-      <div className="flex-1 overflow-y-auto p-3 scrollbar-thin scrollbar-thumb-slate-200">
-        {searchQuery ? (
-          <div>
-            <p className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mb-2">Search Results</p>
-            <div className="grid grid-cols-8 sm:grid-cols-10 gap-1">
-              {filteredEmojis.map((emoji, idx) => (
-                <button
-                  key={`${emoji}-${idx}`}
-                  onClick={() => onSelectEmoji(emoji)}
-                  className="w-9 h-9 flex items-center justify-center text-[22px] hover:bg-purple-50 hover:scale-125 rounded-xl transition-all press-scale"
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div>
-            <p className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mb-2">
-              {currentCategoryObj.name}
-            </p>
-            <div className="grid grid-cols-8 sm:grid-cols-10 gap-1">
-              {currentCategoryObj.emojis.map((emoji, idx) => (
-                <button
-                  key={`${emoji}-${idx}`}
-                  onClick={() => onSelectEmoji(emoji)}
-                  className="w-9 h-9 flex items-center justify-center text-[22px] hover:bg-purple-50 hover:scale-125 rounded-xl transition-all press-scale"
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+      {/* Category bar */}
+      <div className="flex items-center justify-around border-t border-slate-100 px-1 py-1.5 shrink-0">
+        {EMOJI_CATEGORIES.map(cat => {
+          const Icon = cat.icon;
+          const isActive = activeCategory === cat.id;
+          return (
+            <button
+              key={cat.id}
+              type="button"
+              onClick={() => setActiveCategory(cat.id)}
+              className={`p-2 flex items-center justify-center transition-colors border-b-2 ${
+                isActive ? 'text-purple-600 border-purple-600' : 'text-slate-400 border-transparent'
+              }`}
+              title={cat.name}
+            >
+              <Icon size={18} strokeWidth={isActive ? 2.5 : 2} />
+            </button>
+          );
+        })}
       </div>
-
-      {/* Category Tabs Bar (Bottom / WhatsApp Style) */}
-      {!searchQuery && (
-        <div className="flex items-center justify-around border-t border-slate-100 bg-slate-50/80 px-1 py-1.5">
-          {EMOJI_CATEGORIES.map(cat => {
-            const Icon = cat.icon;
-            const isActive = activeCategory === cat.id;
-            return (
-              <button
-                key={cat.id}
-                onClick={() => setActiveCategory(cat.id)}
-                className={`p-1.5 rounded-xl flex items-center justify-center transition-all ${
-                  isActive ? 'bg-purple-600 text-white shadow-xs' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-200/60'
-                }`}
-                title={cat.name}
-              >
-                <Icon size={16} strokeWidth={isActive ? 2.5 : 2} />
-              </button>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 };

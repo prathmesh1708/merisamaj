@@ -41,14 +41,21 @@ const buildRestrictedProfile = (profile) => {
       maritalStatus:profile.personal?.maritalStatus,
       religion:     profile.personal?.religion,
       community:    profile.personal?.community,
+      gotra:        profile.personal?.gotra,
       motherTongue: profile.personal?.motherTongue
     },
     age: profile.age, // Virtual (safe to expose)
     education: {
       highestQualification: profile.education?.highestQualification,
       profession:           profile.education?.profession,
-      occupation:           profile.education?.occupation
+      occupation:           profile.education?.occupation,
+      annualIncome:         profile.education?.annualIncome
     },
+    // Created by someone other than the person themselves (e.g. a parent)
+    managedByFamily: Boolean(
+      profile.createdBy && profile.userId &&
+      String(profile.createdBy) !== String(profile.userId?._id || profile.userId)
+    ),
     location: {
       country: profile.location?.country,
       state:   profile.location?.state,

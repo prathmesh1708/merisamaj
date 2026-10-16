@@ -5,7 +5,7 @@ import {
   Smile, Camera, CheckCheck, Search, X, FileText, Check,
   Square, CornerUpLeft, Star, BellOff, Trash2, Pin, Play,
   MapPin, UserSquare, Reply, Forward, Info, MessageCircle, Image as ImageIcon,
-  Headphones, AlertTriangle, Loader2, RefreshCcw, Pencil, Copy, ChevronDown, Plus, ExternalLink, Clock
+  Headphones, AlertTriangle, Loader2, RefreshCcw, Pencil, Copy, ChevronDown, Plus, ExternalLink, Clock, Keyboard
 } from 'lucide-react';
 import { useAuth } from '../../../../core/auth/useAuth';
 import { Avatar } from '../../components/common/Avatar';
@@ -57,6 +57,18 @@ const MessageStatusIcon = ({ status, seenBy, deliveredTo, myId }) => {
   if (deliveredToOther) return <CheckCheck size={14} className="opacity-80" />;
   return <Check size={14} className="opacity-80" />;
 };
+
+// ─── Emoji-only messages (shown large without a bubble, like WhatsApp) ───────────
+const EMOJI_ONLY = /^(?:\p{Extended_Pictographic}|\p{Emoji_Component}|\p{Regional_Indicator}|‍|️|\s)+$/u;
+const emojiOnlyCount = (text) => {
+  const t = (text || '').trim();
+  if (!t || !EMOJI_ONLY.test(t) || /^[\d#*\s]+$/.test(t)) return 0; // plain digits are "emoji components" too
+  const graphemes = typeof Intl !== 'undefined' && Intl.Segmenter
+    ? [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(t.replace(/\s+/g, ''))].length
+    : Array.from(t.replace(/\s+/g, '')).length;
+  return graphemes <= 3 ? graphemes : 0;
+};
+const EMOJI_SIZE = { 1: 'text-[52px]', 2: 'text-[44px]', 3: 'text-[38px]' };
 
 // ─── Clickable links inside message text ──────────────────────────────────────
 const URL_PATTERN = /((?:https?:\/\/|www\.)[^\s<]+[^\s<.,:;"')\]!?])/gi;
@@ -280,6 +292,13 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
     groupedMessages.push({ type: 'message', ...msg });
   });
 
+  // Split into days so each date label is pinned only within its own day (no overlapping labels)
+  const dayGroups = [];
+  groupedMessages.forEach(item => {
+    if (item.type === 'date') dayGroups.push({ id: item.id, date: item, items: [] });
+    else if (dayGroups.length) dayGroups[dayGroups.length - 1].items.push(item);
+  });
+
   // ── Send / Edit ───────────────────────────────────────────────────────────
   const handleSend = useCallback(async (e) => {
     if (e) {
@@ -455,9 +474,31 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
     e.target.value = '';
   };
 
+  // Insert at the cursor, then close the panel and bring the keyboard back
   const handleEmojiSelect = (emoji) => {
-    setNewMessage(prev => prev + emoji);
-    inputRef.current?.focus();
+    const el = inputRef.current;
+    const start = el?.selectionStart ?? newMessage.length;
+    const end = el?.selectionEnd ?? newMessage.length;
+    setNewMessage(prev => prev.slice(0, start) + emoji + prev.slice(end));
+    setShowEmojiPicker(false);
+    requestAnimationFrame(() => {
+      if (!el) return;
+      el.focus();
+      const caret = start + emoji.length;
+      try { el.setSelectionRange(caret, caret); } catch { /* not supported */ }
+    });
+  };
+
+  // WhatsApp-style: the emoji panel takes the keyboard's place
+  const toggleEmojiPanel = () => {
+    setShowAttachmentMenu(false);
+    if (showEmojiPicker) {
+      setShowEmojiPicker(false);
+      requestAnimationFrame(() => inputRef.current?.focus());
+    } else {
+      inputRef.current?.blur(); // hide the phone keyboard
+      setShowEmojiPicker(true);
+    }
   };
 
   // ── Selection & Delete ────────────────────────────────────────────────────
@@ -841,7 +882,10 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
         )}
 
         {/* Messages List */}
-        {groupedMessages.map((item) => {
+        {/* One section per day: its date label stays pinned only while that day is on screen */}
+        {dayGroups.map(group => (
+          <div key={group.id} className="space-y-1.5">
+        {[group.date, ...group.items].map((item) => {
           if (item.type === 'date') {
             return (
               <div key={item.id} className="flex justify-center my-4 sticky top-2 z-10">
@@ -882,6 +926,9 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
           }
 
           const isVoiceOrAudio = msg.type === 'audio' || msg.type === 'voice';
+          const bigEmojiCount = (msg.type === 'text' || !msg.type) && !msg.replyTo && !msg.metadata
+            ? emojiOnlyCount(msg.message)
+            : 0;
 
           return (
             <div key={msg._id}
@@ -954,7 +1001,7 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
                     {/* Photo Caption if present */}
                     {msg.message && (
                       <div className="px-2 pt-1.5 pb-0.5 flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
-                        <span className="text-[14px] leading-relaxed font-medium whitespace-pre-wrap break-words min-w-0 pr-1 flex-1">
+                        <span className="text-[16px] leading-snug font-medium whitespace-pre-wrap break-words min-w-0 pr-1 flex-1">
                           <LinkifiedText text={msg.message} isMine={isMine} />
                         </span>
                         <div className="flex items-center gap-1 shrink-0 ml-auto select-none pt-0.5 self-end">
@@ -974,10 +1021,83 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
                       </div>
                     )}
                   </div>
+                ) : msg.type === 'video' && msg.mediaUrl ? (
+                  /* ── VIDEO: edge-to-edge, no bubble (caption bubble only if there is text) ── */
+                  <div
+                    onClick={e => handleMessageClick(e, msg._id)}
+                    className={`relative cursor-pointer select-none text-left max-w-[280px] sm:max-w-[340px] ${
+                      msg.message
+                        ? `rounded-2xl overflow-hidden shadow-sm ${isMine ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-tr-xs' : 'bg-white text-slate-800 rounded-tl-xs border border-slate-200/80'}`
+                        : ''
+                    }`}
+                  >
+                    <div className="relative rounded-2xl overflow-hidden bg-black">
+                      <video
+                        src={msg.mediaUrl}
+                        controls
+                        playsInline
+                        preload="metadata"
+                        onClick={e => e.stopPropagation()}
+                        className="w-full max-h-[340px] block"
+                      />
+                      {msg.status === 'sending' && (
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center pointer-events-none">
+                          <Loader2 size={26} className="text-white animate-spin" />
+                        </div>
+                      )}
+                      {!msg.message && (
+                        <div className="absolute top-1.5 right-1.5 bg-black/60 backdrop-blur-md px-2 py-0.5 rounded-full flex items-center gap-1 text-white pointer-events-none z-10">
+                          <span className="text-[10px] font-bold leading-none text-white/95">{formatMsgTime(msg.createdAt || msg.timestamp)}</span>
+                          {isMine && (
+                            <MessageStatusIcon status={msg.status} seenBy={msg.seenBy} deliveredTo={msg.deliveredTo} myId={myId} />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    {msg.message && (
+                      <div className="px-2.5 pt-1.5 pb-1 flex flex-wrap items-end justify-between gap-x-2 gap-y-0.5">
+                        <span className="text-[16px] leading-snug font-medium whitespace-pre-wrap break-words min-w-0 pr-1 flex-1">
+                          <LinkifiedText text={msg.message} isMine={isMine} />
+                        </span>
+                        <div className="flex items-center gap-1 shrink-0 ml-auto select-none self-end">
+                          <span className={`text-[10px] font-semibold leading-none ${isMine ? 'text-purple-200' : 'text-slate-400'}`}>
+                            {formatMsgTime(msg.createdAt || msg.timestamp)}
+                          </span>
+                          {isMine && (
+                            <MessageStatusIcon status={msg.status} seenBy={msg.seenBy} deliveredTo={msg.deliveredTo} myId={myId} />
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : bigEmojiCount > 0 ? (
+                  /* ── EMOJI-ONLY MESSAGE: big emojis, no bubble ── */
+                  <div
+                    onClick={e => handleMessageClick(e, msg._id)}
+                    className={`relative cursor-pointer select-none flex flex-col ${isMine ? 'items-end' : 'items-start'}`}
+                  >
+                    <span className={`${EMOJI_SIZE[bigEmojiCount]} leading-tight px-0.5`}>{msg.message.trim()}</span>
+                    <div className="flex items-center gap-1 bg-white/90 text-slate-500 border border-slate-200/70 rounded-full px-2 py-0.5 shadow-2xs -mt-0.5">
+                      <span className="text-[10px] font-semibold leading-none">
+                        {formatMsgTime(msg.createdAt || msg.timestamp)}
+                        {msg.isEdited && ' • edited'}
+                      </span>
+                      {isMine && (
+                        <span className="text-slate-500">
+                          <MessageStatusIcon
+                            status={msg.status}
+                            seenBy={msg.seenBy}
+                            deliveredTo={msg.deliveredTo}
+                            myId={myId}
+                          />
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 ) : (
                   /* ── REGULAR MESSAGE BUBBLE (Text, Audio, Files, Location) ── */
                   <div onClick={e => handleMessageClick(e, msg._id)}
-                    className={`px-3.5 py-2.5 rounded-2xl shadow-2xs relative cursor-pointer select-none border text-left min-w-[105px] ${
+                    className={`px-2.5 py-1.5 rounded-2xl shadow-2xs relative cursor-pointer select-none border text-left ${
                       isMine ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-tr-xs border-purple-500/30' : 'bg-white rounded-tl-xs border-slate-200/80 text-slate-800'
                     }`}
                   >
@@ -988,25 +1108,6 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
                           {(repliedMsg.senderId?._id || repliedMsg.senderId)?.toString() === myId ? 'You' : repliedMsg.senderId?.name || 'Member'}
                         </p>
                         <p className="text-[12px] truncate opacity-90">{repliedMsg.message || (repliedMsg.type === 'audio' ? '🎤 Voice note' : 'Attachment')}</p>
-                      </div>
-                    )}
-
-                    {/* Video */}
-                    {msg.type === 'video' && msg.mediaUrl && (
-                      <div className="relative -mx-1.5 -mt-1 mb-1.5 rounded-xl overflow-hidden bg-black max-w-[280px] sm:max-w-[340px]">
-                        <video
-                          src={msg.mediaUrl}
-                          controls
-                          playsInline
-                          preload="metadata"
-                          onClick={e => e.stopPropagation()}
-                          className="w-full max-h-[340px] block"
-                        />
-                        {msg.status === 'sending' && (
-                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center pointer-events-none">
-                            <Loader2 size={26} className="text-white animate-spin" />
-                          </div>
-                        )}
                       </div>
                     )}
 
@@ -1090,8 +1191,8 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
 
                     {/* Text Message with Inline Flowing Timestamp */}
                     {msg.message && msg.type !== 'file' ? (
-                      <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
-                        <span className="text-[14px] leading-relaxed font-medium whitespace-pre-wrap break-words min-w-0 pr-1 flex-1">
+                      <div className="flex flex-wrap items-end justify-between gap-x-2 gap-y-0.5">
+                        <span className="text-[16px] leading-snug font-medium whitespace-pre-wrap break-words min-w-0 pr-1 flex-1">
                           <LinkifiedText text={msg.message} isMine={isMine} />
                         </span>
                         <div className="flex items-center gap-1 shrink-0 ml-auto select-none pt-0.5 self-end">
@@ -1224,6 +1325,8 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
             </div>
           );
         })}
+          </div>
+        ))}
 
         {isTyping && <TypingIndicator />}
         <div ref={messagesEndRef} />
@@ -1311,16 +1414,6 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
           </div>
         )}
 
-        {/* Full WhatsApp Emoji Picker */}
-        {showEmojiPicker && (
-          <div className="mx-1 mb-2">
-            <WhatsAppEmojiPicker
-              onSelectEmoji={handleEmojiSelect}
-              onClose={() => setShowEmojiPicker(false)}
-            />
-          </div>
-        )}
-
         {/* Voice Note Recording Bar OR Normal Input Bar */}
         {isRecordingVoice ? (
           <WhatsAppVoiceRecorder
@@ -1336,14 +1429,11 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
                 type="button"
                 onPointerDown={(e) => e.preventDefault()}
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  setShowEmojiPicker(p => !p);
-                  setShowAttachmentMenu(false);
-                }}
+                onClick={toggleEmojiPanel}
                 className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 hover:bg-purple-50 transition-colors ${showEmojiPicker ? 'text-purple-600' : 'text-slate-400'}`}
-                title="Emojis"
+                title={showEmojiPicker ? 'Keyboard' : 'Emojis'}
               >
-                <Smile size={20} />
+                {showEmojiPicker ? <Keyboard size={20} /> : <Smile size={20} />}
               </button>
 
               {/* Text message input */}
@@ -1352,6 +1442,7 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
                 value={newMessage}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
+                onFocus={() => setShowEmojiPicker(false)}
                 placeholder="Type a message..."
                 rows={1}
                 autoComplete="off"
@@ -1410,6 +1501,13 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
                 <Mic size={20} strokeWidth={2.4} />
               </button>
             )}
+          </div>
+        )}
+
+        {/* Emoji panel — in the keyboard's place, below the message box */}
+        {showEmojiPicker && !isRecordingVoice && (
+          <div className="-mx-3 -mb-2 mt-0.5">
+            <WhatsAppEmojiPicker onSelectEmoji={handleEmojiSelect} />
           </div>
         )}
       </div>

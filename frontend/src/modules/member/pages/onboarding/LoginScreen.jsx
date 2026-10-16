@@ -4,6 +4,7 @@ import {
   Phone, ArrowRight, ArrowLeft, Lock, Eye, EyeOff, AlertCircle, Globe, Check, Loader2
 } from 'lucide-react';
 import { useData } from '../../context/DataProvider';
+import { LanguageChooser, hasChosenLanguage } from './LanguageChooser';
 import { useAuth } from '../../../../core/auth/useAuth';
 import { authService } from '../../../../core/auth/authService';
 import {
@@ -23,7 +24,7 @@ const LoginScreen = () => {
 
   const location = useLocation();
   // Step flow: 'initial-language' -> 'auth'
-  const [step, setStep] = useState(location.state?.skipLanguage ? 'auth' : 'initial-language');
+  const [step, setStep] = useState((location.state?.skipLanguage || hasChosenLanguage()) ? 'auth' : 'initial-language');
 
   // Auth details
   const [loginIdentifier, setLoginIdentifier] = useState('');
@@ -187,72 +188,9 @@ const LoginScreen = () => {
     </div>
   );
 
-  // ─── INITIAL LANGUAGE SELECTION ──────────────────────────────────────────
+  // ─── INITIAL LANGUAGE SELECTION (only if it wasn't chosen on app open) ──────
   if (step === 'initial-language') {
-    return (
-      <div className="h-screen bg-surface flex flex-col overflow-hidden relative">
-        <div className="absolute inset-0 aura-bg z-0 animate-aura-pulse" />
-        {renderToast()}
-        
-        <div className="flex-1 px-6 pt-16 pb-6 overflow-y-auto z-10 space-y-6 font-sans">
-          <div className="w-16 h-16 bg-gradient-to-br from-purple-100 to-violet-50 text-brand-primary rounded-[22px] flex items-center justify-center mx-auto shadow-md border border-purple-200/40">
-            <Globe size={30} />
-          </div>
-          <div className="text-center">
-            <h1 className="text-2xl font-black text-text-primary tracking-tight">Choose your language</h1>
-            <p className="text-xs text-text-secondary mt-1.5 leading-relaxed font-semibold">
-              Select your preferred language to continue.
-            </p>
-          </div>
-
-          <div className="space-y-4 pt-6 max-w-sm mx-auto w-full">
-            {[
-              { key: 'en', label: 'English', desc: 'Continue in English', badge: 'EN' },
-              { key: 'hi', label: 'हिंदी', desc: 'हिंदी में जारी रखें', badge: 'HI' }
-            ].map(langOpt => {
-              const isSelected = language === langOpt.key;
-              return (
-                <button
-                  key={langOpt.key}
-                  onClick={() => setLanguage(langOpt.key)}
-                  className={`w-full p-4.5 rounded-[22px] border-2 flex items-center justify-between text-left transition-all ${
-                    isSelected ? 'border-[#6D28D9] bg-purple-50/20 shadow-sm' : 'border-purple-100/30 bg-white'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${isSelected ? 'border-[#6D28D9]' : 'border-slate-300'}`}>
-                      {isSelected && <div className="w-2.5 h-2.5 rounded-full bg-[#6D28D9]" />}
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-slate-800">{langOpt.label}</p>
-                      <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{langOpt.desc}</p>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-bold text-brand-primary bg-purple-50 px-2 py-0.5 rounded">{langOpt.badge}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="bg-slate-50 border border-slate-100/60 p-3.5 rounded-2xl flex gap-2 items-center text-left text-[11px] text-slate-500 font-semibold max-w-sm mx-auto w-full">
-            <AlertCircle size={15} className="text-[#6D28D9] shrink-0" />
-            <p>You can change the language later from app settings.</p>
-          </div>
-        </div>
-
-        <div className="px-6 pb-8 pt-4 shrink-0 bg-white/50 backdrop-blur-md border-t border-purple-100/30 z-10 max-w-sm mx-auto w-full">
-          <button 
-            onClick={() => setStep('auth')} 
-            className="w-full py-3.5 bg-[#7C3AED] hover:bg-[#6D28D9] text-white rounded-2xl text-sm font-semibold flex items-center justify-center gap-2 press-scale shadow-md"
-          >
-            Continue <ArrowRight size={16} />
-          </button>
-          <div className="flex items-center justify-center gap-1.5 mt-3 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-            <Lock size={12} /> Your information is safe and secure
-          </div>
-        </div>
-      </div>
-    );
+    return <LanguageChooser onContinue={() => setStep('auth')} />;
   }
 
   // ─── LOGIN FLOW ───
@@ -269,6 +207,7 @@ const LoginScreen = () => {
           <button 
             onClick={() => {
               if (isForgotMode) setForgotPasswordStep(null);
+              else if (hasChosenLanguage()) navigate(-1);
               else setStep('initial-language');
             }} 
             className="w-9 h-9 rounded-xl bg-white/80 border border-purple-100/30 flex items-center justify-center text-text-primary hover:bg-purple-50 transition-colors press-scale"
@@ -281,19 +220,10 @@ const LoginScreen = () => {
         <div className="flex-1 px-6 pt-2 pb-6 overflow-y-auto z-10 max-w-sm mx-auto w-full">
           {!isForgotMode ? (
             <>
-              {/* Tab Switcher */}
-              <div className="flex bg-purple-100/40 border border-purple-200/30 p-1.5 rounded-2xl mt-2 mb-6 shadow-inner">
-                <button 
-                  className="flex-1 py-2.5 text-xs font-black rounded-xl bg-[#7C3AED] text-white shadow-md"
-                >
-                  Login
-                </button>
-                <button 
-                  onClick={() => navigate('/member/register')} 
-                  className="flex-1 py-2.5 text-xs font-black rounded-xl text-text-secondary hover:text-text-primary hover:bg-white/20 transition-all"
-                >
-                  Register
-                </button>
+              {/* Straight to the login form */}
+              <div className="mt-2 mb-6">
+                <h1 className="text-2xl font-black text-text-primary tracking-tight">Welcome back</h1>
+                <p className="text-xs text-text-secondary font-semibold mt-1">Login with your email or mobile number</p>
               </div>
 
               {/* Login fields */}
@@ -365,6 +295,13 @@ const LoginScreen = () => {
                   {isLoading ? <Loader2 size={16} className="animate-spin" /> : 'Login'} 
                   {!isLoading && <ArrowRight size={16} />}
                 </button>
+
+                <p className="text-center text-xs font-semibold text-text-secondary pt-2">
+                  New here?{' '}
+                  <button onClick={() => navigate('/member/register')} className="font-black text-[#7C3AED] hover:underline">
+                    Register
+                  </button>
+                </p>
 
 
               </div>

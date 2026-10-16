@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, Heart, Calendar, ChevronRight, ArrowRight } from 'lucide-react';
+import { LanguageChooser, hasChosenLanguage } from './LanguageChooser';
 
 const slides = [
   {
@@ -28,12 +29,13 @@ const slides = [
 
 const SplashScreen = () => {
   const navigate = useNavigate();
-  const [phase, setPhase] = useState('splash'); // 'splash' | 'onboarding'
+  const [phase, setPhase] = useState('splash'); // 'splash' | 'language' | 'onboarding'
   const [currentSlide, setCurrentSlide] = useState(0);
 
   useEffect(() => {
     if (phase === 'splash') {
-      const timer = setTimeout(() => setPhase('onboarding'), 2200);
+      // First time the app is opened: choose a language before anything else
+      const timer = setTimeout(() => setPhase(hasChosenLanguage() ? 'onboarding' : 'language'), 2200);
       return () => clearTimeout(timer);
     }
   }, [phase]);
@@ -59,6 +61,10 @@ const SplashScreen = () => {
         </div>
       </div>
     );
+  }
+
+  if (phase === 'language') {
+    return <LanguageChooser onContinue={() => setPhase('onboarding')} />;
   }
 
   const slide = slides[currentSlide];

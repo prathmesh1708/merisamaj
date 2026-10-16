@@ -48,6 +48,7 @@ import AllDonorsPage from '../pages/donation/AllDonorsPage';
 import { MatrimonialProvider } from '../pages/matrimonial/MatrimonialContext';
 import MatrimonialChatPage from '../pages/matrimonial/MatrimonialChatPage';
 import MatrimonialSubscriptionPage from '../pages/matrimonial/MatrimonialSubscriptionPage';
+import DeclinedInterestsPage from '../pages/matrimonial/DeclinedInterestsPage';
 import EditProfilePage from '../pages/profile/EditProfilePage';
 import FamilyPage from '../pages/profile/FamilyPage';
 import VerifyMembershipPage from '../pages/profile/VerifyMembershipPage';
@@ -162,6 +163,7 @@ export const MemberRoutes = () => {
                 <Route path="visibility" element={<AnimatedPage><MatrimonialVisibilityManager initialScreen="visibility" /></AnimatedPage>} />
                 <Route path="profile-menu" element={<AnimatedPage><MatrimonialVisibilityManager initialScreen="menu" /></AnimatedPage>} />
                 <Route path="interests" element={<AnimatedPage><InterestsPage /></AnimatedPage>} />
+                <Route path="declined" element={<AnimatedPage><DeclinedInterestsPage /></AnimatedPage>} />
                 <Route path="search" element={<AnimatedPage><MatrimonialSearchPage /></AnimatedPage>} />
                 <Route path="shortlist" element={<AnimatedPage><MatrimonialShortlistPage /></AnimatedPage>} />
                 <Route path="stories" element={<AnimatedPage><MatrimonialSuccessStories /></AnimatedPage>} />

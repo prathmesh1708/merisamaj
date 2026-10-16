@@ -184,9 +184,8 @@ const HomePage = () => {
     donationService.getStats()
       .then(res => {
         if (isMounted) {
-          if (Array.isArray(res.data?.topDonors) && res.data.topDonors.length > 0) {
-            setLiveTopDonors(res.data.topDonors);
-          }
+          // Today's top donors — the list starts fresh every day
+          setLiveTopDonors(Array.isArray(res.data?.todayTopDonors) ? res.data.todayTopDonors : []);
           const rawAmount = res.data?.totalDonatedAmount || res.data?.summary?.totalDonatedAmount || 0;
           setTotalFundsAmount(rawAmount);
         }
@@ -715,7 +714,7 @@ const HomePage = () => {
                 <Heart className="text-white animate-pulse" size={13} fill="currentColor" />
               </div>
             </div>
-            <h3 className="text-[15px] font-extrabold text-text-primary tracking-tight">Top 5 Recent Donors</h3>
+            <h3 className="text-[15px] font-extrabold text-text-primary tracking-tight">Today's Top 5 Donors</h3>
           </div>
           <button 
             onClick={() => navigate('/member/donation/donors')} 
@@ -730,9 +729,9 @@ const HomePage = () => {
             <div className="w-10 h-10 rounded-full bg-rose-50 border border-rose-100 flex items-center justify-center mx-auto mb-2">
               <Heart size={18} className="text-[#FF2162]" fill="currentColor" />
             </div>
-            <p className="text-xs font-bold text-slate-800">No Donors Yet</p>
+            <p className="text-xs font-bold text-slate-800">No Donations Today</p>
             <p className="text-[10px] font-medium text-slate-400 mt-0.5 max-w-[220px] mx-auto">
-              No donations recorded yet in your community. Be the first to contribute!
+              No one has donated today yet. Be the first to contribute today!
             </p>
             <button
               onClick={() => navigate('/member/donation')}

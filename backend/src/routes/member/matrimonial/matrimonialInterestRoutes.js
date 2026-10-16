@@ -10,5 +10,6 @@ router.post('/reject/:id',        interestCtrl.rejectInterest);
 router.post('/cancel/:id',        interestCtrl.cancelInterest);
 router.get('/sent',               interestCtrl.getSentInterests);
 router.get('/received',           interestCtrl.getReceivedInterests);
+router.get('/declined',           interestCtrl.getDeclinedInterests);
 
 module.exports = router;

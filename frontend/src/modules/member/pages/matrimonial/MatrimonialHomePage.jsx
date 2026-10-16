@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { InterestProfileCard } from './components/InterestProfileCard';
 import { useNavigate } from 'react-router-dom';
 import {
   Search, Heart, Bell, SlidersHorizontal, X, Star, Crown, ChevronRight,
@@ -1179,103 +1180,43 @@ const MatrimonialHomePage = () => {
                 ))}
               </div>
 
+              {/* Declined / cancelled interests (Jeevansathi-style) */}
+              <button
+                onClick={() => navigate('/member/matrimonial/declined')}
+                className="-mt-1.5 mb-3.5 text-[12px] font-bold text-slate-500 hover:text-rose-600 flex items-center gap-1"
+              >
+                Declined / Cancelled interests <ChevronRight size={14} />
+              </button>
+
               {/* Dynamic list rendering or Spotlight fallback */}
               {activeList.length > 0 ? (
-                <div className="space-y-3">
+                <div
+                  className="flex gap-3 overflow-x-auto snap-x snap-mandatory scrollbar-hide -mx-4 px-4 pb-1"
+                  data-swipe-block="true"
+                >
                   {activeList.map(item => {
-                    const isConnected = item.status === 'accepted';
-                    const isPhotoVisible = true; // In interest lists, always show avatar
-                    
-                    // The other profile is either senderProfile (if we received it) or receiverProfile (if we sent it)
-                    // This works for all tabs (Received, Sent, Accepted) since only one will be populated per interest record
                     const otherProfile = item.senderProfile || item.receiverProfile;
-                    
-                    const profileData = otherProfile || item;
                     const profileId = otherProfile?._id || item._id || item.id;
-                    const name = profileData.personal?.fullName || profileData.name || 'Member';
-                    const avatar = profileData.photos?.[0]?.url || profileData.userId?.avatar || profileData.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=f87171&color=fff&size=150`;
-                    const age = profileData.age || '';
-                    const height = profileData.height || '';
-                    const gotra = profileData.gotra || '';
-                    const city = profileData.location?.city || profileData.city || '';
-                    const profession = profileData.profession || '';
-
+                    const interestId = item._id || item.id;
                     return (
-                      <div 
-                        key={item._id || item.id}
-                        onClick={() => navigate(`/member/matrimonial/${profileId}`)}
-                        className="bg-white rounded-2.5xl border border-slate-200/55 p-3.5 flex gap-3.5 items-center cursor-pointer hover:bg-slate-50/50 active:bg-slate-50 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)]"
+                      <div
+                        key={interestId}
+                        className={`snap-center shrink-0 ${activeList.length === 1 ? 'w-full' : 'w-[84%]'} max-w-[380px]`}
                       >
-                        {/* Avatar Column */}
-                        <div className="relative shrink-0">
-                          <img 
-                            src={avatar} 
-                            alt={name} 
-                            className={`w-13 h-16 rounded-xl object-cover border border-slate-100/80 shadow-xs transition-all duration-300 ${
-                              !isPhotoVisible ? 'blur-md brightness-90' : ''
-                            }`} 
-                          />
-                          {profileData.online && (
-                            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full" />
-                          )}
-                        </div>
-
-                        {/* Text Parameters Column */}
-                        <div className="flex-1 min-w-0">
-                          <h4 className="text-[13.5px] font-black text-indigo-950 truncate">{name}, {age}</h4>
-                          <p className="text-[11px] text-slate-500 font-bold truncate mt-0.5">
-                            {height} · {gotra} · {city}
-                          </p>
-                          <p className="text-[10px] text-slate-400 font-bold truncate mt-0.5">
-                            {profession}
-                          </p>
-                        </div>
-
-                        {/* Actions Column */}
-                        <div className="shrink-0 flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                          {activityInterestTab === 'Received' && (
-                            <div className="flex items-center gap-1.5">
-                              <button 
-                                onClick={() => {
-                                  handleInterestResponse(item._id || item.id, 'accept');
-                                }}
-                                className="bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-black px-3.5 py-1.5 rounded-lg active:scale-95 transition-transform shadow-xs uppercase tracking-wider"
-                              >
-                                Accept
-                              </button>
-                              <button 
-                                onClick={() => {
-                                  handleInterestResponse(item._id || item.id, 'decline');
-                                }}
-                                className="bg-slate-100 hover:bg-slate-200 text-slate-550 text-[10px] font-black px-3 py-1.5 rounded-lg active:scale-95 transition-transform uppercase tracking-wider"
-                              >
-                                Decline
-                              </button>
-                            </div>
-                          )}
-
-                          {activityInterestTab === 'Accepted' && (
-                            <button 
-                              onClick={() => openChatWithProfile(profileId)}
-                              className="bg-emerald-500 hover:bg-emerald-600 text-white text-[10.5px] font-extrabold px-4 py-1.5 rounded-lg active:scale-95 transition-transform flex items-center gap-1 shadow-sm"
-                            >
-                              <MessageCircle size={13} /> Chat
-                            </button>
-                          )}
-
-                          {activityInterestTab === 'Sent' && (
-                            <button 
-                              onClick={async () => {
-                                const result = await cancelInterestAPI(item._id || item.id);
-                                if (result.success) showToast('Interest request cancelled.');
-                                else showToast(result.error || 'Could not cancel interest.');
-                              }}
-                              className="border border-slate-200 hover:bg-slate-50 text-slate-500 text-[10px] font-bold px-3 py-1.5 rounded-lg active:scale-95 transition-transform"
-                            >
-                              Cancel
-                            </button>
-                          )}
-                        </div>
+                        <InterestProfileCard
+                          item={item}
+                          tab={activityInterestTab}
+                          onOpen={() => navigate(`/member/matrimonial/${profileId}`)}
+                          onAccept={() => handleInterestResponse(interestId, 'accept')}
+                          onDecline={() => handleInterestResponse(interestId, 'decline')}
+                          onChat={() => openChatWithProfile(profileId)}
+                          onCancel={async () => {
+                            if (!window.confirm('Cancel this interest?')) return;
+                            const result = await cancelInterestAPI(interestId);
+                            if (result.success) showToast('Interest request cancelled.');
+                            else showToast(result.error || 'Could not cancel interest.');
+                          }}
+                        />
                       </div>
                     );
                   })}
