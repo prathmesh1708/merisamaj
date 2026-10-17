@@ -112,6 +112,10 @@ export const authService = {
 /**
  * Clear all persisted client-side user state & caches to prevent stale data when switching accounts
  */
+// Settings of this phone, not of the account: kept on login/logout so a returning user
+// isn't sent through the first-launch language & intro screens again
+const DEVICE_KEYS = ['merisamaj_language_chosen', 'merisamaj_v6_language', 'merisamaj_intro_seen'];
+
 export const clearAllUserData = (preserveRegistrationKeys = false) => {
   try {
     const keysToRemove = [];
@@ -131,6 +135,7 @@ export const clearAllUserData = (preserveRegistrationKeys = false) => {
         )) {
           continue;
         }
+        if (DEVICE_KEYS.includes(key)) continue;
         keysToRemove.push(key);
       }
     }

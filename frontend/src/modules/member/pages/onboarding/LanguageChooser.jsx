@@ -13,6 +13,17 @@ export const markLanguageChosen = () => {
   try { localStorage.setItem(LANGUAGE_CHOSEN_KEY, '1'); } catch { /* storage unavailable */ }
 };
 
+// Set once the intro slides were finished or skipped, so they only show after install
+export const INTRO_SEEN_KEY = 'merisamaj_intro_seen';
+
+export const hasSeenIntro = () => {
+  try { return localStorage.getItem(INTRO_SEEN_KEY) === '1'; } catch { return false; }
+};
+
+export const markIntroSeen = () => {
+  try { localStorage.setItem(INTRO_SEEN_KEY, '1'); } catch { /* storage unavailable */ }
+};
+
 /** "Choose your language" screen — the first screen when the app is opened. */
 export const LanguageChooser = ({ onContinue }) => {
   const { setLanguage, language } = useData();

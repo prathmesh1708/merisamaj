@@ -1,7 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, Heart, Calendar, ChevronRight, ArrowRight } from 'lucide-react';
-import { LanguageChooser, hasChosenLanguage } from './LanguageChooser';
+import { LanguageChooser, hasChosenLanguage, hasSeenIntro, markIntroSeen } from './LanguageChooser';
+import { useAuth } from '../../../../core/auth/useAuth';
+
+const hasStored = (...keys) => {
+  try { return keys.every(k => !!localStorage.getItem(k)); } catch { return false; }
+};
+
+// Where a logged-in user lands when the app opens (same rules as after login)
+const homeFor = (user) => {
+  const role = user?.role;
+  if (role === 'admin' || role === 'admin_sub_head' || (role === 'sub_head' && user?.subHeadType === 'admin')) return '/admin/dashboard';
+  if (role === 'head' || role === 'sub_head') return '/head/dashboard';
+  if (!(user?.communityId || user?.community)) return '/member/onboarding';
+  return '/member/home';
+};
 
 const slides = [
   {
@@ -29,16 +43,40 @@ const slides = [
 
 const SplashScreen = () => {
   const navigate = useNavigate();
+  const { auth } = useAuth();
   const [phase, setPhase] = useState('splash'); // 'splash' | 'language' | 'onboarding'
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [splashDone, setSplashDone] = useState(false);
+
+  // Returning users only see the logo briefly; a new install sees it a little longer
+  useEffect(() => {
+    const timer = setTimeout(() => setSplashDone(true), hasSeenIntro() ? 900 : 2200);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
-    if (phase === 'splash') {
-      // First time the app is opened: choose a language before anything else
-      const timer = setTimeout(() => setPhase(hasChosenLanguage() ? 'onboarding' : 'language'), 2200);
-      return () => clearTimeout(timer);
+    if (phase !== 'splash' || !splashDone || !auth.isInitialized) return;
+
+    // 1. Still logged in → straight to Home (or the panel / setup step they belong to)
+    if (auth.isAuthenticated && auth.user) {
+      try { localStorage.removeItem('merisamaj_just_registered'); } catch { /* storage unavailable */ }
+      navigate(homeFor(auth.user), { replace: true });
+      return;
     }
-  }, [phase]);
+    if (hasStored('admin_has_session', 'admin_auth_token')) { navigate('/admin/dashboard', { replace: true }); return; }
+    if (hasStored('head_has_session', 'head_auth_token')) { navigate('/head/dashboard', { replace: true }); return; }
+
+    // 2. Logged out on a phone that has used the app before → Login
+    if (hasChosenLanguage() && hasSeenIntro()) { navigate('/login', { replace: true }); return; }
+
+    // 3. First time (new install): language → intro slides → Login
+    setPhase(hasChosenLanguage() ? 'onboarding' : 'language');
+  }, [phase, splashDone, auth.isInitialized, auth.isAuthenticated, auth.user, navigate]);
+
+  const finishIntro = () => {
+    markIntroSeen();
+    navigate('/login');
+  };
 
   if (phase === 'splash') {
     return (
@@ -74,7 +112,7 @@ const SplashScreen = () => {
     <div className="min-h-screen bg-surface flex flex-col">
       {/* Skip */}
       <div className="flex justify-end p-5">
-        <button onClick={() => navigate('/login')} className="text-xs text-text-secondary font-medium press-scale px-3 py-1.5 rounded-full bg-gray-100/80 hover:bg-purple-50 transition-colors">
+        <button onClick={finishIntro} className="text-xs text-text-secondary font-medium press-scale px-3 py-1.5 rounded-full bg-gray-100/80 hover:bg-purple-50 transition-colors">
           Skip
         </button>
       </div>
@@ -99,7 +137,7 @@ const SplashScreen = () => {
 
         <button
           onClick={() => {
-            if (isLast) navigate('/login');
+            if (isLast) finishIntro();
             else setCurrentSlide(prev => prev + 1);
           }}
           className="w-full py-3.5 bg-gradient-to-r from-brand-primary to-brand-glow text-white rounded-2xl text-sm font-semibold flex items-center justify-center gap-2 press-scale shadow-lg shadow-purple-500/25"
