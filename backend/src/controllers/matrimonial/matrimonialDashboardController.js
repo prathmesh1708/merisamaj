@@ -29,7 +29,7 @@ exports.getDashboard = async (req, res) => {
       recentChatsCount
     ] = await Promise.all([
       MatrimonialProfile.findOne({ userId, isDeleted: false }),
-      UserSubscription.findOne({ userId, status: { $in: ['active', 'grace', 'cancelled'] }, endDate: { $gte: now } }).sort({ endDate: -1 }),
+      UserSubscription.findOne({ userId, planType: { $ne: 'app' }, status: { $in: ['active', 'grace', 'cancelled'] }, endDate: { $gte: now } }).sort({ endDate: -1 }),
       InterestRequest.aggregate([
         { $match: { $or: [{ senderId: userId }, { receiverId: userId }] } },
         {
@@ -222,6 +222,7 @@ const getRecommendations = async (userId, myProfile, subscription) => {
   const activeSubs = shownUserIds.length
     ? await UserSubscription.find({
         userId: { $in: shownUserIds },
+        planType: { $ne: 'app' },
         status: { $in: ['active', 'grace', 'cancelled'] },
         endDate: { $gte: new Date() }
       }).select('userId planName').lean()

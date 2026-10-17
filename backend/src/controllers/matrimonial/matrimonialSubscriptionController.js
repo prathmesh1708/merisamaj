@@ -6,13 +6,26 @@ const SubscriptionPlan   = require('../../models/SubscriptionPlan');
 const UserSubscription   = require('../../models/UserSubscription');
 const { initiatePayment, verifyPayment, processManualPayment } = require('../../services/paymentService');
 const { notifySubscriptionActivated, notifySubscriptionExpired } = require('../../services/notificationService');
-const { getEffectiveFeatures } = require('../../middleware/subscriptionMiddleware');
+const { getEffectiveFeatures, getActiveSubscription, planTypeFilter } = require('../../middleware/subscriptionMiddleware');
+
+// These handlers serve both plan types: the App plan routes set req.planType = 'app'
+const typeOf = (req) => (req.planType === 'app' ? 'app' : 'matrimonial');
+const planMatches = (plan, req) => (plan.planType || 'matrimonial') === typeOf(req);
+// What a subscription keeps from its plan: matrimonial limits, or the App perks
+const snapshotOf = (plan) => {
+  const plain = (v) => (v && v.toObject ? v.toObject() : v) || {};
+  return (plan.planType === 'app')
+    ? { ...plain(plan.appFeatures), customFeatures: plan.customFeatures || [] }
+    : plain(plan.features);
+};
+
 const { getUsage } = require('../../services/matrimonialUsageService');
+const { syncMembership } = require('../../services/membershipService');
 
 // ─── List All Active Plans ────────────────────────────────────────────────────
 exports.listPlans = async (req, res) => {
   try {
-    const plans = await SubscriptionPlan.find({ isActive: true }).sort({ displayOrder: 1, price: 1 });
+    const plans = await SubscriptionPlan.find({ isActive: true, ...planTypeFilter(typeOf(req)) }).sort({ displayOrder: 1, price: 1 });
     res.json({ status: 'success', data: { plans } });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
@@ -26,6 +39,7 @@ exports.getMySubscription = async (req, res) => {
     // A cancelled plan stays usable until its end date (that is what the user is told).
     const sub = await UserSubscription.findOne({
       userId:  req.user._id,
+      ...planTypeFilter(typeOf(req)),
       status:  { $in: ['active', 'grace', 'cancelled'] },
       endDate: { $gte: now }
     }).sort({ endDate: -1 }).populate('planId', 'name price');
@@ -46,7 +60,7 @@ exports.getMySubscription = async (req, res) => {
 // ─── Get Subscription History ─────────────────────────────────────────────────
 exports.getSubscriptionHistory = async (req, res) => {
   try {
-    const history = await UserSubscription.find({ userId: req.user._id })
+    const history = await UserSubscription.find({ userId: req.user._id, ...planTypeFilter(typeOf(req)) })
       .sort({ createdAt: -1 });
     res.json({ status: 'success', data: { history } });
   } catch (err) {
@@ -65,7 +79,7 @@ exports.getSubscriptionOverview = async (req, res) => {
     const [{ features, subscription }, usage, purchases] = await Promise.all([
       getEffectiveFeatures(req.user._id),
       getUsage(req.user._id),
-      UserSubscription.find({ userId: req.user._id }).sort({ createdAt: -1 }).lean()
+      UserSubscription.find({ userId: req.user._id, planType: { $ne: 'app' } }).sort({ createdAt: -1 }).lean()
     ]);
 
     let current = null;
@@ -142,7 +156,7 @@ exports.initiatePurchase = async (req, res) => {
     const { planId, gateway = 'razorpay' } = req.body;
 
     const plan = await SubscriptionPlan.findById(planId);
-    if (!plan || !plan.isActive) {
+    if (!plan || !plan.isActive || !planMatches(plan, req)) {
       return res.status(404).json({ status: 'error', message: 'Plan not found or not available.' });
     }
 
@@ -186,7 +200,7 @@ exports.verifyAndActivate = async (req, res) => {
     } = req.body;
 
     const plan = await SubscriptionPlan.findById(planId);
-    if (!plan) {
+    if (!plan || !planMatches(plan, req)) {
       return res.status(404).json({ status: 'error', message: 'Plan not found.' });
     }
 
@@ -227,9 +241,10 @@ exports.verifyAndActivate = async (req, res) => {
       userId:           req.user._id,
       planId:           plan._id,
       planName:         plan.name,
+      planType:         plan.planType || 'matrimonial',
       pricePaid:        plan.price,
       durationInDays:   plan.durationInDays,
-      featuresSnapshot: plan.features.toObject ? plan.features.toObject() : plan.features,
+      featuresSnapshot: snapshotOf(plan),
       paymentId:        razorpayPaymentId,
       paymentGateway:   'razorpay',
       paymentStatus:    'success',
@@ -246,6 +261,7 @@ exports.verifyAndActivate = async (req, res) => {
     const { processReferralEvent } = require('../../services/referralService');
     processReferralEvent('SUBSCRIPTION', req.user._id, sub._id).catch(err => console.error('[SubReferralError]', err.message));
 
+    await syncMembership(req.user._id).catch(err => console.warn('[MembershipSync] activate:', err.message));
     res.json({ status: 'success', message: 'Subscription activated!', data: { subscription: sub } });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
@@ -258,6 +274,7 @@ exports.cancelSubscription = async (req, res) => {
     const now = new Date();
     const sub = await UserSubscription.findOne({
       userId: req.user._id,
+      ...planTypeFilter(typeOf(req)),
       status: { $in: ['active', 'grace'] },
       endDate:{ $gte: now }
     });
@@ -269,8 +286,61 @@ exports.cancelSubscription = async (req, res) => {
     sub.cancelReason = req.body.reason || 'User requested cancellation';
     sub.updatedBy    = req.user._id;
     await sub.save();
+    await syncMembership(req.user._id).catch(err => console.warn('[MembershipSync] cancel:', err.message));
     res.json({ status: 'success', message: 'Subscription cancelled. You can still use features until the billing period ends.' });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }
 };
+
+
+// ─── App membership overview ("My membership" screen) ─────────────────────────
+// @route GET /api/v1/member/app-subscription/overview
+exports.getAppOverview = async (req, res) => {
+  try {
+    const now = new Date();
+    const DAY = 24 * 60 * 60 * 1000;
+    const [sub, purchases] = await Promise.all([
+      getActiveSubscription(req.user._id, 'app'),
+      UserSubscription.find({ userId: req.user._id, planType: 'app' }).sort({ createdAt: -1 }).lean()
+    ]);
+
+    let current = null;
+    if (sub) {
+      const totalDays = Math.max(1, Math.round((new Date(sub.endDate) - new Date(sub.startDate)) / DAY));
+      const daysLeft = Math.max(0, Math.ceil((new Date(sub.endDate) - now) / DAY));
+      const monthKey = now.toISOString().slice(0, 7);
+      const usage = req.user.appPinUsage?.month === monthKey ? (req.user.appPinUsage.count || 0) : 0;
+      current = {
+        _id: sub._id,
+        planName: sub.planName,
+        status: sub.status,
+        startDate: sub.startDate,
+        endDate: sub.endDate,
+        totalDays,
+        daysLeft,
+        features: sub.featuresSnapshot || {},
+        pinsUsedThisMonth: usage
+      };
+    }
+
+    const history = purchases.map(p => {
+      let state = p.status;
+      if (p.paymentStatus === 'pending') state = 'payment_pending';
+      else if (p.paymentStatus === 'failed') state = 'payment_failed';
+      else if (new Date(p.startDate) > now) state = 'upcoming';
+      else if (new Date(p.endDate) < now) state = 'expired';
+      return {
+        _id: p._id, planName: p.planName, pricePaid: p.pricePaid, durationInDays: p.durationInDays,
+        startDate: p.startDate, endDate: p.endDate, purchasedAt: p.createdAt,
+        paymentId: p.paymentId || null, isCurrent: Boolean(sub && String(sub._id) === String(p._id)), state
+      };
+    });
+
+    res.json({ status: 'success', data: { current, history } });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+exports.snapshotOf = snapshotOf;

@@ -2,6 +2,7 @@
  * adminMatrimonialController.js
  * Admin panel management of matrimonial module.
  */
+const { syncMembership } = require('../../services/membershipService');
 const MatrimonialProfile  = require('../../models/MatrimonialProfile');
 const SubscriptionPlan    = require('../../models/SubscriptionPlan');
 const UserSubscription    = require('../../models/UserSubscription');
@@ -525,9 +526,10 @@ exports.grantSubscription = async (req, res) => {
       userId,
       planId:           plan._id,
       planName:         plan.name,
+      planType:         plan.planType || 'matrimonial',
       pricePaid:        0,
       durationInDays:   durationOverrideDays || plan.durationInDays,
-      featuresSnapshot: plan.features.toObject ? plan.features.toObject() : plan.features,
+      featuresSnapshot: require('../matrimonial/matrimonialSubscriptionController').snapshotOf(plan),
       paymentId:        `ADMIN_GRANT_${Date.now()}`,
       paymentGateway:   'manual',
       paymentStatus:    'success',
@@ -548,6 +550,7 @@ exports.grantSubscription = async (req, res) => {
       actionUrl:'/member/matrimonial'
     });
 
+    await syncMembership(userId).catch(err => console.warn('[MembershipSync] grant:', err.message));
     res.status(201).json({ status: 'success', message: 'Subscription granted.', data: { subscription: sub } });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });

@@ -687,13 +687,14 @@ const MyProfilePage = () => {
               {/* ─── MEMBERSHIP PILL TRIGGER ─── */}
               <div className="my-2 flex flex-col items-center">
                 {(() => {
-                  const isUserSubscribed = profileUser.isPremium || (isMe && currentUser?.isPremium) || profileUser.matrimonySubscription?.status === 'active' || (isMe && currentUser?.matrimonySubscription?.status === 'active');
-                  const currentPlanTitle = currentUser?.membershipPlan || profileUser?.membershipPlan || currentUser?.matrimonySubscription?.plan || profileUser?.matrimonySubscription?.plan || 'PRO MAX';
+                  // App membership plan (Matrimonial plans are shown inside Matrimony)
+                  const isUserSubscribed = isMe ? Boolean(currentUser?.isPremium) : Boolean(profileUser.isPremium);
+                  const currentPlanTitle = (isMe ? currentUser?.membershipPlan : profileUser?.membershipPlan) || 'PRO';
 
                   if (isMe) {
                     return (
                       <button
-                        onClick={() => navigate('/member/profile/upgrade')}
+                        onClick={() => navigate('/member/membership')}
                         className={`px-3 py-1.5 rounded-full text-[10.5px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all active:scale-95 shadow-xs border ${
                           isUserSubscribed
                             ? 'bg-gradient-to-r from-amber-500 to-amber-600 border-amber-400 text-white shadow-amber-500/20 hover:from-amber-600 hover:to-amber-700'

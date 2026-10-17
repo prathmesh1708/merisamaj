@@ -60,6 +60,7 @@ const CreatePostPage = () => {
   const [caption, setCaption] = useState('');
   const [category, setCategory] = useState('Normal');
   const [isPinned, setIsPinned] = useState(false);
+  const isLeaderAccount = ['head', 'sub_head', 'admin_sub_head', 'admin'].includes(currentUser?.role);
   // Start on the feed the user came from (City Feed or Community Feed tab)
   const [feedType, setFeedType] = useState(location.state?.feedType || 'city');
   const [locationInput, setLocationInput] = useState(currentUser?.city || '');
@@ -234,7 +235,8 @@ const CreatePostPage = () => {
       };
 
       try {
-        await createPost(caption.trim() || "Shared media", mediaUrls, payloadOptions);
+        const result = await createPost(caption.trim() || "Shared media", mediaUrls, payloadOptions);
+        if (result?.pinMessage) alert(result.pinMessage);
         navigate(-1);
       } catch (err) {
         alert(`Post creation failed: ${err.message}`);
@@ -607,8 +609,8 @@ const CreatePostPage = () => {
                   </div>
                 </div>
 
-                {/* Pin Options */}
-                {['Announcement', 'Emergency', 'Event'].includes(category) && (
+                {/* Pin Options — leaders for notices; members with an App plan that includes pins */}
+                {((isLeaderAccount && ['Announcement', 'Emergency', 'Event'].includes(category)) || (!isLeaderAccount && (Number(currentUser?.appFeatures?.pinPostsPerMonth) || 0) !== 0 && currentUser?.isPremium)) && (
                   <div className="flex items-center gap-2.5 bg-amber-50/70 border border-amber-200/70 rounded-xl p-3">
                     <input 
                       type="checkbox" 
@@ -617,7 +619,9 @@ const CreatePostPage = () => {
                       onChange={(e) => setIsPinned(e.target.checked)} 
                       className="w-4 h-4 text-purple-600 rounded border-amber-300 focus:ring-purple-500 accent-purple-600 cursor-pointer"
                     />
-                    <label htmlFor="pinPost" className="text-xs font-bold text-amber-900 cursor-pointer">Pin post to top of community feed</label>
+                    <label htmlFor="pinPost" className="text-xs font-bold text-amber-900 cursor-pointer">
+                      {isLeaderAccount ? 'Pin post to top of community feed' : 'Pin to the top of the feed for 24 hours (PRO)'}
+                    </label>
                   </div>
                 )}
 

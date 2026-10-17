@@ -56,8 +56,8 @@ const ChatListPage = ({ isHub = false }) => {
   ];
 
   const handleCardClick = (conv) => {
-    markConversationRead(conv.conversationId, conv.type);
-    navigate(conv.route, { state: { from: '/member/chat', tab: activeTab } });
+    markConversationRead(conv.conversationId, conv.type, { opening: true });
+    navigate(conv.route, { state: { from: '/member/chat', tab: activeTab, unreadCount: conv.unreadCount || 0 } });
   };
 
   const handleMarkAllRead = () => {

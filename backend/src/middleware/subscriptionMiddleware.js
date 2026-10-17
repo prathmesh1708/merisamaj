@@ -17,11 +17,16 @@ const FREE_FALLBACK = {
 };
 
 // ─── Load Active Subscription for a User ─────────────────────────────────────
-const getActiveSubscription = async (userId) => {
+// planType: 'matrimonial' (default — also matches older records without a type) or 'app'
+const planTypeFilter = (planType = 'matrimonial') =>
+  planType === 'app' ? { planType: 'app' } : { planType: { $ne: 'app' } };
+
+const getActiveSubscription = async (userId, planType = 'matrimonial') => {
   const now = new Date();
   // Includes 'grace' (within grace period) and 'cancelled' (cancelled but paid until endDate)
   const sub = await UserSubscription.findOne({
     userId,
+    ...planTypeFilter(planType),
     status:  { $in: ['active', 'grace', 'cancelled'] },
     endDate: { $gte: now }
   }).sort({ endDate: -1 }).lean();
@@ -34,7 +39,7 @@ const getEffectiveFeatures = async (userId) => {
   if (sub) return { features: sub.featuresSnapshot, subscription: sub };
 
   // No paid plan: use the Free plan exactly as the Admin configured it (active, price 0).
-  const freePlan = await SubscriptionPlan.findOne({ isActive: true, price: 0 }).sort({ displayOrder: 1 }).lean();
+  const freePlan = await SubscriptionPlan.findOne({ isActive: true, price: 0, planType: { $ne: 'app' } }).sort({ displayOrder: 1 }).lean();
   if (freePlan?.features) {
     return { features: { ...FREE_FALLBACK, ...freePlan.features }, subscription: null };
   }
@@ -154,4 +159,4 @@ const attachSubscription = async (req, res, next) => {
   }
 };
 
-module.exports = { checkFeature, checkInterestLimit, attachSubscription, getActiveSubscription, getEffectiveFeatures };
+module.exports = { checkFeature, checkInterestLimit, attachSubscription, getActiveSubscription, getEffectiveFeatures, planTypeFilter };

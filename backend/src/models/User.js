@@ -154,6 +154,10 @@ const userSchema = new mongoose.Schema({
   membershipExpiry: { type: String, default: '' },
   membershipStartDate: { type: String, default: '' },
   matrimonySubscription: { type: mongoose.Schema.Types.Mixed, default: null },
+  // App plan (services/membershipService.js keeps these in step with the real subscription)
+  proBadge: { type: Boolean, default: false },
+  appFeatures: { type: mongoose.Schema.Types.Mixed, default: null },
+  appPinUsage: { month: { type: String, default: '' }, count: { type: Number, default: 0 } },
 
   role: { 
     type: String, 

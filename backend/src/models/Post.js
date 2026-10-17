@@ -109,6 +109,11 @@ const postSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Set when a member pins with an App plan: the pin ends at this time (leaders' pins have none)
+    pinnedUntil: {
+      type: Date,
+      default: null,
+    },
     isDeleted: {
       type: Boolean,
       default: false,

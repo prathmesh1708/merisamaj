@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   ArrowLeft, Phone, Video, MoreVertical, Send, Paperclip, Mic,
@@ -201,6 +201,7 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
 
   const messagesEndRef   = useRef(null);
   const inputRef         = useRef(null);
+  const caretRef         = useRef(0); // cursor position used by the emoji panel
   const galleryInputRef  = useRef(null);
   const cameraInputRef   = useRef(null);
   const docInputRef      = useRef(null);
@@ -210,17 +211,144 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
   const longPressTimerRef = useRef(null);
   const hasMountedRef    = useRef(false);
 
-  // Auto-scroll on new messages
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: hasMountedRef.current ? 'smooth' : 'instant' });
-    hasMountedRef.current = true;
-  }, [messages, typingUsers]);
+  // ── WhatsApp-style scrolling ──────────────────────────────────────────────
+  //  • Opening a chat: jump to the first unread message (or the bottom).
+  //  • New message while you're reading older ones: don't move — show "↓ N" instead.
+  //  • New message while you're at the bottom, or one you sent: slide down to it.
+  //  • Loading older messages keeps your place; ticks/typing updates never scroll.
+  const listRef = useRef(null);
+  const nearBottomRef = useRef(true);
+  const lastMsgIdRef = useRef(null);
+  const firstMsgIdRef = useRef(null);
+  const prevScrollHeightRef = useRef(0);
+  const initialisedConvRef = useRef(null);
+  const [showJumpDown, setShowJumpDown] = useState(false);
+  const [newBelowCount, setNewBelowCount] = useState(0);
+  const [unreadMarkerId, setUnreadMarkerId] = useState(null);
+  const [unreadOnOpen, setUnreadOnOpen] = useState(0);
+  // After opening at the bottom, stay pinned there while photos/videos finish loading
+  // (they make the chat taller) — until the user starts scrolling themselves.
+  const pinToBottomRef = useRef(false);
 
-  // Immediately mark conversation as seen
   useEffect(() => {
-    if (!conversationId) return;
-    memberChatService.markSeen(conversationId).catch(() => {});
-  }, [conversationId]);
+    const el = listRef.current;
+    if (!el) return;
+    const keepPinned = () => {
+      if (pinToBottomRef.current) el.scrollTop = el.scrollHeight;
+    };
+    const release = () => { pinToBottomRef.current = false; };
+    el.addEventListener('load', keepPinned, true);           // images
+    el.addEventListener('loadedmetadata', keepPinned, true); // videos
+    el.addEventListener('touchstart', release, { passive: true });
+    el.addEventListener('wheel', release, { passive: true });
+    return () => {
+      el.removeEventListener('load', keepPinned, true);
+      el.removeEventListener('loadedmetadata', keepPinned, true);
+      el.removeEventListener('touchstart', release);
+      el.removeEventListener('wheel', release);
+    };
+    // The list only exists once the loading / error screens are gone
+  }, [conversationId, initLoading, initError]);
+
+  const scrollToBottom = (smooth = true) => {
+    const el = listRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+    setNewBelowCount(0);
+  };
+
+  const handleListScroll = () => {
+    const el = listRef.current;
+    if (!el) return;
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+    nearBottomRef.current = distance < 120;
+    setShowJumpDown(distance > 300);
+    if (nearBottomRef.current) setNewBelowCount(0);
+    // Reached the top → fetch older messages (keeps the reading position, see below)
+    if (el.scrollTop < 60 && hasMore && !loading) {
+      prevScrollHeightRef.current = el.scrollHeight;
+      loadOlderMessages();
+    }
+  };
+
+  useLayoutEffect(() => {
+    const el = listRef.current;
+    if (!el || messages.length === 0) return;
+    const firstId = messages[0]?._id?.toString();
+    const last = messages[messages.length - 1];
+    const lastId = last?._id?.toString();
+
+    // First load of this conversation
+    if (initialisedConvRef.current !== conversationId) {
+      initialisedConvRef.current = conversationId;
+      firstMsgIdRef.current = firstId;
+      lastMsgIdRef.current = lastId;
+      // Unread = messages from the other person that I haven't seen yet
+      const unreadMsgs = messages.filter(m =>
+        (m.senderId?._id || m.senderId)?.toString() !== myId &&
+        m.type !== 'system' &&
+        !(m.seenBy || []).some(s => (s.userId?._id || s.userId || s)?.toString() === myId)
+      );
+      const unread = unreadMsgs.length;
+      const firstUnread = unreadMsgs[0] || null;
+      setUnreadOnOpen(unread);
+
+      // Now that we know where the unread messages start, mark the chat as seen (blue ticks)
+      if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+        memberChatService.markSeen(conversationId).catch(() => {});
+      }
+
+      if (firstUnread) {
+        setUnreadMarkerId(firstUnread._id?.toString());
+        requestAnimationFrame(() => {
+          // Put the "N unread messages" label a quarter of the way down (a few read
+          // messages stay visible above it, and the pinned date label doesn't cover it)
+          const divider = document.getElementById('chat-unread-divider');
+          const list = listRef.current;
+          if (!divider || !list) return;
+          const offset = divider.getBoundingClientRect().top - list.getBoundingClientRect().top;
+          list.scrollTop = Math.max(0, list.scrollTop + offset - Math.round(list.clientHeight * 0.25));
+        });
+      } else {
+        // Already read: open straight at the last message, no scrolling animation
+        el.scrollTop = el.scrollHeight;
+        pinToBottomRef.current = true;
+        setTimeout(() => { pinToBottomRef.current = false; }, 4000);
+      }
+      return;
+    }
+
+    // Older messages were added on top → keep the same message under the finger
+    if (firstId !== firstMsgIdRef.current && lastId === lastMsgIdRef.current) {
+      firstMsgIdRef.current = firstId;
+      if (prevScrollHeightRef.current) {
+        el.scrollTop += el.scrollHeight - prevScrollHeightRef.current;
+        prevScrollHeightRef.current = 0;
+      }
+      return;
+    }
+    firstMsgIdRef.current = firstId;
+
+    // A new message at the end
+    if (lastId !== lastMsgIdRef.current) {
+      lastMsgIdRef.current = lastId;
+      const mine = (last.senderId?._id || last.senderId)?.toString() === myId;
+      if (mine || nearBottomRef.current) {
+        requestAnimationFrame(() => scrollToBottom(true));
+      } else {
+        setNewBelowCount(c => c + 1);
+        setShowJumpDown(true);
+      }
+    }
+  }, [messages, initLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // "typing…" appears at the bottom — follow it only if already at the bottom
+  useEffect(() => {
+    if (typingUsers.length && nearBottomRef.current) requestAnimationFrame(() => scrollToBottom(true));
+  }, [typingUsers]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // (The chat is marked seen right after opening — see the first-load scroll logic,
+  //  which first works out where the unread messages start.)
 
   // Mark messages as seen when new unseen messages arrive
   const lastMarkedIdsRef = useRef(new Set());
@@ -289,6 +417,9 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
       groupedMessages.push({ type: 'date', id: `date_${dateStr}`, text: badgeText });
       lastDateStr = dateStr;
     }
+    if (unreadMarkerId && msg._id?.toString() === unreadMarkerId) {
+      groupedMessages.push({ type: 'unread-divider', id: 'unread-divider' });
+    }
     groupedMessages.push({ type: 'message', ...msg });
   });
 
@@ -312,6 +443,10 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
     const attachmentToSend = pendingAttachment;
     const replyToSend = replyTarget;
     const editingToSend = editingMessage;
+    // Sent from the emoji panel → close the panel afterwards, don't pop the keyboard up
+    const sentFromEmojiPanel = showEmojiPicker;
+    if (sentFromEmojiPanel) setShowEmojiPicker(false);
+    caretRef.current = 0;
 
     // Instant clear & preserve keyboard focus like WhatsApp
     setNewMessage('');
@@ -321,10 +456,12 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
     setSendError(null);
     stopTyping();
 
-    // Maintain keyboard focus continuously
-    requestAnimationFrame(() => {
-      inputRef.current?.focus();
-    });
+    // Maintain keyboard focus continuously (not after sending from the emoji panel)
+    if (!sentFromEmojiPanel) {
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+      });
+    }
 
     try {
       if (editingToSend) {
@@ -342,11 +479,13 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
     } catch (err) {
       setSendError(err.response?.data?.message || 'Failed to process message.');
     } finally {
-      requestAnimationFrame(() => {
-        inputRef.current?.focus();
-      });
+      if (!sentFromEmojiPanel) {
+        requestAnimationFrame(() => {
+          inputRef.current?.focus();
+        });
+      }
     }
-  }, [newMessage, pendingAttachment, replyTarget, editingMessage, editMessage, sendMessage, stopTyping]);
+  }, [newMessage, pendingAttachment, replyTarget, editingMessage, editMessage, sendMessage, stopTyping, showEmojiPicker]);
 
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Enter' && !e.shiftKey) { 
@@ -475,17 +614,30 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
   };
 
   // Insert at the cursor, then close the panel and bring the keyboard back
+  // WhatsApp-style: picking emojis keeps the panel open (pick several in a row) and
+  // inserts at the remembered cursor position — the phone keyboard stays hidden.
+  const rememberCaret = () => { caretRef.current = inputRef.current?.selectionStart ?? newMessage.length; };
+
   const handleEmojiSelect = (emoji) => {
-    const el = inputRef.current;
-    const start = el?.selectionStart ?? newMessage.length;
-    const end = el?.selectionEnd ?? newMessage.length;
-    setNewMessage(prev => prev.slice(0, start) + emoji + prev.slice(end));
-    setShowEmojiPicker(false);
-    requestAnimationFrame(() => {
-      if (!el) return;
-      el.focus();
-      const caret = start + emoji.length;
-      try { el.setSelectionRange(caret, caret); } catch { /* not supported */ }
+    setNewMessage(prev => {
+      const at = Math.min(Math.max(caretRef.current, 0), prev.length);
+      caretRef.current = at + emoji.length;
+      return prev.slice(0, at) + emoji + prev.slice(at);
+    });
+  };
+
+  // ⌫ in the emoji panel: delete the character (or whole emoji) before the cursor
+  const handleEmojiBackspace = () => {
+    setNewMessage(prev => {
+      const at = Math.min(Math.max(caretRef.current, 0), prev.length);
+      if (at === 0) return prev;
+      const before = prev.slice(0, at);
+      const graphemes = typeof Intl !== 'undefined' && Intl.Segmenter
+        ? [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(before)].map(g => g.segment)
+        : Array.from(before);
+      const last = graphemes[graphemes.length - 1] || '';
+      caretRef.current = at - last.length;
+      return before.slice(0, before.length - last.length) + prev.slice(at);
     });
   };
 
@@ -496,6 +648,7 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
       setShowEmojiPicker(false);
       requestAnimationFrame(() => inputRef.current?.focus());
     } else {
+      rememberCaret();
       inputRef.current?.blur(); // hide the phone keyboard
       setShowEmojiPicker(true);
     }
@@ -651,10 +804,10 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
 
       {/* ── HEADER ── */}
       {isSelectionMode ? (
-        <div className="bg-white/85 backdrop-blur-xl border-b border-purple-100/30 text-slate-800 pb-3 px-4 flex items-center justify-between shrink-0 shadow-[0_2px_12px_rgba(124,58,237,0.03)] z-30"
-          style={{ paddingTop: 'max(env(safe-area-inset-top, 0px) + 12px, 12px)' }}>
+        <div className="bg-white/85 backdrop-blur-xl border-b border-purple-100/30 text-slate-800 pb-1.5 px-2.5 sm:px-4 flex items-center justify-between shrink-0 shadow-[0_2px_12px_rgba(124,58,237,0.03)] z-30"
+          style={{ paddingTop: 'max(env(safe-area-inset-top, 0px) + 6px, 6px)' }}>
           <div className="flex items-center gap-3">
-            <button onClick={() => setSelectedMessages([])} className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center justify-center text-slate-700 hover:bg-purple-50 transition-colors press-scale">
+            <button onClick={() => setSelectedMessages([])} className="w-8 h-8 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center justify-center text-slate-700 hover:bg-purple-50 transition-colors press-scale">
               <ArrowLeft size={18} strokeWidth={2.5} />
             </button>
             <span className="font-extrabold text-[16px] text-slate-800">{selectedMessages.length} selected</span>
@@ -667,7 +820,7 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
                 setSelectedMessages([]);
               }}
               title="Copy Message"
-              className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center justify-center text-slate-700 hover:bg-purple-50 transition-colors press-scale"
+              className="w-8 h-8 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center justify-center text-slate-700 hover:bg-purple-50 transition-colors press-scale"
             >
               <Copy size={17} />
             </button>
@@ -683,7 +836,7 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
                       setSelectedMessages([]);
                     }}
                     title="Edit Message"
-                    className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center justify-center text-slate-700 hover:bg-purple-50 transition-colors press-scale"
+                    className="w-8 h-8 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center justify-center text-slate-700 hover:bg-purple-50 transition-colors press-scale"
                   >
                     <Pencil size={17} />
                   </button>
@@ -693,29 +846,29 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
             })()}
             {selectedMessages.length === 1 && (
               <button onClick={() => { setReplyTarget(messages.find(m => m._id === selectedMessages[0])); setSelectedMessages([]); }}
-                className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center justify-center text-slate-700 hover:bg-purple-50 transition-colors press-scale">
+                className="w-8 h-8 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center justify-center text-slate-700 hover:bg-purple-50 transition-colors press-scale">
                 <Reply size={18} />
               </button>
             )}
             <button onClick={() => setShowDeleteModal(true)}
-              className="w-9 h-9 rounded-xl bg-rose-50 border border-rose-200/60 flex items-center justify-center text-rose-600 hover:bg-rose-100 transition-colors press-scale">
+              className="w-8 h-8 rounded-xl bg-rose-50 border border-rose-200/60 flex items-center justify-center text-rose-600 hover:bg-rose-100 transition-colors press-scale">
               <Trash2 size={18} />
             </button>
           </div>
         </div>
       ) : (
-        <div className="bg-white/85 backdrop-blur-xl border-b border-purple-100/30 text-slate-800 pb-3 px-4 flex items-center justify-between shrink-0 shadow-[0_2px_12px_rgba(124,58,237,0.03)] z-30"
-          style={{ paddingTop: 'max(env(safe-area-inset-top, 0px) + 12px, 12px)' }}>
+        <div className="bg-white/85 backdrop-blur-xl border-b border-purple-100/30 text-slate-800 pb-1.5 px-2.5 sm:px-4 flex items-center justify-between shrink-0 shadow-[0_2px_12px_rgba(124,58,237,0.03)] z-30"
+          style={{ paddingTop: 'max(env(safe-area-inset-top, 0px) + 6px, 6px)' }}>
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <button onClick={handleBack} className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center justify-center text-slate-700 hover:bg-purple-50 transition-colors press-scale shrink-0">
+            <button onClick={handleBack} className="w-8 h-8 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center justify-center text-slate-700 hover:bg-purple-50 transition-colors press-scale shrink-0">
               <ArrowLeft size={18} strokeWidth={2.5} />
             </button>
             <div 
               onClick={() => setShowContactProfile(true)}
-              className="flex items-center gap-2.5 cursor-pointer flex-1 min-w-0 hover:bg-purple-50/40 p-1 rounded-2xl transition-colors"
+              className="flex items-center gap-2 cursor-pointer flex-1 min-w-0 hover:bg-purple-50/40 px-1 py-0.5 rounded-2xl transition-colors"
             >
               <div className="relative shrink-0">
-                <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-100 text-slate-700 font-black text-sm flex items-center justify-center border border-slate-200/70 shadow-2xs">
+                <div className="w-9 h-9 rounded-full overflow-hidden bg-slate-100 text-slate-700 font-black text-sm flex items-center justify-center border border-slate-200/70 shadow-2xs">
                   {chatAvatar ? (
                     <img src={chatAvatar} alt={chatName} className="w-full h-full object-cover" />
                   ) : (
@@ -726,7 +879,7 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
               </div>
               <div className="flex-1 min-w-0 text-left">
                 <h2 className="text-[15px] font-extrabold text-slate-800 truncate leading-tight">{chatName}</h2>
-                <p className="text-slate-400 text-[11px] truncate font-semibold">
+                <p className="text-slate-400 text-[11px] truncate font-semibold leading-tight">
                   {isTyping
                     ? <span className="text-purple-600 font-extrabold animate-pulse">typing...</span>
                     : isOnline ? 'Online' : isConnected ? 'Available' : 'Last seen recently'
@@ -738,13 +891,13 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
           <div className="flex items-center gap-1 shrink-0">
             <div className="relative">
               <button onClick={(e) => { e.stopPropagation(); setShowMenu(p => !p); }}
-                className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center justify-center text-slate-700 hover:bg-purple-50 transition-colors press-scale">
+                className="w-8 h-8 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center justify-center text-slate-700 hover:bg-purple-50 transition-colors press-scale">
                 <MoreVertical size={18} />
               </button>
               {showMenu && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => { setShowMenu(false); setShowMoreMenu(false); }} />
-                  <div className="absolute top-11 right-0 bg-white text-slate-800 rounded-3xl shadow-2xl py-2 w-[220px] z-50 border border-slate-200/80 overflow-hidden animate-scale-in text-left">
+                  <div className="absolute top-10 right-0 bg-white text-slate-800 rounded-3xl shadow-2xl py-2 w-[220px] z-50 border border-slate-200/80 overflow-hidden animate-scale-in text-left">
                     {!showMoreMenu ? (
                       <>
                         <button onClick={(e) => { e.stopPropagation(); setShowContactProfile(true); setShowMenu(false); }}
@@ -819,7 +972,10 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
       )}
 
       {/* ── MESSAGES CONTAINER ── */}
-      <div 
+      <div
+        ref={listRef}
+        onScroll={handleListScroll}
+        style={{ scrollBehavior: 'auto' }}
         className="flex-1 overflow-y-auto px-3 py-4 space-y-1.5 z-10 relative"
         onClick={() => {
           // Tap on chat screen dismisses keyboard and popups just like WhatsApp
@@ -886,6 +1042,16 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
         {dayGroups.map(group => (
           <div key={group.id} className="space-y-1.5">
         {[group.date, ...group.items].map((item) => {
+          if (item.type === 'unread-divider') {
+            const unread = unreadOnOpen;
+            return (
+              <div key="unread-divider" id="chat-unread-divider" className="flex justify-center my-3">
+                <span className="bg-white/95 text-slate-600 text-[12px] font-bold px-4 py-1 rounded-full shadow-sm border border-slate-100">
+                  {unread} unread message{unread === 1 ? '' : 's'}
+                </span>
+              </div>
+            );
+          }
           if (item.type === 'date') {
             return (
               <div key={item.id} className="flex justify-center my-4 sticky top-2 z-10">
@@ -1329,6 +1495,25 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
         ))}
 
         {isTyping && <TypingIndicator />}
+
+        {/* ↓ jump to the newest message (shown while reading older messages) */}
+        {showJumpDown && (
+          <div className="sticky bottom-2 flex justify-end pointer-events-none z-20">
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); scrollToBottom(true); }}
+              className="pointer-events-auto relative w-10 h-10 rounded-full bg-white shadow-lg border border-slate-200 flex items-center justify-center text-slate-600 active:scale-95 transition-transform"
+              aria-label="Scroll to latest message"
+            >
+              <ChevronDown size={22} />
+              {newBelowCount > 0 && (
+                <span className="absolute -top-1.5 -left-1.5 min-w-[20px] h-5 px-1 rounded-full bg-emerald-500 text-white text-[11px] font-bold flex items-center justify-center">
+                  {newBelowCount}
+                </span>
+              )}
+            </button>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
 
@@ -1443,6 +1628,7 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
                 onFocus={() => setShowEmojiPicker(false)}
+                onSelect={rememberCaret}
                 placeholder="Type a message..."
                 rows={1}
                 autoComplete="off"
@@ -1507,7 +1693,7 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
         {/* Emoji panel — in the keyboard's place, below the message box */}
         {showEmojiPicker && !isRecordingVoice && (
           <div className="-mx-3 -mb-2 mt-0.5">
-            <WhatsAppEmojiPicker onSelectEmoji={handleEmojiSelect} />
+            <WhatsAppEmojiPicker onSelectEmoji={handleEmojiSelect} onBackspace={handleEmojiBackspace} />
           </div>
         )}
       </div>

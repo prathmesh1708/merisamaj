@@ -788,6 +788,11 @@ const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDelete
           <div>
             <div className="flex items-center gap-1.5 flex-wrap">
               <h4 className="text-[15px] font-black text-slate-800 leading-tight group-hover:text-indigo-600 transition-colors">{post.author.name}</h4>
+              {(post.author?.proBadge || post.userId?.proBadge) && (
+                <span className="inline-flex items-center gap-0.5 text-[9.5px] font-black bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full select-none" title="PRO member">
+                  <Check size={9} strokeWidth={4} /> PRO
+                </span>
+              )}
               {post.author.isVerified && (
                 <span className="inline-flex items-center gap-0.5 text-[9.5px] font-bold bg-[#8B5CF6]/8 text-[#7C3AED] px-2 py-0.5 rounded-full select-none">
                   <Check size={9} strokeWidth={4} /> {localT[lang].verifiedMember}

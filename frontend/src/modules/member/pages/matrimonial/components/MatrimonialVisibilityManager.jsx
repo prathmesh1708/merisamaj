@@ -2263,7 +2263,7 @@ export const MatrimonialVisibilityManager = ({
               alt={previewUser.name}
               className={`w-full h-full object-cover transition-all duration-700 ${
                 previewTab === 'before'
-                  ? 'filter blur-[6px] scale-105'
+                  ? 'filter blur-[3px] scale-105'
                   : 'filter blur-0 scale-100'
               }`}
             />

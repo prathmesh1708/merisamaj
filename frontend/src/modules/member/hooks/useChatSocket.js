@@ -116,8 +116,11 @@ export const useChatSocket = ({
   onMemberRemoved,
   onMemberPromoted,
   onMemberDemoted,
-  onReconnect
+  onReconnect,
+  markSeenOnJoin = true   // false: the page marks messages seen itself (after finding unread ones)
 } = {}) => {
+  const markSeenOnJoinRef = useRef(markSeenOnJoin);
+  markSeenOnJoinRef.current = markSeenOnJoin;
   const { user } = useAuth();
   const [isConnected, setIsConnected]   = useState(false);
   const [onlineUsers, setOnlineUsers]   = useState([]);
@@ -162,7 +165,7 @@ export const useChatSocket = ({
       setIsConnected(true);
       const activeConvId = convIdRef.current;
       if (activeConvId) {
-        socket.emit('chat:join_conversation', { conversationId: activeConvId, visible: isPageVisible() });
+        socket.emit('chat:join_conversation', { conversationId: activeConvId, visible: markSeenOnJoinRef.current && isPageVisible() });
       }
       // Messages sent while we were offline never arrived live — fetch them now
       if (wasDisconnectedRef.current) {
@@ -224,7 +227,7 @@ export const useChatSocket = ({
     if (socket.connected) {
       setIsConnected(true);
       if (conversationId) {
-        socket.emit('chat:join_conversation', { conversationId, visible: isPageVisible() });
+        socket.emit('chat:join_conversation', { conversationId, visible: markSeenOnJoinRef.current && isPageVisible() });
       }
     }
 
@@ -254,7 +257,7 @@ export const useChatSocket = ({
     if (!conversationId) return;
     const socket = socketRef.current || (user && getSocket(user.id || user._id));
     if (socket && socket.connected) {
-      socket.emit('chat:join_conversation', { conversationId, visible: isPageVisible() });
+      socket.emit('chat:join_conversation', { conversationId, visible: markSeenOnJoinRef.current && isPageVisible() });
     }
   }, [conversationId, user]);
 
@@ -295,7 +298,7 @@ export const useChatSocket = ({
   /** Join a new conversation room (if changed dynamically) */
   const joinConversation = useCallback((convId) => {
     if (socketRef.current?.connected && convId) {
-      socketRef.current.emit('chat:join_conversation', { conversationId: convId, visible: isPageVisible() });
+      socketRef.current.emit('chat:join_conversation', { conversationId: convId, visible: markSeenOnJoinRef.current && isPageVisible() });
     }
   }, []);
 

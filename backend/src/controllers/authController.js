@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { syncMembership } = require('../services/membershipService');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const config = require('../config/config');
@@ -108,6 +109,9 @@ const getUserResponsePayload = (user) => {
     membershipExpiry: user.membershipExpiry || '',
     membershipStartDate: user.membershipStartDate || '',
     matrimonySubscription: user.matrimonySubscription || null,
+    proBadge: user.proBadge || false,
+    appFeatures: user.appFeatures || null,
+    appPinUsage: user.appPinUsage || null,
     accountType: user.accountType || null,
     designation: user.designation || '',
     department: user.department || '',
@@ -323,6 +327,11 @@ const loginUser = async (req, res) => {
 // @access  Private
 const getMe = async (req, res) => {
   try {
+    try {
+      await syncMembership(req.user._id);
+    } catch (syncErr) {
+      console.warn('[MembershipSync] getMe:', syncErr.message);
+    }
     const user = await User.findById(req.user._id)
       .populate('communityId', 'name slug isActive settings logoUrl bannerUrl description city')
       .populate('assignedCommunityIds', 'name slug isActive settings logoUrl bannerUrl description city');
@@ -758,12 +767,8 @@ const updateProfile = async (req, res) => {
       user.isAadharVerified = req.body.isAadharVerified !== undefined ? req.body.isAadharVerified : user.isAadharVerified;
       user.isFaceVerified = req.body.isFaceVerified !== undefined ? req.body.isFaceVerified : user.isFaceVerified;
 
-      // Membership & Subscription fields
-      if (req.body.isPremium !== undefined) user.isPremium = req.body.isPremium;
-      if (req.body.membershipPlan !== undefined) user.membershipPlan = req.body.membershipPlan;
-      if (req.body.membershipExpiry !== undefined) user.membershipExpiry = req.body.membershipExpiry;
-      if (req.body.membershipStartDate !== undefined) user.membershipStartDate = req.body.membershipStartDate;
-      if (req.body.matrimonySubscription !== undefined) user.matrimonySubscription = req.body.matrimonySubscription;
+      // Membership / "Pro" fields are NOT editable here — they follow the member's real
+      // subscription (bought or granted by the Admin), see services/membershipService.js
 
       let updatedUser = await user.save();
       if (incomingFamilyMembers) {

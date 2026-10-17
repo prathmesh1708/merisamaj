@@ -23,17 +23,35 @@ const EMPTY_PLAN = {
     crossCommunityVisibility: false,
     communityFilter: false
   },
+  // App plans only: perks in the Social feed
+  appFeatures: {
+    proBadge: true,
+    pinPostsPerMonth: 0
+  },
   customFeatures: []
 };
 
-const PlanModal = ({ plan, onClose, onSaved }) => {
-  const [form, setForm]       = useState(() => ({ ...EMPTY_PLAN, ...plan, customFeatures: plan?.customFeatures || [] }));
+const PLAN_TYPES = {
+  matrimonial: { label: 'Matrimonial Plans', hint: 'Matchmaking limits: profile views, interests, chat and filters.' },
+  app:         { label: 'App Plans',         hint: 'App-wide membership for every member (married too): PRO badge, pinned posts and any extra benefit you add.' }
+};
+
+const PlanModal = ({ plan, planType, onClose, onSaved }) => {
+  const [form, setForm]       = useState(() => ({
+    ...EMPTY_PLAN,
+    planType,
+    ...plan,
+    appFeatures: { ...EMPTY_PLAN.appFeatures, ...(plan?.appFeatures || {}) },
+    customFeatures: plan?.customFeatures || []
+  }));
+  const isApp = form.planType === 'app';
   const [saving, setSaving]   = useState(false);
   const [err, setErr]         = useState('');
   const [newFeature, setNewFeature] = useState('');
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
   const setFeature = (key, val) => setForm(f => ({ ...f, features: { ...f.features, [key]: val } }));
+  const setAppFeature = (key, val) => setForm(f => ({ ...f, appFeatures: { ...f.appFeatures, [key]: val } }));
 
   const addCustomFeature = () => {
     const label = newFeature.trim();
@@ -49,6 +67,7 @@ const PlanModal = ({ plan, onClose, onSaved }) => {
   const handleSave = async () => {
     if (!form.name || !form.name.trim()) { setErr('Plan name is required.'); return; }
     if (form.price < 0) { setErr('Price cannot be negative.'); return; }
+    if (isApp && !(form.price > 0)) { setErr('An App plan needs a price. To give it free, use "Grant Free".'); return; }
     if (form.price > 0 && !(form.durationInDays > 0)) { setErr('A paid plan needs a duration in days.'); return; }
     setSaving(true);
     try {
@@ -68,7 +87,9 @@ const PlanModal = ({ plan, onClose, onSaved }) => {
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div className="bg-white border border-slate-200 rounded-2xl p-6 z-10 w-full max-w-lg shadow-2xl max-h-[85vh] overflow-y-auto space-y-4">
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-base font-black text-slate-900">{plan?._id ? 'Edit Plan' : 'New Plan'}</h3>
+          <h3 className="text-base font-black text-slate-900">
+            {plan?._id ? 'Edit' : 'New'} {isApp ? 'App' : 'Matrimonial'} Plan
+          </h3>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X size={18} /></button>
         </div>
         {err && <p className="text-red-600 text-xs font-bold bg-red-50 p-3 rounded-xl">{err}</p>}
@@ -99,11 +120,13 @@ const PlanModal = ({ plan, onClose, onSaved }) => {
             <input type="number" value={form.displayOrder ?? 0} onChange={e => set('displayOrder', Number(e.target.value))}
               className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-rose-500/50" />
           </div>
-          <div className="col-span-2">
-            <p className="text-[10.5px] text-gray-500 font-semibold">
-              Price ₹0 makes this the <span className="text-emerald-600">Free plan</span>: it applies to every member who has not bought a plan. Anything you switch on here is free for everyone.
-            </p>
-          </div>
+          {!isApp && (
+            <div className="col-span-2">
+              <p className="text-[10.5px] text-gray-500 font-semibold">
+                Price ₹0 makes this the <span className="text-emerald-600">Free plan</span>: it applies to every member who has not bought a plan. Anything you switch on here is free for everyone.
+              </p>
+            </div>
+          )}
           <div>
             <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1">Badge</label>
             <input type="text" placeholder="e.g. Most Popular" value={form.badge || ''} onChange={e => set('badge', e.target.value)}
@@ -125,6 +148,43 @@ const PlanModal = ({ plan, onClose, onSaved }) => {
           </div>
         </div>
 
+        {isApp && (
+          <div className="border-t border-slate-100 pt-4 space-y-3">
+            <p className="text-[10px] text-gray-500 font-black uppercase tracking-wider">App Features</p>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <div onClick={() => setAppFeature('proBadge', !form.appFeatures.proBadge)}
+                className={`w-9 h-5 rounded-full relative transition-all cursor-pointer ${form.appFeatures.proBadge ? 'bg-rose-500' : 'bg-slate-200'}`}>
+                <div className={`w-4 h-4 bg-white rounded-full absolute top-0.5 transition-transform ${form.appFeatures.proBadge ? 'translate-x-4' : 'translate-x-0.5'}`} />
+              </div>
+              <span className="text-xs text-slate-500 font-semibold">✓ PRO badge next to the name (profile & posts)</span>
+            </label>
+            <div className="max-w-[220px]">
+              <label className="text-[10px] text-slate-500 font-bold block mb-1">Pinned posts / month (-1 = ∞)</label>
+              <input type="number" value={form.appFeatures.pinPostsPerMonth}
+                onChange={e => setAppFeature('pinPostsPerMonth', Number(e.target.value))}
+                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none" />
+              <p className="text-[10px] text-gray-400 mt-1">A pinned post stays at the top of the feed for 24 hours.</p>
+            </div>
+            <div className="flex flex-wrap gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <div onClick={() => set('isFeatured', !form.isFeatured)}
+                  className={`w-9 h-5 rounded-full relative transition-all cursor-pointer ${form.isFeatured ? 'bg-amber-500' : 'bg-slate-200'}`}>
+                  <div className={`w-4 h-4 bg-white rounded-full absolute top-0.5 transition-transform ${form.isFeatured ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                </div>
+                <span className="text-xs text-slate-500 font-semibold">Most Popular Badge</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <div onClick={() => set('isActive', !form.isActive)}
+                  className={`w-9 h-5 rounded-full relative transition-all cursor-pointer ${form.isActive ? 'bg-emerald-500' : 'bg-slate-200'}`}>
+                  <div className={`w-4 h-4 bg-white rounded-full absolute top-0.5 transition-transform ${form.isActive ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                </div>
+                <span className="text-xs text-slate-500 font-semibold">Active</span>
+              </label>
+            </div>
+          </div>
+        )}
+
+        {!isApp && (
         <div className="border-t border-slate-100 pt-4 space-y-3">
           <p className="text-[10px] text-gray-500 font-black uppercase tracking-wider">Features</p>
           <div className="grid grid-cols-2 gap-3">
@@ -180,6 +240,7 @@ const PlanModal = ({ plan, onClose, onSaved }) => {
             </label>
           </div>
         </div>
+        )}
 
         {/* Extra features the admin types in, e.g. "Dedicated relationship manager" */}
         <div className="border-t border-slate-100 pt-4 space-y-3">
@@ -194,7 +255,7 @@ const PlanModal = ({ plan, onClose, onSaved }) => {
               value={newFeature}
               onChange={e => setNewFeature(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustomFeature(); } }}
-              placeholder="e.g. Dedicated relationship manager"
+              placeholder={isApp ? 'e.g. Early access to Samaj events' : 'e.g. Dedicated relationship manager'}
               maxLength={80}
               className="flex-1 min-w-0 bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-rose-500/50"
             />
@@ -271,7 +332,15 @@ const GrantModal = ({ plans, onClose }) => {
             <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1">Plan</label>
             <select value={planId} onChange={e => setPlanId(e.target.value)}
               className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none">
-              {plans.filter(p => p.price > 0).map(p => <option key={p._id} value={p._id}>{p.name} — ₹{p.price}</option>)}
+              {['app', 'matrimonial'].map(type => {
+                const list = plans.filter(p => p.price > 0 && (p.planType || 'matrimonial') === type);
+                if (!list.length) return null;
+                return (
+                  <optgroup key={type} label={PLAN_TYPES[type].label}>
+                    {list.map(p => <option key={p._id} value={p._id}>{p.name} — ₹{p.price}</option>)}
+                  </optgroup>
+                );
+              })}
             </select>
           </div>
         </div>
@@ -286,7 +355,9 @@ const GrantModal = ({ plans, onClose }) => {
 };
 
 export const SubscriptionPlans = ({ data }) => {
-  const { plans = [], refreshPlans } = data;
+  const { plans: allPlans = [], refreshPlans } = data;
+  const [tab, setTab]         = useState('matrimonial'); // 'matrimonial' | 'app'
+  const plans = allPlans.filter(p => (p.planType || 'matrimonial') === tab);
   const [modal, setModal]     = useState(null); // null | 'new' | plan_obj
   const [grantModal, setGrantModal] = useState(false);
   const [deleting, setDeleting] = useState(null);
@@ -308,12 +379,22 @@ export const SubscriptionPlans = ({ data }) => {
   return (
     <div className="space-y-4">
       {toast && <div className="fixed top-5 right-5 z-50 bg-slate-900 text-white text-sm font-bold px-4 py-2.5 rounded-xl shadow-lg">{toast}</div>}
-      {modal !== null && <PlanModal plan={modal === 'new' ? null : modal} onClose={() => setModal(null)} onSaved={refreshPlans} />}
-      {grantModal && <GrantModal plans={plans} onClose={() => setGrantModal(false)} />}
+      {modal !== null && <PlanModal plan={modal === 'new' ? null : modal} planType={tab} onClose={() => setModal(null)} onSaved={refreshPlans} />}
+      {grantModal && <GrantModal plans={allPlans} onClose={() => setGrantModal(false)} />}
+
+      <div className="flex gap-1 p-1 bg-slate-100 rounded-xl w-fit">
+        {Object.entries(PLAN_TYPES).map(([key, { label }]) => (
+          <button key={key} onClick={() => setTab(key)}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors ${tab === key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+            {label} <span className="text-slate-400">({allPlans.filter(p => (p.planType || 'matrimonial') === key).length})</span>
+          </button>
+        ))}
+      </div>
 
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h3 className="text-base font-black text-slate-900">Subscription Plans</h3>
+          <h3 className="text-base font-black text-slate-900">{PLAN_TYPES[tab].label}</h3>
+          <p className="text-xs text-gray-500 mt-0.5">{PLAN_TYPES[tab].hint}</p>
           <p className="text-xs text-gray-500 mt-0.5">{plans.filter(p => p.isActive).length} active of {plans.length} plans · changes show to members immediately</p>
         </div>
         <div className="flex gap-2">
@@ -328,6 +409,12 @@ export const SubscriptionPlans = ({ data }) => {
         </div>
       </div>
 
+      {plans.length === 0 && (
+        <div className="bg-white border border-dashed border-slate-300 rounded-2xl p-8 text-center text-sm text-slate-500">
+          No {tab === 'app' ? 'App' : 'Matrimonial'} plans yet. Tap <span className="font-bold">New Plan</span> to add one.
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {plans.map(plan => (
           <div key={plan._id} className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5 space-y-3 relative overflow-hidden">
@@ -339,7 +426,7 @@ export const SubscriptionPlans = ({ data }) => {
             <div className="flex items-start justify-between">
               <div>
                 <h4 className="font-black text-slate-900 text-sm">{plan.name}</h4>
-                <p className="text-[10px] text-gray-500 mt-0.5">{plan.price === 0 ? 'Free plan · applies to everyone' : `${plan.durationInDays} days`}</p>
+                <p className="text-[10px] text-gray-500 mt-0.5">{plan.price === 0 && tab !== 'app' ? 'Free plan · applies to everyone' : `${plan.durationInDays} days`}</p>
               </div>
               <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${plan.isActive ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
                 {plan.isActive ? 'Active' : 'Inactive'}
@@ -353,6 +440,14 @@ export const SubscriptionPlans = ({ data }) => {
               )}
             </div>
 
+            {tab === 'app' ? (
+              <div className="space-y-1.5 text-[11px] text-slate-500">
+                {plan.appFeatures?.proBadge !== false && <p>• ✓ PRO badge on profile & posts</p>}
+                {plan.appFeatures?.pinPostsPerMonth === -1 && <p>• Unlimited pinned posts</p>}
+                {plan.appFeatures?.pinPostsPerMonth > 0 && <p>• {plan.appFeatures.pinPostsPerMonth} pinned posts/month</p>}
+                {(plan.customFeatures || []).map((label, i) => <p key={i}>• {label}</p>)}
+              </div>
+            ) : (
             <div className="space-y-1.5 text-[11px] text-slate-500">
               <p>• {plan.features?.profileViewsPerDay === -1 ? 'Unlimited' : plan.features?.profileViewsPerDay} profile views/day</p>
               <p>• {plan.features?.interestLimit === -1 ? 'Unlimited' : plan.features?.interestLimit} interests/month</p>
@@ -365,6 +460,7 @@ export const SubscriptionPlans = ({ data }) => {
               {plan.features?.communityFilter && <p>• Community & sub-community filter</p>}
               {(plan.customFeatures || []).map((label, i) => <p key={i}>• {label}</p>)}
             </div>
+            )}
 
             <div className="flex gap-2 pt-2 border-t border-slate-100">
               <button onClick={() => setModal(plan)}

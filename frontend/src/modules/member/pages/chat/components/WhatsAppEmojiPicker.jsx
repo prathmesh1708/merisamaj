@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Smile, Heart, Users, Trees, Coffee, Trophy, Car, Flag } from 'lucide-react';
+import { Smile, Heart, Users, Trees, Coffee, Trophy, Car, Flag, Delete } from 'lucide-react';
 
 const EMOJI_CATEGORIES = [
   {
@@ -72,7 +72,7 @@ const EMOJI_CATEGORIES = [
  * WhatsApp-style emoji panel: shown in place of the keyboard, below the message box.
  * Big emojis without highlight circles; the category bar sits at the bottom.
  */
-export const WhatsAppEmojiPicker = ({ onSelectEmoji }) => {
+export const WhatsAppEmojiPicker = ({ onSelectEmoji, onBackspace }) => {
   const [activeCategory, setActiveCategory] = useState('smileys');
 
   const currentCategoryObj = useMemo(() => {
@@ -125,6 +125,17 @@ export const WhatsAppEmojiPicker = ({ onSelectEmoji }) => {
             </button>
           );
         })}
+        {onBackspace && (
+          <button
+            type="button"
+            onClick={onBackspace}
+            className="p-2 flex items-center justify-center text-slate-500 active:scale-90 transition-transform"
+            title="Delete"
+            aria-label="Delete"
+          >
+            <Delete size={20} />
+          </button>
+        )}
       </div>
     </div>
   );

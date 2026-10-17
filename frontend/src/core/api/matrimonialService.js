@@ -123,3 +123,12 @@ export const successStoryService = {
 };
 
 
+
+// ─── App membership plans (Social & more — not matrimony; open to every member) ─
+export const appSubscriptionService = {
+  listPlans:          ()     => axiosPrivate.get('/member/app-subscription/plans'),
+  getOverview:        ()     => axiosPrivate.get('/member/app-subscription/overview'),
+  initiatePurchase:   (data) => axiosPrivate.post('/member/app-subscription/purchase', data),
+  verifyAndActivate:  (data) => axiosPrivate.post('/member/app-subscription/verify', data),
+  cancelSubscription: (data) => axiosPrivate.post('/member/app-subscription/cancel', data),
+};

@@ -17,6 +17,8 @@ const userSubscriptionSchema = new mongoose.Schema(
     // ─── Snapshot (Historical Record) ─────────────────────────────────────────
     // Store these at purchase time so admin plan edits never corrupt old records.
     planName:        { type: String, required: true },
+    // Copied from the plan: 'matrimonial' (older records have none = matrimonial) or 'app'
+    planType:        { type: String, enum: ['matrimonial', 'app'], default: 'matrimonial', index: true },
     pricePaid:       { type: Number, required: true },
     durationInDays:  { type: Number, required: true },
     featuresSnapshot:{ type: mongoose.Schema.Types.Mixed, required: true }, // features object copy

@@ -106,8 +106,9 @@ export const useMemberChat = (conversationId) => {
     setLoading(true);
     try {
       // Opening the chat in a background tab must not mark it seen
-      const params = { page: pageNum, limit: LIMIT };
-      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') params.markSeen = 'false';
+      // Never mark seen while loading — the chat page first finds the unread messages
+      // (to open at the first one), then marks them seen itself.
+      const params = { page: pageNum, limit: LIMIT, markSeen: 'false' };
       const res = await memberChatService.getMessages(conversationId, params);
       const fetched   = res.data?.data?.messages || [];
       const total     = res.data?.data?.total || 0;
@@ -136,6 +137,7 @@ export const useMemberChat = (conversationId) => {
   // ── Socket integration ────────────────────────────────────────────────────
   const { startTyping, stopTyping, markSeen, isConnected, isUserOnline } = useChatSocket({
     conversationId,
+    markSeenOnJoin: false,
 
     onNewMessage: (msg) => {
       const incomingConvId = (msg.conversationId?._id || msg.conversationId)?.toString();

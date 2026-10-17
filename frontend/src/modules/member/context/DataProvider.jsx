@@ -1316,7 +1316,8 @@ export const DataProvider = ({ children }) => {
             id: p.userId?._id || p.userId?.id || 'Unknown',
             name: p.userId?.name || 'Member',
             avatar: p.userId?.avatar,
-            initials: p.userId?.name ? p.userId.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'U'
+            initials: p.userId?.name ? p.userId.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'U',
+            proBadge: Boolean(p.userId?.proBadge)
           },
           images: p.media?.map(m => m.url) || [],
           likes: p.likesCount || 0,
@@ -1400,7 +1401,8 @@ export const DataProvider = ({ children }) => {
         category: options.category || 'Notice',
         media,
         location: options.city,
-        feedType: options.feedType || 'city'
+        feedType: options.feedType || 'city',
+        isPinned: Boolean(options.isPinned)
       });
 
       const formatSinglePost = (p) => ({
@@ -1415,7 +1417,8 @@ export const DataProvider = ({ children }) => {
           avatar: p.userId?.avatar || currentUser?.avatar,
           initials: p.userId?.name
             ? p.userId.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
-            : (currentUser?.initials || 'U')
+            : (currentUser?.initials || 'U'),
+          proBadge: Boolean(p.userId?.proBadge ?? currentUser?.proBadge)
         },
         images: p.media?.map(m => m.url) || images || [],
         likes: p.likesCount || 0,
@@ -1431,7 +1434,7 @@ export const DataProvider = ({ children }) => {
         setCommunityPosts(prev => [communityFormatted, ...prev]);
         setPosts(prev => [cityFormatted, communityFormatted, ...prev]);
 
-        return { success: true, data: cityFormatted, posts: [cityFormatted, communityFormatted] };
+        return { success: true, data: cityFormatted, posts: [cityFormatted, communityFormatted], pinMessage: res.pinMessage || null };
       }
 
       const postData = (res && res.data) ? res.data : res;
@@ -1443,7 +1446,7 @@ export const DataProvider = ({ children }) => {
         setCommunityPosts(prev => [formatted, ...prev]);
       }
       setPosts(prev => [formatted, ...prev]);
-      return { success: true, data: formatted };
+      return { success: true, data: formatted, pinMessage: res?.pinMessage || null };
     } catch (error) {
       console.error('Failed to create post:', error);
       const msg = error.response?.data?.message || error.message || 'Failed to publish post';

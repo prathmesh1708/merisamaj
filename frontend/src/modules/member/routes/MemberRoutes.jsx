@@ -52,7 +52,7 @@ import DeclinedInterestsPage from '../pages/matrimonial/DeclinedInterestsPage';
 import EditProfilePage from '../pages/profile/EditProfilePage';
 import FamilyPage from '../pages/profile/FamilyPage';
 import VerifyMembershipPage from '../pages/profile/VerifyMembershipPage';
-import UpgradeMembershipPage from '../pages/profile/UpgradeMembershipPage';
+import AppMembershipPage from '../pages/profile/AppMembershipPage';
 import ProfessionalDirectoryPage from '../pages/directory/ProfessionalDirectoryPage';
 import ProfessionalDetailPage from '../pages/directory/ProfessionalDetailPage';
 import ApplyProfessionalPage from '../pages/directory/ApplyProfessionalPage';
@@ -140,7 +140,10 @@ export const MemberRoutes = () => {
               <Route path="profile/edit" element={<AnimatedPage><EditProfilePage /></AnimatedPage>} />
               <Route path="profile/family" element={<AnimatedPage><FamilyPage /></AnimatedPage>} />
               <Route path="profile/verify" element={<AnimatedPage><VerifyMembershipPage /></AnimatedPage>} />
-              <Route path="profile/upgrade" element={<AnimatedPage><UpgradeMembershipPage /></AnimatedPage>} />
+              {/* The old demo checkout is retired — "Upgrade" now uses the real, admin-managed plans */}
+              <Route path="profile/upgrade" element={<Navigate to="/member/membership" replace />} />
+              {/* App membership plans (PRO badge, pinned posts …) — separate from Matrimonial plans */}
+              <Route path="membership" element={<AnimatedPage><AppMembershipPage /></AnimatedPage>} />
               <Route path="settings" element={<AnimatedPage><SettingsPage /></AnimatedPage>} />
               <Route path="notifications" element={<AnimatedPage><NotificationsPage /></AnimatedPage>} />
 

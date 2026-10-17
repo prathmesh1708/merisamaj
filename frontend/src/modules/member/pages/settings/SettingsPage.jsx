@@ -5,6 +5,7 @@ import {
   Package, Globe, Lock, Bell, Shield, Info, LogOut, Gift, Check, X, Moon, Sun, Send
 } from 'lucide-react';
 import { useData } from '../../context/DataProvider';
+import { appSubscriptionService } from '../../../../core/api/matrimonialService';
 import { Avatar } from '../../components/common/Avatar';
 
 export const SettingsPage = () => {
@@ -83,6 +84,24 @@ export const SettingsPage = () => {
     }
     localStorage.setItem('theme', theme);
   }, [theme]);
+
+  // App membership plans published by the Admin (shown in the upgrade banner)
+  const [planSummary, setPlanSummary] = useState(null); // { count, minPrice }
+  useEffect(() => {
+    if (currentUser?.isPremium) return;
+    appSubscriptionService.listPlans()
+      .then(res => {
+        const paid = (res.data?.data?.plans || []).filter(p => p.price > 0);
+        if (paid.length) setPlanSummary({ count: paid.length, minPrice: Math.min(...paid.map(p => p.price)) });
+      })
+      .catch(() => {});
+  }, [currentUser?.isPremium]);
+
+  const formatPlanDate = (d) => {
+    if (!d) return '';
+    const date = new Date(d);
+    return isNaN(date) ? d : date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
 
   const myId = currentUser?.id || currentUser?._id || 'u1';
   const userGranular = granularPrivacy?.[myId] || granularPrivacy?.u1 || granularPrivacy || {};
@@ -169,8 +188,8 @@ export const SettingsPage = () => {
         {/* Premium Upgrade Promotion Banner — Original Compact Style */}
         <div>
           {!currentUser?.isPremium ? (
-            <div 
-              onClick={() => navigate('/member/profile/upgrade')}
+            <div
+              onClick={() => navigate('/member/membership')}
               className="p-4 rounded-[22px] bg-gradient-to-r from-rose-500 via-pink-500 to-[#e62e52] text-white shadow-[0_6px_20px_rgba(244,63,94,0.2)] flex items-center justify-between cursor-pointer press-scale border border-rose-400/30 group"
             >
               <div className="space-y-1 text-left">
@@ -179,23 +198,25 @@ export const SettingsPage = () => {
                   <h3 className="text-[11.5px] font-extrabold uppercase tracking-wider text-white">Upgrade Membership</h3>
                 </div>
                 <p className="text-[10.5px] text-white/90 font-medium leading-normal">
-                  Access direct contacts, send 50+ super interests & get a Gold Badge!
+                  {planSummary
+                    ? `${planSummary.count} plan${planSummary.count === 1 ? '' : 's'} available · from ₹${planSummary.minPrice.toLocaleString('en-IN')}`
+                    : 'See the membership plans offered by your Samaj'}
                 </p>
               </div>
               <ChevronRight size={18} className="text-white/80 shrink-0 ml-2 group-hover:translate-x-0.5 transition-transform" />
             </div>
           ) : (
-            <div 
-              onClick={() => navigate('/member/profile/upgrade')}
+            <div
+              onClick={() => navigate('/member/membership')}
               className="p-4 rounded-[22px] bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 text-white shadow-[0_6px_20px_rgba(245,158,11,0.2)] flex items-center justify-between cursor-pointer press-scale border border-yellow-300/30 group"
             >
               <div className="space-y-1 text-left">
                 <div className="flex items-center gap-1.5">
                   <ShieldCheck size={16} className="text-white fill-white/20" />
-                  <h3 className="text-[11.5px] font-extrabold uppercase tracking-wider text-white">{currentUser.membershipPlan || 'Pro Max'} Active</h3>
+                  <h3 className="text-[11.5px] font-extrabold uppercase tracking-wider text-white">{currentUser.membershipPlan || 'Pro'} Active</h3>
                 </div>
                 <p className="text-[10.5px] text-white/90 font-medium leading-normal">
-                  Valid plan until: {currentUser.membershipExpiry || 'Till Marriage'} · Enjoy premium matchmaking!
+                  {currentUser.membershipExpiry ? `Valid until ${formatPlanDate(currentUser.membershipExpiry)}` : 'Active plan'} · Tap to manage your plan
                 </p>
               </div>
               <ChevronRight size={18} className="text-white/80 shrink-0 ml-2 group-hover:translate-x-0.5 transition-transform" />

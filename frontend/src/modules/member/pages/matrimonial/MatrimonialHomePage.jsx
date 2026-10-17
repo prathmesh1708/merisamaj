@@ -886,7 +886,7 @@ const MatrimonialHomePage = () => {
                           src={profile.photos?.[0]?.url || profile.userId?.avatar || profile.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.personal?.fullName || profile.name || 'User')}&background=0f172a&color=fff&size=400`}
                           alt={profile.name}
                           className={`absolute inset-0 w-full h-full object-cover transition-all duration-300 ${
-                            !hasAccess ? 'blur-[6px] brightness-90 scale-105' : ''
+                            !hasAccess ? 'blur-[3px] brightness-95 scale-105' : ''
                           }`}
                         />
                         
@@ -1306,7 +1306,7 @@ const MatrimonialHomePage = () => {
                         src={visitor.photos?.[0]?.url || visitor.userId?.avatar || visitor.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(visitor.name || 'User')}&background=0f172a&color=fff&size=400`}
                         alt={visitor.name}
                         className={`absolute inset-0 w-full h-full object-cover transition-all duration-300 ${
-                          visitor.requiresUpgrade ? 'blur-[6px] brightness-90 scale-105' : ''
+                          visitor.requiresUpgrade ? 'blur-[3px] brightness-95 scale-105' : ''
                         }`}
                       />
                       
@@ -2079,7 +2079,7 @@ const MatrimonialHomePage = () => {
                   Plan: {isCurrentlySubscribed ? `${sub.plan} Membership` : 'Free Account'}
                 </p>
                 <button
-                  onClick={() => navigate('/member/profile/upgrade')}
+                  onClick={() => navigate('/member/matrimonial/subscription')}
                   className="mt-2.5 w-full py-2 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wider shadow-xs transition-colors active:scale-97"
                 >
                   Manage Subscription

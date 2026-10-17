@@ -14,10 +14,15 @@ const PublicRoute = () => {
   }
 
   if (auth.isAuthenticated) {
-    const justRegistered = localStorage.getItem('merisamaj_just_registered');
-    if (justRegistered === 'true') {
+    // Already logged in: only someone without a community still needs the setup steps.
+    // Everyone else goes Home (it offers "Continue profile setup" for unfinished profiles).
+    // The old "just registered" marker is cleared here — left behind, it sent members
+    // back to Step 1 every time they opened the Login page.
+    const hasCommunity = !!(auth.user?.communityId || auth.user?.community);
+    if (!hasCommunity) {
       return <Navigate to="/member/onboarding" replace />;
     }
+    try { localStorage.removeItem('merisamaj_just_registered'); } catch { /* storage unavailable */ }
     return <Navigate to="/member/home" replace />;
   }
 

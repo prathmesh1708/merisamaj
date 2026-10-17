@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { memberChatService } from '../../../core/api/memberChatService';
 import { groupService } from '../../../core/api/groupService';
 import { matrimonialChatService } from '../../../core/api/matrimonialService';
@@ -126,9 +126,21 @@ export const useUnifiedConversations = () => {
     fetchAll();
   }, [fetchAll]);
 
+  // The server sends each new message twice (to the chat room and to my personal
+  // room), so remember which ones were already counted — otherwise unread doubles.
+  const countedMessageIdsRef = useRef(new Set());
+
   // Socket Updates
   const { isConnected, isUserOnline } = useChatSocket({
     onNewMessage: (msg) => {
+      const msgId = msg._id?.toString();
+      if (msgId) {
+        if (countedMessageIdsRef.current.has(msgId)) return; // second copy of the same message
+        countedMessageIdsRef.current.add(msgId);
+        if (countedMessageIdsRef.current.size > 500) {
+          countedMessageIdsRef.current = new Set([...countedMessageIdsRef.current].slice(-250));
+        }
+      }
       setConversations(prev => {
         const idx = prev.findIndex(c => c.conversationId?.toString() === msg.conversationId?.toString());
         if (idx === -1) {
@@ -158,8 +170,11 @@ export const useUnifiedConversations = () => {
         refreshUnreadChatCount();
       }
     },
-    onMessagesSeen: ({ conversationId }) => {
-      setConversations(prev => prev.map(c => 
+    onMessagesSeen: ({ conversationId, userId: seenBy }) => {
+      // Only *my* reading clears my unread count (not the other person reading my messages)
+      const myId = (user?.id || user?._id)?.toString();
+      if (seenBy && seenBy.toString() !== myId) return;
+      setConversations(prev => prev.map(c =>  
         c.conversationId?.toString() === conversationId?.toString()
           ? { ...c, unreadCount: 0 }
           : c
@@ -170,7 +185,8 @@ export const useUnifiedConversations = () => {
     }
   });
 
-  const markConversationRead = useCallback((conversationId, type = 'direct') => {
+  // `opening`: the chat is being opened — its screen marks it seen itself (see below)
+  const markConversationRead = useCallback((conversationId, type = 'direct', { opening = false } = {}) => {
     if (!conversationId) return;
     setConversations(prev => prev.map(c => 
       c.conversationId?.toString() === conversationId?.toString() ? { ...c, unreadCount: 0 } : c
@@ -179,9 +195,11 @@ export const useUnifiedConversations = () => {
       groupService.markGroupSeen(conversationId).catch(() => {});
     } else if (type === 'matrimonial') {
       matrimonialChatService.markSeen(conversationId).catch(() => {});
-    } else {
+    } else if (!opening) {
       memberChatService.markSeen(conversationId).catch(() => {});
     }
+    // When opening a one-to-one chat we don't mark it seen here: the chat screen does it
+    // right after finding the first unread message (so it can open there, like WhatsApp).
     window.dispatchEvent(new Event('app:refresh_unread_counts'));
     if (refreshUnreadChatCount) {
       setTimeout(() => refreshUnreadChatCount(), 300);

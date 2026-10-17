@@ -3,6 +3,8 @@ const mongoose = require('mongoose');
 const subscriptionPlanSchema = new mongoose.Schema(
   {
     name:          { type: String, required: true, unique: true, trim: true },
+    // 'matrimonial' = matchmaking plan · 'app' = app-wide membership (Social & more)
+    planType:      { type: String, enum: ['matrimonial', 'app'], default: 'matrimonial', index: true },
     description:   { type: String },
     price:         { type: Number, required: true },           // In INR (0 for Free)
     durationInDays:{ type: Number, required: true },           // 0 for perpetual Free plan
@@ -57,6 +59,12 @@ const subscriptionPlanSchema = new mongoose.Schema(
       profileBadge:           { type: Boolean, default: false }, // Premium badge in search
       crossCommunityVisibility: { type: Boolean, default: false }, // See/be seen by other communities' profiles
       communityFilter:        { type: Boolean, default: false }  // Community & sub-community filter on matches
+    },
+
+    // ─── App plan perks (only used when planType = 'app') ──────────────────────
+    appFeatures: {
+      proBadge:         { type: Boolean, default: true }, // ✓ PRO next to the name on profile & posts
+      pinPostsPerMonth: { type: Number, default: 0 }      // posts pinned to the top of the feed for 24h (-1 = unlimited)
     },
 
     // ─── Extra features typed in by the admin (shown to members as text only) ─

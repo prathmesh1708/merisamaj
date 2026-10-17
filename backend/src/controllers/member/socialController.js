@@ -15,6 +15,7 @@ const { createMessage } = require('../../services/messageService');
 const { notifyOfficialPost } = require('../../services/notificationService');
 const { applyScopeFilter, inheritTenantPayload, adminRoles } = require('../../utils/queryScopeHelper');
 const { getHiddenAuthorIds, canViewContentOf } = require('../../services/socialVisibilityService');
+const { getActiveSubscription } = require('../../middleware/subscriptionMiddleware');
 const cloudinary = require('cloudinary').v2;
 const config = require('../../config/config');
 
@@ -156,12 +157,18 @@ exports.getPosts = async (req, res) => {
       filter.createdAt = { $lt: new Date(cursor) };
     }
 
+    // Members' App-plan pins last 24 hours
+    await Post.updateMany(
+      { isPinned: true, pinnedUntil: { $ne: null, $lt: new Date() } },
+      { $set: { isPinned: false } }
+    ).catch(() => {});
+
     // Hide non-married members and private accounts the viewer doesn't follow
     const hiddenAuthors = await getHiddenAuthorIds(req.user);
     if (hiddenAuthors.length) filter.userId = { $nin: hiddenAuthors };
 
     const posts = await Post.find(filter)
-      .populate('userId', 'name avatar role city community communityId')
+      .populate('userId', 'name avatar role city community communityId proBadge')
       .populate('communityId', 'name slug city')
       .populate('cityId', 'name')
       .sort({ isPinned: -1, createdAt: -1 })
@@ -371,6 +378,31 @@ exports.createPost = async (req, res) => {
 
     const requestedFeedType = req.body.feedType;
 
+    // Pin to the top of the feed. Leaders may always pin (no time limit). Members need an
+    // App plan with pins left this month; their pin lasts 24 hours.
+    const pinFields = {};
+    let pinMessage = null;
+    if (req.body.isPinned === true || req.body.isPinned === 'true') {
+      const isLeader = ['head', 'sub_head', 'admin_sub_head', ...adminRoles].includes(req.user.role);
+      if (isLeader) {
+        pinFields.isPinned = true;
+      } else {
+        const appSub = await getActiveSubscription(req.user._id, 'app');
+        const allowed = Number(appSub?.featuresSnapshot?.pinPostsPerMonth) || 0;
+        const monthKey = new Date().toISOString().slice(0, 7);
+        const used = req.user.appPinUsage?.month === monthKey ? (req.user.appPinUsage.count || 0) : 0;
+        if (allowed === -1 || used < allowed) {
+          pinFields.isPinned = true;
+          pinFields.pinnedUntil = new Date(Date.now() + 24 * 60 * 60 * 1000);
+          await User.updateOne({ _id: req.user._id }, { $set: { appPinUsage: { month: monthKey, count: used + 1 } } });
+        } else {
+          pinMessage = allowed > 0
+            ? `You've used all ${allowed} pins of your plan this month. The post was shared without pinning.`
+            : 'Pinning posts needs an App membership plan. The post was shared without pinning.';
+        }
+      }
+    }
+
     if (requestedFeedType === 'both') {
       const cityPost = await Post.create({
         userId: req.user._id,
@@ -382,7 +414,8 @@ exports.createPost = async (req, res) => {
         media: validMedia,
         images: validMedia.map(m => m.url),
         feedType: 'city',
-        status: 'published'
+        status: 'published',
+        ...pinFields
       });
 
       const communityPost = await Post.create({
@@ -395,17 +428,18 @@ exports.createPost = async (req, res) => {
         media: validMedia,
         images: validMedia.map(m => m.url),
         feedType: 'community',
-        status: 'published'
+        status: 'published',
+        ...pinFields
       });
 
       const populatedCity = await Post.findById(cityPost._id)
-        .populate('userId', 'name avatar role city community communityId')
+        .populate('userId', 'name avatar role city community communityId proBadge')
         .populate('communityId', 'name slug city')
         .populate('cityId', 'name')
         .lean();
 
       const populatedCommunity = await Post.findById(communityPost._id)
-        .populate('userId', 'name avatar role city community communityId')
+        .populate('userId', 'name avatar role city community communityId proBadge')
         .populate('communityId', 'name slug city')
         .populate('cityId', 'name')
         .lean();
@@ -432,7 +466,8 @@ exports.createPost = async (req, res) => {
       return res.status(201).json({
         success: true,
         data: populatedCity,
-        posts: [populatedCity, populatedCommunity]
+        posts: [populatedCity, populatedCommunity],
+        pinMessage
       });
     }
 
@@ -446,11 +481,12 @@ exports.createPost = async (req, res) => {
       media: validMedia,
       images: validMedia.map(m => m.url),
       feedType: requestedFeedType || 'city',
-      status: 'published'
+      status: 'published',
+      ...pinFields
     });
 
     const populated = await Post.findById(post._id)
-      .populate('userId', 'name avatar role city community communityId')
+      .populate('userId', 'name avatar role city community communityId proBadge')
       .populate('communityId', 'name slug city')
       .populate('cityId', 'name')
       .lean();
@@ -1151,7 +1187,7 @@ exports.getUserPosts = async (req, res) => {
     const filter = applyScopeFilter(req, baseFilter, { skipCityScope: true });
 
     const posts = await Post.find(filter)
-      .populate('userId', 'name avatar role city community communityId')
+      .populate('userId', 'name avatar role city community communityId proBadge')
       .populate('communityId', 'name slug city')
       .populate('cityId', 'name')
       .sort({ createdAt: -1 })
@@ -1231,8 +1267,8 @@ exports.updatePost = async (req, res) => {
     await post.save();
 
     const populated = await Post.findById(post._id)
-      .populate('userId', 'name avatar role city community communityId')
-      .populate('authorId', 'name avatar role city community communityId')
+      .populate('userId', 'name avatar role city community communityId proBadge')
+      .populate('authorId', 'name avatar role city community communityId proBadge')
       .populate('communityId', 'name slug city')
       .populate('cityId', 'name');
 
