@@ -43,7 +43,7 @@ const ChatInfoPage = () => {
     <div className="flex flex-col min-h-[100dvh] bg-gray-50">
       {/* HEADER */}
       <div className="bg-white px-3 flex items-center justify-between sticky top-0 z-20 shadow-sm border-b border-gray-100 pb-3"
-           style={{ paddingTop: 'max(env(safe-area-inset-top, 0px) + 12px, 12px)' }}>
+           style={{ paddingTop: 'calc(var(--spacing-safe-top) + 12px)' }}>
         <div className="flex items-center gap-3">
           <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-100 -ml-2">
             <ArrowLeft size={22} className="text-gray-800" />

@@ -205,7 +205,7 @@ export const WhatsAppContactProfileModal = ({
       {/* ── HEADER BAR (WhatsApp Style) ── */}
       <div 
         className="bg-white/95 backdrop-blur-md px-4 py-3 flex items-center justify-between border-b border-slate-200/80 sticky top-0 z-30 shadow-2xs"
-        style={{ paddingTop: 'max(env(safe-area-inset-top, 0px) + 12px, 12px)' }}
+        style={{ paddingTop: 'calc(var(--spacing-safe-top) + 12px)' }}
       >
         <div className="flex items-center gap-3">
           <button 

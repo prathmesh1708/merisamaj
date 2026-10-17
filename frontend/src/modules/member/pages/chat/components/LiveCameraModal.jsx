@@ -158,7 +158,7 @@ export const LiveCameraModal = ({ onCapture, onClose }) => {
       {/* ── Top Header Controls Overlay ── */}
       <div 
         className="absolute top-0 left-0 right-0 p-4 pt-6 flex items-center justify-between z-30 bg-gradient-to-b from-black/70 via-black/30 to-transparent"
-        style={{ paddingTop: 'max(env(safe-area-inset-top, 0px) + 16px, 16px)' }}
+        style={{ paddingTop: 'calc(var(--spacing-safe-top) + 16px)' }}
       >
         {/* Close or Back button */}
         <button

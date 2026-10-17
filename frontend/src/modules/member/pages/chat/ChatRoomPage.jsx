@@ -805,7 +805,7 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
       {/* ── HEADER ── */}
       {isSelectionMode ? (
         <div className="bg-white/85 backdrop-blur-xl border-b border-purple-100/30 text-slate-800 pb-1.5 px-2.5 sm:px-4 flex items-center justify-between shrink-0 shadow-[0_2px_12px_rgba(124,58,237,0.03)] z-30"
-          style={{ paddingTop: 'max(env(safe-area-inset-top, 0px) + 6px, 6px)' }}>
+          style={{ paddingTop: 'calc(var(--spacing-safe-top) + 6px)' }}>
           <div className="flex items-center gap-3">
             <button onClick={() => setSelectedMessages([])} className="w-8 h-8 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center justify-center text-slate-700 hover:bg-purple-50 transition-colors press-scale">
               <ArrowLeft size={18} strokeWidth={2.5} />
@@ -858,7 +858,7 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
         </div>
       ) : (
         <div className="bg-white/85 backdrop-blur-xl border-b border-purple-100/30 text-slate-800 pb-1.5 px-2.5 sm:px-4 flex items-center justify-between shrink-0 shadow-[0_2px_12px_rgba(124,58,237,0.03)] z-30"
-          style={{ paddingTop: 'max(env(safe-area-inset-top, 0px) + 6px, 6px)' }}>
+          style={{ paddingTop: 'calc(var(--spacing-safe-top) + 6px)' }}>
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <button onClick={handleBack} className="w-8 h-8 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center justify-center text-slate-700 hover:bg-purple-50 transition-colors press-scale shrink-0">
               <ArrowLeft size={18} strokeWidth={2.5} />
@@ -1518,7 +1518,7 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
       </div>
 
       {/* ── INPUT AREA (WhatsApp Layout) ── */}
-      <div className="bg-white/90 backdrop-blur-xl border-t border-purple-100/40 px-3 py-2 flex flex-col gap-1.5 z-20 shrink-0 select-none shadow-[0_-2px_12px_rgba(124,58,237,0.03)]" onClick={e => e.stopPropagation()}>
+      <div className="bg-white/90 backdrop-blur-xl border-t border-purple-100/40 px-3 pt-2 flex flex-col gap-1.5 z-20 shrink-0 select-none shadow-[0_-2px_12px_rgba(124,58,237,0.03)]" style={{ paddingBottom: 'calc(var(--spacing-safe-bottom) + 8px)' }} onClick={e => e.stopPropagation()}>
 
         {/* Editing message preview banner */}
         {editingMessage && (

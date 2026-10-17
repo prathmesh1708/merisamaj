@@ -425,7 +425,7 @@ const GroupDetailPage = () => {
           <div className={`absolute inset-0 z-0 ${wallpaperTheme === 'dark' ? 'bg-[#0b141a]' : wallpaperTheme === 'solid-blue' ? 'bg-blue-100' : wallpaperTheme === 'solid-pink' ? 'bg-pink-100' : 'bg-[#EFEAE2]'}`} style={{ opacity: wallpaperTheme === 'dark' ? 0.9 : 0.7, backgroundImage: 'radial-gradient(#cfc6b8 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
 
           {isSelectionMode ? (
-            <div className="bg-brand-primary text-white pb-3 px-3 flex items-center justify-between shrink-0 shadow-md z-30 transition-all sticky top-0" style={{ paddingTop: 'max(env(safe-area-inset-top, 0px) + 12px, 12px)' }}>
+            <div className="bg-brand-primary text-white pb-3 px-3 flex items-center justify-between shrink-0 shadow-md z-30 transition-all sticky top-0" style={{ paddingTop: 'calc(var(--spacing-safe-top) + 12px)' }}>
               <div className="flex items-center gap-3">
                 <button onClick={() => setSelectedMessages([])} className="w-10 h-10 rounded-full flex items-center justify-center active:bg-white/10 -ml-2 shrink-0">
                   <ArrowLeft size={22} />
@@ -502,7 +502,7 @@ const GroupDetailPage = () => {
               </div>
             </div>
           ) : (
-          <div className="bg-brand-primary text-white pb-3 px-3 flex items-center justify-between shrink-0 shadow-md z-30 transition-all sticky top-0" style={{ paddingTop: 'max(env(safe-area-inset-top, 0px) + 12px, 12px)' }}>
+          <div className="bg-brand-primary text-white pb-3 px-3 flex items-center justify-between shrink-0 shadow-md z-30 transition-all sticky top-0" style={{ paddingTop: 'calc(var(--spacing-safe-top) + 12px)' }}>
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <button 
                 onClick={() => {
@@ -887,7 +887,7 @@ const GroupDetailPage = () => {
         <div className="flex flex-col flex-1 h-full overflow-hidden bg-gray-55">
           {/* Header */}
           <div className="bg-white px-3 flex items-center justify-between sticky top-0 z-20 shadow-sm border-b border-gray-100 pb-3"
-               style={{ paddingTop: 'max(env(safe-area-inset-top, 0px) + 12px, 12px)' }}>
+               style={{ paddingTop: 'calc(var(--spacing-safe-top) + 12px)' }}>
             <div className="flex items-center gap-3">
               <button onClick={() => setViewState('chat')} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-100 -ml-2">
                 <ArrowLeft size={22} className="text-gray-800" />
