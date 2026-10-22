@@ -20,6 +20,12 @@ export const adminVotingService = {
     return res.data;
   },
 
+  // Aggregate counts only — safe while voting is open
+  getLiveStats: async (id) => {
+    const res = await axiosPrivate.get(`${API_BASE}/${id}/live-stats`);
+    return res.data;
+  },
+
   updateStatus: async (id, status) => {
     const res = await axiosPrivate.patch(`${API_BASE}/${id}/status`, { status });
     return res.data;

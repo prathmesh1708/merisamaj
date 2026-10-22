@@ -27,6 +27,7 @@ import {
 } from '../../services/communityService';
 import { axiosPrivate } from '../../../../core/api/axiosPrivate';
 import { cropImageFile } from '../../../../core/components/ImageCropper';
+import ModuleAccessPicker, { saveModuleAccess } from '../../../../core/permissions/ModuleAccessPicker';
 
 // ─────────────────────────────────────────────
 // FULL 14 HEAD MODULES CONFIGURATION (matching CommunityHeadForm)
@@ -1410,6 +1411,8 @@ const SubLocalHeadLocationWiseView = ({
     }
   });
   const [assignAvatarFile, setAssignAvatarFile] = useState(null);
+  // Module access chosen in the Local Head form (hierarchical module permissions)
+  const [moduleSelection, setModuleSelection] = useState(null);
   const handleAssignAvatarSelect = async (e) => {
     const file = await cropImageFile(e.target.files?.[0], { title: 'Adjust profile photo' });
     e.target.value = ''; // allow picking the same file again
@@ -1629,6 +1632,7 @@ const SubLocalHeadLocationWiseView = ({
       }
     });
     setAssignAvatarFile(null);
+    setModuleSelection(null);
     setAssignHeadModal({ loc, grp, accountType });
   };
 
@@ -1682,7 +1686,18 @@ const SubLocalHeadLocationWiseView = ({
       }
 
       const res = await assignLocalHeadToLocationGroup(commId, subName, submitPayload);
-      alert(res.message || (assignForm.userId ? 'Leader updated successfully!' : 'Leader assigned successfully!'));
+      // Then apply the chosen module access to the saved leader
+      let moduleNote = '';
+      try {
+        const savedId = res.data?._id || res.data?.user?._id || assignForm.userId;
+        const moduleRes = await saveModuleAccess(savedId, moduleSelection);
+        if (moduleRes?.message) moduleNote = `
+${moduleRes.message}`;
+      } catch (moduleErr) {
+        moduleNote = `
+Module access was not saved: ${moduleErr.response?.data?.message || moduleErr.message}`;
+      }
+      alert((res.message || (assignForm.userId ? 'Leader updated successfully!' : 'Leader assigned successfully!')) + moduleNote);
       setAssignHeadModal(null);
       setViewHeadsModal(null);
       fetchLocationData();
@@ -1712,6 +1727,7 @@ const SubLocalHeadLocationWiseView = ({
       headPermissions: { ...(head.headPermissions || {}) }
     });
     setAssignAvatarFile(null);
+    setModuleSelection(null);
     setAssignHeadModal({ loc: loc || { name: head.city }, grp: grp || { name: head.group || 'Group 1' }, accountType, isEdit: true });
   };
 
@@ -2740,6 +2756,14 @@ const SubLocalHeadLocationWiseView = ({
                     <small className="community-hint">Type a new name to start a new group.</small>
                   </div>
                 </div>
+
+                {/* Module access — limited to the modules this community's Head received */}
+                <ModuleAccessPicker
+                  key={`${assignHeadModal.isEdit ? assignForm.userId : 'new'}-${assignForm.accountType}`}
+                  targetUserId={assignHeadModal.isEdit ? assignForm.userId : undefined}
+                  communityId={assignHeadModal.isEdit ? undefined : commId}
+                  onChange={setModuleSelection}
+                />
 
                 {/* Sub-Head Powers & Permissions Checklist */}
                 {assignForm.accountType === 'local_sub_head' && (

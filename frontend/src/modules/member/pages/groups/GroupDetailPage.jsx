@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, MoreVertical, Send, Paperclip, Image as ImageIcon, X, FileText, Link2, Phone, Info, Users, Bell, BellOff, Settings, Search, Check, CheckCheck, Shield, Mic, Plus, LogOut, Star, ChevronRight, Video, Trash, Camera, Edit, Smile, Square, MapPin, UserSquare, Headphones, Copy, Forward, Trash2, CornerUpLeft, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, MoreVertical, Send, Paperclip, Image as ImageIcon, X, FileText, Link2, Phone, Info, Users, Bell, BellOff, Settings, Search, Check, CheckCheck, Shield, Mic, Plus, LogOut, Star, ChevronRight, Video, Trash, Camera, Edit, Smile, Square, MapPin, UserSquare, Headphones, Copy, Forward, Trash2, CornerUpLeft, Loader2, AlertCircle, Clock } from 'lucide-react';
 import { Avatar } from '../../components/common/Avatar';
 import { useData } from '../../context/DataProvider';
 import { useGroupChat } from '../../hooks/useGroupChat';
@@ -38,6 +38,26 @@ const getSenderColor = (senderName, role) => {
   }
   const index = Math.abs(hash) % colors.length;
   return colors[index];
+};
+
+
+// ─── WhatsApp-style group ticks ───────────────────────────────────────────────
+// ✓ sent · grey ✓✓ every other member's device has it · blue ✓✓ every other member read it
+const idOf = (v) => (v?.userId?._id || v?.userId || v?._id || v)?.toString();
+const countOthers = (list, myId) =>
+  new Set((list || []).map(idOf).filter(id => id && id !== myId)).size;
+
+const GroupMessageTicks = ({ msg, myId, recipientCount, size = 14, onImage = false }) => {
+  const grey = onImage ? 'text-white/80' : 'text-gray-400';
+  if (msg.status === 'sending') return <Clock size={size - 3} className={grey} />;
+  if (msg.status === 'failed') return <AlertCircle size={size - 2} className="text-red-500" />;
+  if (recipientCount > 0 && countOthers(msg.seenBy, myId) >= recipientCount) {
+    return <CheckCheck size={size} className={onImage ? 'text-cyan-300' : 'text-[#53bdeb]'} />;
+  }
+  if (recipientCount > 0 && countOthers(msg.deliveredTo, myId) >= recipientCount) {
+    return <CheckCheck size={size} className={grey} />;
+  }
+  return <Check size={size} className={grey} />;
 };
 
 const GroupDetailPage = () => {
@@ -240,6 +260,9 @@ const GroupDetailPage = () => {
   };
 
   const displayMemberCount = joinedMemberIds.length || group?.memberCount || realMembers?.length || 0;
+  // Members other than me who must receive / read a message for ✓✓ / blue ✓✓
+  const tickRecipientCount = Math.max(displayMemberCount - 1, 0);
+  const myTickId = (currentUser?.id || currentUser?._id)?.toString();
   
   const messagesEndRef = useRef(null);
   const imageInputRef = useRef(null);
@@ -744,7 +767,7 @@ const GroupDetailPage = () => {
                       {isOnlyEmojis ? (
                         <div className="flex items-center gap-1.5 mt-1 ml-1 select-none">
                           <span className="text-[10px] text-gray-400 font-medium">{msg.time}</span>
-                          {isMine && <CheckCheck size={13} className="text-[#53bdeb]" />}
+                          {isMine && <GroupMessageTicks msg={msg} myId={myTickId} recipientCount={tickRecipientCount} size={13} />}
                         </div>
                       ) : (
                         <div className={`absolute bottom-1 right-2 flex items-center gap-1 ${
@@ -755,7 +778,7 @@ const GroupDetailPage = () => {
                           <span className={`text-[10px] font-medium ${
                             hasImageOnly ? 'text-white/90' : 'text-gray-400'
                           }`}>{msg.time}</span>
-                          {isMine && <CheckCheck size={14} className={hasImageOnly ? 'text-cyan-300' : 'text-[#53bdeb]'} />}
+                          {isMine && <GroupMessageTicks msg={msg} myId={myTickId} recipientCount={tickRecipientCount} onImage={hasImageOnly} />}
                         </div>
                       )}
 

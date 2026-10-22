@@ -4,7 +4,8 @@ const Community = require('../../models/Community');
 const User = require('../../models/User');
 const { notifyElectionCreated, createBroadcastNotification } = require('../../services/notificationService');
 const { sendPushNotification } = require('../../services/pushNotificationService');
-const { electionFieldsFromBody, normaliseCandidates, publishAndNotify, hasNoVoters } = require('../../utils/electionAdmin');
+const { electionFieldsFromBody, normaliseCandidates, publishAndNotify, hasNoVoters, resultsVisible, syncElectionStatuses } = require('../../utils/electionAdmin');
+const { deriveStatus } = require('../../utils/electionEngine');
 const { applyScopeFilter, inheritTenantPayload } = require('../../utils/queryScopeHelper');
 
 // Helper to resolve the community ID for write/bind operations
@@ -64,6 +65,7 @@ exports.getElections = async (req, res) => {
       query.communityId = req.query.communityId;
     }
 
+    await syncElectionStatuses();
     const votings = await Voting.find(query)
       .populate('createdBy', 'name avatar role accountType subHeadType city')
       .populate('communityId', 'name code')
@@ -92,13 +94,14 @@ exports.getElections = async (req, res) => {
     const formattedVotings = votings.map(v => {
       const vId = v._id.toString();
       const counts = countsMap[vId] || { total: 0 };
-      
-      const candidatesWithVotes = (v.candidates || []).map(c => ({
-        ...c,
-        id: c._id ? c._id.toString() : c.id,
-        _id: c._id ? c._id.toString() : c.id,
-        votes: counts[c._id ? c._id.toString() : c.id] || 0
-      }));
+
+      // Ballot confidentiality: candidate-wise counts only once the result is declared.
+      // While voting is open only the aggregate total is returned.
+      const showResults = resultsVisible(v);
+      const candidatesWithVotes = (v.candidates || []).map(c => {
+        const cid = c._id ? c._id.toString() : c.id;
+        return { ...c, id: cid, _id: cid, ...(showResults ? { votes: counts[cid] || 0 } : {}) };
+      });
 
       const effectiveStatus = deriveVotingStatus(v);
       const isCreator = req.user?._id && v.createdBy?._id && v.createdBy._id.toString() === req.user._id.toString();
@@ -108,6 +111,8 @@ exports.getElections = async (req, res) => {
         id: vId,
         _id: vId,
         status: effectiveStatus,
+        lifecycleStatus: deriveStatus(v),
+        resultsVisible: showResults,
         totalVotes: counts.total,
         candidates: candidatesWithVotes,
         communityName: v.communityId?.name || '',

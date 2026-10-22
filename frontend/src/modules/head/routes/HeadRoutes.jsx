@@ -32,6 +32,8 @@ import HeadProfileSettings from '../pages/profile/HeadProfileSettings';
 import CommunitySettings from '../pages/settings/CommunitySettings';
 import HeadSubHeadManagement from '../pages/subheads/HeadSubHeadManagement';
 
+import { ModuleAccessProvider } from '../../../core/permissions/ModuleAccessContext';
+import HeadModulePermissions from '../pages/permissions/HeadModulePermissions';
 export const HeadRoutes = () => {
   return (
     <Routes>
@@ -40,7 +42,7 @@ export const HeadRoutes = () => {
 
       {/* ── Protected Routes: require Head authentication ── */}
       <Route element={<HeadProtectedRoute />}>
-        <Route element={<HeadLayout />}>
+        <Route element={<ModuleAccessProvider><HeadLayout /></ModuleAccessProvider>}>
           {/* Default /head → dashboard */}
           <Route index element={<Navigate to="/head/dashboard" replace />} />
 
@@ -85,6 +87,7 @@ export const HeadRoutes = () => {
           <Route path="leadership" element={<HeadLeadershipManagement />} />
           <Route path="local-community" element={<LocalCommunityManagement />} />
           <Route path="settings" element={<CommunitySettings />} />
+          <Route path="module-permissions" element={<HeadModulePermissions />} />
 
           {/* Catch-all */}
           <Route path="*" element={<Navigate to="/head/dashboard" replace />} />

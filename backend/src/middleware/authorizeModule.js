@@ -1,9 +1,12 @@
+const { MODULE_BY_KEY, MODULE_BY_PERMISSION_KEY } = require('../config/moduleCatalog');
+const { isHierarchyUser, getEffectiveModules } = require('../services/modulePermissionService');
+
 /**
  * Middleware to check granular module permissions for Head and Sub-Head users
  * @param {string} permissionKey - e.g. 'canViewEvents', 'canManageLeadership', 'canViewDharmashala'
  */
 const authorizeModule = (permissionKey) => {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     try {
       if (!req.user) {
         return res.status(401).json({ status: 'error', message: 'Not authorized' });
@@ -16,7 +19,20 @@ const authorizeModule = (permissionKey) => {
         return next();
       }
 
-      // 2. Head and Sub-Head role validation
+      // 2. Hierarchical module access: the flag's module must be granted down the
+      //    hierarchy (Master Admin → Community Head → Local Head → Sub-Head) before
+      //    the granular flag below is even considered.
+      const moduleKey = permissionKey && MODULE_BY_PERMISSION_KEY.get(permissionKey);
+      if (moduleKey && isHierarchyUser(req.user) && !(await getEffectiveModules(req.user._id)).includes(moduleKey)) {
+        return res.status(403).json({
+          status: 'error',
+          code: 'MODULE_NOT_GRANTED',
+          module: moduleKey,
+          message: `You don't have access to the ${MODULE_BY_KEY.get(moduleKey).label} module. Ask the administrator above you to grant it.`
+        });
+      }
+
+      // 3. Head and Sub-Head role validation (granular headPermissions flags)
       if (userRole === 'head' || userRole === 'sub_head') {
         const permissions = req.user.headPermissions || {};
         const isLocalHead = req.user.accountType === 'local_head' || req.user.subHeadType === 'local';

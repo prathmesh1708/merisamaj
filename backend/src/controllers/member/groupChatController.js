@@ -166,6 +166,17 @@ exports.sendGroupMessage = async (req, res) => {
       mentionedUsers: mentionedUsers ? (typeof mentionedUsers === 'string' ? JSON.parse(mentionedUsers) : mentionedUsers) : []
     });
 
+    // Members whose app is connected right now have it → delivered at once
+    const onlineRecipients = conv.participants.filter(
+      p => p.toString() !== userId.toString() && isOnline(p.toString())
+    );
+    if (onlineRecipients.length) {
+      await Message.updateOne({ _id: populatedMsg._id }, { $addToSet: { deliveredTo: { $each: onlineRecipients } } });
+      onlineRecipients.forEach(p => {
+        if (!populatedMsg.deliveredTo.some(d => d.toString() === p.toString())) populatedMsg.deliveredTo.push(p);
+      });
+    }
+
     // Emit to room and members
     const io = getSocketIO(req);
     if (io) {

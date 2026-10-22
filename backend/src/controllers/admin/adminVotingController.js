@@ -3,7 +3,8 @@ const Vote = require('../../models/Vote');
 const Community = require('../../models/Community');
 const User = require('../../models/User');
 const mongoose = require('mongoose');
-const { electionFieldsFromBody, normaliseCandidates, publishAndNotify, hasNoVoters } = require('../../utils/electionAdmin');
+const { electionFieldsFromBody, normaliseCandidates, publishAndNotify, hasNoVoters, resultsVisible, syncElectionStatuses } = require('../../utils/electionAdmin');
+const { deriveStatus } = require('../../utils/electionEngine');
 const { applyScopeFilter } = require('../../utils/queryScopeHelper');
 const { createBroadcastNotification } = require('../../services/notificationService');
 
@@ -34,6 +35,7 @@ exports.getAllElections = async (req, res) => {
     // Apply scope filter (Admin bypasses community filter unless explicitly passed)
     const filter = applyScopeFilter(req, baseFilter);
 
+    await syncElectionStatuses();
     const elections = await Voting.find(filter)
       .populate('createdBy', 'name avatar role email phone')
       .populate('communityId', 'name code')
@@ -106,6 +108,7 @@ exports.getVotingStats = async (req, res) => {
       filter.communityId = req.query.communityId;
     }
 
+    await syncElectionStatuses();
     const elections = await Voting.find(filter).lean();
     const electionIds = elections.map(e => e._id);
 
@@ -166,22 +169,25 @@ exports.getElectionById = async (req, res) => {
       countMap[c._id.toString()] = c.count;
     });
 
+    // Ballot confidentiality: the total is always fine, candidate-wise tallies only
+    // once the result is declared (applies to the Master Admin too).
+    const showResults = resultsVisible(election);
     let totalVotes = 0;
     const candidatesWithVotes = (election.candidates || []).map(cand => {
       const votes = countMap[cand._id.toString()] || 0;
       totalVotes += votes;
-      return {
-        ...cand,
-        votesCount: votes
-      };
+      return showResults ? { ...cand, votesCount: votes } : { ...cand };
     });
 
+    res.set('Cache-Control', 'no-store');
     res.status(200).json({
       success: true,
       data: {
         ...election,
         candidates: candidatesWithVotes,
-        totalVotesCast: totalVotes
+        totalVotesCast: totalVotes,
+        lifecycleStatus: deriveStatus(election),
+        resultsVisible: showResults
       }
     });
   } catch (error) {

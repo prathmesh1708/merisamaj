@@ -15,6 +15,16 @@ router.get('/test', (req, res) => {
   });
 });
 
+// ─── Hierarchical module access ───────────────────────────────────────────────
+// Every module's API is blocked unless the module was granted to this user down the
+// hierarchy (Master Admin → Community Head → Local Head → Sub-Head). Registered
+// before the module routers below; config/moduleCatalog.js lists the paths.
+const { MODULE_CATALOG } = require('../../config/moduleCatalog');
+const { requireHeadModule } = require('../../middleware/requireHeadModule');
+MODULE_CATALOG.forEach(mod => {
+  mod.apiMounts.forEach(mount => router.use(mount, requireHeadModule(mod.key)));
+});
+
 router.use('/donations', donationRoutes);
 router.use('/app-content', headAppContentRoutes);
 router.use('/dharmashala', dharmashalaRoutes);

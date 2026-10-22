@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const Voting = require('../../models/Voting');
 const { notifyElectionCreated } = require('../../services/notificationService');
 const { ADMIN_ROLES, findEligibleUsers, deriveStatus, idOf, roleKeyOf } = require('../../utils/electionEngine');
-const { electionAnalytics, isLocalLevel } = require('../../utils/electionAdmin');
+const { electionAnalytics, electionLiveStats, electionResults, isLocalLevel } = require('../../utils/electionAdmin');
 
 // Admin: any election. Head: elections of their community. Local Head / Sub-Head: only
 // elections for their own city (or ones they created), never another location's.
@@ -34,6 +34,35 @@ exports.getAnalytics = async (req, res) => {
   } catch (error) {
     console.error('election analytics error:', error);
     res.status(500).json({ status: 'error', message: 'Failed to load analytics' });
+  }
+};
+
+// GET /:id/live-stats — aggregate numbers only (safe while voting is open)
+exports.getLiveStats = async (req, res) => {
+  try {
+    const election = await findManageable(req);
+    if (!election) return res.status(404).json({ status: 'error', message: 'Election not found or access denied' });
+    res.set('Cache-Control', 'no-store');
+    res.status(200).json({ status: 'success', data: await electionLiveStats(election) });
+  } catch (error) {
+    console.error('election live stats error:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to load live statistics' });
+  }
+};
+
+// GET /:id/results — candidate-wise results; refused until the result is declared
+exports.getResults = async (req, res) => {
+  try {
+    const election = await findManageable(req);
+    if (!election) return res.status(404).json({ status: 'error', message: 'Election not found or access denied' });
+    res.set('Cache-Control', 'no-store');
+    res.status(200).json({ status: 'success', data: await electionResults(election) });
+  } catch (error) {
+    if (error.code === 'RESULTS_NOT_AVAILABLE') {
+      return res.status(403).json({ status: 'error', code: error.code, message: 'Results are hidden until the election ends and the result is declared.', resultDate: error.resultDate });
+    }
+    console.error('election results error:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to load results' });
   }
 };
 

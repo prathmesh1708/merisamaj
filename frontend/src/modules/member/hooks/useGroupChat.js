@@ -99,6 +99,17 @@ export const useGroupChat = (conversationId, group) => {
       ));
     },
 
+    // A member's device received our messages (app opened or push arrived) → grey ✓✓
+    onMessagesDelivered: ({ userId: deliveredUserId, conversationId: cId }) => {
+      if (cId && cId.toString() !== conversationId?.toString()) return;
+      const who = deliveredUserId?.toString();
+      if (!who) return;
+      setMessages(prev => prev.map(m => {
+        const already = (m.deliveredTo || []).some(d => (d?._id || d)?.toString() === who);
+        return already ? m : { ...m, deliveredTo: [...(m.deliveredTo || []), who] };
+      }));
+    },
+
     // Member events
     onMemberJoined: ({ userId: joinedId, name }) => {
       setMembers(prev => prev.some(m => (m.userId?._id || m.userId) === joinedId) ? prev : [...prev, { userId: joinedId, name, role: 'member' }]);

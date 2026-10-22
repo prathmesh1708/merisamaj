@@ -8,12 +8,29 @@
  * gstatic was unused, and if that CDN was blocked the whole worker failed to install).
  *
  * Payload sent by backend/src/services/pushNotificationService.js:
- *   { notification: { title, body }, data: { type, icon, actionUrl, notificationId } }
+ *   { notification: { title, body }, data: { type, icon, actionUrl, notificationId, tag, ack } }
  */
 
 // Drop your app logo here (192×192 PNG) to show it on notifications.
 // If the file is missing the browser simply shows the notification without an icon.
 const DEFAULT_ICON = '/notification-icon.png';
+
+// API base passed by the app when registering this worker (see core/push/pushClient.js)
+const API_BASE = (() => {
+  const api = new URL(self.location.href).searchParams.get('api') || '/api/v1';
+  return new URL(api, self.location.origin).href.replace(/\/$/, '');
+})();
+
+// Tell the server this phone received the chat message → sender sees the grey
+// double tick, even though the app is closed. The receipt is signed by the server.
+const sendDeliveryReceipt = (ack) =>
+  fetch(`${API_BASE}/chat/delivery-ack`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ack }),
+    credentials: 'omit',
+    keepalive: true
+  }).catch(() => {});
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
@@ -48,14 +65,16 @@ self.addEventListener('push', (event) => {
     requireInteraction: data.type === 'emergency_alert'
   };
 
-  event.waitUntil(
+  const receipt = data.ack ? sendDeliveryReceipt(data.ack) : Promise.resolve();
+
+  event.waitUntil(Promise.all([receipt,
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       // The app is open and on screen — it already shows the message live, so skip the pop-up
       const appVisible = clientList.some((c) => c.visibilityState === 'visible' && c.focused);
       if (appVisible) return undefined;
       return self.registration.showNotification(title, options);
     })
-  );
+  ]));
 });
 
 // Open (or focus) the app at the notification's target page

@@ -46,6 +46,9 @@ connectDB();
 // Initialize Event Reminder Scheduled Task
 initEventReminderRunner();
 
+// Mark elections Completed once their voting time has ended
+require('./utils/electionAdmin').startElectionStatusRunner();
+
 // Global Middlewares
 const rawAllowedOrigins = (process.env.CLIENT_URL || '')
   .split(',')

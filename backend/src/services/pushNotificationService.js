@@ -14,6 +14,7 @@ try {
 
 const UserPushToken = require('../models/UserPushToken');
 const UserNotification = require('../models/UserNotification');
+const { signDeliveryReceipt } = require('./deliveryReceiptService');
 
 // ─── Firebase Admin SDK Initialization ────────────────────────────────────────
 let fcmInitialized = false;
@@ -115,7 +116,7 @@ const URGENT_TYPES = new Set(['chat_new_message', 'group_new_message', 'chat_men
 
 const MULTICAST_LIMIT = 500; // FCM maximum tokens per sendEachForMulticast call
 
-const buildPayload = ({ tokens, type, title, message, icon, actionUrl, notificationId, tag }) => ({
+const buildPayload = ({ tokens, type, title, message, icon, actionUrl, notificationId, tag, ack }) => ({
   tokens,
   notification: {
     title: title || 'ApniSamaj Alert',
@@ -128,7 +129,9 @@ const buildPayload = ({ tokens, type, title, message, icon, actionUrl, notificat
     actionUrl: actionUrl || '/member/notifications',
     notificationId: notificationId ? notificationId.toString() : '',
     // Same tag = replaces the previous notification on the device (one per chat)
-    tag: tag || ''
+    tag: tag || '',
+    // Signed chat delivery receipt — the service worker posts it back on arrival
+    ack: ack || ''
   },
   // Time-sensitive pushes (chat, emergencies) go out as HIGH priority so Android's
   // battery saver (Doze) delivers them at once instead of delaying or dropping them.
@@ -282,7 +285,8 @@ const sendPushNotification = async ({
   message,
   icon = '🔔',
   actionUrl = '/member/notifications',
-  tag
+  tag,
+  ackConversationId
 }) => {
   try {
     // 1. Strict Push Eligibility Check
@@ -309,7 +313,8 @@ const sendPushNotification = async ({
     // 5. Send and deactivate dead tokens
     const { successCount, failureCount } = await sendToTokens(
       tokens,
-      { type, title, message, icon, actionUrl, notificationId, tag }
+      { type, title, message, icon, actionUrl, notificationId, tag,
+        ack: ackConversationId ? signDeliveryReceipt(userId, ackConversationId) : '' }
     );
 
     // 6. Update UserNotification document push tracking status

@@ -9,8 +9,11 @@
  * so the next person on this device doesn't receive the previous user's alerts.
  */
 import { pushTokenService } from '../api/pushService';
+import { getApiUrl } from '../api/axiosConfig';
 
-const SW_URL = '/firebase-messaging-sw.js';
+// The worker gets the API address in its URL: it posts chat delivery receipts there
+// the moment a push arrives (the "delivered" double tick), even with the app closed.
+const SW_URL = `/firebase-messaging-sw.js?api=${encodeURIComponent(getApiUrl())}`;
 // Not prefixed with merisamaj_ on purpose: clearAllUserData() wipes those on logout,
 // and we need the token afterwards to deactivate it / re-link it on next login.
 const TOKEN_KEY = 'push_fcm_token';
@@ -67,10 +70,9 @@ const getMessagingInstance = () => {
 };
 
 const getServiceWorkerRegistration = async () => {
-  let registration = await navigator.serviceWorker.getRegistration('/');
-  if (!registration || !registration.active?.scriptURL?.endsWith(SW_URL)) {
-    registration = await navigator.serviceWorker.register(SW_URL, { scope: '/' });
-  }
+  // register() is a no-op for the same script URL and updates the worker in place
+  // (keeping its push subscription) when the URL changed
+  const registration = await navigator.serviceWorker.register(SW_URL, { scope: '/' });
   // getToken needs an *active* worker; a freshly registered one may still be installing
   await navigator.serviceWorker.ready;
   return registration;

@@ -9,6 +9,7 @@ import { useHeadAuth } from '../../auth/useHeadAuth';
 import { axiosPrivate } from '../../../../core/api/axiosPrivate';
 import { cropImageFile } from '../../../../core/components/ImageCropper';
 
+import ModuleAccessPicker, { saveModuleAccess } from '../../../../core/permissions/ModuleAccessPicker';
 // ─────────────────────────────────────────────
 // Heritage Monument SVG Illustrations
 // ─────────────────────────────────────────────
@@ -179,6 +180,9 @@ export default function LocalCommunityManagement() {
 
   const [assignHeadModal, setAssignHeadModal] = useState(null);
   const [submittingHead, setSubmittingHead] = useState(false);
+  // Module access chosen in the Appoint / Edit Powers forms (hierarchical module permissions)
+  const [moduleSelection, setModuleSelection] = useState(null);
+  const [powersModuleSelection, setPowersModuleSelection] = useState(null);
   const [viewHeadsModal, setViewHeadsModal] = useState(null);
   const [unlistedCities, setUnlistedCities] = useState([]);
 
@@ -345,6 +349,7 @@ export default function LocalCommunityManagement() {
       }
     });
     setAssignAvatarFile(null);
+    setModuleSelection(null);
     setAssignHeadModal({ loc, grp, accountType: targetAccountType });
   };
 
@@ -365,6 +370,12 @@ export default function LocalCommunityManagement() {
       }));
     }
   };
+
+  // The module picker in the Appoint form applies only when the new leader will report to me:
+  // a Community Head appointing a Local Head, or a Local Head appointing a Local Sub-Head.
+  const appointPickerVisible = !!assignHeadModal && (isLocalHead
+    ? assignForm.accountType === 'local_sub_head'
+    : headUser?.role === 'head' && assignForm.accountType === 'local_head');
 
   const handleAssignHeadSubmit = async (e) => {
     e.preventDefault();
@@ -401,7 +412,20 @@ export default function LocalCommunityManagement() {
         `/head/local-community/sub-communities/${encodeURIComponent(selectedSubCommunity)}/assign-head`,
         submitPayload
       );
-      alert(res.data?.message || 'Leader assigned successfully!');
+      // Then apply the chosen module access to the new leader (they report to me)
+      let moduleNote = '';
+      if (appointPickerVisible) {
+        try {
+          const savedId = res.data?.data?._id || res.data?.data?.user?._id || assignForm.userId;
+          const moduleRes = await saveModuleAccess(savedId, moduleSelection);
+          if (moduleRes?.message) moduleNote = `
+${moduleRes.message}`;
+        } catch (moduleErr) {
+          moduleNote = `
+Module access was not saved: ${moduleErr.response?.data?.message || moduleErr.message}`;
+        }
+      }
+      alert((res.data?.message || 'Leader assigned successfully!') + moduleNote);
       setAssignHeadModal(null);
       fetchLocationData();
     } catch (err) {
@@ -414,6 +438,7 @@ export default function LocalCommunityManagement() {
 
   // ── 5. Update Powers of Existing Sub-Head ──
   const openEditPowersModal = (subHead) => {
+    setPowersModuleSelection(null);
     setEditPowersModal({
       ...subHead,
       headPermissions: subHead.headPermissions || {}
@@ -427,7 +452,16 @@ export default function LocalCommunityManagement() {
       await axiosPrivate.put(`/head/sub-heads/${editPowersModal.id || editPowersModal._id}`, {
         headPermissions: editPowersModal.headPermissions
       });
-      alert('Powers & Permissions updated successfully!');
+      let moduleNote = '';
+      try {
+        const moduleRes = await saveModuleAccess(editPowersModal.id || editPowersModal._id, powersModuleSelection);
+        if (moduleRes?.message) moduleNote = `
+${moduleRes.message}`;
+      } catch (moduleErr) {
+        moduleNote = `
+Module access was not saved: ${moduleErr.response?.data?.message || moduleErr.message}`;
+      }
+      alert('Powers & Permissions updated successfully!' + moduleNote);
       setEditPowersModal(null);
       fetchLocationData();
     } catch (err) {
@@ -1078,6 +1112,19 @@ export default function LocalCommunityManagement() {
                   </div>
                 </div>
 
+                {/* Module access — only modules I hold, for leaders who report to me */}
+                {appointPickerVisible ? (
+                  <ModuleAccessPicker
+                    key={`appoint-${assignForm.accountType}`}
+                    parentId={headUser?._id || headUser?.id}
+                    onChange={setModuleSelection}
+                  />
+                ) : (
+                  <p className="mt-3 pt-3 border-t border-slate-200 text-[11px] text-slate-500">
+                    Module access for a Local Sub-Head is given by their Local Head.
+                  </p>
+                )}
+
                 {/* Sub-Head Powers & Permissions Checklist */}
                 {assignForm.accountType === 'local_sub_head' && (
                   <div className="mt-4 pt-3 border-t border-slate-200">
@@ -1260,6 +1307,11 @@ export default function LocalCommunityManagement() {
             </div>
 
             <div className="community-modal-body space-y-3 max-h-[60vh] overflow-y-auto">
+              <ModuleAccessPicker
+                key={`powers-${editPowersModal.id || editPowersModal._id}`}
+                targetUserId={editPowersModal.id || editPowersModal._id}
+                onChange={setPowersModuleSelection}
+              />
               <p className="text-xs text-slate-600">
                 Check the modules and administrative capabilities you wish to grant to this leader:
               </p>

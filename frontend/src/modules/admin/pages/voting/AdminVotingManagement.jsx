@@ -9,6 +9,7 @@ import { adminVotingService } from '../../services/adminVotingService';
 import { axiosPrivate } from '../../../../core/api/axiosPrivate';
 import ElectionEligibilityFields, { electionFieldDefaults, electionFieldsFromElection, withExactTimes, formatElectionTime } from '../../../../components/election/ElectionEligibilityFields';
 
+import ElectionLiveStats from '../../../../components/election/ElectionLiveStats';
 export const AdminVotingManagement = () => {
   const [elections, setElections] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -968,7 +969,7 @@ export const AdminVotingManagement = () => {
               {/* Candidate Vote Tally Breakdown */}
               <div>
                 <h4 className="text-sm font-black text-slate-900 mb-3 flex items-center gap-2">
-                  <Award size={16} className="text-indigo-600" /> Candidate Vote Breakdown
+                  <Award size={16} className="text-indigo-600" /> {electionDetails && !electionDetails.resultsVisible ? 'Live Voting Statistics' : 'Candidate Vote Breakdown'}
                 </h4>
 
                 {detailsLoading ? (
@@ -976,6 +977,9 @@ export const AdminVotingManagement = () => {
                     <RefreshCw size={20} className="text-indigo-600 animate-spin mx-auto mb-2" />
                     <p className="text-xs font-bold text-slate-500">Calculating vote tallies...</p>
                   </div>
+                ) : electionDetails && !electionDetails.resultsVisible ? (
+                  // Ballot confidentiality: aggregate numbers only until the result is declared
+                  <ElectionLiveStats electionId={electionDetails._id} fetchStats={adminVotingService.getLiveStats} />
                 ) : electionDetails && electionDetails.candidates ? (
                   <div className="space-y-3">
                     {electionDetails.candidates.map((cand, idx) => {

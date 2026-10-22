@@ -15,6 +15,8 @@
 const User         = require('../models/User');
 const Conversation = require('../models/Conversation');
 const Group        = require('../models/Group');
+const Message      = require('../models/Message');
+const { emitDelivered } = require('./deliveryReceiptService');
 const { createMessage, markMessagesSeen, markConversationSeen, markMessagesDelivered, markAllPendingDelivered } = require('./messageService');
 const { notifyNewMessage, notifyMention, notifyGroupMessage, pushChatMessage, chatMessagePreview } = require('./notificationService');
 
@@ -81,16 +83,7 @@ const chatSocketService = (io) => {
 
     // Their device is online now: messages sent while they were offline are delivered
     markAllPendingDelivered(userId)
-      .then(async (convIds) => {
-        for (const cid of convIds) {
-          const conv = await Conversation.findById(cid).select('participants').lean();
-          for (const p of conv?.participants || []) {
-            if (p.toString() !== userId.toString()) {
-              io.to(`user:${p.toString()}`).emit('chat:messages_delivered', { conversationId: cid.toString(), userId });
-            }
-          }
-        }
-      })
+      .then((convIds) => emitDelivered(convIds, userId))
       .catch(err => console.warn('[ChatSocket] Delivered-on-connect failed:', err.message));
     console.log(`[ChatSocket] ${userId} connected (${socket.id}). Online: ${onlineUsers.size}`);
 
@@ -224,6 +217,18 @@ const chatSocketService = (io) => {
           metadata
         });
 
+        // Recipients whose app is connected right now have it → delivered (grey double
+        // tick) straight away. Must be saved before broadcasting so the sender sees it.
+        const onlineRecipients = conversation.participants.filter(
+          p => p.toString() !== userId.toString() && isOnline(p.toString())
+        );
+        if (onlineRecipients.length) {
+          await Message.updateOne({ _id: populatedMsg._id }, { $addToSet: { deliveredTo: { $each: onlineRecipients } } });
+          onlineRecipients.forEach(p => {
+            if (!populatedMsg.deliveredTo.some(d => d.toString() === p.toString())) populatedMsg.deliveredTo.push(p);
+          });
+        }
+
         // Broadcast to conversation room
         io.to(`conv:${conversationId}`).emit('chat:new_message', populatedMsg);
 
@@ -238,11 +243,7 @@ const chatSocketService = (io) => {
           io.to(`user:${pid}`).emit('chat:new_message', populatedMsg);
 
           if (isOnline(pid)) {
-            // Participant is online → mark delivered, and push in case the app is in the background
-            io.to(`user:${pid}`).emit('chat:message_delivered', {
-              messageId: populatedMsg._id,
-              conversationId
-            });
+            // Online (already marked delivered above) → push in case the app is in the background
             pushChatMessage({ userId: pid, senderName, preview, groupName: group?.name, groupId: group?._id, conversationId });
           } else if (group) {
             // Offline → bell notification + push (sent by createNotification)

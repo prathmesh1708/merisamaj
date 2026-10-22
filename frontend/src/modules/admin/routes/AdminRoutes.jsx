@@ -42,6 +42,7 @@ import AdminAppShortcutsManagement from '../pages/shortcuts/AdminAppShortcutsMan
 import { UserAppEditsPage } from '../pages/userAppEdits/UserAppEditsPage';
 import AdminSubHeadManagement from '../pages/subheads/AdminSubHeadManagement';
 import AdminProfileSettings from '../pages/profile/AdminProfileSettings';
+import AdminModulePermissions from '../pages/permissions/AdminModulePermissions';
 
 export const AdminRoutes = () => {
   return (
@@ -63,6 +64,7 @@ export const AdminRoutes = () => {
         {/* Other Admin views */}
         <Route path="users" element={<UserManagement />} />
         <Route path="sub-heads" element={<AdminSubHeadManagement />} />
+        <Route path="module-permissions" element={<AdminModulePermissions />} />
         <Route path="census" element={<AdminCensusManagement />} />
         <Route path="leadership" element={<AdminLeadershipManagement />} />
         <Route path="matrimonial" element={<PlatformMatrimonialManagement />} />

@@ -11,9 +11,11 @@ import { useNavigate } from 'react-router-dom';
 import { useHeadAuth } from '../../auth/useHeadAuth';
 import { axiosPrivate } from '../../../../core/api/axiosPrivate';
 import { MemberApplicationModal } from './MemberApplicationModal';
+import { useModuleAccess } from '../../../../core/permissions/ModuleAccessContext';
 
 export const HeadDashboard = () => {
   const navigate = useNavigate();
+  const moduleAccess = useModuleAccess(); // hide shortcuts to modules not granted
   const { headAuth } = useHeadAuth();
   const headUser = headAuth?.headUser;
   const isLocalHead = headUser?.role === 'sub_head' || headUser?.accountType === 'local_head';
@@ -565,7 +567,7 @@ export const HeadDashboard = () => {
                     { icon: Briefcase, label: 'Professionals', color: 'text-amber-700', bg: 'bg-amber-50 hover:bg-amber-100/80 border-amber-200', path: '/head/professionals' },
                     { icon: DollarSign, label: 'Funds & Donations', color: 'text-emerald-700', bg: 'bg-emerald-50 hover:bg-emerald-100/80 border-emerald-200', path: '/head/funds' },
                     { icon: Settings, label: 'Settings', color: 'text-slate-700', bg: 'bg-slate-100 hover:bg-slate-200 border-slate-300', path: '/head/profile/settings' },
-                  ].map(({ icon: Icon, label, color, bg, path }) => (
+                  ].filter(({ path }) => moduleAccess.isPathAllowed(path)).map(({ icon: Icon, label, color, bg, path }) => (
                     <button 
                       key={label} 
                       onClick={() => navigate(path)} 

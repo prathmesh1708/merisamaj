@@ -26,6 +26,18 @@ const headVotingService = {
     return response.data;
   },
 
+  // Aggregate counts only — safe while voting is open
+  getLiveStats: async (electionId) => {
+    const response = await axiosPrivate.get(`/head/voting/${electionId}/live-stats`);
+    return response.data;
+  },
+
+  // Candidate-wise results — the server refuses until the result is declared
+  getResults: async (electionId) => {
+    const response = await axiosPrivate.get(`/head/voting/${electionId}/results`);
+    return response.data;
+  },
+
   closeElection: async (electionId) => {
     const response = await axiosPrivate.put(`/head/voting/${electionId}/close`);
     return response.data;

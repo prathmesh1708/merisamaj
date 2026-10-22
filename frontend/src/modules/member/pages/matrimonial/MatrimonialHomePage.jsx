@@ -22,6 +22,12 @@ const membershipRanks = {
   'Pro Supreme Plan': 4,
   'Combo Plan': 5
 };
+// Plans are created by the admin with any name ("Premium Monthly", "Premium Yearly"…),
+// so they can't be ranked by name. Any active paid matrimonial plan unlocks
+// everything that is "visible to paid members only".
+const PAID_MEMBER_RANK = Math.max(...Object.values(membershipRanks));
+const viewerRank = (membership, isSubscribed) =>
+  membershipRanks[membership] ?? (isSubscribed ? PAID_MEMBER_RANK : membershipRanks.Normal);
 const MatrimonialHomePage = () => {
   const navigate = useNavigate();
   const { currentUser, updateProfile, markModuleAsVisited } = useData();
@@ -161,7 +167,7 @@ const MatrimonialHomePage = () => {
   const isCurrentlySubscribed = sub && sub.status === 'active';
   const isCombo = isCurrentlySubscribed && sub.plan === 'Combo';
 
-  const [userMembership, setUserMembership] = useState('Pro Max');
+  const [userMembership, setUserMembership] = useState(isCurrentlySubscribed ? `${sub.plan} Plan` : 'Normal');
   const [isMembershipPopupOpen, setIsMembershipPopupOpen] = useState(false);
   const [selectedPlanToUpgrade, setSelectedPlanToUpgrade] = useState('Pro Supreme');
 
@@ -846,7 +852,7 @@ const MatrimonialHomePage = () => {
                   const isSentOrAccepted = isAccepted || isSent;
                   const isShort = isShortlisted(targetProfileId);
 
-                  const userRank = membershipRanks[userMembership] || 0;
+                  const userRank = viewerRank(userMembership, isCurrentlySubscribed);
                   const targetRank = membershipRanks[profile.membershipTier] || 0;
                   const hasMembershipAccess = userRank >= targetRank;
 
@@ -1997,9 +2003,9 @@ const MatrimonialHomePage = () => {
             <div className="flex flex-col gap-2 mt-auto shrink-0">
               <button
                 onClick={() => {
-                  setUserMembership(selectedPlanToUpgrade);
+                  // Upgrades only happen through real payment on the subscription page
                   setIsMembershipPopupOpen(false);
-                  showToast(`Upgraded to ${selectedPlanToUpgrade} Successfully! 👑`);
+                  navigate('/member/matrimonial/subscription');
                 }}
                 className="w-full py-3.5 bg-rose-500 text-white rounded-2xl text-[13.5px] font-extrabold shadow-md active:scale-95 transition-transform"
               >

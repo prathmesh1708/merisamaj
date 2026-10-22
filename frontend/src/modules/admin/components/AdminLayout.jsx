@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { 
-  LayoutDashboard, Users, Heart, Calendar, Settings, LogOut, Menu, X, Shield, ShieldAlert, Send, Search, Building2, CreditCard, Globe, ChevronDown, ChevronUp, Network, Briefcase, HeartHandshake, Megaphone, Landmark, Flame, Crown, CheckSquare, BarChart3, Gift, Sparkles, LayoutTemplate, User
+  LayoutDashboard, Users, Heart, Calendar, Settings, LogOut, Menu, X, Shield, ShieldAlert, Send, Search, Building2, CreditCard, Globe, ChevronDown, ChevronUp, Network, Briefcase, HeartHandshake, Megaphone, Landmark, Flame, Crown, CheckSquare, BarChart3, Gift, Sparkles, LayoutTemplate, User, KeyRound
 } from 'lucide-react';
 import { useData } from '../../member/context/DataProvider';
 import { Avatar } from '../../member/components/common/Avatar';
@@ -79,6 +79,12 @@ export const AdminLayout = () => {
           path: '/admin/community-heads', 
           icon: Users,
           permKey: 'canManageCommunityHeads'
+        },
+        {
+          name: 'Module Permissions',
+          path: '/admin/module-permissions',
+          icon: KeyRound,
+          masterOnly: true
         },
         { 
           name: 'City Management', 
@@ -242,7 +248,7 @@ export const AdminLayout = () => {
 
   const filteredNavigationConfig = navigationConfig.map(section => ({
     ...section,
-    items: section.items.filter(item => isModuleAllowed(item.permKey))
+    items: section.items.filter(item => isModuleAllowed(item.permKey) && (!item.masterOnly || isMasterAdmin))
   })).filter(section => section.items.length > 0);
 
   // Auto-expand active category

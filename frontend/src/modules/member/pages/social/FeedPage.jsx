@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageCircle, MoreHorizontal, PlusCircle, Image as ImageIcon, Send, Search, Bell, Radio, Clock, Camera, Video, Calendar, Eye, Heart, Bookmark, Award, Sparkles, Smile, Phone, MapPin, Check, Gift, X, SlidersHorizontal, User, Settings, LogOut, Megaphone, HeartHandshake, AlertCircle, ChevronLeft, ChevronRight, Play } from 'lucide-react';
+import { MessageCircle, MoreHorizontal, PlusCircle, Image as ImageIcon, Send, Search, Bell, Radio, Clock, Camera, Video, Calendar, Eye, Heart, Bookmark, Award, Sparkles, Smile, Phone, MapPin, Check, Gift, X, SlidersHorizontal, User, Settings, LogOut, Megaphone, HeartHandshake, AlertCircle, ChevronLeft, ChevronRight, Play, Volume2, VolumeX } from 'lucide-react';
 
 const InstagramIcon = (props) => (
   <svg
@@ -184,37 +184,86 @@ const extractYouTubeVideoId = (url) => {
   return '';
 };
 
+// ─── Instagram-style feed video ───────────────────────────────────────────────
+// Autoplays (muted) when at least 60% of it is on screen, pauses when scrolled away,
+// loops, and only one feed video plays at a time. Tapping toggles sound; the sound
+// choice is shared by every feed video, like Instagram.
+const FEED_VIDEO_VISIBLE_RATIO = 0.6;
+let feedVideosMuted = true;
+let activeFeedVideo = null;
+const feedMuteListeners = new Set();
+const setFeedVideosMuted = (muted) => {
+  feedVideosMuted = muted;
+  feedMuteListeners.forEach((listener) => listener(muted));
+};
+
 const AutoPauseVideo = ({ src, isSingle = true, onClick }) => {
   const videoRef = React.useRef(null);
   const containerRef = React.useRef(null);
+  const inViewRef = React.useRef(false);
+  const [muted, setMuted] = useState(feedVideosMuted);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+
+  // Keep this video in sync when sound is toggled on any feed video
+  useEffect(() => {
+    feedMuteListeners.add(setMuted);
+    return () => feedMuteListeners.delete(setMuted);
+  }, []);
+
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.muted = muted;
+  }, [muted]);
+
+  const playVideo = React.useCallback(() => {
+    const videoEl = videoRef.current;
+    if (!videoEl) return;
+    if (activeFeedVideo && activeFeedVideo !== videoEl) activeFeedVideo.pause();
+    activeFeedVideo = videoEl;
+    videoEl.muted = feedVideosMuted;
+    const attempt = videoEl.play();
+    if (attempt && attempt.catch) {
+      attempt.catch(() => {
+        // Browsers block autoplay with sound until the user interacts — fall back to muted
+        if (!videoEl.muted) {
+          videoEl.muted = true;
+          setFeedVideosMuted(true);
+          videoEl.play().catch(() => {});
+        }
+      });
+    }
+  }, []);
 
   useEffect(() => {
     const videoEl = videoRef.current;
     const containerEl = containerRef.current;
     if (!videoEl || !containerEl) return;
 
-    // Automatically pause video when scrolled out of viewport
+    // React doesn't reliably set the muted attribute, which iOS requires for autoplay
+    videoEl.muted = feedVideosMuted;
+    videoEl.defaultMuted = true;
+
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (!entry.isIntersecting || entry.intersectionRatio < 0.15) {
-            if (!videoEl.paused) {
-              videoEl.pause();
-            }
+          inViewRef.current = entry.isIntersecting && entry.intersectionRatio >= FEED_VIDEO_VISIBLE_RATIO;
+          if (inViewRef.current && !document.hidden) {
+            playVideo();
+          } else if (!videoEl.paused) {
+            videoEl.pause();
           }
         });
       },
-      {
-        threshold: [0, 0.15, 0.5, 0.8, 1.0],
-        rootMargin: '0px'
-      }
+      { threshold: [0, FEED_VIDEO_VISIBLE_RATIO, 1.0] }
     );
-
     observer.observe(containerEl);
 
+    // Pause when the tab/app goes to the background, resume when it comes back
     const handleVisibilityChange = () => {
-      if (document.hidden && !videoEl.paused) {
-        videoEl.pause();
+      if (document.hidden) {
+        if (!videoEl.paused) videoEl.pause();
+      } else if (inViewRef.current) {
+        playVideo();
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -222,24 +271,77 @@ const AutoPauseVideo = ({ src, isSingle = true, onClick }) => {
     return () => {
       observer.disconnect();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      videoEl.pause();
+      if (activeFeedVideo === videoEl) activeFeedVideo = null;
     };
-  }, []);
+  }, [src, playVideo]);
+
+  const toggleSound = (e) => {
+    e.stopPropagation();
+    setFeedVideosMuted(!feedVideosMuted);
+    if (videoRef.current?.paused) playVideo();
+  };
+
+  const handleTap = (e) => {
+    // In a multi-media grid the tile opens the post; a single video toggles sound
+    if (!isSingle && onClick) {
+      onClick(e);
+      return;
+    }
+    if (videoRef.current?.paused) {
+      e.stopPropagation();
+      playVideo();
+      return;
+    }
+    toggleSound(e);
+  };
 
   return (
     <div 
       ref={containerRef} 
-      className={isSingle ? "w-full overflow-hidden bg-black flex items-center justify-center relative my-0.5" : "w-full h-full bg-black flex items-center justify-center relative"}
-      onClick={onClick}
+      className={isSingle ? "w-full overflow-hidden bg-black flex items-center justify-center relative my-0.5 cursor-pointer" : "w-full h-full bg-black flex items-center justify-center relative cursor-pointer"}
+      onClick={handleTap}
     >
       <video 
         ref={videoRef}
         src={src} 
-        controls 
+        muted
+        loop
         playsInline
         webkit-playsinline="true"
         preload="metadata"
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onTimeUpdate={(e) => {
+          const { currentTime, duration } = e.currentTarget;
+          setProgress(duration ? (currentTime / duration) * 100 : 0);
+        }}
         className={isSingle ? "w-full max-h-[600px] object-contain block mx-auto" : "w-full h-full object-cover"} 
       />
+
+      {/* Play icon only when the video isn't running (e.g. the browser blocked autoplay) */}
+      {!isPlaying && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="w-14 h-14 rounded-full bg-black/45 backdrop-blur-sm flex items-center justify-center">
+            <Play size={26} className="text-white fill-white ml-1" />
+          </div>
+        </div>
+      )}
+
+      {/* Sound toggle, bottom-right like Instagram */}
+      <button
+        type="button"
+        onClick={toggleSound}
+        aria-label={muted ? 'Turn sound on' : 'Turn sound off'}
+        className="absolute bottom-3 right-3 w-8 h-8 rounded-full bg-black/55 backdrop-blur-sm flex items-center justify-center text-white active:scale-90 transition-transform"
+      >
+        {muted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+      </button>
+
+      {/* Thin progress bar */}
+      <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-white/20 pointer-events-none">
+        <div className="h-full bg-white/90" style={{ width: `${progress}%` }} />
+      </div>
     </div>
   );
 };

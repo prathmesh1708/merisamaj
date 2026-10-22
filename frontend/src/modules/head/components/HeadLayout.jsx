@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { 
-  LayoutDashboard, Wallet, Vote, Send, Settings, LogOut, Menu, X, Award, ShieldCheck, Shield, Users, Calendar, Briefcase, Heart, Search, BarChart3, HeartHandshake, User, ChevronDown, ChevronUp, Mail, LayoutTemplate, Home, Share2, Megaphone, MapPin
+  LayoutDashboard, Wallet, Vote, Send, Settings, LogOut, Menu, X, Award, ShieldCheck, Shield, Users, Calendar, Briefcase, Heart, Search, BarChart3, HeartHandshake, User, ChevronDown, ChevronUp, Mail, LayoutTemplate, Home, Share2, Megaphone, MapPin, KeyRound
 } from 'lucide-react';
 import { useData } from '../../member/context/DataProvider';
 import { useHeadAuth } from '../auth/useHeadAuth';
@@ -9,6 +9,7 @@ import { Avatar } from '../../member/components/common/Avatar';
 import { filterMembersForHead } from '../utils/headCommunityFilter';
 import { NotificationBell } from '../../member/components/layout/NotificationBell';
 import { HeadBottomNav } from './HeadBottomNav';
+import { useModuleAccess, ModuleRouteGuard } from '../../../core/permissions/ModuleAccessContext';
 
 export const HeadLayout = () => {
   const { headAuth, headLogout } = useHeadAuth();
@@ -33,6 +34,9 @@ export const HeadLayout = () => {
   const isSuperAdmin = currentUser?.role === 'admin' || headUser?.role === 'admin';
   const isMainHead = headUser?.role === 'head';
   const isLocalHeadLeader = headUser?.accountType === 'local_head' || headUser?.subHeadType === 'local';
+
+  // Hierarchical module access (modules granted by the administrator above)
+  const moduleAccess = useModuleAccess();
 
   const isModuleAllowed = (permKey) => {
     if (isSuperAdmin) return true;
@@ -192,6 +196,12 @@ export const HeadLayout = () => {
           icon: LayoutTemplate
         },
         {
+          name: 'Module Permissions',
+          path: '/head/module-permissions',
+          icon: KeyRound,
+          canDelegateOnly: true
+        },
+        {
           name: 'Community Settings',
           path: '/head/settings',
           icon: Settings
@@ -201,11 +211,23 @@ export const HeadLayout = () => {
   ];
 
   // Filter sections and items based on permissions
+  // An item (or sub-item) shows only if its module was granted down the hierarchy
+  const withGrantedModules = (item) => {
+    if (!item.children) return moduleAccess.isPathAllowed(item.path) ? item : null;
+    const children = item.children.filter(c => moduleAccess.isPathAllowed(c.path));
+    return children.length ? { ...item, children } : null;
+  };
+
   const filteredNavigationConfig = navigationConfig.map(section => ({
     ...section,
-    items: section.items.filter(item =>
-      isModuleAllowed(item.permKey) && (!item.headOnly || isSuperAdmin || headUser?.role === 'head' || isLocalHeadLeader)
-    )
+    items: section.items
+      .filter(item =>
+        isModuleAllowed(item.permKey) &&
+        (!item.headOnly || isSuperAdmin || headUser?.role === 'head' || isLocalHeadLeader) &&
+        (!item.canDelegateOnly || isSuperAdmin || moduleAccess.me?.canDelegate)
+      )
+      .map(withGrantedModules)
+      .filter(Boolean)
   })).filter(section => section.items.length > 0);
 
   // Auto-expand active category
@@ -600,7 +622,9 @@ export const HeadLayout = () => {
 
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto px-2 sm:px-4 md:px-8 pt-1 sm:pt-2 md:pt-3 pb-28 sm:pb-32 md:pb-8 relative">
-          <Outlet />
+          <ModuleRouteGuard>
+            <Outlet />
+          </ModuleRouteGuard>
         </div>
 
         {/* ─── MOBILE BOTTOM NAV (MATCHING USER APP FLOATING CAPSULE) ─── */}

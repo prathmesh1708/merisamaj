@@ -2,17 +2,21 @@ import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Users, Heart, Calendar, User } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useModuleAccess } from '../../../core/permissions/ModuleAccessContext';
 
 export const HeadBottomNav = ({ pendingApprovalsCount = 0 }) => {
   const location = useLocation();
+  const { isPathAllowed } = useModuleAccess();
 
-  const navItems = [
+  const allNavItems = [
     { name: 'Dashboard', path: '/head/dashboard', icon: LayoutDashboard, activeColor: '#7C3AED' },
     { name: 'Members', path: '/head/members', icon: Users, activeColor: '#2563EB', badge: pendingApprovalsCount > 0 ? pendingApprovalsCount : null },
     { name: 'Matrimony', path: '/head/matrimonial', icon: Heart, activeColor: '#E11D48' },
     { name: 'Events', path: '/head/events', icon: Calendar, activeColor: '#059669' },
     { name: 'Profile', path: '/head/profile', icon: User, activeColor: '#D97706' },
   ];
+  // Hide modules not granted down the hierarchy
+  const navItems = allNavItems.filter(item => isPathAllowed(item.path));
 
   return (
     <div 

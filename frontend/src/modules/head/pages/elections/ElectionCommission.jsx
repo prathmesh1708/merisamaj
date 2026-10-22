@@ -5,6 +5,7 @@ import {
   Users, MapPin, Shield, Search, Check, Edit3, Filter, Building2, UserCheck, ChevronRight
 } from 'lucide-react';
 import headVotingService from '../../../../core/api/headVotingService';
+import ElectionLiveStats from '../../../../components/election/ElectionLiveStats';
 import ElectionEligibilityFields, { electionFieldDefaults, electionFieldsFromElection, withExactTimes, formatElectionTime } from '../../../../components/election/ElectionEligibilityFields';
 
 export const ElectionCommission = () => {
@@ -14,6 +15,8 @@ export const ElectionCommission = () => {
   const [toast, setToast] = useState(null);
   
   const [elections, setElections] = useState([]);
+  // Election whose live (aggregate-only) statistics are open in the modal
+  const [statsElection, setStatsElection] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -429,33 +432,64 @@ export const ElectionCommission = () => {
                   <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">{el.description}</p>
                 </div>
 
-                {/* Candidates & Votes mapping */}
+                {/* Candidates — numbers only once the result is declared (ballot confidentiality) */}
                 <div className="space-y-3 pt-3 border-t border-slate-100">
                   <div className="flex justify-between items-center">
                     <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                      <BarChart3 size={12} className="text-indigo-600" /> Live Ballot Tally
+                      {el.resultsVisible
+                        ? <><Award size={12} className="text-indigo-600" /> Final Results</>
+                        : <><Lock size={12} className="text-slate-400" /> Candidates</>}
                     </h4>
                     <span className="text-[10.5px] font-black text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-md border border-indigo-100">
                       {el.totalVotes} Total Votes
                     </span>
                   </div>
-                  
-                  <div className="space-y-2.5">
-                    {(el.candidates || []).map((c, idx) => {
-                      const percent = el.totalVotes > 0 ? Math.round((c.votes / el.totalVotes) * 100) : 0;
-                      return (
-                        <div key={idx} className="space-y-1 bg-slate-50/70 p-2 rounded-xl border border-slate-100">
-                          <div className="flex justify-between text-[11px] text-slate-700 font-semibold">
-                            <span className="truncate pr-2">{c.name} {c.profession ? `(${c.profession})` : ''}</span>
-                            <span className="font-bold text-indigo-600 shrink-0">{c.votes || 0} votes ({percent}%)</span>
+
+                  {el.resultsVisible ? (
+                    <div className="space-y-2.5">
+                      {[...(el.candidates || [])].sort((a, b) => (b.votes || 0) - (a.votes || 0)).map((c, idx, list) => {
+                        const percent = el.totalVotes > 0 ? Math.round(((c.votes || 0) / el.totalVotes) * 1000) / 10 : 0;
+                        const isWinner = (c.votes || 0) > 0 && (c.votes || 0) === (list[0].votes || 0);
+                        return (
+                          <div key={c._id || idx} className={`space-y-1 p-2 rounded-xl border ${isWinner ? 'bg-amber-50/70 border-amber-200' : 'bg-slate-50/70 border-slate-100'}`}>
+                            <div className="flex justify-between text-[11px] text-slate-700 font-semibold">
+                              <span className="truncate pr-2 flex items-center gap-1">
+                                {isWinner && <Award size={12} className="text-amber-500 shrink-0" />}
+                                {c.name} {c.profession ? `(${c.profession})` : ''}
+                              </span>
+                              <span className="font-bold text-indigo-600 shrink-0">{c.votes || 0} votes ({percent}%)</span>
+                            </div>
+                            <div className="w-full h-2 bg-slate-200/60 rounded-full overflow-hidden">
+                              <div className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-700" style={{ width: `${percent}%` }} />
+                            </div>
                           </div>
-                          <div className="w-full h-2 bg-slate-200/60 rounded-full overflow-hidden">
-                            <div className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-700" style={{ width: `${percent}%` }} />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(el.candidates || []).map((c, idx) => (
+                          <span key={c._id || idx} className="text-[11px] font-semibold text-slate-700 bg-slate-50 border border-slate-100 px-2 py-1 rounded-lg">
+                            {c.name}
+                          </span>
+                        ))}
+                      </div>
+                      <p className="text-[10.5px] text-slate-500 flex items-start gap-1.5">
+                        <Lock size={11} className="shrink-0 mt-0.5" />
+                        Candidate-wise results stay hidden until {formatElectionTime(el.resultDate || el.endDate)}.
+                      </p>
+                      {['Active', 'ResultPending'].includes(el.lifecycleStatus) && (
+                        <button
+                          type="button"
+                          onClick={() => setStatsElection(el)}
+                          className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold transition-colors"
+                        >
+                          <BarChart3 size={13} /> View Live Statistics
+                        </button>
+                      )}
+                    </>
+                  )}
                 </div>
 
                 {/* Card Footer with actions */}
@@ -877,6 +911,22 @@ export const ElectionCommission = () => {
         )}
       </AnimatePresence>
 
+
+      {/* Live statistics (aggregate numbers only) */}
+      {statsElection && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setStatsElection(null)}>
+          <div className="bg-slate-50 w-full sm:max-w-2xl max-h-[90vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl p-4 sm:p-5" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <h3 className="text-base font-black text-slate-900">{statsElection.title}</h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">Live voting statistics · numbers only</p>
+              </div>
+              <button type="button" onClick={() => setStatsElection(null)} className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-500"><X size={18} /></button>
+            </div>
+            <ElectionLiveStats electionId={statsElection._id || statsElection.id} fetchStats={headVotingService.getLiveStats} />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

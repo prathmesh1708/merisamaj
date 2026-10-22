@@ -53,6 +53,7 @@ const createNotification = async (params) => {
         title:          params.push?.title   || params.title,
         message:        params.push?.message || params.message,
         tag:            params.push?.tag,
+        ackConversationId: params.push?.ackConversationId,
         icon:           notification.icon,
         actionUrl:      params.actionUrl || '/member/notifications'
       });
@@ -320,10 +321,13 @@ const notifySubscriptionActivated = (userId, planName) =>
  * Text shown on the device for a chat push: sender (or group) as the title and the
  * actual message as the body, like WhatsApp. `tag` keeps one notification per chat.
  */
-const chatPushContent = ({ senderName, preview, groupName, conversationId }) => ({
+const chatPushContent = ({ senderName, preview, groupName, conversationId, ackConversationId }) => ({
   title:   groupName || senderName || 'New Message',
   message: groupName ? `${senderName || 'Someone'}: ${preview || 'New message'}` : (preview || 'Sent you a message'),
-  tag:     `chat-${conversationId}`
+  tag:     `chat-${conversationId}`,
+  // Community/group chat conversation whose messages get the "delivered" tick when
+  // this push reaches the phone (matrimonial chat has its own receipts)
+  ackConversationId
 });
 
 /** Short preview of a chat message for notifications */
@@ -342,7 +346,10 @@ const chatMessagePreview = (type, text) => {
  * hides it if the app is open and visible on that device.
  */
 const pushChatMessage = ({ userId, senderName, preview, groupName, groupId, conversationId, module = 'chat' }) => {
-  const content = chatPushContent({ senderName, preview, groupName, conversationId });
+  const content = chatPushContent({
+    senderName, preview, groupName, conversationId,
+    ackConversationId: module === 'matrimonial' ? undefined : conversationId
+  });
   let actionUrl = `/member/chat/${conversationId}`;
   if (groupId) actionUrl = `/member/groups/${groupId}`;
   else if (module === 'matrimonial') actionUrl = `/member/matrimonial/chat/${conversationId}`;
@@ -357,7 +364,7 @@ const pushChatMessage = ({ userId, senderName, preview, groupName, groupId, conv
 
 const notifyNewMessage = (receiverId, senderName, conversationId, module = 'matrimonial', preview = null) =>
   createNotification({
-    push:          chatPushContent({ senderName, preview, conversationId }),
+    push:          chatPushContent({ senderName, preview, conversationId, ackConversationId: module === 'matrimonial' ? undefined : conversationId }),
     userId:        receiverId,
     module,
     type:          'chat_new_message',
@@ -396,7 +403,7 @@ const notifyProfileViewed = (profileOwnerId, viewerName) =>
 const notifyGroupMessage = (memberIds, senderName, groupId, groupName, preview = null, conversationId = null) => {
   const promises = (memberIds || []).map(memberId =>
     createNotification({
-      push:          chatPushContent({ senderName, preview, groupName, conversationId: conversationId || groupId }),
+      push:          chatPushContent({ senderName, preview, groupName, conversationId: conversationId || groupId, ackConversationId: conversationId || undefined }),
       userId:        memberId,
       module:        'chat',
       type:          'group_new_message',

@@ -54,6 +54,11 @@ export const useAxiosPrivate = () => {
         const isHeadTarget = requestUrl.includes('/head/') || (!requestUrl.includes('/member/') && !requestUrl.includes('/admin/') && window.location.pathname.startsWith('/head'));
         const isAdminTarget = requestUrl.includes('/admin/') || (!requestUrl.includes('/member/') && !requestUrl.includes('/head/') && window.location.pathname.startsWith('/admin'));
 
+        // Was this user-app request sent with the Head Panel login (a Head using the user app)?
+        const sentToken = String(prevRequest?.headers?.Authorization || prevRequest?.headers?.authorization || '').replace(/^Bearer\s+/i, '');
+        const headToken = localStorage.getItem('head_auth_token');
+        const usedHeadToken = !isHeadTarget && !isAdminTarget && !!sentToken && sentToken === headToken;
+
         if (error?.response?.status === 401 && !prevRequest?.sent) {
           prevRequest.sent = true;
           try {
@@ -79,6 +84,17 @@ export const useAxiosPrivate = () => {
               prevRequest.headers['Authorization'] = `Bearer ${newAccessToken}`;
               return axiosPrivate(prevRequest);
             } else {
+              // A Head who opened the user app runs on the Head Panel login: renew that one
+              if (usedHeadToken) {
+                const response = await authService.refreshHead();
+                const newAccessToken = response.accessToken;
+                localStorage.setItem('head_auth_token', newAccessToken);
+                localStorage.setItem('merisamaj_token', newAccessToken);
+                setAuth(prev => ({ ...prev, accessToken: newAccessToken, isAuthenticated: true }));
+                prevRequest.headers['Authorization'] = `Bearer ${newAccessToken}`;
+                return axiosPrivate(prevRequest);
+              }
+
               // Attempt to get a new access token using the Member HTTP-only refresh token cookie
               const response = await authService.refresh();
               const newAccessToken = response.accessToken;
@@ -121,7 +137,17 @@ export const useAxiosPrivate = () => {
               localStorage.removeItem('merisamaj_token');
               localStorage.removeItem('merisamaj_refresh_token');
               localStorage.removeItem('merisamaj_has_session');
-              
+
+              // An expired Head Panel login must end too: the user app reuses it to sign
+              // straight back in, which repeated these failing requests in an endless loop
+              if (usedHeadToken || (headToken && sentToken === headToken)) {
+                localStorage.removeItem('head_auth_user');
+                localStorage.removeItem('head_auth_token');
+                localStorage.removeItem('head_has_session');
+                localStorage.removeItem('head_refresh_token');
+                setHeadAuth({ headUser: null, isAuthenticated: false, isInitialized: true });
+              }
+
               setAuth({
                 user: null,
                 accessToken: null,

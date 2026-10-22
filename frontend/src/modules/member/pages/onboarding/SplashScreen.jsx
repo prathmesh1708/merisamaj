@@ -8,14 +8,10 @@ const hasStored = (...keys) => {
   try { return keys.every(k => !!localStorage.getItem(k)); } catch { return false; }
 };
 
-// Where a logged-in user lands when the app opens (same rules as after login)
-const homeFor = (user) => {
-  const role = user?.role;
-  if (role === 'admin' || role === 'admin_sub_head' || (role === 'sub_head' && user?.subHeadType === 'admin')) return '/admin/dashboard';
-  if (role === 'head' || role === 'sub_head') return '/head/dashboard';
-  if (!(user?.communityId || user?.community)) return '/member/onboarding';
-  return '/member/home';
-};
+// This is the start of the USER app: a logged-in person always lands in the user app.
+// The Admin and Head panels open only from their own addresses (/admin, /head), even when
+// this browser is also logged into them.
+const homeFor = (user) => (!(user?.communityId || user?.community) ? '/member/onboarding' : '/member/home');
 
 const slides = [
   {
@@ -63,8 +59,8 @@ const SplashScreen = () => {
       navigate(homeFor(auth.user), { replace: true });
       return;
     }
-    if (hasStored('admin_has_session', 'admin_auth_token')) { navigate('/admin/dashboard', { replace: true }); return; }
-    if (hasStored('head_has_session', 'head_auth_token')) { navigate('/head/dashboard', { replace: true }); return; }
+    // A Head logged into the Head Panel opens the user app with that same login
+    if (hasStored('head_has_session', 'head_auth_token')) { navigate('/member/home', { replace: true }); return; }
 
     // 2. Logged out on a phone that has used the app before → Login
     if (hasChosenLanguage() && hasSeenIntro()) { navigate('/login', { replace: true }); return; }

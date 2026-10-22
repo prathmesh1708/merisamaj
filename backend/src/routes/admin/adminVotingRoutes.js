@@ -14,6 +14,8 @@ router.post('/', adminVotingController.createElection);
 router.get('/stats', adminVotingController.getVotingStats);
 const manage = require('../../controllers/head/electionManageController');
 router.get('/:id/analytics', manage.getAnalytics);
+router.get('/:id/live-stats', manage.getLiveStats);   // aggregate counts only
+router.get('/:id/results', manage.getResults);         // candidate-wise, only once declared
 router.post('/:id/declare-result', manage.declareResult);
 router.post('/:id/cancel', manage.cancelElection);
 router.post('/:id/reopen', manage.reopenElection);

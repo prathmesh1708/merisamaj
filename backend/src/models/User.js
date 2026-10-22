@@ -262,6 +262,19 @@ const userSchema = new mongoose.Schema({
     canManageConfig: { type: Boolean, default: false }
   },
 
+  // Hierarchical module access (Master Admin → Community Head → Local Head → Sub-Head).
+  // Which Head-panel modules (config/moduleCatalog.js) this user received from their
+  // parent. Effective access is always intersected with the parent's effective
+  // access, so a child can never hold a module its parent doesn't have.
+  //   restricted=false → inherits every module the parent has (default; pre-existing accounts)
+  //   restricted=true  → only `modules` (and only while the parent still has them)
+  moduleAccess: {
+    restricted: { type: Boolean, default: false },
+    modules:    { type: [String], default: [] },
+    assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    updatedAt:  { type: Date, default: null }
+  },
+
   // Granular module permissions for Community & Local Sub-Head users
   headPermissions: {
     canViewDashboard: { type: Boolean, default: true },
