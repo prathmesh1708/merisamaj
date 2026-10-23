@@ -21,16 +21,21 @@ const FREE_FALLBACK = {
 const planTypeFilter = (planType = 'matrimonial') =>
   planType === 'app' ? { planType: 'app' } : { planType: { $ne: 'app' } };
 
+// A live plan wins over a cancelled one, even if the cancelled one runs longer:
+// otherwise a member who cancels and buys again gets the old plan's features.
+const STATUS_RANK = { active: 0, grace: 1, cancelled: 2 };
+
 const getActiveSubscription = async (userId, planType = 'matrimonial') => {
   const now = new Date();
   // Includes 'grace' (within grace period) and 'cancelled' (cancelled but paid until endDate)
-  const sub = await UserSubscription.findOne({
+  const subs = await UserSubscription.find({
     userId,
     ...planTypeFilter(planType),
     status:  { $in: ['active', 'grace', 'cancelled'] },
     endDate: { $gte: now }
   }).sort({ endDate: -1 }).lean();
-  return sub;
+  subs.sort((a, b) => STATUS_RANK[a.status] - STATUS_RANK[b.status]); // stable: keeps latest endDate first within a status
+  return subs[0] || null;
 };
 
 // ─── Get effective features (subscription snapshot or free defaults) ──────────

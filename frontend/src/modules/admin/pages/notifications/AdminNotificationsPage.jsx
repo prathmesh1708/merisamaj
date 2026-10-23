@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Send, BarChart3, ShieldCheck, AlertTriangle, CheckCircle2, Clock, 
   Filter, RefreshCw, Megaphone, Loader2, Sparkles, Building2, Layers,
-  Users, Check, History, X, Lock
+  Users, Check, History, X, Lock, ImagePlus
 } from 'lucide-react';
 import { axiosPrivate } from '../../../../core/api/axiosPrivate';
 import { useAdminAuth } from '../../auth/useAdminAuth';
@@ -10,7 +10,10 @@ import { useAdminAuth } from '../../auth/useAdminAuth';
 export const AdminNotificationsPage = () => {
   const { adminAuth } = useAdminAuth();
   const adminRole = (adminAuth?.adminUser?.role || '').toLowerCase();
-  const isSuperOrMasterAdmin = ['super_admin', 'master_admin'].includes(adminRole);
+  // Same rule as the server route (authorizeAdminModule('canSendNotifications')):
+  // the Master Admin — whose role is 'admin' — or an Admin Sub-Head granted "Send Notifications".
+  const isSuperOrMasterAdmin = ['admin', 'super_admin', 'master_admin', 'master'].includes(adminRole) ||
+    adminAuth?.adminUser?.adminPermissions?.canSendNotifications === true;
 
   const [analytics, setAnalytics] = useState(null);
   const [history, setHistory] = useState([]);
@@ -30,6 +33,36 @@ export const AdminNotificationsPage = () => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [sending, setSending] = useState(false);
   const [broadcastSuccessMsg, setBroadcastSuccessMsg] = useState('');
+  // Optional picture / poster sent with the notification
+  const [imageUrl, setImageUrl] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const handleImagePick = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // lets the same file be picked again after removing it
+    if (!file) return;
+    if (!['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(file.type)) {
+      alert('Please choose a JPG, PNG or WEBP image.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert('The image must be 5 MB or smaller.');
+      return;
+    }
+    setUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const res = await axiosPrivate.post('/admin/notifications/upload-image', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      setImageUrl(res.data?.data?.url || '');
+    } catch (err) {
+      alert(err.response?.data?.message || err.message || 'Image upload failed');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
   const fetchAnalytics = async () => {
     setLoading(true);
@@ -84,7 +117,8 @@ export const AdminNotificationsPage = () => {
         communityId: targetCommunity || null,
         targetRole,
         channel,
-        actionUrl
+        actionUrl,
+        ...(imageUrl ? { imageUrl } : {})
       };
 
       const res = await axiosPrivate.post('/admin/notifications/broadcast', payload);
@@ -94,6 +128,7 @@ export const AdminNotificationsPage = () => {
       // Reset form & generate new broadcastId
       setTitle('');
       setMessage('');
+      setImageUrl('');
       setBroadcastId('bc_' + Math.random().toString(36).substring(2, 9));
       setShowConfirmModal(false);
 
@@ -311,7 +346,7 @@ export const AdminNotificationsPage = () => {
         {!isSuperOrMasterAdmin && (
           <div className="p-4 bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold rounded-xl flex items-center gap-2">
             <Lock size={16} className="text-amber-600 shrink-0" />
-            <span>Broadcast message composition requires Super Admin or Master Admin privileges. Your account has read-only access to analytics and audit history.</span>
+            <span>Sending broadcasts requires the Master Admin or the "Send Notifications" permission. Your account has read-only access to analytics and audit history.</span>
           </div>
         )}
 
@@ -408,10 +443,48 @@ export const AdminNotificationsPage = () => {
             />
           </div>
 
+          {/* Image / Poster (optional) */}
+          <div>
+            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+              Image / Poster <span className="text-gray-400 normal-case font-semibold">(optional)</span>
+            </label>
+            {imageUrl ? (
+              <div className="relative w-full max-w-sm">
+                <img src={imageUrl} alt="Broadcast poster" className="w-full max-h-56 object-cover rounded-xl border border-gray-200" />
+                <button
+                  type="button"
+                  onClick={() => setImageUrl('')}
+                  disabled={!isSuperOrMasterAdmin}
+                  className="absolute top-2 right-2 p-1.5 bg-white/90 hover:bg-white text-gray-700 rounded-lg shadow-sm"
+                  aria-label="Remove image"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <label className={`flex items-center justify-center gap-2 w-full max-w-sm px-3.5 py-5 bg-gray-50 border border-dashed border-gray-300 rounded-xl text-xs font-semibold text-gray-500 transition-all ${
+                !isSuperOrMasterAdmin || uploadingImage ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-white hover:border-brand-primary'
+              }`}>
+                {uploadingImage ? <Loader2 size={16} className="animate-spin text-brand-primary" /> : <ImagePlus size={16} />}
+                <span>{uploadingImage ? 'Uploading...' : 'Add a picture (JPG, PNG, WEBP · max 5 MB)'}</span>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  disabled={!isSuperOrMasterAdmin || uploadingImage}
+                  onChange={handleImagePick}
+                />
+              </label>
+            )}
+            <p className="text-[10px] text-gray-400 mt-1">
+              Shown as a large picture in the phone notification and in the members' notification list. A wide (2:1) image looks best.
+            </p>
+          </div>
+
           <div className="flex items-center justify-end gap-3 pt-2">
             <button
               type="submit"
-              disabled={!isSuperOrMasterAdmin || !title.trim() || !message.trim()}
+              disabled={!isSuperOrMasterAdmin || uploadingImage || !title.trim() || !message.trim()}
               className="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-600 hover:to-rose-600 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               <Send size={15} />
@@ -466,8 +539,15 @@ export const AdminNotificationsPage = () => {
                       </span>
                     </td>
                     <td className="py-3 px-3 max-w-xs">
-                      <p className="font-bold text-gray-900 truncate">{item.title}</p>
-                      <p className="text-[11px] text-gray-500 truncate mt-0.5">{item.message}</p>
+                      <div className="flex items-center gap-2">
+                        {item.imageUrl && (
+                          <img src={item.imageUrl} alt="" className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0" />
+                        )}
+                        <div className="min-w-0">
+                          <p className="font-bold text-gray-900 truncate">{item.title}</p>
+                          <p className="text-[11px] text-gray-500 truncate mt-0.5">{item.message}</p>
+                        </div>
+                      </div>
                     </td>
                     <td className="py-3 px-3">
                       <span className="bg-gray-100 px-2 py-0.5 rounded text-[11px] font-semibold text-gray-700">
@@ -520,6 +600,12 @@ export const AdminNotificationsPage = () => {
               <p><strong className="text-gray-700">Target Role:</strong> {targetRole}</p>
               <p><strong className="text-gray-700">Delivery Channel:</strong> {channel === 'in_app_push' ? 'In-App + FCM Push' : 'In-App Only'}</p>
               <p><strong className="text-gray-700">Title:</strong> "{title}"</p>
+              {imageUrl && (
+                <div>
+                  <strong className="text-gray-700">Image:</strong>
+                  <img src={imageUrl} alt="" className="mt-1.5 w-full max-h-40 object-cover rounded-lg border border-gray-200" />
+                </div>
+              )}
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-2">

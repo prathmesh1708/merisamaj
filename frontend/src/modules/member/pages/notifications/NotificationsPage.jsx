@@ -287,6 +287,10 @@ const NotificationsPage = () => {
                       </div>
                     </div>
                     <p className="text-[12.5px] text-slate-500 mt-0.5 leading-relaxed font-semibold">{n.message}</p>
+                    {n.imageUrl && (
+                      <img src={n.imageUrl} alt="" loading="lazy"
+                        className="mt-2 w-full max-h-64 object-cover rounded-xl border border-slate-100" />
+                    )}
                     <div className="flex items-center gap-2 mt-1">
                       <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${cfg.color}`}>{cfg.label}</span>
                       <span className="text-[10px] text-slate-400 font-semibold">{timeAgo(n.createdAt)}</span>

@@ -35,14 +35,9 @@ exports.listPlans = async (req, res) => {
 // ─── Get Current User Subscription ───────────────────────────────────────────
 exports.getMySubscription = async (req, res) => {
   try {
-    const now = new Date();
     // A cancelled plan stays usable until its end date (that is what the user is told).
-    const sub = await UserSubscription.findOne({
-      userId:  req.user._id,
-      ...planTypeFilter(typeOf(req)),
-      status:  { $in: ['active', 'grace', 'cancelled'] },
-      endDate: { $gte: now }
-    }).sort({ endDate: -1 }).populate('planId', 'name price');
+    const active = await getActiveSubscription(req.user._id, typeOf(req));
+    const sub = active && await UserSubscription.populate(active, { path: 'planId', select: 'name price' });
 
     res.json({
       status: 'success',

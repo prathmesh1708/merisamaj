@@ -7,6 +7,7 @@ const adminBroadcastLogSchema = new mongoose.Schema({
   senderRole: { type: String },
   title: { type: String, required: true },
   message: { type: String, required: true },
+  imageUrl: { type: String, default: null }, // Optional poster shown in the push and in-app
   communityId: { type: mongoose.Schema.Types.ObjectId, ref: 'Community', default: null }, // Null = All Communities
   communityName: { type: String, default: 'All Communities' },
   targetRole: { type: String, enum: ['ALL', 'HEAD', 'MEMBER'], default: 'ALL' },

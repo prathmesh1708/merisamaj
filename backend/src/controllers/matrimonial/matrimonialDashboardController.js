@@ -29,7 +29,7 @@ exports.getDashboard = async (req, res) => {
       recentChatsCount
     ] = await Promise.all([
       MatrimonialProfile.findOne({ userId, isDeleted: false }),
-      UserSubscription.findOne({ userId, planType: { $ne: 'app' }, status: { $in: ['active', 'grace', 'cancelled'] }, endDate: { $gte: now } }).sort({ endDate: -1 }),
+      require('../../middleware/subscriptionMiddleware').getActiveSubscription(userId),
       InterestRequest.aggregate([
         { $match: { $or: [{ senderId: userId }, { receiverId: userId }] } },
         {
@@ -146,7 +146,7 @@ const getRecommendations = async (userId, myProfile, subscription) => {
   // Community scope by the members' real accounts (not the typed profile text):
   // own community only, unless the plan includes other communities.
   const { getEffectiveFeatures } = require('../../middleware/subscriptionMiddleware');
-  const { profileScopeCondition } = require('../../utils/matrimonialCommunityScope');
+  const { profileScopeCondition, communityUserIds, viewerCommunityId } = require('../../utils/matrimonialCommunityScope');
   const { features: planFeatures } = await getEffectiveFeatures(userId);
   const { condition: communityCondition } = await profileScopeCondition({
     user: userDoc,
@@ -228,9 +228,13 @@ const getRecommendations = async (userId, myProfile, subscription) => {
       }).select('userId planName').lean()
     : [];
   const planByUser = new Map(activeSubs.map(s => [String(s.userId), s.planName]));
+  // Same community by account, so the app's "My Community" / "Other Communities"
+  // pills don't depend on the community name typed on the profile.
+  const ownCommunityUsers = new Set((await communityUserIds(viewerCommunityId(userDoc))).map(String));
   const withTier = (profile, built) => {
-    const planName = planByUser.get(String(profile.userId?._id || profile.userId));
-    return { ...built, isPremium: !!planName, premiumPlan: planName || null };
+    const ownerId = String(profile.userId?._id || profile.userId);
+    const planName = planByUser.get(ownerId);
+    return { ...built, isPremium: !!planName, premiumPlan: planName || null, fromMyCommunity: ownCommunityUsers.has(ownerId) };
   };
   const present = (list) => fits(list).map(p => withTier(p, buildRestrictedProfile(p)));
 

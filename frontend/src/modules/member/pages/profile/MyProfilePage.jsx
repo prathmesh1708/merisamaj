@@ -783,7 +783,7 @@ const MyProfilePage = () => {
                     );
                   }
 
-                  const isPremiumMember = profileUser.isPremium || (isMe && currentUser?.isPremium) || profileUser.matrimonySubscription?.status === 'active' || (isMe && currentUser?.matrimonySubscription?.status === 'active');
+                  const isPremiumMember = profileUser.isPremium || (isMe && currentUser?.isPremium) || ['active', 'cancelled'].includes(profileUser.matrimonySubscription?.status) || (isMe && ['active', 'cancelled'].includes(currentUser?.matrimonySubscription?.status));
                   const currentPlan = profileUser.membershipPlan || (isMe && currentUser?.membershipPlan) || profileUser.matrimonySubscription?.plan || (isMe && currentUser?.matrimonySubscription?.plan) || 'PRO';
 
                   if (isPremiumMember) {

@@ -164,7 +164,8 @@ const MatrimonialHomePage = () => {
 
   // Matrimony Subscription state helpers
   const sub = currentUser?.matrimonySubscription;
-  const isCurrentlySubscribed = sub && sub.status === 'active';
+  // A cancelled plan is still paid for until its end date, so it still counts.
+  const isCurrentlySubscribed = !!sub && (sub.status === 'active' || sub.status === 'cancelled');
   const isCombo = isCurrentlySubscribed && sub.plan === 'Combo';
 
   const [userMembership, setUserMembership] = useState(isCurrentlySubscribed ? `${sub.plan} Plan` : 'Normal');
@@ -475,7 +476,10 @@ const MatrimonialHomePage = () => {
       // ─── Community Scope & Visibility Filtering ───────────────────────
       const userComm = (currentUser?.community || myProfile?.personal?.community || '').toLowerCase();
       const profComm = (profile.community || profile.personal?.community || '').toLowerCase();
-      const isCrossCommunity = userComm && profComm && !profComm.includes(userComm);
+      // Prefer the server's account-based answer; the typed community name is often wrong.
+      const isCrossCommunity = typeof profile.fromMyCommunity === 'boolean'
+        ? !profile.fromMyCommunity
+        : userComm && profComm && !profComm.includes(userComm);
       const isAllMembers = profile.visibility === 'all_members' || profile.visibility === 'public' || profile.visibility === undefined;
 
       // Cross-community rule: other community profiles MUST have selected "All Members" visibility

@@ -82,8 +82,11 @@ router.use('/voting', authorizeAdminModule('canManageVoting'), adminVotingRoutes
 
 // Notification & Broadcast Routes
 const adminNotificationController = require('../../controllers/admin/adminNotificationController');
+const notificationUpload = require('../../middleware/uploadMiddleware');
 router.get('/notifications/push-analytics', authorizeAdminModule('canSendNotifications'), adminNotificationController.getPushDeliveryAnalytics);
 router.post('/notifications/broadcast', authorizeAdminModule('canSendNotifications'), adminNotificationController.sendAdminBroadcast);
+router.post('/notifications/upload-image', authorizeAdminModule('canSendNotifications'), notificationUpload.handleUploadError(notificationUpload.single('image')), adminNotificationController.uploadBroadcastImage);
+router.get('/notifications/broadcast-history', authorizeAdminModule('canSendNotifications'), adminNotificationController.getBroadcastHistory);
 
 // Reports & Analytics Routes
 const adminReportsRoutes = require('./adminReportsRoutes');

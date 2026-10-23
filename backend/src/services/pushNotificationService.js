@@ -116,11 +116,14 @@ const URGENT_TYPES = new Set(['chat_new_message', 'group_new_message', 'chat_men
 
 const MULTICAST_LIMIT = 500; // FCM maximum tokens per sendEachForMulticast call
 
-const buildPayload = ({ tokens, type, title, message, icon, actionUrl, notificationId, tag, ack }) => ({
+// `image` (optional, https URL) shows as a big picture under the text, like shopping-app
+// promos: Android and iOS draw it themselves, the web service worker reads data.image.
+const buildPayload = ({ tokens, type, title, message, icon, actionUrl, notificationId, tag, ack, image }) => ({
   tokens,
   notification: {
     title: title || 'ApniSamaj Alert',
-    body: message || ''
+    body: message || '',
+    ...(image ? { imageUrl: image } : {})
   },
   // FCM data values must all be strings
   data: {
@@ -131,7 +134,8 @@ const buildPayload = ({ tokens, type, title, message, icon, actionUrl, notificat
     // Same tag = replaces the previous notification on the device (one per chat)
     tag: tag || '',
     // Signed chat delivery receipt — the service worker posts it back on arrival
-    ack: ack || ''
+    ack: ack || '',
+    image: image || ''
   },
   // Time-sensitive pushes (chat, emergencies) go out as HIGH priority so Android's
   // battery saver (Doze) delivers them at once instead of delaying or dropping them.
@@ -142,6 +146,7 @@ const buildPayload = ({ tokens, type, title, message, icon, actionUrl, notificat
     notification: {
       // Same tag replaces the earlier notification of that chat instead of stacking
       ...(tag ? { tag } : {}),
+      ...(image ? { imageUrl: image } : {}),
       sound: 'default'
     }
   },
@@ -150,7 +155,9 @@ const buildPayload = ({ tokens, type, title, message, icon, actionUrl, notificat
       'apns-priority': URGENT_TYPES.has(type) ? '10' : '5',
       ...(tag ? { 'apns-collapse-id': tag.slice(0, 64) } : {})
     },
-    payload: { aps: { sound: 'default' } }
+    // mutable-content lets iOS download the image before showing the alert
+    payload: { aps: { sound: 'default', ...(image ? { 'mutable-content': 1 } : {}) } },
+    ...(image ? { fcmOptions: { imageUrl: image } } : {})
   },
   webpush: {
     headers: {
@@ -193,7 +200,9 @@ const sendToTokens = async (tokenDocs, fields) => {
 
   // Never send twice to the same token
   const unique = Array.from(new Map(tokenDocs.map(t => [t.fcmToken, t])).values());
-  const groups = ANDROID_DATA_ONLY
+  // A push with an image goes to Android as a normal notification so Android itself
+  // draws the big picture (the app's own data-only notification is text only).
+  const groups = ANDROID_DATA_ONLY && !fields.image
     ? [
         { tokens: unique.filter(t => t.deviceType === 'android').map(t => t.fcmToken), dataOnly: true },
         { tokens: unique.filter(t => t.deviceType !== 'android').map(t => t.fcmToken), dataOnly: false }
@@ -286,7 +295,8 @@ const sendPushNotification = async ({
   icon = '🔔',
   actionUrl = '/member/notifications',
   tag,
-  ackConversationId
+  ackConversationId,
+  image
 }) => {
   try {
     // 1. Strict Push Eligibility Check
@@ -313,7 +323,7 @@ const sendPushNotification = async ({
     // 5. Send and deactivate dead tokens
     const { successCount, failureCount } = await sendToTokens(
       tokens,
-      { type, title, message, icon, actionUrl, notificationId, tag,
+      { type, title, message, icon, actionUrl, notificationId, tag, image,
         ack: ackConversationId ? signDeliveryReceipt(userId, ackConversationId) : '' }
     );
 
@@ -345,7 +355,8 @@ const sendPushToUsers = async ({
   title,
   message,
   icon = '📢',
-  actionUrl = '/member/notifications'
+  actionUrl = '/member/notifications',
+  image
 }) => {
   try {
     if (!PUSH_ELIGIBLE_TYPES.has(type)) {
@@ -366,7 +377,7 @@ const sendPushToUsers = async ({
 
     const { successCount, failureCount } = await sendToTokens(
       tokens,
-      { type, title, message, icon, actionUrl }
+      { type, title, message, icon, actionUrl, image }
     );
     return { status: 'success', successCount, failureCount };
   } catch (err) {

@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const UserNotification = require('../../models/UserNotification');
 const Community = require('../../models/Community');
 
@@ -95,19 +96,23 @@ exports.sendAdminBroadcast = async (req, res) => {
       communityId, 
       targetRole = 'ALL', 
       channel = 'in_app',
-      actionUrl = '/member/notifications'
+      actionUrl = '/member/notifications',
+      imageUrl
     } = req.body;
 
     if (!broadcastId || !title || !message) {
       return res.status(400).json({ status: 'error', message: 'broadcastId, title, and message are required.' });
     }
-
-    // Role Guard: Only Super Admin or Master Admin can send broadcast notifications
-    const userRole = (req.user?.role || '').toLowerCase();
-    const isAllowed = ['super_admin', 'master_admin'].includes(userRole);
-    if (!isAllowed) {
-      return res.status(403).json({ status: 'error', message: 'Unauthorized: Only highest-privilege administrators (Super Admin / Master Admin) can send platform broadcast notifications.' });
+    // Phones only download push pictures over https
+    const image = typeof imageUrl === 'string' && imageUrl.trim() ? imageUrl.trim() : null;
+    if (image && !/^https:\/\//i.test(image)) {
+      return res.status(400).json({ status: 'error', message: 'The image must be an https:// link.' });
     }
+
+    // Who may broadcast is enforced by the route: authorizeAdminModule('canSendNotifications')
+    // lets the Master Admin (role 'admin' / 'super_admin' / 'master_admin') through, plus
+    // Admin Sub-Heads granted "Send Notifications". (A stricter check here used to reject
+    // role 'admin' — the actual Master Admin account — so no broadcast was ever sent.)
 
     // Idempotency Check: Guard against duplicate form submissions
     const existingLog = await AdminBroadcastLog.findOne({ broadcastId });
@@ -137,8 +142,10 @@ exports.sendAdminBroadcast = async (req, res) => {
     const communityDoc = communityId ? await Community.findById(communityId).select('name').lean() : null;
     const communityName = communityDoc?.name || 'All Communities';
 
-    // Bulk Fan-out Notifications
+    // Bulk Fan-out Notifications — every notification of this broadcast shares one
+    // batch id so its push status can be updated reliably afterwards
     const now = new Date();
+    const batchId = new mongoose.Types.ObjectId();
     const notificationsToInsert = recipientUsers.map(u => ({
       userId: u._id,
       communityId: u.communityId || communityId,
@@ -151,6 +158,9 @@ exports.sendAdminBroadcast = async (req, res) => {
       isRead: false,
       pushStatus: channel === 'in_app_push' ? 'pending' : 'none',
       actionUrl,
+      ...(image ? { imageUrl: image } : {}),
+      referenceId: batchId,
+      referenceType: 'AdminBroadcast',
       createdAt: now,
       updatedAt: now
     }));
@@ -163,11 +173,11 @@ exports.sendAdminBroadcast = async (req, res) => {
       if (io) {
         if (communityId) {
           io.to(`community:${communityId}`).emit('notification:new', {
-            title, message, icon: '📢', module: 'announcement', actionUrl
+            title, message, icon: '📢', module: 'announcement', actionUrl, imageUrl: image
           });
         } else {
           io.emit('notification:new', {
-            title, message, icon: '📢', module: 'announcement', actionUrl
+            title, message, icon: '📢', module: 'announcement', actionUrl, imageUrl: image
           });
         }
       }
@@ -184,11 +194,13 @@ exports.sendAdminBroadcast = async (req, res) => {
         title: `📢 ${title}`,
         message,
         icon: '📢',
-        actionUrl
+        actionUrl,
+        image
       }).then(result => {
         const pushStatus = result.status === 'success' && result.successCount > 0 ? 'sent' : 'failed';
+        if (result.status !== 'success') console.warn('[BroadcastPush]', result.status, result.reason || result.message || '');
         return UserNotification.updateMany(
-          { type: 'admin_broadcast', pushStatus: 'pending', createdAt: now },
+          { referenceId: batchId, type: 'admin_broadcast', pushStatus: 'pending' },
           { $set: { pushStatus, pushSent: pushStatus === 'sent' } }
         );
       }).catch(err => console.warn('[BroadcastPushError]', err.message));
@@ -202,6 +214,7 @@ exports.sendAdminBroadcast = async (req, res) => {
       senderRole: req.user.role,
       title,
       message,
+      imageUrl: image,
       communityId: communityId || null,
       communityName,
       targetRole,
@@ -217,6 +230,23 @@ exports.sendAdminBroadcast = async (req, res) => {
   } catch (error) {
     console.error('sendAdminBroadcast error:', error);
     res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
+/**
+ * POST /api/v1/admin/notifications/upload-image  (multipart field "image")
+ * Uploads a picture/poster for a broadcast and returns its https URL.
+ */
+exports.uploadBroadcastImage = async (req, res) => {
+  try {
+    const { resolveAvatarUpload } = require('../../utils/avatarUploadHelper');
+    let url = await resolveAvatarUpload(req, 'broadcasts');
+    if (!url) return res.status(400).json({ status: 'error', message: 'Please choose an image to upload.' });
+    // Local-disk fallback returns a path; push services need a full link
+    if (url.startsWith('/')) url = `${req.protocol}://${req.get('host')}${url}`;
+    res.status(200).json({ status: 'success', data: { url } });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
   }
 };
 

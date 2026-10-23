@@ -8,7 +8,7 @@
  * gstatic was unused, and if that CDN was blocked the whole worker failed to install).
  *
  * Payload sent by backend/src/services/pushNotificationService.js:
- *   { notification: { title, body }, data: { type, icon, actionUrl, notificationId, tag, ack } }
+ *   { notification: { title, body, image? }, data: { type, icon, actionUrl, notificationId, tag, ack, image } }
  */
 
 // Drop your app logo here (192×192 PNG) to show it on notifications.
@@ -54,6 +54,8 @@ self.addEventListener('push', (event) => {
   const options = {
     body: payload.notification?.body || data.message || '',
     icon: resolveIcon(data.icon),
+    // Big picture under the text (admin broadcast posters); Chrome/Edge show it, others ignore it
+    ...(data.image || payload.notification?.image ? { image: data.image || payload.notification.image } : {}),
     data: {
       actionUrl: data.actionUrl || '/member/notifications',
       notificationId: data.notificationId

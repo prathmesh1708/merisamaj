@@ -59,6 +59,7 @@ const userNotificationSchema = new mongoose.Schema(
     title:     { type: String, required: true },
     message:   { type: String, required: true },
     actionUrl: { type: String },          // Deep link or URL for navigation
+    imageUrl:  { type: String },          // Optional picture/poster (admin broadcasts)
 
     // ─── Reference (for navigation / detail lookup) ───────────────────────────
     referenceId:   { type: mongoose.Schema.Types.ObjectId },
