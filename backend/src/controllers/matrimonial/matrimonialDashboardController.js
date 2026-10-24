@@ -12,7 +12,8 @@ const UserSubscription    = require('../../models/UserSubscription');
 const UserBlock           = require('../../models/UserBlock');
 const User                = require('../../models/User');
 const { calculateMatchPercentage, passesHardPreferences } = require('../../services/matchService');
-const { buildRestrictedProfile, buildFullProfile } = require('../../middleware/matrimonialPrivacy');
+const { buildProfileForViewer, connectedUserIds } = require('../../middleware/matrimonialPrivacy');
+const { ensureBlurredPhotos } = require('../../services/matrimonialPhotoBlur');
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 exports.getDashboard = async (req, res) => {
@@ -93,7 +94,10 @@ exports.getDashboard = async (req, res) => {
     } catch (e) { dashboard.community = { name: '', mySubCommunity: '', subCommunities: [] }; }
 
     // ─── Recommendations (categorized) ────────────────────────────────────────
-    const recommendations = await getRecommendations(userId, myProfile, subscription);
+    // Filters on details members can't see (marital status, diet, city, sub-community)
+    // run here, so those values never have to be sent to the app.
+    const { maritalStatus, diet, nearby, subCommunity } = req.query;
+    const recommendations = await getRecommendations(userId, myProfile, subscription, { maritalStatus, diet, nearby, subCommunity });
     dashboard.recommendations = recommendations;
 
     res.json({ status: 'success', data: { dashboard } });
@@ -103,7 +107,7 @@ exports.getDashboard = async (req, res) => {
 };
 
 // ─── Recommendation Engine ────────────────────────────────────────────────────
-const getRecommendations = async (userId, myProfile, subscription) => {
+const getRecommendations = async (userId, myProfile, subscription, filters = {}) => {
   // ─── If married/closed, return empty recommendations ──────────────────────
   if (myProfile && (myProfile.isClosed || myProfile.status === 'married')) {
     return { recommendedMatches: [], newMembers: [], recentlyActive: [], premiumMembers: [], nearYou: [] };
@@ -112,7 +116,7 @@ const getRecommendations = async (userId, myProfile, subscription) => {
   // Pre-fetch settings, user doc, and blocks in a single parallel step
   const [settings, userDoc, blocks] = await Promise.all([
     MatrimonialSettings.findOne().lean(),
-    User.findById(userId).select('gender communityId assignedCommunityIds').lean(),
+    User.findById(userId).select('gender communityId assignedCommunityIds city').lean(),
     UserBlock.find({ $or: [{ userId }, { blockedUserId: userId }] }).lean()
   ]);
 
@@ -166,6 +170,18 @@ const getRecommendations = async (userId, myProfile, subscription) => {
     baseQuery['personal.gender'] = 'female';
   } else if (myGender === 'female') {
     baseQuery['personal.gender'] = 'male';
+  }
+
+  // ─── Feed filters on hidden details ──────────────────────────────────────
+  const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const exact = (v) => new RegExp('^' + escapeRegex(String(v).trim()) + '$', 'i');
+  if (filters.maritalStatus && filters.maritalStatus !== 'All') baseQuery['personal.maritalStatus'] = exact(filters.maritalStatus);
+  if (filters.diet && filters.diet !== 'All') baseQuery['lifestyle.diet'] = exact(filters.diet);
+  const myCity = myProfile?.location?.city || userDoc?.city;
+  if (String(filters.nearby) === '1' && myCity) baseQuery['location.city'] = exact(myCity);
+  if (filters.subCommunity) {
+    const subIds = await User.find({ subCommunity: exact(filters.subCommunity) }).distinct('_id');
+    baseQuery.$and.push({ userId: { $in: subIds } });
   }
 
   // Fetch a wider pool for each list, then drop profiles that break the user's
@@ -236,15 +252,24 @@ const getRecommendations = async (userId, myProfile, subscription) => {
     const planName = planByUser.get(ownerId);
     return { ...built, isPremium: !!planName, premiumPlan: planName || null, fromMyCommunity: ownCommunityUsers.has(ownerId) };
   };
-  const present = (list) => fits(list).map(p => withTier(p, buildRestrictedProfile(p)));
-
-  const enriched = scored.slice(0, limit).map(({ profile, result }) => ({ ...withTier(profile, buildRestrictedProfile(profile)), ...result }));
+  // Privacy: full profile only for members already connected (accepted interest);
+  // everyone else gets the restricted view (blurred photo for private profiles).
+  const lists = {
+    newMembers: fits(newMembers), recentlyActive: fits(recentlyActive),
+    premiumMembers: fits(premiumMembers), nearYou: fits(nearYou)
+  };
+  const top = scored.slice(0, limit);
+  const shown = [...top.map(s => s.profile), ...Object.values(lists).flat()];
+  const connected = await connectedUserIds(userId, shown.map(p => p.userId?._id || p.userId));
+  const isConnectedTo = (p) => connected.has(String(p.userId?._id || p.userId));
+  await ensureBlurredPhotos(shown.filter(p => !isConnectedTo(p)));
+  const build = (p) => withTier(p, buildProfileForViewer(p, { isConnected: isConnectedTo(p) }));
 
   return {
-    recommendedMatches: enriched,
-    newMembers:    present(newMembers),
-    recentlyActive:present(recentlyActive),
-    premiumMembers:present(premiumMembers),
-    nearYou:       present(nearYou)
+    recommendedMatches: top.map(({ profile, result }) => ({ ...build(profile), ...result })),
+    newMembers:     lists.newMembers.map(build),
+    recentlyActive: lists.recentlyActive.map(build),
+    premiumMembers: lists.premiumMembers.map(build),
+    nearYou:        lists.nearYou.map(build)
   };
 };

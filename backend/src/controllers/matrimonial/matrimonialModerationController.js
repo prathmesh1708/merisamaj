@@ -7,6 +7,31 @@ const ProfileVisitor  = require('../../models/ProfileVisitor');
 const UserBlock       = require('../../models/UserBlock');
 const ProfileReport   = require('../../models/ProfileReport');
 const MatrimonialProfile = require('../../models/MatrimonialProfile');
+const { buildProfileForViewer, connectedUserIds, visibleNameOf } = require('../../middleware/matrimonialPrivacy');
+const { ensureBlurredPhotos } = require('../../services/matrimonialPhotoBlur');
+
+// Profiles as this viewer may see them (full once connected, restricted otherwise)
+const presentProfiles = async (viewerId, profiles) => {
+  const list = profiles.filter(Boolean);
+  const connected = await connectedUserIds(viewerId, list.map(p => p.userId?._id || p.userId));
+  const isConnected = (p) => connected.has(String(p.userId?._id || p.userId));
+  await ensureBlurredPhotos(list.filter(p => !isConnected(p)));
+  return new Map(list.map(p => [String(p._id), buildProfileForViewer(p, { isConnected: isConnected(p) })]));
+};
+
+// The block/report target: an account id, or a matrimonial profile id (restricted
+// profiles don't carry the account id)
+const resolveUserId = async ({ userId, profileId }) => {
+  if (profileId) {
+    const p = await MatrimonialProfile.findById(profileId).select('userId').lean();
+    if (p) return p.userId;
+  }
+  if (userId) {
+    const p = await MatrimonialProfile.findById(userId).select('userId').lean().catch(() => null);
+    return p ? p.userId : userId;
+  }
+  return null;
+};
 
 // ─── Shortlist ────────────────────────────────────────────────────────────────
 exports.addToShortlist = async (req, res) => {
@@ -44,8 +69,11 @@ exports.getShortlist = async (req, res) => {
       .sort({ createdAt: -1 })
       .skip((Number(page) - 1) * Number(limit))
       .limit(Number(limit))
-      .populate('profileId');
-    res.json({ status: 'success', data: { items, total, page: Number(page) } });
+      .populate({ path: 'profileId', populate: { path: 'userId', select: 'name avatar verificationStatus isAadharVerified' } })
+      .lean({ virtuals: true });
+    const shown = await presentProfiles(req.user._id, items.map(i => i.profileId));
+    const safeItems = items.map(i => ({ ...i, profileId: i.profileId ? shown.get(String(i.profileId._id)) : null }));
+    res.json({ status: 'success', data: { items: safeItems, total, page: Number(page) } });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }
@@ -71,17 +99,22 @@ exports.getMyVisitors = async (req, res) => {
       })
       .lean();
 
-    // Enrich each visitor with their matrimonial profile data
-    const enriched = await Promise.all(visitors.map(async v => {
-      const visitorMatrimonialProfile = await MatrimonialProfile.findOne({
-        userId: v.visitorId?._id || v.visitorId,
-        isDeleted: false
-      }).select('personal location education photos age').lean();
-      return {
-        ...v,
-        visitorProfile: visitorMatrimonialProfile || null,
-      };
-    }));
+    // Enrich each visitor with their matrimonial profile, as this member may see it
+    const visitorProfiles = await MatrimonialProfile.find({
+      userId: { $in: visitors.map(v => v.visitorId?._id || v.visitorId).filter(Boolean) },
+      isDeleted: false
+    }).lean({ virtuals: true });
+    const shown = await presentProfiles(req.user._id, visitorProfiles);
+    const profileByUser = new Map(visitorProfiles.map(p => [String(p.userId), p]));
+    const enriched = visitors.map(v => {
+      const raw = profileByUser.get(String(v.visitorId?._id || v.visitorId));
+      const visitorProfile = raw ? shown.get(String(raw._id)) : null;
+      const out = { ...v, visitorProfile };
+      if (visitorProfile?.isRestricted) {
+        out.visitorId = { name: visibleNameOf(raw) || 'Member', avatar: visitorProfile.photos?.[0]?.url || null };
+      }
+      return out;
+    });
 
     res.json({ status: 'success', data: { visitors: enriched, total, page: Number(page) } });
   } catch (err) {
@@ -92,7 +125,9 @@ exports.getMyVisitors = async (req, res) => {
 // ─── Block User ───────────────────────────────────────────────────────────────
 exports.blockUser = async (req, res) => {
   try {
-    const { userId: blockedUserId, reason } = req.body;
+    const { reason } = req.body;
+    const blockedUserId = await resolveUserId(req.body);
+    if (!blockedUserId) return res.status(400).json({ status: 'error', message: 'userId or profileId is required.' });
     if (req.user._id.equals(blockedUserId)) {
       return res.status(400).json({ status: 'error', message: 'You cannot block yourself.' });
     }
@@ -109,7 +144,7 @@ exports.blockUser = async (req, res) => {
 
 exports.unblockUser = async (req, res) => {
   try {
-    const { userId: blockedUserId } = req.params;
+    const blockedUserId = await resolveUserId({ userId: req.params.userId });
     await UserBlock.findOneAndDelete({ userId: req.user._id, blockedUserId });
     res.json({ status: 'success', message: 'User unblocked.' });
   } catch (err) {
@@ -119,8 +154,22 @@ exports.unblockUser = async (req, res) => {
 
 exports.getBlockedUsers = async (req, res) => {
   try {
-    const blockedUsers = await UserBlock.find({ userId: req.user._id })
-      .populate('blockedUserId', 'name avatar');
+    const blocks = await UserBlock.find({ userId: req.user._id })
+      .populate('blockedUserId', 'name avatar')
+      .lean();
+    // Their name/photo only as their privacy settings allow (blocked = never connected now)
+    const theirProfiles = await MatrimonialProfile.find({
+      userId: { $in: blocks.map(b => b.blockedUserId?._id).filter(Boolean) }, isDeleted: false
+    }).lean({ virtuals: true });
+    const shown = await presentProfiles(req.user._id, theirProfiles);
+    const profileByUser = new Map(theirProfiles.map(p => [String(p.userId), p]));
+    const blockedUsers = blocks.map(b => {
+      const raw = b.blockedUserId && profileByUser.get(String(b.blockedUserId._id));
+      if (!raw) return b;
+      const view = shown.get(String(raw._id));
+      if (!view?.isRestricted) return b;
+      return { ...b, blockedUserId: { _id: b.blockedUserId._id, name: visibleNameOf(raw) || 'Member', avatar: view.photos?.[0]?.url || null } };
+    });
     // Response key is 'blockedUsers' to match frontend MatrimonialContext contract
     res.json({ status: 'success', data: { blockedUsers } });
   } catch (err) {
@@ -131,7 +180,9 @@ exports.getBlockedUsers = async (req, res) => {
 // ─── Report Profile ───────────────────────────────────────────────────────────
 exports.reportProfile = async (req, res) => {
   try {
-    const { reportedUserId, reason, description } = req.body;
+    const { reason, description } = req.body;
+    const reportedUserId = await resolveUserId({ userId: req.body.reportedUserId, profileId: req.body.profileId });
+    if (!reportedUserId) return res.status(400).json({ status: 'error', message: 'reportedUserId or profileId is required.' });
     if (req.user._id.equals(reportedUserId)) {
       return res.status(400).json({ status: 'error', message: 'You cannot report yourself.' });
     }

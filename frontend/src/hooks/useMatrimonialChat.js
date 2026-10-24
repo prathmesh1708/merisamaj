@@ -38,9 +38,9 @@ export const useMatrimonialChat = (userId) => {
   useEffect(() => {
     if (!userId) return;
 
-    const token = localStorage.getItem('merisamaj_token');
     socketRef.current = io(SOCKET_URL, {
-      auth: { userId, token },
+      // Read on every (re)connect: the server checks the login token, which the app refreshes
+      auth: (cb) => cb({ userId, token: localStorage.getItem('merisamaj_token') }),
       withCredentials: true,
       transports: ['websocket', 'polling'],
       reconnectionAttempts: 5
@@ -80,10 +80,26 @@ export const useMatrimonialChat = (userId) => {
       });
     });
 
-    socket.on('matrimonial:messages_seen', ({ userId: sid, messageIds }) => {
-      setMessages(prev => prev.map(m =>
-        messageIds.includes(m._id)
+    // With messageIds: those messages were seen. Without, or an empty list (opening a
+    // chat marks the whole conversation read): every message the other person sent in it.
+    socket.on('matrimonial:messages_seen', ({ conversationId, userId: sid, messageIds }) => {
+      const seenIds = Array.isArray(messageIds) && messageIds.length > 0 ? messageIds.map(String) : null;
+      const idOf = (v) => String(v?._id || v || '');
+      setMessages(prev => prev.map(m => {
+        const isSeen = seenIds
+          ? seenIds.includes(idOf(m._id))
+          : idOf(m.conversationId) === idOf(conversationId) && idOf(m.senderId) !== idOf(sid);
+        const alreadySeen = (m.seenBy || []).some(s => idOf(s.userId || s) === idOf(sid));
+        return isSeen && !alreadySeen
           ? { ...m, seenBy: [...(m.seenBy || []), { userId: sid, seenAt: new Date() }] }
+          : m;
+      }));
+    });
+
+    socket.on('matrimonial:message_delivered', ({ messageId, userId: rid }) => {
+      setMessages(prev => prev.map(m =>
+        String(m._id) === String(messageId) && !(m.deliveredTo || []).some(id => String(id) === String(rid))
+          ? { ...m, deliveredTo: [...(m.deliveredTo || []), rid] }
           : m
       ));
     });

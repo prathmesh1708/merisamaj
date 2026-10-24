@@ -21,7 +21,10 @@ const getCurrentUserId = () => {
 const MsgStatus = ({ msg, currentUserId }) => {
   if (msg.senderId?._id !== currentUserId && msg.senderId !== currentUserId) return null;
   if (msg.seenBy?.length > 0) return <CheckCheck size={12} className="text-blue-400" />;
-  if (msg.deliveredAt)        return <CheckCheck size={12} className="text-slate-400" />;
+  // deliveredTo always holds the sender; anyone else in it means the other phone got it
+  const senderId = String(msg.senderId?._id || msg.senderId);
+  const delivered = msg.deliveredAt || (msg.deliveredTo || []).some(id => String(id?._id || id) !== senderId);
+  if (delivered)              return <CheckCheck size={12} className="text-slate-400" />;
   return <Check size={12} className="text-slate-400" />;
 };
 

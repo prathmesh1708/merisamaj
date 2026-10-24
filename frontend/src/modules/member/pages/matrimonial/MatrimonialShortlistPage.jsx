@@ -127,7 +127,8 @@ const MatrimonialShortlistPage = () => {
               const profile    = item.profileId;
               if (!profile) return null;
               const profileId  = profile._id;
-              const name       = profile.personal?.fullName || 'Unknown';
+              // Public profiles don't send a name until the interest is accepted (privacy)
+              const name       = profile.personal?.fullName || 'Member';
               const photo      = profile.photos?.find(p => p.isPrimary)?.url
                               || profile.photos?.[0]?.url;
               const age        = profile.age;
@@ -148,7 +149,7 @@ const MatrimonialShortlistPage = () => {
                       onClick={() => navigate(`/member/matrimonial/${profileId}`)}
                     >
                       {photo
-                        ? <img src={photo} alt={name} className="w-full h-full object-cover" />
+                        ? <img src={photo} alt={name} className={`w-full h-full object-cover ${profile.photoBlurred ? 'blur-[2px] scale-105' : ''}`} />
                         : <div className="w-full h-full flex items-center justify-center text-2xl bg-gradient-to-br from-rose-100 to-pink-100">{name[0]}</div>
                       }
                     </div>

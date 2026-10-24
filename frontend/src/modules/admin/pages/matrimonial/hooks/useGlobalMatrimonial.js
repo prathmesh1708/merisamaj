@@ -59,10 +59,8 @@ export const useGlobalMatrimonial = () => {
         SOCKET_URL = window.location.origin;
       }
     }
-    const token = localStorage.getItem('admin_auth_token');
-    
     const socket = io(SOCKET_URL, {
-      auth: { token, role: 'admin' },
+      auth: (cb) => cb({ token: localStorage.getItem('admin_auth_token'), role: 'admin' }),
       withCredentials: true,
       transports: ['websocket', 'polling']
     });

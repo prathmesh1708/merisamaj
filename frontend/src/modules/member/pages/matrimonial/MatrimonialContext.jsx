@@ -77,10 +77,10 @@ export const MatrimonialProvider = () => {
   }, []);
 
   // ─── Fetch Dashboard ──────────────────────────────────────────────────────
-  const fetchDashboard = useCallback(async () => {
+  const fetchDashboard = useCallback(async (filters) => {
     setDashboardLoading(true);
     try {
-      const res = await matrimonialDashboardService.getDashboard();
+      const res = await matrimonialDashboardService.getDashboard(filters);
       setDashboard(res.data.data.dashboard);
     } catch (err) {
       checkMarriedRefusal(err);

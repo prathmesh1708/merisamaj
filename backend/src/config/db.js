@@ -237,6 +237,7 @@ const connectDB = async () => {
     const Fund = require('../models/Fund');
     const Contribution = require('../models/Contribution');
     const FundExpense = require('../models/FundExpense');
+    const Community = require('../models/Community');
     
     const fundsCount = await Fund.countDocuments();
     if (fundsCount === 0) {

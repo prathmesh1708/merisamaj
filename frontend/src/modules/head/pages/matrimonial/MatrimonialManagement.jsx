@@ -301,10 +301,8 @@ export default function MatrimonialManagement() {
         SOCKET_URL = window.location.origin;
       }
     }
-    const token = localStorage.getItem('head_auth_token');
-    
     const socket = io(SOCKET_URL, {
-      auth: { token, role: 'head' },
+      auth: (cb) => cb({ token: localStorage.getItem('head_auth_token'), role: 'head' }),
       withCredentials: true,
       transports: ['websocket', 'polling']
     });

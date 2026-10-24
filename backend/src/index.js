@@ -151,6 +151,9 @@ const io = new Server(httpServer, {
   transports: ['websocket', 'polling']
 });
 
+// Every socket must carry a valid login token; it decides who the socket is
+io.use(require('./middleware/socketAuth'));
+
 // Register socket handlers
 matrimonialSocket(io);       // Handles matrimonial:* events (backward compat)
 chatSocketService(io);       // Handles chat:* events (member, group, community, support)
