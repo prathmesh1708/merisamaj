@@ -107,8 +107,9 @@ const matrimonialSocket = (io) => {
               await Message.findByIdAndUpdate(newMsg._id, {
                 $addToSet: { deliveredTo: participantId }
               });
-              io.to(`user:${participantId}`).emit('matrimonial:message_delivered', {
-                messageId: newMsg._id, conversationId
+              // Tell the sender, so their tick turns into a grey double tick
+              io.to(`user:${userId}`).emit('matrimonial:message_delivered', {
+                messageId: newMsg._id, conversationId, userId: participantId
               });
             } else {
               // Participant is offline — bell notification + push with sender name and message

@@ -65,12 +65,14 @@ export const getSocket = (userId) => {
 
   const backendUrl = getResolvedSocketUrl();
 
-  const token = typeof localStorage !== 'undefined'
+  // Read on every (re)connect: the server checks the login token, and the app
+  // refreshes it in the background every 30 minutes
+  const currentToken = () => (typeof localStorage !== 'undefined'
     ? (localStorage.getItem('merisamaj_token') || localStorage.getItem('admin_auth_token') || localStorage.getItem('head_auth_token'))
-    : null;
+    : null);
 
   socketInstance = io(backendUrl, {
-    auth: { userId: targetUserId, token },
+    auth: (cb) => cb({ userId: targetUserId, token: currentToken() }),
     withCredentials: true,
     transports: ['websocket', 'polling'],
     reconnection: true,

@@ -9,7 +9,8 @@ const InterestRequest     = require('../../models/InterestRequest');
 const UserBlock           = require('../../models/UserBlock');
 const ProfileVisitor      = require('../../models/ProfileVisitor');
 const { calculateMatchPercentage, calcAge } = require('../../services/matchService');
-const { buildRestrictedProfile, buildFullProfile } = require('../../middleware/matrimonialPrivacy');
+const { buildRestrictedProfile, buildFullProfile, buildProfileForViewer, connectedUserIds, visibleNameOf, isPhotoPrivate } = require('../../middleware/matrimonialPrivacy');
+const { ensureBlurredPhotos } = require('../../services/matrimonialPhotoBlur');
 const { notifyProfileViewed, createNotification } = require('../../services/notificationService');
 const { getEffectiveFeatures } = require('../../middleware/subscriptionMiddleware');
 const { inheritTenantPayload } = require('../../utils/queryScopeHelper');
@@ -164,7 +165,7 @@ exports.getUserProfile = async (req, res) => {
       _id: id,
       status: { $in: ['active', 'married'] },
       isDeleted: false
-    }).populate('userId', 'name phone email avatar');
+    }).populate('userId', 'name phone email avatar subCommunity verificationStatus isAadharVerified');
 
     if (!profile) {
       return res.status(404).json({ status: 'error', message: 'Profile not found or not available.' });
@@ -249,8 +250,10 @@ exports.getUserProfile = async (req, res) => {
       // Notify profile owner if they have Premium
       const ownerFeatures = await getEffectiveFeatures(profileOwnerUserId);
       if (ownerFeatures.features.visitorHistory) {
-        const viewer = req.user;
-        notifyProfileViewed(profileOwnerUserId, viewer.name || 'Someone');
+        // The viewer's name only if their own privacy rules let the owner see it
+        const viewerProfile = await MatrimonialProfile.findOne({ userId: viewerId, isDeleted: false })
+          .select('personal.fullName visibilitySettings').lean();
+        notifyProfileViewed(profileOwnerUserId, visibleNameOf(viewerProfile) || 'A member');
       }
     }
 
@@ -308,15 +311,10 @@ exports.getUserProfile = async (req, res) => {
     }
 
     // ─── Build Response based on Privacy Rules ───────────────────────────────
-    let profileData;
-    const { subscription } = await getEffectiveFeatures(viewerId);
-    const hasPremium = !!subscription;
-
-    if (hasPremium || acceptedInterest || profileOwnerUserId.equals(viewerId)) {
-      profileData = buildFullProfile(profile, features);
-    } else {
-      profileData = buildRestrictedProfile(profile);
-    }
+    // Full profile only once an interest is accepted; before that the owner's
+    // public/private setting decides (see middleware/matrimonialPrivacy.js).
+    if (!acceptedInterest) await ensureBlurredPhotos([profile]);
+    const profileData = buildProfileForViewer(profile, { isConnected: !!acceptedInterest, features });
 
     res.json({
       status: 'success',
@@ -392,6 +390,16 @@ exports.searchProfiles = async (req, res) => {
     const escapeRegex = (str) => (str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     if (name && name.trim()) {
       query['personal.fullName'] = new RegExp(escapeRegex(name.trim()), 'i');
+      // Only names the searcher may see: private profiles (they show the name) and
+      // members already connected — otherwise a public profile's hidden name could be guessed.
+      const accepted = await InterestRequest.find({
+        status: 'accepted', $or: [{ senderId: req.user._id }, { receiverId: req.user._id }]
+      }).select('senderId receiverId').lean();
+      const connectedIds = accepted.map(i => (String(i.senderId) === String(req.user._id) ? i.receiverId : i.senderId));
+      query.$and = [...(query.$and || []), { $or: [
+        { 'visibilitySettings.visibleOnlyAfterAccept': { $ne: false } },
+        { userId: { $in: connectedIds } }
+      ] }];
     }
 
     // ─── Gender Filter (Strictly Enforce Opposite Gender) ────────────────────
@@ -517,18 +525,15 @@ exports.searchProfiles = async (req, res) => {
     }).lean();
     const sentToUserIds = new Set(sentInterests.map(i => i.receiverId.toString()));
 
+    await ensureBlurredPhotos(profiles.filter(p => !connectedUserIds.has(p.userId.toString())));
+
     profiles = await Promise.all(profiles.map(async (profile) => {
       const isOwner     = profile.userId.toString() === req.user._id.toString();
       const isConnected = connectedUserIds.has(profile.userId.toString());
-      const isPublic    = profile.visibility === 'public' || profile.visibility === 'all_members';
       const hasSentInterest = sentToUserIds.has(profile.userId.toString());
 
-      let safeProfile;
-      if (isOwner || isPublic || isConnected) {
-        safeProfile = buildFullProfile(profile, { contactDetailsAccess: false });
-      } else {
-        safeProfile = buildRestrictedProfile(profile);
-      }
+      // Full profile only for connected members; otherwise the owner's privacy setting decides
+      const safeProfile = buildProfileForViewer(profile, { isOwner, isConnected, features: { contactDetailsAccess: false } });
 
       let matchPercentage = 0;
       let matchedCriteria = [];

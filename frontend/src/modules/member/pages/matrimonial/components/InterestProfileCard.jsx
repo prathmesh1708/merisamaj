@@ -25,10 +25,12 @@ const activeText = (d) => {
  */
 export const InterestProfileCard = ({ item, tab, onOpen, onAccept, onDecline, onCancel, onChat }) => {
   const profile = item.senderProfile || item.receiverProfile || item;
-  const name = profile.personal?.fullName || profile.userId?.name || profile.name || 'Member';
+  // Public profiles don't send a name until the interest is accepted (privacy)
+  const name = profile.personal?.fullName || profile.userId?.name || '';
   const age = profile.age;
   const photo = profile.photos?.[0]?.url || profile.userId?.avatar || null;
-  const initials = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+  const initials = (name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+  const heading = name ? `${name}${age ? `, ${age}` : ''}` : (age ? `${age} yrs` : '');
 
   const line1 = [fmtHeight(profile.personal?.height), profile.location?.city, profile.personal?.community || profile.subCommunity]
     .filter(Boolean).join(' · ');
@@ -68,7 +70,7 @@ export const InterestProfileCard = ({ item, tab, onOpen, onAccept, onDecline, on
       <div className="relative w-full h-full rounded-[25px] overflow-hidden bg-slate-900">
         {/* Photo (or initials) fills the card */}
         {photo ? (
-          <img src={photo} alt={name} className="absolute inset-0 w-full h-full object-cover" />
+          <img src={photo} alt={name || 'Matrimonial profile'} className={`absolute inset-0 w-full h-full object-cover ${profile.photoBlurred ? 'blur-[3px] scale-105' : ''}`} />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-b from-slate-700 to-slate-900">
             <span className="text-[72px] font-black text-white/15">{initials}</span>
@@ -94,7 +96,7 @@ export const InterestProfileCard = ({ item, tab, onOpen, onAccept, onDecline, on
               {profile.lastActiveAt && <span className="text-[11px] font-semibold text-white/75">{activeText(profile.lastActiveAt)}</span>}
             </div>
             <h3 className="text-[24px] font-black text-white leading-tight break-words">
-              {name}{age ? `, ${age}` : ''}
+              {heading}
             </h3>
             {line1 && <p className="text-[13px] font-medium text-white/90 mt-1 truncate">{line1}</p>}
             {line2 && <p className="text-[13px] font-medium text-white/90 truncate">{line2}</p>}

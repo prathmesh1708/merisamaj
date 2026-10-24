@@ -548,6 +548,8 @@ export const MatrimonialVisibilityManager = ({
     age: myProfile?.age ?? calcAge(editForm.dateOfBirth) ?? null,
     height: editForm.height ? `${editForm.height} cm` : '',
     education: editForm.education || '',
+    profession: editForm.profession || '',
+    income: editForm.annualIncome || '',
     city: editForm.city || '',
     religion: myProfile?.personal?.religion || '',
     caste: editForm.community || '',
@@ -1091,6 +1093,11 @@ export const MatrimonialVisibilityManager = ({
                     <h4 className="text-[13px] font-bold text-slate-800">Visible Only After Request Accept</h4>
                     <p className="text-[11px] text-slate-400 font-medium leading-tight mt-0.5">
                       Jab koi member aapko request bheje aur aap accept karein tab hi aapki profile unko full visible hogi.
+                    </p>
+                    <p className="text-[11px] text-slate-500 font-semibold leading-tight mt-1">
+                      {settings.visibleOnlyAfterAccept
+                        ? 'On (Private): photo blurred; name, age, education, occupation & income dikhenge.'
+                        : 'Off (Public): photo sabko dikhegi; naam aur address chhupe rahenge — sirf age, education & occupation.'}
                     </p>
                   </div>
                 </div>
@@ -2262,13 +2269,13 @@ export const MatrimonialVisibilityManager = ({
               src={previewUser.photo}
               alt={previewUser.name}
               className={`w-full h-full object-cover transition-all duration-700 ${
-                previewTab === 'before'
+                previewTab === 'before' && settings.visibleOnlyAfterAccept
                   ? 'filter blur-[3px] scale-105'
                   : 'filter blur-0 scale-100'
               }`}
             />
 
-            {previewTab === 'before' && (
+            {previewTab === 'before' && settings.visibleOnlyAfterAccept && (
               <div className="absolute inset-0 bg-black/10 flex flex-col items-center justify-center text-white">
                 <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center mb-1.5 border border-white/20">
                   <Lock size={22} className="text-white" />
@@ -2281,14 +2288,20 @@ export const MatrimonialVisibilityManager = ({
           {/* Profile Bio Details */}
           <div className="p-5 space-y-3">
             <div>
-              <h3 className="text-[18px] font-black text-slate-800">{previewUser.name}</h3>
+              {/* Before an accepted interest a public profile's name is hidden */}
+              {(previewTab === 'after' || settings.visibleOnlyAfterAccept) && (
+                <h3 className="text-[18px] font-black text-slate-800">{previewUser.name}</h3>
+              )}
               <p className="text-[12.5px] text-slate-500 font-bold mt-0.5">
-                {[previewUser.age ? `${previewUser.age} Years` : null, previewUser.height, previewUser.education]
-                  .filter(Boolean).join(' | ') || 'Complete your profile to see this here'}
+                {(previewTab === 'before'
+                  ? [previewUser.age ? `${previewUser.age} Years` : null, previewUser.education, previewUser.profession,
+                     settings.visibleOnlyAfterAccept && previewUser.income ? `Earns ${previewUser.income}` : null]
+                  : [previewUser.age ? `${previewUser.age} Years` : null, previewUser.height, previewUser.education]
+                ).filter(Boolean).join(' | ') || 'Complete your profile to see this here'}
               </p>
             </div>
 
-            <div className="space-y-1.5 pt-1">
+            {previewTab === 'after' && <div className="space-y-1.5 pt-1">
               {previewUser.city && (
                 <div className="flex items-center gap-2 text-[12px] text-slate-600 font-semibold">
                   <MapPin size={14} className="text-rose-500 shrink-0" />
@@ -2301,7 +2314,7 @@ export const MatrimonialVisibilityManager = ({
                   <span>{[previewUser.religion, previewUser.caste].filter(Boolean).join(' | ')}</span>
                 </div>
               )}
-            </div>
+            </div>}
 
             {/* Action Buttons */}
             <div className="pt-2">
@@ -2343,7 +2356,9 @@ export const MatrimonialVisibilityManager = ({
           <div className="bg-rose-50 border border-rose-100 rounded-2xl p-3.5 flex items-start gap-2.5">
             <Info size={18} className="text-rose-600 shrink-0 mt-0.5" />
             <p className="text-[11.5px] text-rose-700 font-bold leading-snug">
-              Photo will be shown blurred to members (jahan aapne visibility restrict kiya hai)
+              {settings.visibleOnlyAfterAccept
+                ? 'Photo will be shown blurred to members (jahan aapne visibility restrict kiya hai)'
+                : 'Photo sabko dikhegi, lekin aapka naam aur address request accept hone tak chhupe rahenge.'}
             </p>
           </div>
         ) : (

@@ -73,7 +73,8 @@ export const matrimonialChatService = {
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 export const matrimonialDashboardService = {
-  getDashboard: () => axiosPrivate.get(`${BASE}/dashboard`),
+  // params: feed filters the server applies (maritalStatus, diet, nearby, subCommunity)
+  getDashboard: (params) => axiosPrivate.get(`${BASE}/dashboard`, { params }),
 };
 
 // ─── Shortlist ────────────────────────────────────────────────────────────────

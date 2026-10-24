@@ -10,7 +10,8 @@ import { matrimonialProfileService, matrimonialInterestService } from '../../../
 
 // ─── Profile Card ─────────────────────────────────────────────────────────────
 const ProfileCard = ({ profile, onInterest, onShortlist, isShortlisted, interestsSent, navigate }) => {
-  const name      = profile.personal?.fullName || 'Member';
+  // Public profiles don't send a name until the interest is accepted (privacy)
+  const name      = profile.personal?.fullName || '';
   const age       = profile.age;
   const city      = profile.location?.city;
   const state     = profile.location?.state;
@@ -31,10 +32,10 @@ const ProfileCard = ({ profile, onInterest, onShortlist, isShortlisted, interest
         onClick={() => navigate(`/member/matrimonial/${profile._id}`)}
       >
         {photo ? (
-          <img src={photo} alt={name} className="w-full h-full object-cover" loading="lazy" decoding="async" />
+          <img src={photo} alt={name || 'Matrimonial profile'} className={`w-full h-full object-cover ${profile.photoBlurred ? 'blur-[3px] scale-105' : ''}`} loading="lazy" decoding="async" />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-[48px] font-black bg-gradient-to-br from-rose-100 to-pink-200 text-rose-400">
-            {name[0]}
+            {name ? name[0] : '?'}
           </div>
         )}
 
@@ -50,7 +51,7 @@ const ProfileCard = ({ profile, onInterest, onShortlist, isShortlisted, interest
               <ShieldCheck size={12} className="text-emerald-400" />
             )}
           </div>
-          <p className="text-white text-[13px] font-extrabold leading-tight">{name}{age ? `, ${age}` : ''}</p>
+          <p className="text-white text-[13px] font-extrabold leading-tight">{name ? `${name}${age ? `, ${age}` : ''}` : (age ? `${age} yrs` : '')}</p>
           {(city || state) && (
             <div className="flex items-center gap-1 mt-0.5">
               <MapPin size={10} className="text-white/60" />

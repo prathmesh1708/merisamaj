@@ -427,7 +427,8 @@ const MatrimonialHomePage = () => {
       return {
         ...profile,
         id: profile._id || profile.id,
-        name: profile.personal?.fullName || profile.name || 'Member',
+        // Not sent for public profiles until connected (privacy) — never invent one
+        name: profile.personal?.fullName || '',
         age: calculatedAge ?? null,
         gender: profile.personal?.gender || '',
         city: profile.location?.city || '',
@@ -438,7 +439,9 @@ const MatrimonialHomePage = () => {
         education: profile.education?.highestQualification || '',
         diet: profile.lifestyle?.diet || '',
         avatar: (profile.photos || []).find(p => p.isPrimary)?.url || (profile.photos && profile.photos[0]?.url) || profile.avatar || null,
-        photoCount: (profile.photos || []).length,
+        photoCount: profile.photoCount ?? (profile.photos || []).length,
+        // Private profile seen before an accepted interest: the server sent a blurred photo
+        photoBlurred: !!profile.photoBlurred,
         activeStatus: profile.lastActiveAt
           ? new Date(profile.lastActiveAt) > new Date(Date.now() - 3600000)
             ? 'Online Now'
@@ -447,8 +450,8 @@ const MatrimonialHomePage = () => {
         membershipTier: profile.membershipTier || 'Normal',
         verifiedStatus: profile.verificationStatus === 'verified',
         // From the member's own account: approved by their Local/Community Head, and Aadhaar check
-        headVerified: profile.userId?.verificationStatus === 'verified',
-        aadhaarVerified: !!profile.userId?.isAadharVerified,
+        headVerified: profile.headVerified ?? profile.userId?.verificationStatus === 'verified',
+        aadhaarVerified: profile.aadhaarVerified ?? !!profile.userId?.isAadharVerified,
         isNew: profile.createdAt ? new Date(profile.createdAt) > new Date(Date.now() - 7 * 24 * 3600000) : false,
         isRestricted: profile.isRestricted ?? true,
         visibility: profile.visibility || 'all_members'
@@ -470,8 +473,8 @@ const MatrimonialHomePage = () => {
       }
       if (activeFilterPill === 'verified' && !profile.headVerified && !profile.aadhaarVerified) return false;
       if (activeFilterPill === 'joined'   && !profile.isNew)          return false;
-      const userCity = currentUser?.city || '';
-      if (activeFilterPill === 'nearby' && userCity && profile.city !== userCity) return false;
+      // Nearby, sub-community, marital status and diet are applied by the server
+      // (those details aren't sent for profiles you aren't connected with).
 
       // ─── Community Scope & Visibility Filtering ───────────────────────
       const userComm = (currentUser?.community || myProfile?.personal?.community || '').toLowerCase();
@@ -491,36 +494,44 @@ const MatrimonialHomePage = () => {
         if (!isCrossCommunity || !isAllMembers) return false;
       } else if (activeFilterPill === 'my_community' || selectedCommunityScope === 'my') {
         if (isCrossCommunity) return false;
-      } else if (selectedCommunityScope === 'specific' && selectedSpecificCommunity) {
-        // "Specific" = a sub-community of the member's own community
-        if ((profile.subCommunity || '').toLowerCase() !== selectedSpecificCommunity.toLowerCase()) return false;
-        if (isCrossCommunity && !isAllMembers) return false;
       }
 
       if (profile.age !== null && profile.age !== undefined) {
         if (profile.age < ageRange.min || profile.age > ageRange.max) return false;
       }
-      if (selectedMaritalStatus !== 'All') {
-        const ms = profile.maritalStatus || profile.personal?.maritalStatus || '';
-        if (ms.toLowerCase() !== selectedMaritalStatus.toLowerCase()) return false;
-      }
-      if (selectedDiet !== 'All' && (profile.diet || profile.lifestyle?.diet || '').toLowerCase() !== selectedDiet.toLowerCase()) return false;
       if (verifiedOnlyFilter && !profile.headVerified && !profile.aadhaarVerified) return false;
-      if (withPhotoOnlyFilter && !profile.avatar && (!profile.photos || profile.photos.length === 0)) return false;
+      if (withPhotoOnlyFilter && !profile.photoCount) return false;
       return true;
     });
-  }, [feedProfiles, ignoredIds, activeFilterPill, searchText, ageRange, selectedMaritalStatus, selectedDiet, verifiedOnlyFilter, withPhotoOnlyFilter, currentUser, selectedCommunityScope, selectedSpecificCommunity, myProfile]);
+  }, [feedProfiles, ignoredIds, activeFilterPill, searchText, ageRange, verifiedOnlyFilter, withPhotoOnlyFilter, currentUser, selectedCommunityScope, selectedSpecificCommunity, myProfile]);
+
+  // Filters on details that aren't sent for unconnected profiles (privacy) run on the
+  // server: reload the feed when one of them changes. The first load is done by the context.
+  const serverFilterKey = JSON.stringify({
+    maritalStatus: selectedMaritalStatus !== 'All' ? selectedMaritalStatus : undefined,
+    diet: selectedDiet !== 'All' ? selectedDiet : undefined,
+    nearby: activeFilterPill === 'nearby' ? '1' : undefined,
+    subCommunity: selectedCommunityScope === 'specific' && selectedSpecificCommunity ? selectedSpecificCommunity : undefined
+  });
+  const lastServerFilterKey = useRef(JSON.stringify({}));
+  useEffect(() => {
+    if (serverFilterKey === lastServerFilterKey.current) return;
+    lastServerFilterKey.current = serverFilterKey;
+    fetchDashboard(JSON.parse(serverFilterKey));
+  }, [serverFilterKey, fetchDashboard]);
 
   // ─── dynamicVisitors — from real visitors API ─────────────────────────────
   const dynamicVisitors = useMemo(() => {
     return visitors.map((v, idx) => ({
       id: v._id || v.id || `vis_${idx}`,
-      name: v.visitorProfile?.personal?.fullName || 'Unknown Visitor',
+      // Public profiles don't send a name until connected (privacy)
+      name: v.visitorProfile?.personal?.fullName || 'Member',
       age: v.visitorProfile?.age ?? null,
       city: v.visitorProfile?.location?.city || '',
       community: v.visitorProfile?.personal?.community || '',
       profession: v.visitorProfile?.education?.profession || '',
       avatar: (v.visitorProfile?.photos || []).find(p => p.isPrimary)?.url || null,
+      photoBlurred: !!v.visitorProfile?.photoBlurred,
       membershipTier: 'Normal',
       visitedDate: v.lastVisited ? new Date(v.lastVisited).toLocaleDateString('en-IN') : 'Recently',
       requiresUpgrade: idx > 1, // First 2 visible, rest locked for non-premium
@@ -862,7 +873,7 @@ const MatrimonialHomePage = () => {
 
                   // Connection status comes from the API-enriched profile
                   const isConnected = profile.isConnected || false;
-                  const isPhotoVisible = profile.photoVisibility !== 'connections' || isConnected;
+                  const isPhotoVisible = !profile.photoBlurred || isConnected;
 
                   const hasAccess = hasMembershipAccess && isPhotoVisible;
 
@@ -893,8 +904,8 @@ const MatrimonialHomePage = () => {
                         onClick={handleCardClick}
                       >
                         <img
-                          src={profile.photos?.[0]?.url || profile.userId?.avatar || profile.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.personal?.fullName || profile.name || 'User')}&background=0f172a&color=fff&size=400`}
-                          alt={profile.name}
+                          src={profile.photos?.[0]?.url || profile.userId?.avatar || profile.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name || 'Member')}&background=0f172a&color=fff&size=400`}
+                          alt={profile.name || 'Matrimonial profile'}
                           className={`absolute inset-0 w-full h-full object-cover transition-all duration-300 ${
                             !hasAccess ? 'blur-[3px] brightness-95 scale-105' : ''
                           }`}
@@ -1000,7 +1011,7 @@ const MatrimonialHomePage = () => {
 
                           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                             <h2 className="text-white text-[24px] font-black tracking-tight leading-none">
-                              {profile.name}, {profile.age}
+                              {profile.name ? `${profile.name}${profile.age ? `, ${profile.age}` : ''}` : (profile.age ? `${profile.age} yrs` : '')}
                             </h2>
                             {profile.headVerified && (
                               <BadgeCheck size={20} className="text-green-500 fill-white shrink-0" aria-label="Head verified" />
@@ -1010,12 +1021,14 @@ const MatrimonialHomePage = () => {
                             )}
                           </div>
                           
-                          <p className="text-white/85 text-[13.5px] font-bold mt-2.5 leading-none">
-                            {profile.height} · {profile.city} · {profile.community}
-                          </p>
+                          {[profile.height, profile.city, profile.community].some(Boolean) && (
+                            <p className="text-white/85 text-[13.5px] font-bold mt-2.5 leading-none">
+                              {[profile.height, profile.city, profile.community].filter(Boolean).join(' · ')}
+                            </p>
+                          )}
                           
                           <p className="text-white/80 text-[12.5px] font-semibold mt-1.5 leading-none">
-                            {profile.profession} · Earns {profile.income}
+                            {[profile.profession, profile.income ? `Earns ${profile.income}` : null].filter(Boolean).join(' · ')}
                           </p>
                           
                           <p className="text-white/70 text-[12px] font-semibold mt-1.5 leading-none">
@@ -1316,7 +1329,7 @@ const MatrimonialHomePage = () => {
                         src={visitor.photos?.[0]?.url || visitor.userId?.avatar || visitor.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(visitor.name || 'User')}&background=0f172a&color=fff&size=400`}
                         alt={visitor.name}
                         className={`absolute inset-0 w-full h-full object-cover transition-all duration-300 ${
-                          visitor.requiresUpgrade ? 'blur-[3px] brightness-95 scale-105' : ''
+                          visitor.requiresUpgrade || visitor.photoBlurred ? 'blur-[3px] brightness-95 scale-105' : ''
                         }`}
                       />
                       

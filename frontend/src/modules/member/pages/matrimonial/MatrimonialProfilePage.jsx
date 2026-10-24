@@ -124,12 +124,17 @@ const MatrimonialProfilePage = () => {
 
   const isConnected    = interestStatus === 'accepted';
   const isInterestSent = interestStatus === 'sent';
-  const isPhotoVisible = profile.visibility === 'public' || profile.visibility === 'all_members' || isConnected || profile.isOwnProfile;
-  const isBlocked      = matriCtx?.isBlocked(profile.userId?._id);
+  // Private profile, interest not accepted yet: the server sent only a blurred photo
+  const isPhotoVisible = !profile.photoBlurred || isConnected;
+  // Restricted profiles don't carry the account id; the server accepts the profile id
+  const targetId       = profile.userId?._id || profile._id;
+  const isBlocked      = matriCtx?.isBlocked(targetId);
   const isShortlisted  = matriCtx?.isShortlisted(profile._id);
 
   const age       = profile.age;
-  const name      = profile.personal?.fullName || 'Member';
+  // Public profiles don't send a name until the interest is accepted (privacy)
+  const name      = profile.personal?.fullName || '';
+  const isLimitedView = profile.isRestricted && !isConnected;
   const location  = [profile.location?.city, profile.location?.state].filter(Boolean).join(', ');
   const matchScore = profile.matchScore;
 
@@ -186,8 +191,8 @@ const MatrimonialProfilePage = () => {
 
   const handleBlock = async () => {
     const res = isBlocked
-      ? await matriCtx.unblockUser(profile.userId?._id)
-      : await matriCtx.blockUser(profile.userId?._id, 'User preference');
+      ? await matriCtx.unblockUser(targetId)
+      : await matriCtx.blockUser(targetId, 'User preference');
     showToast(isBlocked ? 'Unblocked.' : 'Profile blocked.');
     setIsMenuOpen(false);
   };
@@ -197,7 +202,7 @@ const MatrimonialProfilePage = () => {
     setReportSending(true);
     try {
       await matrimonialModerationService.reportProfile({
-        reportedUserId: profile.userId?._id || profile.userId,  // Backend expects userId, not profileId
+        reportedUserId: targetId,  // account id, or the profile id for restricted profiles (server resolves it)
         reason: reportReason
       });
       showToast('Report submitted. Thank you.');
@@ -246,12 +251,12 @@ const MatrimonialProfilePage = () => {
           {displayPhotos.length > 0 && isPhotoVisible ? (
             <img
               src={displayPhotos[activePhotoIndex]?.url}
-              alt={name}
+              alt={name || 'Matrimonial profile'}
               className="w-full h-full object-cover"
             />
           ) : primaryPhoto && !isPhotoVisible ? (
             <>
-              <img src={primaryPhoto.url} alt={name} className="w-full h-full object-cover blur-[3px] brightness-95 scale-105" />
+              <img src={primaryPhoto.url} alt={name || 'Matrimonial profile'} className="w-full h-full object-cover blur-[3px] brightness-95 scale-105" />
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 bg-black/40 z-10">
                 <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center border border-white/20 relative mb-4">
                   <Image size={28} className="text-white/80" />
@@ -266,7 +271,7 @@ const MatrimonialProfilePage = () => {
             </>
           ) : (
             <div className="w-full h-full bg-gradient-to-br from-rose-200 to-pink-300 flex items-center justify-center">
-              <span className="text-[80px] font-black text-white/40">{name[0]}</span>
+              <span className="text-[80px] font-black text-white/40">{name ? name[0] : '?'}</span>
             </div>
           )}
 
@@ -311,7 +316,7 @@ const MatrimonialProfilePage = () => {
                 </span>
               )}
             </div>
-            <h1 className="text-white text-[22px] font-black leading-tight">{name}{age ? `, ${age}` : ''}</h1>
+            <h1 className="text-white text-[22px] font-black leading-tight">{name ? `${name}${age ? `, ${age}` : ''}` : (age ? `${age} yrs` : '')}</h1>
             <p className="text-white/80 text-[12.5px] font-bold mt-1">
               {[profile.education?.profession, profile.personal?.community].filter(Boolean).join(' · ')}
             </p>
@@ -355,7 +360,18 @@ const MatrimonialProfilePage = () => {
           </SectionCard>
         )}
 
-        {/* Basic Details */}
+        {/* Before an accepted interest only these details are shared (owner's privacy setting) */}
+        {isLimitedView ? (
+          <SectionCard title="Profile Details" icon={Users}>
+            <div className="grid grid-cols-2 gap-x-4">
+              {name && <InfoRow label="Name" value={name} />}
+              <InfoRow label="Age"        value={age ? `${age} yrs` : null} />
+              <InfoRow label="Education"  value={profile.education?.highestQualification} icon={GraduationCap} />
+              <InfoRow label="Occupation" value={profile.education?.occupation || profile.education?.profession} icon={Briefcase} />
+              {profile.education?.annualIncome && <InfoRow label="Annual Income" value={profile.education.annualIncome} />}
+            </div>
+          </SectionCard>
+        ) : (
         <SectionCard title="Basic Details" icon={Users}>
           <div className="grid grid-cols-2 gap-x-4">
             <InfoRow label="Height"        value={profile.personal?.height ? `${profile.personal.height} cm` : null} />
@@ -366,6 +382,7 @@ const MatrimonialProfilePage = () => {
             <InfoRow label="Community"     value={profile.personal?.community} />
           </div>
         </SectionCard>
+        )}
 
         {/* Locked gate or full details */}
         {!profile.isRestricted || isConnected ? (
@@ -429,14 +446,8 @@ const MatrimonialProfilePage = () => {
             <Lock size={20} className="text-slate-400 mx-auto mb-2" />
             <p className="text-[13px] font-black text-slate-800">Additional Details Locked</p>
             <p className="text-[11.5px] text-slate-400 mt-1 font-semibold leading-relaxed">
-              These details unlock automatically if they accept your interest request, or you can view them instantly with a Premium Subscription.
+              These details unlock automatically when your interest request is accepted.
             </p>
-            <button 
-              onClick={() => navigate('/member/matrimonial/subscription')}
-              className="mt-4 bg-rose-50 text-rose-500 font-bold text-[12px] px-4 py-2 rounded-lg border border-rose-100 active:scale-95 transition-transform"
-            >
-              Get Premium Subscription
-            </button>
           </div>
         )}
       </div>

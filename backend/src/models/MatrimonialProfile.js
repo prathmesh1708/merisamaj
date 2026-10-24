@@ -6,7 +6,11 @@ const photoSchema = new mongoose.Schema({
   isPrimary:  { type: Boolean, default: false },
   isVerified: { type: Boolean, default: true },
   status:     { type: String, enum: ['pending', 'approved', 'rejected'], default: 'approved' },
-  uploadedAt: { type: Date, default: Date.now }
+  uploadedAt: { type: Date, default: Date.now },
+  // Separate blurred copy shown to members who aren't connected yet when the profile
+  // is private (made by services/matrimonialPhotoBlur.js; the clear URL is never sent to them)
+  blurredUrl:      { type: String },
+  blurredPublicId: { type: String }
 }, { _id: true });
 
 const matrimonialProfileSchema = new mongoose.Schema(

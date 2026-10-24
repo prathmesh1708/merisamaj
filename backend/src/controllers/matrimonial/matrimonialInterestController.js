@@ -2,7 +2,8 @@
  * matrimonialInterestController.js
  * Manages the full interest request lifecycle.
  */
-const InterestRequest = require('../../models/InterestRequest');
+const InterestRequest = require('../../models/InterestRequest');
+
 const { countInterestsThisMonth } = require('../../services/matrimonialUsageService');
 const MatrimonialProfile = require('../../models/MatrimonialProfile');
 const Conversation = require('../../models/Conversation');
@@ -110,17 +111,19 @@ exports.sendInterest = async (req, res) => {
     }
 
     // Update sender's lastActiveAt
-    await MatrimonialProfile.findOneAndUpdate({ userId: senderId }, { lastActiveAt: new Date() });
+    const senderProfile = await MatrimonialProfile.findOneAndUpdate({ userId: senderId }, { lastActiveAt: new Date() }, { new: true })
+      .select('personal.fullName visibilitySettings').lean();
 
-    // Notify receiver
-    const notifReceived = await notifyInterestReceived(receiverId, req.user.name, interest._id);
+    // Notify receiver — with the sender's name only if their privacy setting shows it
+    const senderName = visibleNameOf(senderProfile) || 'A member';
+    const notifReceived = await notifyInterestReceived(receiverId, senderName, interest._id);
     if (notifReceived) {
       sendPushNotification({
         userId: receiverId,
         notificationId: notifReceived._id,
         type: 'matrimonial_interest_received',
         title: 'New Interest Received! 💌',
-        message: `${req.user.name} has sent you an interest request.`,
+        message: `${senderName} has sent you an interest request.`,
         icon: '💌',
         actionUrl: '/member/matrimonial/interests'
       }).catch(err => console.error('[PushError]', err.message));
@@ -239,7 +242,23 @@ exports.cancelInterest = async (req, res) => {
 };
 
 // ─── List Sent Interests ────────────────────────────────────────────────────────────────
-const { buildRestrictedProfile } = require('../../middleware/matrimonialPrivacy');
+const { buildRestrictedProfile, buildProfileForViewer, visibleNameOf } = require('../../middleware/matrimonialPrivacy');
+const { ensureBlurredPhotos } = require('../../services/matrimonialPhotoBlur');
+
+// The other person in an interest: full profile once accepted; until then the restricted
+// view, and their account (name, avatar, id) is replaced by what that view allows.
+const presentCounterpart = async (interest, accountField, profileField) => {
+  const accountId = interest[accountField]?._id || interest[accountField];
+  const profile = await MatrimonialProfile.findOne({ userId: accountId, isDeleted: false }).lean({ virtuals: true });
+  const connected = interest.status === 'accepted';
+  if (!connected && profile) await ensureBlurredPhotos([profile]);
+  const out = { ...interest, [profileField]: profile ? buildProfileForViewer(profile, { isConnected: connected }) : null };
+  if (!connected) {
+    const shown = out[profileField];
+    out[accountField] = { name: (profile && visibleNameOf(profile)) || 'Member', avatar: shown?.photos?.[0]?.url || null };
+  }
+  return out;
+};
 
 exports.getSentInterests = async (req, res) => {
   try {
@@ -256,16 +275,7 @@ exports.getSentInterests = async (req, res) => {
       .lean();
 
     // Enrich with receiver's matrimonial profile
-    const enriched = await Promise.all(interests.map(async (interest) => {
-      const profile = await MatrimonialProfile.findOne({
-        userId: interest.receiverId?._id || interest.receiverId,
-        isDeleted: false
-      }).lean({ virtuals: true });
-      return {
-        ...interest,
-        receiverProfile: profile ? buildRestrictedProfile(profile) : null
-      };
-    }));
+    const enriched = await Promise.all(interests.map(i => presentCounterpart(i, 'receiverId', 'receiverProfile')));
 
     res.json({ status: 'success', data: { interests: enriched, total, page: Number(page) } });
   } catch (err) {
@@ -289,16 +299,7 @@ exports.getReceivedInterests = async (req, res) => {
       .lean();
 
     // Enrich with sender's matrimonial profile
-    const enriched = await Promise.all(interests.map(async (interest) => {
-      const profile = await MatrimonialProfile.findOne({
-        userId: interest.senderId?._id || interest.senderId,
-        isDeleted: false
-      }).lean({ virtuals: true });
-      return {
-        ...interest,
-        senderProfile: profile ? buildRestrictedProfile(profile) : null
-      };
-    }));
+    const enriched = await Promise.all(interests.map(i => presentCounterpart(i, 'senderId', 'senderProfile')));
 
     res.json({ status: 'success', data: { interests: enriched, total, page: Number(page) } });
   } catch (err) {
@@ -322,8 +323,9 @@ exports.getDeclinedInterests = async (req, res) => {
     const otherIds = [...new Set(interests.map(i =>
       String(String(i.senderId) === String(me) ? i.receiverId : i.senderId)))];
     const profiles = await MatrimonialProfile.find({ userId: { $in: otherIds }, isDeleted: false })
-      .populate('userId', 'name avatar subCommunity')
+      .populate('userId', 'verificationStatus isAadharVerified')
       .lean({ virtuals: true });
+    await ensureBlurredPhotos(profiles);
     const profileByUser = new Map(profiles.map(p => [String(p.userId?._id || p.userId), p]));
 
     const iDeclined = [];

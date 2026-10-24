@@ -125,6 +125,7 @@ exports.deletePhoto = async (req, res) => {
         console.error('[Photo Delete] Cloudinary deletion failed:', cloudErr.message);
       }
     }
+    await require('../../services/matrimonialPhotoBlur').deleteBlurredCopy(wasDeleted);
 
     await profile.save();
     res.json({ status: 'success', message: 'Photo deleted.' });
