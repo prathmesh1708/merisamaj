@@ -256,18 +256,7 @@ const MatrimonialProfilePage = () => {
             />
           ) : primaryPhoto && !isPhotoVisible ? (
             <>
-              <img src={primaryPhoto.url} alt={name || 'Matrimonial profile'} className="w-full h-full object-cover blur-[3px] brightness-95 scale-105" />
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 bg-black/40 z-10">
-                <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center border border-white/20 relative mb-4">
-                  <Image size={28} className="text-white/80" />
-                  <div className="absolute -bottom-1 -right-1 w-7 h-7 bg-white rounded-full flex items-center justify-center shadow">
-                    <Lock size={13} className="text-slate-800" />
-                  </div>
-                </div>
-                <p className="text-[13px] text-white font-extrabold px-4 leading-relaxed">
-                  Photo visible only after connection is established
-                </p>
-              </div>
+              <img src={primaryPhoto.url} alt={name || 'Matrimonial profile'} className="w-full h-full object-cover" />
             </>
           ) : (
             <div className="w-full h-full bg-gradient-to-br from-rose-200 to-pink-300 flex items-center justify-center">
@@ -303,7 +292,7 @@ const MatrimonialProfilePage = () => {
           )}
 
           {/* Bottom gradient */}
-          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent pt-20 pb-5 px-5">
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent pt-20 pb-5 px-5 z-20">
             <div className="flex items-center gap-2 mb-2">
               {profile.subscription?.isActive && (
                 <span className="inline-flex items-center gap-1 bg-amber-500 text-white text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase">

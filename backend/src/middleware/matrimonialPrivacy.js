@@ -104,7 +104,7 @@ const buildFullProfile = (profile, features = {}) => {
   if (full.photos) {
     full.photos = full.photos
       .filter(p => !p.isDeleted)
-      .map(({ blurredUrl, blurredPublicId, ...p }) => p);
+      .map(({ blurredUrl, blurredPublicId, blurLevel, ...p }) => p);
   }
 
   // Populated account: only what the profile screens use

@@ -16,7 +16,7 @@ const ProfileCard = ({
   if (!profile) return null;
 
   // The server marks private profiles not yet connected (and sends a blurred photo)
-  const isBlurred = !!profile.photoBlurred;
+  const isBlurred = false; // private photos arrive already blurred from the server
   const interestSent = profile.interests?.sent;
   const isConnected = profile.interests?.accepted;
 

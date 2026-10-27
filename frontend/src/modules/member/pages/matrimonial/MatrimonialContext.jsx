@@ -43,6 +43,11 @@ export const MatrimonialProvider = () => {
   // ─── Visitors ─────────────────────────────────────────────────────────────
   const [visitors, setVisitors]             = useState([]);
   const [visitorsLoading, setVisitorsLoading] = useState(false);
+  const [visitorsTotal, setVisitorsTotal]   = useState(0);
+  // true when the plan doesn't include visitor history (the server refuses the list)
+  const [visitorsLocked, setVisitorsLocked] = useState(false);
+  const [visited, setVisited]               = useState([]);   // profiles I visited
+  const [visitedTotal, setVisitedTotal]     = useState(0);
 
   // ─── UI State ─────────────────────────────────────────────────────────────
   const [viewMode, setViewMode] = useState(() => {
@@ -121,10 +126,20 @@ export const MatrimonialProvider = () => {
     try {
       const res = await matrimonialVisitorService.getMyVisitors({ limit: 20 });
       setVisitors(res.data.data?.visitors || []);
+      setVisitorsTotal(res.data.data?.total ?? (res.data.data?.visitors || []).length);
+      setVisitorsLocked(false);
     } catch (err) {
+      if (err.response?.data?.code === 'PREMIUM_REQUIRED') setVisitorsLocked(true);
       console.error('[MatrimonialContext] Visitors fetch failed:', err.response?.data?.message);
     } finally {
       setVisitorsLoading(false);
+    }
+    try {
+      const res = await matrimonialVisitorService.getMyVisited({ limit: 20 });
+      setVisited(res.data.data?.visited || []);
+      setVisitedTotal(res.data.data?.total ?? (res.data.data?.visited || []).length);
+    } catch (err) {
+      console.error('[MatrimonialContext] Visited fetch failed:', err.response?.data?.message);
     }
   }, []);
 
@@ -166,6 +181,10 @@ export const MatrimonialProvider = () => {
       setSentInterests([]);
       setAcceptedInterests([]);
       setVisitors([]);
+      setVisitorsTotal(0);
+      setVisitorsLocked(false);
+      setVisited([]);
+      setVisitedTotal(0);
       setShortlistedIds([]);
       setBlockedIds([]);
     }
@@ -333,6 +352,10 @@ export const MatrimonialProvider = () => {
     // Visitors
     visitors,
     visitorsLoading,
+    visitorsTotal,
+    visitorsLocked,
+    visited,
+    visitedTotal,
     fetchVisitors,
 
     // UI

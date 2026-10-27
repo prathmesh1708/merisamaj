@@ -477,7 +477,7 @@ export const AdminNotificationsPage = () => {
               </label>
             )}
             <p className="text-[10px] text-gray-400 mt-1">
-              Shown as a large picture in the phone notification and in the members' notification list. A wide (2:1) image looks best.
+              Shown as a large picture in the members' notification list, on iPhone and in the browser. Android phones show it once the app is updated to display pictures. A wide (2:1) image looks best.
             </p>
           </div>
 

@@ -140,6 +140,8 @@ export const MatrimonialVisibilityManager = ({
   // The member's real community / sub-community names for the visibility cards
   const [memberOf, setMemberOf] = useState({ communityName: '', subCommunityName: '', canUseOtherCommunities: false, subCommunities: [] });
   const otherLocked = memberOf.canUseOtherCommunities === false;
+  // How many members are Aadhaar / community verified (shown on those two switches)
+  const [verifiedCounts, setVerifiedCounts] = useState(null);
   // "Gupta ji" -> "Gupta ji Samaj" (names that already say Samaj are left as they are)
   const samaj = (name) => (/samaj/i.test(name) ? name : `${name} Samaj`);
 
@@ -149,6 +151,7 @@ export const MatrimonialVisibilityManager = ({
       try {
         const res = await matrimonialProfileService.getVisibilitySettings();
         if (res.data?.memberOf) setMemberOf(res.data.memberOf);
+        if (res.data?.verifiedCounts) setVerifiedCounts(res.data.verifiedCounts);
         if (res.data?.data) {
           setSettings(prev => ({
             ...prev,
@@ -249,12 +252,25 @@ export const MatrimonialVisibilityManager = ({
     loadCommunities();
   }, []);
 
-  // Load real city/state lists (with real profile counts) for the location selector screen
+  // Load real city/state lists (with real profile counts) for the location selector screen —
+  // only where members of the communities chosen above live, so it's loaded on opening that screen
   useEffect(() => {
+    if (currentScreen !== 'select-locations') return;
+    const otherOn = !otherLocked && settings.otherCommunities.enabled;
+    const params = {
+      myCommunity: settings.myCommunity.enabled ? '1' : '0',
+      subCommunities: settings.myCommunity.enabled && settings.mySubCommunity.scope === 'selected'
+        ? (settings.mySubCommunity.selectedSubCommunities || []).join(',') || undefined
+        : undefined,
+      otherScope: otherOn ? settings.otherCommunities.scope : 'none',
+      communities: otherOn && settings.otherCommunities.scope === 'selected'
+        ? (settings.otherCommunities.selectedCommunities || []).join(',')
+        : undefined
+    };
     const loadLocations = async () => {
       setLocationsLoading(true);
       try {
-        const res = await matrimonialProfileService.getAvailableLocations();
+        const res = await matrimonialProfileService.getAvailableLocations(params);
         setAvailableCities(res.data?.data?.cities || []);
         setAvailableStates(res.data?.data?.states || []);
       } catch (err) {
@@ -265,7 +281,8 @@ export const MatrimonialVisibilityManager = ({
       }
     };
     loadLocations();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentScreen]);
 
   const handleMakePrimary = async (photo) => {
     setPhotoActionId(photo._id);
@@ -518,19 +535,29 @@ export const MatrimonialVisibilityManager = ({
 
   // Filtered lists — drawn from real data loaded above, never sample data
   const filteredCommunities = useMemo(() => {
-    if (!communitySearch.trim()) return availableCommunities;
-    return availableCommunities.filter(c =>
+    // "Other communities" — the member's own community is not one of them
+    const own = (memberOf.communityName || '').trim().toLowerCase();
+    const others = availableCommunities.filter(c => (c.name || '').trim().toLowerCase() !== own);
+    if (!communitySearch.trim()) return others;
+    return others.filter(c =>
       c.name.toLowerCase().includes(communitySearch.toLowerCase())
     );
-  }, [communitySearch, availableCommunities]);
+  }, [communitySearch, availableCommunities, memberOf.communityName]);
 
   const filteredLocations = useMemo(() => {
-    const list = locationTab === 'states' ? availableStates : availableCities;
+    const available = locationTab === 'states' ? availableStates : availableCities;
+    const others = locationTab === 'states' ? availableCities : availableStates;
+    const listed = new Set([...available, ...others].map(l => l.name));
+    const leftover = locationTab === 'cities'
+      ? (settings.selectedLocations.locations || []).filter(n => !listed.has(n))
+          .map(n => ({ id: `kept-${n}`, name: n, type: 'city', count: 0 }))
+      : [];
+    const list = [...leftover, ...available];
     if (!locationSearch.trim()) return list;
     return list.filter(l =>
       l.name.toLowerCase().includes(locationSearch.toLowerCase())
     );
-  }, [locationTab, locationSearch, availableCities, availableStates]);
+  }, [locationTab, locationSearch, availableCities, availableStates, settings.selectedLocations.locations]);
 
   const calcAge = (dob) => {
     if (!dob) return null;
@@ -813,8 +840,8 @@ export const MatrimonialVisibilityManager = ({
 
           {/* Settings List */}
           <div className="space-y-3">
-            {/* Setting 1: Other Community Members — only shown when the plan includes it */}
-            {!otherLocked && (
+            {/* Setting 1: Other Community Members — choosing other communities lives here only;
+                without the plan it shows the Upgrade button */}
             <div className={`bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs ${otherLocked ? 'opacity-90' : ''}`}>
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-3">
@@ -897,7 +924,6 @@ export const MatrimonialVisibilityManager = ({
                 </div>
               )}
             </div>
-            )}
 
             {/* Setting 2: My Community Members */}
             <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs">
@@ -933,63 +959,63 @@ export const MatrimonialVisibilityManager = ({
                 </label>
               </div>
 
-              {/* Sub-community chooser — which sub-communities of my community can see me */}
-              {settings.myCommunity.enabled && (
-                <button
-                  type="button"
-                  onClick={() => setCurrentScreen('select-subcommunities')}
-                  className="mt-3 pt-2.5 border-t border-slate-100 pl-11 w-full flex items-center justify-between gap-2 text-left"
-                >
-                  <span className="flex items-center gap-2 min-w-0">
-                    <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0"></span>
-                    <span className="text-[12px] font-semibold text-slate-700 truncate">
-                      {settings.mySubCommunity.scope === 'selected' && (settings.mySubCommunity.selectedSubCommunities || []).length > 0
-                        ? settings.mySubCommunity.selectedSubCommunities.map(samaj).join(', ')
-                        : (memberOf.subCommunities || []).length > 0
-                          ? `All sub communities (${memberOf.subCommunities.length})`
-                          : 'No sub communities in your community yet'}
-                    </span>
-                  </span>
-                  <span className="text-[11.5px] font-bold text-rose-600 flex items-center gap-0.5 shrink-0">
-                    Choose <ChevronRight size={14} />
-                  </span>
-                </button>
-              )}
-
-              {/* Selected other communities — who else (outside my community) can see me */}
-              {(() => {
-                const picked = settings.otherCommunities.enabled && settings.otherCommunities.scope === 'selected'
-                  ? (settings.otherCommunities.selectedCommunities || [])
-                  : [];
+              {/* Which parts of my community can see me: selected ones, or all sub communities */}
+              {settings.myCommunity.enabled && ((memberOf.subCommunities || []).length === 0 ? (
+                <p className="mt-3 pt-2.5 border-t border-slate-100 pl-11 text-[12px] font-semibold text-slate-400">
+                  No sub communities in your community yet
+                </p>
+              ) : (() => {
+                const subSel = settings.mySubCommunity.selectedSubCommunities || [];
+                const isSelected = settings.mySubCommunity.scope === 'selected';
+                const setSubScope = (scope) => setSettings(s => ({ ...s, mySubCommunity: { ...s.mySubCommunity, scope } }));
                 return (
-                  <button
-                    type="button"
-                    onClick={() => (otherLocked ? navigate('/member/matrimonial/subscription') : setCurrentScreen('select-communities'))}
-                    className="mt-2.5 pt-2.5 border-t border-slate-100 pl-11 w-full flex items-center justify-between gap-2 text-left"
-                  >
-                    <span className="flex items-center gap-2 min-w-0">
-                      {otherLocked
-                        ? <Lock size={12} className="text-slate-400 shrink-0" />
-                        : <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span>}
-                      <span className="min-w-0">
-                        <span className="block text-[12px] font-semibold text-slate-700 truncate">
-                          {picked.length > 0 ? picked.map(samaj).join(', ') : 'Selected communities'}
-                        </span>
-                        <span className="block text-[10.5px] font-medium text-slate-400 truncate">
-                          {otherLocked
-                            ? 'Show your profile to other communities you choose'
-                            : picked.length > 0
-                              ? `${picked.length} other ${picked.length === 1 ? 'community' : 'communities'} can see your profile`
-                              : 'Also show your profile to other communities you choose'}
-                        </span>
+                  <div className="mt-3 pt-3 border-t border-slate-100 space-y-2.5 pl-11">
+                    {/* Radio 1: All communities */}
+                    <label className="flex items-center gap-2.5 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="mySubScope"
+                        checked={!isSelected}
+                        onChange={() => setSubScope('all')}
+                        className="w-4 h-4 text-rose-600 focus:ring-rose-500 border-slate-300"
+                      />
+                      <span className="text-[12px] font-semibold text-slate-700">
+                        All communities ({memberOf.subCommunities.length})
                       </span>
-                    </span>
-                    <span className={`text-[11.5px] font-bold flex items-center gap-0.5 shrink-0 ${otherLocked ? 'text-slate-500' : 'text-rose-600'}`}>
-                      {otherLocked ? 'Upgrade' : 'Choose'} <ChevronRight size={14} />
-                    </span>
-                  </button>
+                    </label>
+
+                    {/* Radio 2: Selected communities (of my community) */}
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="flex items-center gap-2.5 cursor-pointer min-w-0">
+                        <input
+                          type="radio"
+                          name="mySubScope"
+                          checked={isSelected}
+                          onChange={() => {
+                            setSubScope('selected');
+                            if (subSel.length === 0) setCurrentScreen('select-subcommunities');
+                          }}
+                          className="w-4 h-4 text-rose-600 focus:ring-rose-500 border-slate-300 shrink-0"
+                        />
+                        <span className="min-w-0">
+                          <span className="block text-[12px] font-semibold text-slate-700">Selected communities</span>
+                          {isSelected && subSel.length > 0 && (
+                            <span className="block text-[10.5px] font-medium text-slate-400 truncate">{subSel.map(samaj).join(', ')}</span>
+                          )}
+                        </span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentScreen('select-subcommunities')}
+                        className="text-[11.5px] font-bold text-rose-600 hover:text-rose-700 flex items-center gap-0.5 active:scale-95 shrink-0"
+                      >
+                        Selected{isSelected && subSel.length > 0 ? ` (${subSel.length})` : ''} <ChevronRight size={14} />
+                      </button>
+                    </div>
+                  </div>
                 );
-              })()}
+              })())}
+
             </div>
 
             {/* Setting 4: Aadhar Verified Members */}
@@ -1004,6 +1030,11 @@ export const MatrimonialVisibilityManager = ({
                     <p className="text-[11px] text-slate-400 font-medium leading-tight mt-0.5">
                       Sirf Aadhar verified members aapki profile dekh sakte hain.
                     </p>
+                    {verifiedCounts && (
+                      <p className="text-[11.5px] font-bold text-rose-600 mt-1.5">
+                        {verifiedCounts.aadharVerified} Aadhar verified {verifiedCounts.aadharVerified === 1 ? 'member' : 'members'}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -1031,6 +1062,11 @@ export const MatrimonialVisibilityManager = ({
                     <p className="text-[11px] text-slate-400 font-medium leading-tight mt-0.5">
                       Sirf community verified members aapki profile dekh sakte hain.
                     </p>
+                    {verifiedCounts && (
+                      <p className="text-[11.5px] font-bold text-emerald-600 mt-1.5">
+                        {verifiedCounts.communityVerified} community verified {verifiedCounts.communityVerified === 1 ? 'member' : 'members'}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -1172,9 +1208,14 @@ export const MatrimonialVisibilityManager = ({
           ) : (
             <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
               <label className="flex items-center justify-between px-4 py-3.5 cursor-pointer">
-                <span className="text-[13px] font-bold text-slate-800">All sub communities ({subs.length})</span>
-                <input type="radio" checked={isAll} onChange={() => setSub({ scope: 'all', selectedSubCommunities: [] })}
-                  className="w-4 h-4 text-rose-600 focus:ring-rose-500 border-slate-300" />
+                <span className="text-[13px] font-bold text-slate-800">All communities ({subs.length})</span>
+                <span className="flex items-center gap-3">
+                  {typeof memberOf.subCommunityTotal === 'number' && (
+                    <span className="text-[11px] font-medium text-slate-400">{memberOf.subCommunityTotal} profiles</span>
+                  )}
+                  <input type="radio" checked={isAll} onChange={() => setSub({ scope: 'all', selectedSubCommunities: [] })}
+                    className="w-4 h-4 text-rose-600 focus:ring-rose-500 border-slate-300" />
+                </span>
               </label>
               {subs.map(name => (
                 <label key={name} className="flex items-center justify-between px-4 py-3.5 cursor-pointer">
@@ -1184,8 +1225,13 @@ export const MatrimonialVisibilityManager = ({
                       <span className="text-[9px] font-black uppercase bg-rose-50 text-rose-600 px-1.5 py-0.5 rounded">Yours</span>
                     )}
                   </span>
-                  <input type="checkbox" checked={!isAll && sel.includes(name)} onChange={() => toggleSub(name)}
-                    className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 border-slate-300" />
+                  <span className="flex items-center gap-3">
+                    {memberOf.subCommunityCounts && (
+                      <span className="text-[11px] font-medium text-slate-400">{memberOf.subCommunityCounts[name] ?? 0} profiles</span>
+                    )}
+                    <input type="checkbox" checked={!isAll && sel.includes(name)} onChange={() => toggleSub(name)}
+                      className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 border-slate-300" />
+                  </span>
                 </label>
               ))}
             </div>
@@ -1196,7 +1242,7 @@ export const MatrimonialVisibilityManager = ({
             onClick={async () => { await handleSaveVisibilitySettings(); setCurrentScreen('visibility'); }}
             className="w-full py-3.5 bg-gradient-to-r from-rose-500 to-pink-600 text-white rounded-2xl font-black text-[14px] shadow-lg shadow-rose-500/20 active:scale-98 transition-all"
           >
-            {isAll ? 'Save: all sub communities' : `Save: ${sel.length} selected`}
+            {isAll ? 'Save: all communities' : `Save: ${sel.length} selected`}
           </button>
         </div>
       </div>
@@ -1357,7 +1403,14 @@ export const MatrimonialVisibilityManager = ({
             ))}
           </div>
 
-          {/* Locations Checklist */}
+          {/* Locations Checklist — only where members of the chosen communities live */}
+          {!locationsLoading && filteredLocations.length === 0 && (
+            <div className="bg-white rounded-2xl p-6 border border-slate-200 text-center text-[12px] font-semibold text-slate-400">
+              {locationSearch.trim()
+                ? 'No matching location.'
+                : 'No members of the communities you chose have added a location yet.'}
+            </div>
+          )}
           <div className="bg-white rounded-2xl border border-slate-200/80 divide-y divide-slate-100 overflow-hidden shadow-xs">
             {filteredLocations.map((loc) => {
               const isSelected = settings.selectedLocations.locations.includes(loc.name);

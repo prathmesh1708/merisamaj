@@ -604,12 +604,21 @@ exports.getAvailableCommunities = async (req, res) => {
 };
 
 // ─── Get Available Communities with real profile counts (richer, for selector screens) ──
+// Profile counts on the visibility screens show only the opposite gender (the people the
+// matches screen shows): a man sees how many women's profiles, a woman how many men's.
+const oppositeGenderOf = async (user) => {
+  const mine = await MatrimonialProfile.findOne({ userId: user._id, isDeleted: false }).select('personal.gender').lean();
+  const g = String(mine?.personal?.gender || user.gender || '').toLowerCase();
+  return g === 'male' ? { 'personal.gender': 'female' } : g === 'female' ? { 'personal.gender': 'male' } : {};
+};
+
 exports.getAvailableCommunitiesWithCounts = async (req, res) => {
   try {
+    const genderMatch = await oppositeGenderOf(req.user);
     const Community = require('../../models/Community');
     const [communityCounts, registeredCommunities] = await Promise.all([
       MatrimonialProfile.aggregate([
-        { $match: { isDeleted: false, status: 'active', 'personal.community': { $nin: [null, ''] } } },
+        { $match: { isDeleted: false, status: 'active', ...genderMatch, 'personal.community': { $nin: [null, ''] } } },
         { $group: { _id: '$personal.community', count: { $sum: 1 } } }
       ]),
       Community.find({ isActive: true }).select('name').lean()
@@ -633,15 +642,58 @@ exports.getAvailableCommunitiesWithCounts = async (req, res) => {
 };
 
 // ─── Get Available Locations in Matrimonial (with real profile counts) ──────
+// Locations (with profile counts) for the "Selected Location Members" chooser.
+// Only where members of the communities the user picked live:
+//   ?myCommunity=1            own community (by account), optionally ?subCommunities=a,b
+//   ?otherScope=all|selected  other communities, ?communities=Rajput Samaj,Jain Samaj
+// Without any of these, all locations (older app versions).
 exports.getAvailableLocations = async (req, res) => {
   try {
+    const { myCommunity, subCommunities, otherScope, communities } = req.query;
+    const filtered = myCommunity !== undefined || otherScope !== undefined;
+    const match = { isDeleted: false, status: 'active', userId: { $ne: req.user._id }, ...(await oppositeGenderOf(req.user)) };
+
+    if (filtered) {
+      const { viewerCommunityId, communityUserIds } = require('../../utils/matrimonialCommunityScope');
+      const Community = require('../../models/Community');
+      const exact = (v) => new RegExp('^' + String(v).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i');
+      const list = (v) => String(v || '').split(',').map(x => x.trim()).filter(Boolean);
+      const ownId = viewerCommunityId(req.user, req.communityId);
+      // ObjectIds, not strings: aggregate() does not cast them
+      const ownIds = await communityUserIds(ownId);
+      const or = [];
+
+      if (String(myCommunity) === '1' && ownIds.length) {
+        const subs = list(subCommunities);
+        const ids = subs.length
+          ? await User.find({ _id: { $in: ownIds }, subCommunity: { $in: subs.map(exact) } }).distinct('_id')
+          : ownIds;
+        or.push({ userId: { $in: ids } });
+      }
+      if (otherScope === 'all') {
+        or.push({ userId: { $nin: ownIds } });
+      } else if (otherScope === 'selected') {
+        const names = list(communities);
+        if (names.length) {
+          const comms = await Community.find({ name: { $in: names.map(exact) } }).select('_id').lean();
+          const ids = [];
+          for (const c of comms) ids.push(...await communityUserIds(String(c._id)));
+          // Accounts in those communities, or profiles that name that community
+          or.push({ userId: { $in: ids } });
+          or.push({ 'personal.community': { $in: names.map(exact) }, userId: { $nin: ownIds } });
+        }
+      }
+      if (or.length === 0) return res.json({ status: 'success', data: { cities: [], states: [] } });
+      match.$or = or;
+    }
+
     const [cityCounts, stateCounts] = await Promise.all([
       MatrimonialProfile.aggregate([
-        { $match: { isDeleted: false, status: 'active', 'location.city': { $nin: [null, ''] } } },
+        { $match: { ...match, 'location.city': { $nin: [null, ''] } } },
         { $group: { _id: { city: '$location.city', state: '$location.state' }, count: { $sum: 1 } } }
       ]),
       MatrimonialProfile.aggregate([
-        { $match: { isDeleted: false, status: 'active', 'location.state': { $nin: [null, ''] } } },
+        { $match: { ...match, 'location.state': { $nin: [null, ''] } } },
         { $group: { _id: '$location.state', count: { $sum: 1 } } }
       ])
     ]);
@@ -705,6 +757,33 @@ exports.getVisibilitySettings = async (req, res) => {
       subCommunities: (communityDoc?.subCommunities || []).filter(sc => sc.isActive !== false).map(sc => sc.name).filter(Boolean),
       canUseOtherCommunities
     };
+
+    // How many other members with an active matrimonial profile are Aadhaar-verified /
+    // community-verified (shown on those two switches; outside `data` so never saved)
+    const activeOwners = await MatrimonialProfile.find({
+      status: 'active', isDeleted: false, userId: { $ne: req.user._id }, ...(await oppositeGenderOf(req.user))
+    }).distinct('userId');
+    const [aadharVerified, communityVerified] = await Promise.all([
+      User.countDocuments({ _id: { $in: activeOwners }, isAadharVerified: true }),
+      User.countDocuments({ _id: { $in: activeOwners }, verificationStatus: 'verified' })
+    ]);
+    const verifiedCounts = { aadharVerified, communityVerified };
+
+    // Profiles in each sub community of my community (same opposite-gender profiles)
+    const subCounts = {};
+    if (communityId && memberOf.subCommunities.length) {
+      const owners = await User.find({
+        _id: { $in: activeOwners },
+        $or: [{ communityId }, { assignedCommunityIds: communityId }]
+      }).select('subCommunity').lean();
+      const key = (n) => String(n || '').trim().toLowerCase();
+      for (const name of memberOf.subCommunities) {
+        subCounts[name] = owners.filter(o => key(o.subCommunity) === key(name)).length;
+      }
+      memberOf.subCommunityTotal = owners.length;
+    }
+    memberOf.subCommunityCounts = subCounts;
+
     const defaultSettings = {
       otherCommunities: {
         enabled: true,
@@ -731,7 +810,7 @@ exports.getVisibilitySettings = async (req, res) => {
     // "Other Community Members" is a paid plan feature: always off without it.
     if (!canUseOtherCommunities) defaultSettings.otherCommunities.enabled = false;
     if (!profile) {
-      return res.json({ status: 'success', data: defaultSettings, memberOf });
+      return res.json({ status: 'success', data: defaultSettings, memberOf, verifiedCounts });
     }
 
     const settings = {
@@ -742,7 +821,7 @@ exports.getVisibilitySettings = async (req, res) => {
       settings.otherCommunities = { ...(settings.otherCommunities || {}), enabled: false };
     }
 
-    res.json({ status: 'success', data: settings, memberOf });
+    res.json({ status: 'success', data: settings, memberOf, verifiedCounts });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }

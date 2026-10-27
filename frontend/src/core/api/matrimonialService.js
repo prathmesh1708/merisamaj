@@ -19,7 +19,8 @@ export const matrimonialProfileService = {
   updateVisibilitySettings: (data)   => axiosPrivate.put(`${BASE}/profile/visibility`, data),
   getAvailableCommunities: ()        => axiosPrivate.get(`${BASE}/profile/communities`),
   getAvailableCommunitiesWithCounts: () => axiosPrivate.get(`${BASE}/profile/communities-with-counts`),
-  getAvailableLocations:   ()        => axiosPrivate.get(`${BASE}/profile/locations`),
+  // params: the communities chosen on the visibility screen (myCommunity, subCommunities, otherScope, communities)
+  getAvailableLocations:   (params)  => axiosPrivate.get(`${BASE}/profile/locations`, { params }),
   getPreferenceOptions:    ()        => axiosPrivate.get(`${BASE}/profile/preference-options`),
   setAccountStatus:        (status)  => axiosPrivate.put(`${BASE}/profile/account-status`, { status }),
   // Photos
@@ -88,6 +89,7 @@ export const matrimonialShortlistService = {
 // ─── Visitors ────────────────────────────────────────────────────────────────
 export const matrimonialVisitorService = {
   getMyVisitors: (params) => axiosPrivate.get(`${BASE}/visitors`, { params }),
+  getMyVisited:  (params) => axiosPrivate.get(`${BASE}/visited`, { params }),   // profiles I visited
 };
 
 // ─── Block / Report ───────────────────────────────────────────────────────────

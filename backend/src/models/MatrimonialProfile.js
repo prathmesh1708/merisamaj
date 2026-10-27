@@ -10,7 +10,8 @@ const photoSchema = new mongoose.Schema({
   // Separate blurred copy shown to members who aren't connected yet when the profile
   // is private (made by services/matrimonialPhotoBlur.js; the clear URL is never sent to them)
   blurredUrl:      { type: String },
-  blurredPublicId: { type: String }
+  blurredPublicId: { type: String },
+  blurLevel:       { type: Number }   // blur strength the copy was made with
 }, { _id: true });
 
 const matrimonialProfileSchema = new mongoose.Schema(

@@ -17,6 +17,7 @@ router.get('/shortlist',               modCtrl.getShortlist);
 
 // ─── Visitors (Premium Only) ─────────────────────────────────────────────────
 router.get('/visitors', checkFeature('visitorHistory'), modCtrl.getMyVisitors);
+router.get('/visited',  modCtrl.getMyVisited);   // profiles I visited (my own history)
 
 // ─── Block/Unblock ────────────────────────────────────────────────────────────
 router.post('/block',            modCtrl.blockUser);

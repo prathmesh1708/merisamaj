@@ -117,7 +117,7 @@ const URGENT_TYPES = new Set(['chat_new_message', 'group_new_message', 'chat_men
 const MULTICAST_LIMIT = 500; // FCM maximum tokens per sendEachForMulticast call
 
 // `image` (optional, https URL) shows as a big picture under the text, like shopping-app
-// promos: Android and iOS draw it themselves, the web service worker reads data.image.
+// promos: iOS draws it itself; the web service worker and the Android app read data.image.
 const buildPayload = ({ tokens, type, title, message, icon, actionUrl, notificationId, tag, ack, image }) => ({
   tokens,
   notification: {
@@ -200,9 +200,10 @@ const sendToTokens = async (tokenDocs, fields) => {
 
   // Never send twice to the same token
   const unique = Array.from(new Map(tokenDocs.map(t => [t.fcmToken, t])).values());
-  // A push with an image goes to Android as a normal notification so Android itself
-  // draws the big picture (the app's own data-only notification is text only).
-  const groups = ANDROID_DATA_ONLY && !fields.image
+  // Android always gets the data-only push, image or not: the app draws its notification
+  // itself, and a "notification" block on top made Android show a second copy. The image
+  // URL travels in data.image for the app to show (BigPictureStyle).
+  const groups = ANDROID_DATA_ONLY
     ? [
         { tokens: unique.filter(t => t.deviceType === 'android').map(t => t.fcmToken), dataOnly: true },
         { tokens: unique.filter(t => t.deviceType !== 'android').map(t => t.fcmToken), dataOnly: false }

@@ -32,7 +32,7 @@ const ProfileCard = ({ profile, onInterest, onShortlist, isShortlisted, interest
         onClick={() => navigate(`/member/matrimonial/${profile._id}`)}
       >
         {photo ? (
-          <img src={photo} alt={name || 'Matrimonial profile'} className={`w-full h-full object-cover ${profile.photoBlurred ? 'blur-[3px] scale-105' : ''}`} loading="lazy" decoding="async" />
+          <img src={photo} alt={name || 'Matrimonial profile'} className="w-full h-full object-cover" loading="lazy" decoding="async" />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-[48px] font-black bg-gradient-to-br from-rose-100 to-pink-200 text-rose-400">
             {name ? name[0] : '?'}

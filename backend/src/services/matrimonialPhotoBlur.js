@@ -5,13 +5,17 @@
  * separate, already-blurred copy on Cloudinary under its own random id. Only that copy's
  * URL is sent; the clear photo's URL never reaches those members.
  *
- * Copies are made the first time they're needed and saved on the photo (blurredUrl).
+ * Copies are made the first time they're needed and saved on the photo (blurredUrl,
+ * blurLevel). Changing BLUR_STRENGTH re-makes older copies the next time they're shown.
  */
 const MatrimonialProfile = require('../models/MatrimonialProfile');
 const { isPhotoPrivate, primaryPhotoOf } = require('../middleware/matrimonialPrivacy');
 
 const cloudinaryReady = () =>
   !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET);
+
+// Cloudinary blur strength, 1–2000. 400 = a soft blur (20% of the maximum).
+const BLUR_STRENGTH = 400;
 
 const inFlight = new Map(); // photoId -> Promise<{ url, publicId } | null>
 
@@ -31,7 +35,7 @@ const makeBlurredCopy = async (photoUrl) => {
     folder: 'merisamaj/matrimonial_blurred',
     transformation: [
       { width: 600, height: 800, crop: 'limit' },
-      { effect: 'blur:2000' },
+      { effect: `blur:${BLUR_STRENGTH}` },
       { quality: 'auto:low' }
     ]
   });
@@ -49,7 +53,9 @@ const ensureBlurredPhotos = async (profiles) => {
   for (const profile of profiles || []) {
     if (!profile || !isPhotoPrivate(profile)) continue;
     const photo = primaryPhotoOf(profile);
-    if (!photo || photo.blurredUrl || !photo.url || !/^https?:\/\//.test(photo.url)) continue;
+    if (!photo || !photo.url || !/^https?:\/\//.test(photo.url)) continue;
+    if (photo.blurredUrl && photo.blurLevel === BLUR_STRENGTH) continue;
+    const outdated = photo.blurredUrl ? { blurredPublicId: photo.blurredPublicId } : null;
 
     const key = String(photo._id);
     if (!inFlight.has(key)) {
@@ -58,8 +64,9 @@ const ensureBlurredPhotos = async (profiles) => {
           const copy = await makeBlurredCopy(photo.url);
           await MatrimonialProfile.updateOne(
             { _id: profile._id, 'photos._id': photo._id },
-            { $set: { 'photos.$.blurredUrl': copy.url, 'photos.$.blurredPublicId': copy.publicId } }
+            { $set: { 'photos.$.blurredUrl': copy.url, 'photos.$.blurredPublicId': copy.publicId, 'photos.$.blurLevel': BLUR_STRENGTH } }
           );
+          if (outdated) deleteBlurredCopy(outdated); // the copy made at the old strength
           return copy;
         } catch (err) {
           console.warn('[PhotoBlur] could not blur photo', key, err.message);
@@ -70,7 +77,7 @@ const ensureBlurredPhotos = async (profiles) => {
       })());
     }
     jobs.push(inFlight.get(key).then(copy => {
-      if (copy) { photo.blurredUrl = copy.url; photo.blurredPublicId = copy.publicId; }
+      if (copy) { photo.blurredUrl = copy.url; photo.blurredPublicId = copy.publicId; photo.blurLevel = BLUR_STRENGTH; }
     }));
   }
   await Promise.all(jobs);

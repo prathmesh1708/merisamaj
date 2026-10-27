@@ -122,6 +122,30 @@ exports.getMyVisitors = async (req, res) => {
   }
 };
 
+// ─── Profiles I Visited ───────────────────────────────────────────────────────
+// My own viewing history (not a plan feature), each profile as I'm allowed to see it now.
+exports.getMyVisited = async (req, res) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+    const visits = await ProfileVisitor.find({ visitorId: req.user._id })
+      .sort({ lastVisited: -1 })
+      .skip((Number(page) - 1) * Number(limit))
+      .limit(Number(limit))
+      .lean();
+    const profiles = await MatrimonialProfile.find({
+      _id: { $in: visits.map(v => v.profileId) }, status: 'active', isDeleted: false
+    }).populate('userId', 'name avatar verificationStatus isAadharVerified').lean({ virtuals: true });
+    const shown = await presentProfiles(req.user._id, profiles);
+    const visited = visits
+      .filter(v => shown.has(String(v.profileId)))
+      .map(v => ({ _id: v._id, lastVisited: v.lastVisited, visitCount: v.visitCount, profile: shown.get(String(v.profileId)) }));
+    const total = await ProfileVisitor.countDocuments({ visitorId: req.user._id });
+    res.json({ status: 'success', data: { visited, total, page: Number(page) } });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
 // ─── Block User ───────────────────────────────────────────────────────────────
 exports.blockUser = async (req, res) => {
   try {

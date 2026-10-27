@@ -38,7 +38,7 @@ const MatrimonialHomePage = () => {
     fetchInterests,
     sendInterest, acceptInterest: acceptInterestAPI, rejectInterest: rejectInterestAPI,
     cancelInterest: cancelInterestAPI,
-    visitors,
+    visitors, visitorsTotal, visitorsLocked, visited,
     toggleShortlist, isShortlisted, searchFilters, setSearchFilters,
     shortlistedIds = []
   } = useMatrimonial();
@@ -520,26 +520,41 @@ const MatrimonialHomePage = () => {
     fetchDashboard(JSON.parse(serverFilterKey));
   }, [serverFilterKey, fetchDashboard]);
 
-  // ─── dynamicVisitors — from real visitors API ─────────────────────────────
-  const dynamicVisitors = useMemo(() => {
-    return visitors.map((v, idx) => ({
-      id: v._id || v.id || `vis_${idx}`,
-      // Public profiles don't send a name until connected (privacy)
-      name: v.visitorProfile?.personal?.fullName || 'Member',
-      age: v.visitorProfile?.age ?? null,
-      city: v.visitorProfile?.location?.city || '',
-      community: v.visitorProfile?.personal?.community || '',
-      profession: v.visitorProfile?.education?.profession || '',
-      avatar: (v.visitorProfile?.photos || []).find(p => p.isPrimary)?.url || null,
-      photoBlurred: !!v.visitorProfile?.photoBlurred,
-      membershipTier: 'Normal',
-      visitedDate: v.lastVisited ? new Date(v.lastVisited).toLocaleDateString('en-IN') : 'Recently',
-      requiresUpgrade: idx > 1, // First 2 visible, rest locked for non-premium
-    }));
-  }, [visitors]);
+  // ─── Profile visit cards (visitors of me / profiles I visited) ─────────────
+  // Built from the profile the server sent, which already follows its privacy rules.
+  const toVisitCard = useCallback((p, when, key) => {
+    const photos = p?.photos || [];
+    return {
+      key,
+      id: p?._id,          // profile id: used by Interest / Shortlist / Chat
+      _id: p?._id,
+      isConnected: !!p?.isConnected,
+      name: p?.personal?.fullName || '',
+      age: p?.age ?? null,
+      height: p?.personal?.height ? `${p.personal.height} cm` : '',
+      city: p?.location?.city || '',
+      community: p?.personal?.community || '',
+      profession: p?.education?.profession || p?.education?.occupation || '',
+      income: p?.education?.annualIncome || '',
+      education: p?.education?.highestQualification || '',
+      avatar: (photos.find(x => x.isPrimary) || photos[0])?.url || null,
+      photoCount: p?.photoCount ?? photos.length,
+      managedByFamily: !!p?.managedByFamily,
+      activeStatus: p?.lastActiveAt
+        ? (new Date(p.lastActiveAt) > new Date(Date.now() - 3600000) ? 'Online Now' : 'Active Recently')
+        : '',
+      visitedDate: when ? new Date(when).toLocaleDateString('en-IN') : 'Recently'
+    };
+  }, []);
 
-  // ─── dynamicVisited — placeholder (visited-by-me API not yet implemented) ─
-  const dynamicVisited = useMemo(() => [], []);
+  const dynamicVisitors = useMemo(
+    () => visitors.filter(v => v.visitorProfile).map(v => toVisitCard(v.visitorProfile, v.lastVisited, v._id)),
+    [visitors, toVisitCard]
+  );
+  const dynamicVisited = useMemo(
+    () => (visited || []).filter(v => v.profile).map(v => toVisitCard(v.profile, v.lastVisited, v._id)),
+    [visited, toVisitCard]
+  );
 
   // Active bottom tab
   const [activeBottomTab, setActiveBottomTab] = useState('matches'); // 'matches' | 'activity' | 'messenger' | 'premium'
@@ -907,7 +922,7 @@ const MatrimonialHomePage = () => {
                           src={profile.photos?.[0]?.url || profile.userId?.avatar || profile.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name || 'Member')}&background=0f172a&color=fff&size=400`}
                           alt={profile.name || 'Matrimonial profile'}
                           className={`absolute inset-0 w-full h-full object-cover transition-all duration-300 ${
-                            !hasAccess ? 'blur-[3px] brightness-95 scale-105' : ''
+                            !hasMembershipAccess ? 'blur-[3px] brightness-95 scale-105' : ''
                           }`}
                         />
                         
@@ -946,36 +961,6 @@ const MatrimonialHomePage = () => {
                               className="mt-4 px-5 py-2.5 bg-transparent hover:bg-white/10 text-white border-2 border-white rounded-full text-[12.5px] font-black tracking-wide transition-all active:scale-95"
                             >
                               Upgrade to view
-                            </button>
-                          </div>
-                        )}
-
-                        {/* Connection Lock Overlay (Cloned from reference image) */}
-                        {hasMembershipAccess && !isPhotoVisible && (
-                          <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 bg-black/35 backdrop-blur-xs z-15">
-                            <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center border border-white/20 relative mb-3">
-                              <Image size={26} className="text-white/80" />
-                              <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-white rounded-full flex items-center justify-center shadow-md">
-                                <Lock size={12} className="text-slate-800 fill-slate-800" />
-                              </div>
-                            </div>
-                            <p className="text-white text-[13.5px] font-black leading-snug tracking-wide px-4">
-                              Photo visible only after connection is established
-                            </p>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (!isSentOrAccepted) {
-                                  handleInterest(profile);
-                                }
-                              }}
-                              className={`mt-4 px-5 py-2.5 rounded-full text-[12.5px] font-black tracking-wide transition-all active:scale-95 ${
-                                isSentOrAccepted
-                                  ? 'bg-emerald-600 text-white border-2 border-emerald-500 shadow-md shadow-emerald-600/30'
-                                  : 'bg-transparent hover:bg-white/10 text-white border-2 border-white animate-pulse'
-                              }`}
-                            >
-                              {isAccepted ? 'Accepted' : isSent ? 'Sent' : 'Express Interest'}
                             </button>
                           </div>
                         )}
@@ -1147,7 +1132,7 @@ const MatrimonialHomePage = () => {
                 onClick={() => setCurrentSubView('visits')}
                 className="flex-1 bg-white rounded-2xl p-3.5 border border-slate-200/50 shadow-[0_2px_8px_rgba(0,0,0,0.03)] text-center cursor-pointer active:scale-95 transition-all"
               >
-                <span className="text-[26px] font-black text-indigo-600 block leading-none">{dynamicVisitors.length}</span>
+                <span className="text-[26px] font-black text-indigo-600 block leading-none">{visitorsLocked ? 0 : visitorsTotal}</span>
                 <span className="text-[11.5px] font-bold text-slate-650 mt-1.5 block leading-tight">Profile<br/>Visits</span>
               </div>
 
@@ -1303,7 +1288,7 @@ const MatrimonialHomePage = () => {
                 visitsTab === 'visitors' ? 'text-slate-800' : 'text-slate-400'
               }`}
             >
-              Profile Visitors (13)
+              Profile Visitors{visitorsLocked ? '' : ` (${visitorsTotal})`}
               {visitsTab === 'visitors' && <div className="absolute bottom-0 inset-x-0 h-0.5 bg-rose-500" />}
             </button>
             <button
@@ -1312,7 +1297,7 @@ const MatrimonialHomePage = () => {
                 visitsTab === 'visited' ? 'text-slate-800' : 'text-slate-400'
               }`}
             >
-              Profiles I Visited
+              Profiles I Visited ({dynamicVisited.length})
               {visitsTab === 'visited' && <div className="absolute bottom-0 inset-x-0 h-0.5 bg-rose-500" />}
             </button>
           </div>
@@ -1329,7 +1314,7 @@ const MatrimonialHomePage = () => {
                         src={visitor.photos?.[0]?.url || visitor.userId?.avatar || visitor.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(visitor.name || 'User')}&background=0f172a&color=fff&size=400`}
                         alt={visitor.name}
                         className={`absolute inset-0 w-full h-full object-cover transition-all duration-300 ${
-                          visitor.requiresUpgrade || visitor.photoBlurred ? 'blur-[3px] brightness-95 scale-105' : ''
+                          visitor.requiresUpgrade ? 'blur-[3px] brightness-95 scale-105' : ''
                         }`}
                       />
                       

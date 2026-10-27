@@ -70,7 +70,7 @@ export const InterestProfileCard = ({ item, tab, onOpen, onAccept, onDecline, on
       <div className="relative w-full h-full rounded-[25px] overflow-hidden bg-slate-900">
         {/* Photo (or initials) fills the card */}
         {photo ? (
-          <img src={photo} alt={name || 'Matrimonial profile'} className={`absolute inset-0 w-full h-full object-cover ${profile.photoBlurred ? 'blur-[3px] scale-105' : ''}`} />
+          <img src={photo} alt={name || 'Matrimonial profile'} className="absolute inset-0 w-full h-full object-cover" />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-b from-slate-700 to-slate-900">
             <span className="text-[72px] font-black text-white/15">{initials}</span>
