@@ -1314,7 +1314,7 @@ const MatrimonialHomePage = () => {
                         src={visitor.photos?.[0]?.url || visitor.userId?.avatar || visitor.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(visitor.name || 'User')}&background=0f172a&color=fff&size=400`}
                         alt={visitor.name}
                         className={`absolute inset-0 w-full h-full object-cover transition-all duration-300 ${
-                          visitor.requiresUpgrade ? 'blur-[3px] brightness-95 scale-105' : ''
+                          visitor.requiresUpgrade || visitor.photoBlurred ? 'blur-[3px] brightness-95 scale-105' : ''
                         }`}
                       />
                       
