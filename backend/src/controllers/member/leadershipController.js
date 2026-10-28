@@ -134,14 +134,38 @@ exports.getCommunityLeadership = async (req, res) => {
       localHeadGroups.map(g => g.head.city).filter(Boolean)
     ));
 
-    // Every group (Community Head AND Local Head) whose admin-controlled "Show on
-    // Home Page" toggle is on — the Home widget renders ALL of these, tagged with
-    // their scope so it can label "Community Head" vs "Local Community Head".
+    const isCityMatch = (headCity, userCity) => {
+      if (!headCity || !userCity) return false;
+      const h = headCity.trim().toLowerCase();
+      const u = userCity.trim().toLowerCase();
+      if (h === u) return true;
+      const hMain = h.split(',')[0].trim();
+      const uMain = u.split(',')[0].trim();
+      return hMain === uMain;
+    };
+
+    // Location of viewing member (from query param or authenticated user profile)
+    const activeMemberCity = (req.query.city && req.query.city !== 'all')
+      ? req.query.city.trim()
+      : (req.user?.city ? req.user.city.trim() : '');
+
+    // 1. Community Heads represent the entire community across ALL locations —
+    //    always visible to members of the community regardless of their city.
     const homeVisibleCommunityGroups = communityHeadGroups
       .filter(g => g.head.groupVisibleOnHome !== false)
       .map(g => ({ ...g, scope: 'community_head' }));
+
+    // 2. Local Heads represent a specific location — only visible on Home if the
+    //    head's location matches the member's current location/city.
     const homeVisibleLocalGroups = localHeadGroups
-      .filter(g => g.head.groupVisibleOnHome !== false)
+      .filter(g => {
+        if (g.head.groupVisibleOnHome === false) return false;
+        if (req.query.city === 'all') return true;
+        if (activeMemberCity) {
+          return isCityMatch(g.head.city, activeMemberCity);
+        }
+        return false;
+      })
       .map(g => ({ ...g, scope: 'local_head' }));
 
     // Back-compat single-head fields, used by older consumers of this endpoint —

@@ -331,15 +331,29 @@ const LeadershipPage = () => {
     return () => { isMounted = false; };
   }, []);
 
-  const userCity = currentUser?.city || '';
+  const userCity = (currentUser?.city || '').trim();
+
+  // Match member's city in availableLocalCities (case-insensitive & comma-split)
+  const matchedCity = userCity
+    ? availableLocalCities.find(c => {
+        const cLower = (c || '').trim().toLowerCase();
+        const uLower = userCity.toLowerCase();
+        return cLower === uLower || cLower.split(',')[0].trim() === uLower.split(',')[0].trim();
+      })
+    : null;
 
   // Default to the member's own city when it has a Local Head group; otherwise
   // the first city that does. The member can still switch via the picker.
   const effectiveLocalCity = selectedLocalCity
-    || (availableLocalCities.includes(userCity) ? userCity : (availableLocalCities[0] || null));
+    || matchedCity
+    || (availableLocalCities[0] || null);
 
   const visibleLocalHeadGroups = effectiveLocalCity
-    ? localHeadGroups.filter(g => g.head.city === effectiveLocalCity)
+    ? localHeadGroups.filter(g => {
+        const hCity = (g.head?.city || '').trim().toLowerCase();
+        const effCity = effectiveLocalCity.trim().toLowerCase();
+        return hCity === effCity || hCity.split(',')[0].trim() === effCity.split(',')[0].trim();
+      })
     : localHeadGroups;
 
   const filteredLocalCities = citySearch.trim()

@@ -10,7 +10,9 @@ const subCommunitySchema = new mongoose.Schema(
     // Locations (City ids) of THIS sub-community only. `undefined` = never set
     // (older data): it then shares the community-level cityIds list.
     cityIds: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'City' }], default: undefined },
-    inactiveCityIds: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'City' }], default: undefined }
+    inactiveCityIds: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'City' }], default: undefined },
+    planId: { type: mongoose.Schema.Types.ObjectId, ref: 'CommunityPlan', default: null },
+    planAssignedAt: { type: Date, default: null }
   },
   { timestamps: true }
 );

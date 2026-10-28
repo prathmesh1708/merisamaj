@@ -9,7 +9,7 @@ const EMPTY_PLAN = {
   features: {
     maxMembers: 500, maxHeads: 3, maxEvents: 5,
     professionalDirectory: false, matrimonial: false, broadcast: false,
-    analytics: false, apiAccess: false, prioritySupport: false, customBranding: false
+    analytics: false, apiAccess: false, prioritySupport: false, customBranding: false, crossSubCommunityVisibility: false
   }
 };
 
@@ -20,6 +20,7 @@ const BOOLEAN_FEATURES = [
   { key: 'apiAccess', label: 'API Access' },
   { key: 'prioritySupport', label: 'Priority Support' },
   { key: 'customBranding', label: 'Custom Branding' },
+  { key: 'crossSubCommunityVisibility', label: 'Matrimonial Profiles Across Sub-Communities' },
 ];
 
 const PlanModal = ({ plan, onClose, onSaved }) => {
@@ -184,6 +185,7 @@ const PlanModal = ({ plan, onClose, onSaved }) => {
 const AssignModal = ({ plans, onClose }) => {
   const [communities, setCommunities] = useState(null);
   const [communityId, setCommunityId] = useState('');
+  const [subCommunityId, setSubCommunityId] = useState('');
   const [planId, setPlanId]           = useState(plans[0]?._id || '');
   const [saving, setSaving]           = useState(false);
   const [msg, setMsg]                 = useState('');
@@ -198,7 +200,7 @@ const AssignModal = ({ plans, onClose }) => {
     if (!communityId || !planId) return;
     setSaving(true);
     try {
-      await subscriptionService.assignPlan(communityId, planId);
+      await subscriptionService.assignPlan(communityId, planId, subCommunityId || undefined);
       setMsg('Plan assigned ✅');
       setTimeout(onClose, 1200);
     } catch (e) {
@@ -233,6 +235,13 @@ const AssignModal = ({ plans, onClose }) => {
               </select>
             )}
           </div>
+          {communityId && (communities?.find(c => c._id === communityId)?.subCommunities || []).length > 0 && <div>
+            <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Sub-Community (optional)</label>
+            <select value={subCommunityId} onChange={e => setSubCommunityId(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none">
+              <option value="">Whole community</option>
+              {(communities.find(c => c._id === communityId).subCommunities || []).filter(s => s.isActive !== false).map(s => <option key={s._id} value={s._id}>{s.name}{s.planId?.name ? ` (currently: ${s.planId.name})` : ''}</option>)}
+            </select>
+          </div>}
           <div>
             <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Plan</label>
             <select value={planId} onChange={e => setPlanId(e.target.value)}

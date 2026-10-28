@@ -182,8 +182,8 @@ class SubscriptionService {
     return res.data?.data?.communities || [];
   }
 
-  async assignPlan(communityId, planId) {
-    const res = await axiosPrivate.post(`${BASE}/assign`, { communityId, planId });
+  async assignPlan(communityId, planId, subCommunityId) {
+    const res = await axiosPrivate.post(`${BASE}/assign`, { communityId, planId, ...(subCommunityId ? { subCommunityId } : {}) });
     return res.data;
   }
 

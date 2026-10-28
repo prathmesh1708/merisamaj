@@ -106,11 +106,16 @@ const applyScopeFilter = (req, baseFilter = {}, options = {}) => {
 
   // OPTIONAL Level 2 City Scope (strict AND condition WITHIN community)
   // For Local Head & Local Sub-Head, automatically scope to their assigned city
+  const allUserRoles = [user?.role, ...(Array.isArray(user?.roles) ? user.roles : [])]
+    .filter(Boolean)
+    .map(r => String(r).toLowerCase());
   const isLocalScope = (
     user?.accountType === 'local_head' ||
     user?.accountType === 'local_sub_head' ||
-    (userRole === 'sub_head' && user?.subHeadType === 'local') ||
-    (userRole === 'sub_head' && user?.accountType === 'local_head')
+    allUserRoles.includes('local_head') ||
+    user?.subHeadType === 'local' ||
+    (allUserRoles.includes('sub_head') && user?.subHeadType !== 'admin' && user?.accountType !== 'community_head') ||
+    user?.designation?.toLowerCase() === 'local head'
   ) && user?.city;
 
   const activeCity = options.overrideCity || req?.query?.city || (isLocalScope ? user.city : null);

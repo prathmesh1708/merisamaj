@@ -21,11 +21,11 @@ export const useAxiosPrivate = () => {
 
           let token = null;
           if (isHeadApi) {
-            token = localStorage.getItem('head_auth_token');
+            token = localStorage.getItem('head_auth_token') || localStorage.getItem('merisamaj_token') || localStorage.getItem('admin_auth_token');
           } else if (isAdminApi) {
-            token = localStorage.getItem('admin_auth_token');
+            token = localStorage.getItem('admin_auth_token') || localStorage.getItem('head_auth_token') || localStorage.getItem('merisamaj_token');
           } else if (isMemberApi) {
-            token = localStorage.getItem('merisamaj_token');
+            token = localStorage.getItem('merisamaj_token') || localStorage.getItem('head_auth_token') || localStorage.getItem('admin_auth_token');
           } else {
             // Fallback for non-prefixed generic URLs
             if (window.location.pathname.startsWith('/head')) {

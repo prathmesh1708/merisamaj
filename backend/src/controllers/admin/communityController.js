@@ -34,7 +34,10 @@ const sanitizeSubCommunitiesInput = (subCommunities, existing = []) => {
     result.push({
       _id: match?._id || new mongoose.Types.ObjectId(),
       name,
-      isActive: match ? match.isActive !== false : (typeof raw === 'object' && raw.isActive !== undefined ? Boolean(raw.isActive) : true)
+      isActive: match ? match.isActive !== false : (typeof raw === 'object' && raw.isActive !== undefined ? Boolean(raw.isActive) : true),
+      ...(match?.planId ? { planId: match.planId, planAssignedAt: match.planAssignedAt } : {}),
+      ...(match?.cityIds ? { cityIds: match.cityIds } : {}),
+      ...(match?.inactiveCityIds ? { inactiveCityIds: match.inactiveCityIds } : {})
     });
   }
   return result;

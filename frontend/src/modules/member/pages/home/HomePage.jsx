@@ -193,7 +193,8 @@ const HomePage = () => {
       .catch(() => {});
       
     // Fetch real community leadership for accurate user IDs
-    axiosPrivate.get('/member/leadership')
+    const userCity = (currentUser?.city || '').trim();
+    axiosPrivate.get('/member/leadership', { params: userCity ? { city: userCity } : {} })
       .then(res => {
         if (isMounted && res.data?.success && res.data?.data) {
           if (res.data.data.communityHead) {
@@ -203,7 +204,19 @@ const HomePage = () => {
             setLiveSubLeaders(res.data.data.subLeaders);
           }
           const communityGroups = Array.isArray(res.data.data.homeVisibleCommunityGroups) ? res.data.data.homeVisibleCommunityGroups : [];
-          const localGroups = Array.isArray(res.data.data.homeVisibleLocalGroups) ? res.data.data.homeVisibleLocalGroups : [];
+          let localGroups = Array.isArray(res.data.data.homeVisibleLocalGroups) ? res.data.data.homeVisibleLocalGroups : [];
+
+          // Double safeguard: local head banners on Home must be of the user's SAME location
+          if (userCity) {
+            const uCity = userCity.toLowerCase();
+            const uCityMain = uCity.split(',')[0].trim();
+            localGroups = localGroups.filter(g => {
+              const hCity = (g.head?.city || '').trim().toLowerCase();
+              const hCityMain = hCity.split(',')[0].trim();
+              return hCity === uCity || hCityMain === uCityMain;
+            });
+          }
+
           setHomeVisibleGroups([...communityGroups, ...localGroups]);
         }
       })
@@ -245,7 +258,7 @@ const HomePage = () => {
       });
 
     return () => { isMounted = false; };
-  }, [currentUser?.communityId]);
+  }, [currentUser?.communityId, currentUser?.city]);
 
   const displayTopDonors = liveTopDonors;
 

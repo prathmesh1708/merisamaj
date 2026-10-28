@@ -37,7 +37,7 @@ const StageChip = ({ label, stage }) => (
   </span>
 );
 
-export const HeadFamilyRequests = () => {
+export const HeadFamilyRequests = ({ onCountChange }) => {
   const [status, setStatus] = useState('pending');
   const [requests, setRequests] = useState([]);
   const [reviewerLevel, setReviewerLevel] = useState(null);
@@ -58,10 +58,18 @@ export const HeadFamilyRequests = () => {
   useEffect(() => {
     let cancelled = false;
     axiosPrivate.get('/head/family-requests/stats')
-      .then(res => { if (!cancelled) setStats(res.data?.data || null); })
+      .then(res => {
+        if (!cancelled) {
+          const statsData = res.data?.data || null;
+          setStats(statsData);
+          if (typeof onCountChange === 'function' && statsData) {
+            onCountChange(statsData.pendingRequests || 0);
+          }
+        }
+      })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [reloadKey]);
+  }, [reloadKey, onCountChange]);
 
   useEffect(() => {
     let cancelled = false;

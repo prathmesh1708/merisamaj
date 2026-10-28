@@ -92,11 +92,13 @@ exports.getStats = async (req, res) => {
       approvalStatus: { $ne: 'rejected' },
       linkStatus: { $ne: 'declined' }
     });
+    const pendingFilter = { isRemoved: false, approvalStatus: 'pending', relationToHead: { $ne: 'Self' } };
+    if (familyService.reviewerLevel(req.user) === 'local') pendingFilter['approvals.localHead.status'] = 'pending';
     const [activeMembers, inactiveRecords, totalFamilies, pendingRequests] = await Promise.all([
       User.countDocuments(applyScopeFilter(req, { accountStatus: { $ne: 'deleted' } })), // same base as the census
       FamilyMember.find(recordFilter).select('phone approvalStatus').lean(),
       Family.countDocuments(applyScopeFilter(req, { status: 'active' })),
-      FamilyMember.countDocuments(applyScopeFilter(req, { isRemoved: false, approvalStatus: 'pending', relationToHead: { $ne: 'Self' } }))
+      FamilyMember.countDocuments(applyScopeFilter(req, pendingFilter))
     ]);
 
     const inactiveMembers = inactiveRecords.filter(r => r.phone).length;
