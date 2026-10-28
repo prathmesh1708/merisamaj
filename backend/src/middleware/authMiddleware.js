@@ -18,11 +18,11 @@ const protect = async (req, res, next) => {
     const isApiHead = req.baseUrl.startsWith('/api/v1/head') || req.path.startsWith('/head');
     
     if (isApiAdmin) {
-      token = req.cookies.admin_jwt;
+      token = req.cookies.admin_jwt || req.cookies.head_jwt || req.cookies.member_jwt;
     } else if (isApiHead) {
-      token = req.cookies.head_jwt;
+      token = req.cookies.head_jwt || req.cookies.member_jwt || req.cookies.jwt;
     } else {
-      token = req.cookies.member_jwt || req.cookies.jwt;
+      token = req.cookies.member_jwt || req.cookies.jwt || req.cookies.head_jwt;
     }
   }
 
@@ -203,17 +203,52 @@ const authorize = (...roles) => {
       });
     }
 
-    const userRole = (req.user.role || '').toLowerCase();
+    const rawRoles = [
+      req.user.role,
+      ...(Array.isArray(req.user.roles) ? req.user.roles : [])
+    ].filter(Boolean).map(r => String(r).toLowerCase());
+
+    const accountType = (req.user.accountType || '').toLowerCase();
+    const subHeadType = (req.user.subHeadType || '').toLowerCase();
+    const designation = (req.user.designation || '').toLowerCase();
+
+    const effectiveRoles = new Set(rawRoles);
+
+    if (accountType === 'local_head' || accountType === 'local_sub_head' || subHeadType === 'local' || designation === 'local head') {
+      effectiveRoles.add('sub_head');
+      effectiveRoles.add('local_head');
+    }
+
+    if (accountType === 'community_head' || accountType === 'head' || subHeadType === 'community' || designation === 'community head' || designation === 'president') {
+      effectiveRoles.add('head');
+      effectiveRoles.add('community_head');
+    }
+
+    if (subHeadType === 'admin' || accountType === 'admin_sub_head') {
+      effectiveRoles.add('admin_sub_head');
+    }
+
+    if (effectiveRoles.has('local_head')) {
+      effectiveRoles.add('sub_head');
+    }
+    if (effectiveRoles.has('community_head')) {
+      effectiveRoles.add('head');
+    }
+
     const adminRoles = ['admin', 'super_admin', 'master_admin', 'master', 'admin_sub_head'];
+    const hasAdmin = [...effectiveRoles].some(r => adminRoles.includes(r));
 
     const hasRole = roles.some(role => {
       const targetRole = role.toLowerCase();
-      if (['admin', 'super_admin', 'master_admin', 'master'].includes(userRole)) return true;
-      if (targetRole === 'admin' && (userRole === 'admin_sub_head' || adminRoles.includes(userRole))) return true;
-      if (targetRole === 'admin_only' && (userRole === 'admin' || userRole === 'super_admin' || userRole === 'master_admin')) return true;
-      if (targetRole === 'head' && (userRole === 'head' || userRole === 'sub_head' || adminRoles.includes(userRole))) return true;
-      if (targetRole === 'user' && (userRole === 'user' || userRole === 'member' || userRole === 'head' || userRole === 'sub_head' || adminRoles.includes(userRole))) return true;
-      return targetRole === userRole;
+      if (hasAdmin && !['admin_only'].includes(targetRole)) return true;
+      if (targetRole === 'admin' && hasAdmin) return true;
+      if (targetRole === 'admin_only' && [...effectiveRoles].some(r => ['admin', 'super_admin', 'master_admin'].includes(r))) return true;
+      if (targetRole === 'head' && (effectiveRoles.has('head') || effectiveRoles.has('community_head') || hasAdmin)) return true;
+      if (targetRole === 'sub_head' && (effectiveRoles.has('sub_head') || effectiveRoles.has('local_head') || effectiveRoles.has('head') || effectiveRoles.has('community_head') || hasAdmin)) return true;
+      if (targetRole === 'local_head' && (effectiveRoles.has('local_head') || effectiveRoles.has('sub_head') || effectiveRoles.has('head') || hasAdmin)) return true;
+      if (targetRole === 'community_head' && (effectiveRoles.has('community_head') || effectiveRoles.has('head') || hasAdmin)) return true;
+      if (targetRole === 'user' || targetRole === 'member') return true;
+      return effectiveRoles.has(targetRole);
     });
 
     if (!hasRole) {

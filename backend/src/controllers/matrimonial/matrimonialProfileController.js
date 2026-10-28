@@ -195,13 +195,17 @@ exports.getUserProfile = async (req, res) => {
     // ─── Cross-community Privacy Check (bypassed by a plan with crossCommunityVisibility) ──
     const { features } = await getEffectiveFeatures(viewerId);
     // Same community = same real community on both members' accounts (as the lists use).
-    const { sameCommunity } = require('../../utils/matrimonialCommunityScope');
+    const { sameCommunity, canSeeSiblingSubCommunities } = require('../../utils/matrimonialCommunityScope');
     const isCrossCommunity = !(await sameCommunity(req.user, req.communityId, profileOwnerUserId));
+    const viewerSub = String(req.user?.subCommunity || '').trim().toLowerCase();
+    const ownerSub = String(profile.userId?.subCommunity || '').trim().toLowerCase();
+    const isCrossSubCommunity = !isCrossCommunity && viewerSub && ownerSub && viewerSub !== ownerSub;
     const isAllMembers = profile.visibility === 'all_members' || profile.visibility === 'public';
 
     // Another community's profile needs the viewer's plan feature (an accepted/pending
     // interest between the two still allows it, so existing conversations keep working).
-    if (isCrossCommunity && !profileOwnerUserId.equals(viewerId) && !features.crossCommunityVisibility) {
+    const hasSubCommunityAccess = isCrossSubCommunity && (features.crossCommunityVisibility || await canSeeSiblingSubCommunities(req.user, req.communityId));
+    if (((isCrossCommunity && !features.crossCommunityVisibility) || (isCrossSubCommunity && !hasSubCommunityAccess)) && !profileOwnerUserId.equals(viewerId)) {
       const hasConnection = await InterestRequest.findOne({
         $or: [
           { senderId: viewerId, receiverId: profileOwnerUserId },
@@ -209,7 +213,7 @@ exports.getUserProfile = async (req, res) => {
         ]
       });
       if (!hasConnection) {
-        return res.status(403).json({ status: 'error', message: 'This profile is only visible to members of the same community. Upgrade your plan to see other-community profiles.' });
+        return res.status(403).json({ status: 'error', message: isCrossSubCommunity ? 'This profile is only visible to members of your sub-community. Your community admin can enable cross-sub-community access.' : 'This profile is only visible to members of the same community. Upgrade your plan to see other-community profiles.' });
       }
     }
 

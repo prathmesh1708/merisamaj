@@ -22,6 +22,25 @@ const MEMBER_PROFILE_FIELDS = [
   'isAadharVerified isFaceVerified isPhoneVerified isEmailVerified verificationStatus accountStatus registrationSource referredBy createdAt'
 ].join(' ');
 
+const isLocalHeadUser = (user) => {
+  if (!user) return false;
+  const allRoles = [user.role, ...(Array.isArray(user.roles) ? user.roles : [])]
+    .filter(Boolean)
+    .map(r => String(r).toLowerCase());
+  const accType = String(user.accountType || '').toLowerCase();
+  const subHeadType = String(user.subHeadType || '').toLowerCase();
+  const des = String(user.designation || '').toLowerCase();
+
+  return (
+    accType === 'local_head' ||
+    accType === 'local_sub_head' ||
+    allRoles.includes('local_head') ||
+    subHeadType === 'local' ||
+    des === 'local head' ||
+    (allRoles.includes('sub_head') && subHeadType !== 'admin' && accType !== 'community_head')
+  );
+};
+
 /**
  * @desc    Get consolidated Head Dashboard Stats
  * @route   GET /api/v1/head/dashboard/stats
@@ -29,7 +48,8 @@ const MEMBER_PROFILE_FIELDS = [
  */
 exports.getDashboardStats = async (req, res) => {
   try {
-    const activeCity = req.query.city || null;
+    // A Local Head cannot widen their assigned city by editing the query string.
+    const activeCity = isLocalHeadUser(req.user) ? req.user.city : (req.query.city || null);
 
     // ── 1. Total Members & Account Status Breakdown ──
     const memberBaseFilter = applyScopeFilter(req, { role: { $in: ['user', 'member'] }, accountStatus: { $ne: 'deleted' } }, { overrideCity: activeCity });
@@ -84,16 +104,17 @@ exports.getDashboardStats = async (req, res) => {
         { verificationStatus: 'pending' },
         { accountStatus: 'pending verification' }
       ]
-    }, { overrideCity: activeCity, includeUnassignedCity: true });
+    }, { overrideCity: activeCity, includeUnassignedCity: !isLocalHeadUser(req.user) });
 
     const pendingMembersCount = await User.countDocuments(pendingQuery);
+    const pendingLimit = req.query.limit ? Math.min(100, Math.max(1, parseInt(req.query.limit))) : 50;
     const pendingMembersList = await User.find(pendingQuery)
       // Full profile so the Head can review the applicant properly (never the password)
       .select(MEMBER_PROFILE_FIELDS)
       .populate('communityId', 'name')
       .populate('referredBy', 'name phone')
       .sort({ createdAt: -1 })
-      .limit(10)
+      .limit(pendingLimit)
       .lean();
 
     // ── 3. Active Matrimonial Profiles ──
@@ -256,7 +277,7 @@ exports.getMemberProfile = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(400).json({ status: 'fail', message: 'Invalid member ID format.' });
     }
-    const filter = applyScopeFilter(req, { _id: new mongoose.Types.ObjectId(req.params.id) }, { includeUnassignedCity: true });
+    const filter = applyScopeFilter(req, { _id: new mongoose.Types.ObjectId(req.params.id) }, { includeUnassignedCity: !isLocalHeadUser(req.user) });
     const member = await User.findOne(filter)
       .select(MEMBER_PROFILE_FIELDS)
       .populate('communityId', 'name')
@@ -278,10 +299,14 @@ exports.approveMember = async (req, res) => {
       return res.status(400).json({ status: 'fail', message: 'Invalid member ID format.' });
     }
 
-    const filter = applyScopeFilter(req, { _id: new mongoose.Types.ObjectId(req.params.id) }, { includeUnassignedCity: true });
+    const filter = applyScopeFilter(req, { _id: new mongoose.Types.ObjectId(req.params.id) }, { includeUnassignedCity: !isLocalHeadUser(req.user) });
     const user = await User.findOne(filter);
     if (!user) {
       return res.status(404).json({ status: 'fail', message: 'Member not found or not in your community.' });
+    }
+
+    if (user.verificationStatus !== 'pending' && user.accountStatus !== 'pending verification') {
+      return res.status(409).json({ status: 'fail', message: 'This membership request is no longer pending.' });
     }
 
     user.verificationStatus = 'verified';
@@ -306,10 +331,14 @@ exports.rejectMember = async (req, res) => {
       return res.status(400).json({ status: 'fail', message: 'Invalid member ID format.' });
     }
 
-    const filter = applyScopeFilter(req, { _id: new mongoose.Types.ObjectId(req.params.id) }, { includeUnassignedCity: true });
+    const filter = applyScopeFilter(req, { _id: new mongoose.Types.ObjectId(req.params.id) }, { includeUnassignedCity: !isLocalHeadUser(req.user) });
     const user = await User.findOne(filter);
     if (!user) {
       return res.status(404).json({ status: 'fail', message: 'Member not found or not in your community.' });
+    }
+
+    if (user.verificationStatus !== 'pending' && user.accountStatus !== 'pending verification') {
+      return res.status(409).json({ status: 'fail', message: 'This membership request is no longer pending.' });
     }
 
     user.verificationStatus = 'rejected';
@@ -333,7 +362,7 @@ exports.revokeMember = async (req, res) => {
       return res.status(400).json({ status: 'fail', message: 'Invalid member ID format.' });
     }
 
-    const filter = applyScopeFilter(req, { _id: new mongoose.Types.ObjectId(req.params.id) }, { includeUnassignedCity: true });
+    const filter = applyScopeFilter(req, { _id: new mongoose.Types.ObjectId(req.params.id) }, { includeUnassignedCity: !isLocalHeadUser(req.user) });
     const user = await User.findOne(filter);
     if (!user) {
       return res.status(404).json({ status: 'fail', message: 'Member not found or not in your community.' });
@@ -469,7 +498,7 @@ exports.bulkMemberAction = async (req, res) => {
       return res.status(400).json({ status: 'fail', message: 'No valid member IDs provided.' });
     }
 
-    const filter = applyScopeFilter(req, { _id: { $in: validIds } }, { includeUnassignedCity: true });
+    const filter = applyScopeFilter(req, { _id: { $in: validIds } }, { includeUnassignedCity: !isLocalHeadUser(req.user) });
 
     let updateFields = {};
     if (action === 'verify') {

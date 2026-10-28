@@ -758,6 +758,9 @@ const MatrimonialHomePage = () => {
                 { label: 'All matches', key: 'all' },
                 { label: 'Other Communities', key: 'other_community' },
                 { label: 'My Community', key: 'my_community' },
+                ...(dashboard?.subscription?.features?.communityFilter === true && (subCommunityInfo.subCommunityName || dashboard?.community?.mySubCommunity)
+                  ? [{ label: 'My Sub-Community', key: 'my_subcommunity' }]
+                  : []),
                 { label: 'Verified', key: 'verified' },
                 { label: 'Just Joined', key: 'joined' },
                 { label: 'Nearby', key: 'nearby' }
@@ -780,6 +783,11 @@ const MatrimonialHomePage = () => {
                       setSelectedCommunityScope('my');
                       setSelectedSpecificCommunity('');
                       showToast('Showing matches from your community 🤝');
+                    } else if (key === 'my_subcommunity') {
+                      const mySubCommunity = subCommunityInfo.subCommunityName || dashboard?.community?.mySubCommunity;
+                      setSelectedCommunityScope('specific');
+                      setSelectedSpecificCommunity(mySubCommunity || '');
+                      showToast(`Showing matches from ${mySubCommunity || 'your sub-community'}`);
                     } else if (key === 'all') {
                       setSelectedCommunityScope('all');
                       setSelectedSpecificCommunity('');

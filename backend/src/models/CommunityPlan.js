@@ -29,7 +29,8 @@ const communityPlanSchema = new mongoose.Schema(
       analytics:                { type: Boolean, default: false },
       apiAccess:                { type: Boolean, default: false },
       prioritySupport:          { type: Boolean, default: false },
-      customBranding:           { type: Boolean, default: false }
+      customBranding:           { type: Boolean, default: false },
+      crossSubCommunityVisibility: { type: Boolean, default: false }
     },
 
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

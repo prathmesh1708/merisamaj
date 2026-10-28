@@ -59,7 +59,7 @@ exports.deletePlan = async (req, res) => {
 // ─── Assign a plan to a community — pushes module flags into Community.settings ──
 exports.assignPlanToCommunity = async (req, res) => {
   try {
-    const { communityId, planId } = req.body;
+    const { communityId, planId, subCommunityId } = req.body;
     if (!communityId || !planId) {
       return res.status(400).json({ status: 'error', message: 'communityId and planId are required.' });
     }
@@ -70,10 +70,17 @@ exports.assignPlanToCommunity = async (req, res) => {
     const community = await Community.findById(communityId);
     if (!community) return res.status(404).json({ status: 'error', message: 'Community not found.' });
 
-    community.planId = plan._id;
-    community.planAssignedAt = new Date();
-    community.settings.matrimonialEnabled = true; // Matrimonial is always available to everyone
-    community.settings.directoryEnabled = !!plan.features.professionalDirectory;
+    if (subCommunityId) {
+      const subCommunity = community.subCommunities.id(subCommunityId);
+      if (!subCommunity) return res.status(404).json({ status: 'error', message: 'Sub-community not found.' });
+      subCommunity.planId = plan._id;
+      subCommunity.planAssignedAt = new Date();
+    } else {
+      community.planId = plan._id;
+      community.planAssignedAt = new Date();
+      community.settings.matrimonialEnabled = true;
+      community.settings.directoryEnabled = !!plan.features.professionalDirectory;
+    }
     await community.save();
 
     res.json({ status: 'success', message: `${plan.name} assigned to ${community.name}.`, data: { community } });
@@ -86,8 +93,9 @@ exports.assignPlanToCommunity = async (req, res) => {
 exports.listCommunitiesWithPlans = async (req, res) => {
   try {
     const communities = await Community.find({ isActive: true })
-      .select('name city planId planAssignedAt')
+      .select('name city planId planAssignedAt subCommunities')
       .populate('planId', 'name')
+      .populate('subCommunities.planId', 'name')
       .sort({ name: 1 })
       .lean();
     res.json({ status: 'success', data: { communities } });

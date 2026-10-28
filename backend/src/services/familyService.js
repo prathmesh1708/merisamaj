@@ -84,11 +84,30 @@ const findCommunityHeads = (communityId) => {
 };
 
 const reviewerLevel = (user) => {
-  const role = (user.role || '').toLowerCase();
-  if (['admin', 'super_admin', 'master_admin', 'admin_sub_head'].includes(role)) return 'admin';
-  if (user.accountType === 'local_head' || user.subHeadType === 'local') return 'local';
-  if (role === 'head') return 'community';
-  if (role === 'sub_head' && user.headPermissions?.canManageCensus) return 'community';
+  if (!user) return null;
+  const allRoles = [user.role, ...(Array.isArray(user.roles) ? user.roles : [])]
+    .filter(Boolean)
+    .map(r => String(r).toLowerCase());
+  const adminRoles = ['admin', 'super_admin', 'master_admin', 'admin_sub_head', 'master'];
+  if (allRoles.some(r => adminRoles.includes(r))) return 'admin';
+
+  const accType = String(user.accountType || '').toLowerCase();
+  const subHeadType = String(user.subHeadType || '').toLowerCase();
+  const des = String(user.designation || '').toLowerCase();
+
+  if (accType === 'community_head' || accType === 'head' || subHeadType === 'community' || allRoles.includes('head') || allRoles.includes('community_head') || des === 'community head' || des === 'president') {
+    return 'community';
+  }
+
+  if (['local_head', 'local_sub_head'].includes(accType) || subHeadType === 'local' || allRoles.includes('local_head') || des === 'local head') {
+    return 'local';
+  }
+
+  if (allRoles.includes('sub_head')) {
+    if (user.headPermissions?.canManageCensus) return 'community';
+    return 'local';
+  }
+
   return null;
 };
 

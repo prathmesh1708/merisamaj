@@ -31,8 +31,17 @@ const MAX_DESCENDANTS = 5000;
 
 const idStr = (v) => (v && (v._id || v))?.toString() || null;
 const isMasterAdmin = (u) => MASTER_ROLES.includes((u?.role || '').toLowerCase());
-// Admin Sub-Heads live in the Admin panel with their own adminPermissions — not in this tree
-const isHierarchyUser = (u) => u?.role === 'head' || (u?.role === 'sub_head' && u?.subHeadType !== 'admin');
+const isHierarchyUser = (u) => {
+  const allRoles = [u?.role, ...(Array.isArray(u?.roles) ? u.roles : [])]
+    .filter(Boolean)
+    .map(r => String(r).toLowerCase());
+  return allRoles.includes('head') ||
+    allRoles.includes('community_head') ||
+    u?.accountType === 'community_head' ||
+    u?.accountType === 'local_head' ||
+    allRoles.includes('local_head') ||
+    (allRoles.includes('sub_head') && u?.subHeadType !== 'admin');
+};
 const communityIdOf = (u) => idStr(u?.communityId) || idStr(u?.assignedCommunityIds?.[0]) || null;
 
 const httpError = (status, message, extra = {}) => Object.assign(new Error(message), { status, ...extra });
