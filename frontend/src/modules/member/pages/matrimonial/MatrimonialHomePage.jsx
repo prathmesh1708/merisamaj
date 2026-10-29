@@ -758,7 +758,11 @@ const MatrimonialHomePage = () => {
                 { label: 'All matches', key: 'all' },
                 { label: 'Other Communities', key: 'other_community' },
                 { label: 'My Community', key: 'my_community' },
+<<<<<<< HEAD
                 ...((dashboard?.subscription?.features?.communityFilter === true || dashboard?.subscription?.features?.viewAllSubCommunityProfiles === true) && (subCommunityInfo.subCommunityName || dashboard?.community?.mySubCommunity)
+=======
+                ...(dashboard?.subscription?.features?.communityFilter === true && (subCommunityInfo.subCommunityName || dashboard?.community?.mySubCommunity)
+>>>>>>> 348d81319c24e5165bf8d0d3d1e881ba9a8ff2e2
                   ? [{ label: 'My Sub-Community', key: 'my_subcommunity' }]
                   : []),
                 { label: 'Verified', key: 'verified' },

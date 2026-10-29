@@ -1319,6 +1319,21 @@ const MyProfilePage = () => {
         )}
       </div>
 
+      {headRequestPanel && createPortal(
+        <HeadRequestOverlay
+          type={headRequestPanel}
+          onClose={() => setHeadRequestPanel(null)}
+          onCountChange={(newCount) => {
+            if (headRequestPanel === 'member') {
+              setPendingMemberCount(newCount);
+            } else if (headRequestPanel === 'family') {
+              setPendingFamilyCount(newCount);
+            }
+          }}
+        />,
+        document.body
+      )}
+
       {/* Social Links Modal */}
       {showSocialModal && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" style={{ touchAction: 'none' }} onWheel={e => e.stopPropagation()} onTouchMove={e => e.stopPropagation()}>
