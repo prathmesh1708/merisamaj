@@ -371,6 +371,12 @@ export const CensusPage = () => {
   // Filter States
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
+  // The page holds one city's census at a time, so picking a city loads it from the
+  // server ('' = all cities of the community) instead of only filtering the loaded list.
+  const chooseCity = (name) => {
+    setSelectedCity(name || '');
+    setSummaryCity(name || '');
+  };
   const [selectedAgeGroup, setSelectedAgeGroup] = useState('');
   const [selectedMaritalStatus, setSelectedMaritalStatus] = useState('');
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
@@ -737,7 +743,7 @@ export const CensusPage = () => {
               <div className="relative">
                 <select
                   value={summaryCity || ''}
-                  onChange={(e) => setSummaryCity(e.target.value)}
+                  onChange={(e) => chooseCity(e.target.value)}
                   className="block w-full appearance-none bg-white border border-gray-200 rounded-2xl pl-4 pr-10 h-12 text-[14px] font-bold text-gray-800 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                 >
                   <option value="">{language === 'en' ? 'All cities' : 'सभी शहर'}</option>
@@ -1366,7 +1372,7 @@ export const CensusPage = () => {
                 {selectedCity && (
                   <span className="bg-gray-100 text-gray-700 text-[10.5px] font-extrabold pl-2.5 pr-1.5 py-1 rounded-full flex items-center gap-1">
                     City: {selectedCity}
-                    <button onClick={() => setSelectedCity('')} className="p-0.5 text-gray-400 hover:text-gray-600"><X size={10} /></button>
+                    <button onClick={() => chooseCity('')} className="p-0.5 text-gray-400 hover:text-gray-600"><X size={10} /></button>
                   </span>
                 )}
                 {selectedAgeGroup && (
@@ -1868,7 +1874,7 @@ export const CensusPage = () => {
                       whileHover={{ scale: 1.01, x: 4 }} whileTap={{ scale: 0.98 }}
                       key={city.name || idx}
                       onClick={() => {
-                        setSelectedCity(city.name);
+                        chooseCity(city.name);
                         setCurrentView('males'); // Switch to males view with selected city filter applied
                       }}
                       className="flex items-center justify-between p-4 bg-slate-50/50 border border-slate-100/50 hover:bg-white hover:border-orange-200 hover:shadow-[0_8px_20px_rgb(249,115,22,0.08)] rounded-2xl cursor-pointer transition-all group"
@@ -1985,7 +1991,7 @@ export const CensusPage = () => {
                           key={item.value}
                           type="button"
                           onClick={() => {
-                            setSelectedCity(item.value);
+                            chooseCity(item.value);
                             setOpenCityDropdown(false);
                           }}
                           className={`p-2.5 text-left text-[12.5px] font-extrabold rounded-lg transition-colors ${selectedCity === item.value ? 'bg-blue-50 text-[#1e58b8]' : 'text-gray-700 hover:bg-gray-50'}`}

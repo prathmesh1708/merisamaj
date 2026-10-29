@@ -112,13 +112,19 @@ exports.getCensusSummary = async (req, res) => {
     const commId = (req.communityId || req.user?.communityId?._id || req.user?.communityId || 'global').toString();
     // Optional ?city= narrows every number to that city (applyScopeFilter reads it).
     const selectedCity = (req.query.city && req.query.city !== 'all' && req.query.city !== 'All') ? String(req.query.city).trim() : '';
-    const cacheKey = `census_summary_${commId}_${selectedCity.toLowerCase() || 'all'}`;
+    // In the member app every member (Local Heads too) may browse all cities of their
+    // community; the app opens on their own city. Only the Head panel keeps a Local Head
+    // to their city, so the two views are cached separately.
+    const memberView = String(req.originalUrl || '').includes('/member/census');
+    const scopeReq = memberView && !selectedCity ? { ...req, query: { ...req.query, city: 'all' } } : req;
+    const viewKey = memberView ? 'member' : `panel_${req.user?._id || ''}`;
+    const cacheKey = `census_summary_${viewKey}_${commId}_${selectedCity.toLowerCase() || 'all'}`;
     const cached = cacheService.get(cacheKey);
     if (cached) {
       return res.status(200).json(cached);
     }
 
-    const filter = applyScopeFilter(req, { accountStatus: { $ne: 'deleted' } });
+    const filter = applyScopeFilter(scopeReq, { accountStatus: { $ne: 'deleted' } });
 
     const users = await User.find(filter)
       .select('name gender dob city maritalStatus qualification profession phone role communityId familyMembers familyId accountStatus profileImage avatar')
@@ -286,7 +292,7 @@ exports.getCensusSummary = async (req, res) => {
     // When one city is selected, still return every city of the community so the
     // member can switch to another one.
     if (selectedCity) {
-      const reqAllCities = { ...req, query: { ...req.query, city: undefined } };
+      const reqAllCities = { ...req, query: { ...req.query, city: memberView ? 'all' : undefined } };
       const allFilter = applyScopeFilter(reqAllCities, { accountStatus: { $ne: 'deleted' } });
       const grouped = await User.aggregate([
         { $match: allFilter },
