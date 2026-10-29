@@ -29,6 +29,7 @@ import { StoryMedia } from '../../components/common/StoryMedia';
 import { useDraggableScroll } from '../../../../hooks/useDraggableScroll';
 import socialService from '../../../../core/api/socialService';
 import { SharePostModal } from './components/SharePostModal';
+import { PostUploadBanner } from '../../components/common/PostUploadBanner';
 
 // Local translation dictionary for Feed Redesign
 const localT = {
@@ -1480,6 +1481,9 @@ const FeedPage = ({ isHub = false, feedType = 'city', searchQuery = '', isFilter
             })}
           </div>
         </div>
+
+        {/* Posts / stories still uploading (Instagram style) */}
+        <PostUploadBanner variant="inline" />
 
         {/* ─── POSTS FEED LIST ─── */}
         <div className="space-y-0 pb-16 -mx-4.5">

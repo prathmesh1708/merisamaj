@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { CalendarClock, Eye, Heart, MessageCircle, Receipt, Loader2, RefreshCw } from 'lucide-react';
+import { CalendarClock, Eye, Heart, MessageCircle, Receipt, Loader2, RefreshCw, Sparkles } from 'lucide-react';
 import { matrimonialSubscriptionService } from '../../../../../core/api/matrimonialService';
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
@@ -166,6 +166,15 @@ export const MySubscriptionPanel = ({ refreshKey = 0 }) => {
             limit={limits.messageLimit}
             resetText={monthlyReset}
           />
+          {Number(limits.superInterestsPerMonth) !== 0 && limits.superInterestsPerMonth !== undefined && (
+            <UsageMeter
+              icon={Sparkles}
+              label="Super Interests this month"
+              used={usage.superInterestsThisMonth || 0}
+              limit={limits.superInterestsPerMonth}
+              resetText={monthlyReset}
+            />
+          )}
         </div>
       </div>
 

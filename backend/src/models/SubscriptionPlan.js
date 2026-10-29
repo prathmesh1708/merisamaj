@@ -58,13 +58,22 @@ const subscriptionPlanSchema = new mongoose.Schema(
       readReceipts:           { type: Boolean, default: false },
       profileBadge:           { type: Boolean, default: false }, // Premium badge in search
       crossCommunityVisibility: { type: Boolean, default: false }, // See/be seen by other communities' profiles
-      communityFilter:        { type: Boolean, default: false }  // Community & sub-community filter on matches
+      communityFilter:        { type: Boolean, default: false }, // Community & sub-community filter on matches
+      // Plans saved before these existed get them from services/planFeatureDefaults.js
+      viewOtherSubCommunityProfile: { type: Boolean, default: false }, // Open a single profile from another sub-community
+      viewAllSubCommunityProfiles:  { type: Boolean, default: false }, // Feed & search list every sub-community
+      superInterestsPerMonth: { type: Number, default: 0 },    // Highlighted interests; -1 = unlimited
+      viewProfilePhotos:      { type: Boolean, default: true }  // Clear photos of public profiles (private stay blurred until accepted)
     },
 
     // ─── App plan perks (only used when planType = 'app') ──────────────────────
     appFeatures: {
       proBadge:         { type: Boolean, default: true }, // ✓ PRO next to the name on profile & posts
-      pinPostsPerMonth: { type: Number, default: 0 }      // posts pinned to the top of the feed for 24h (-1 = unlimited)
+      pinPostsPerMonth: { type: Number, default: 0 },     // posts pinned to the top of the feed for 24h (-1 = unlimited)
+      // What a member may create. Members without an App plan follow the Free (₹0) App plan.
+      socialPosts:         { type: Boolean, default: true },
+      socialStories:       { type: Boolean, default: true },
+      professionalListing: { type: Boolean, default: true } // Professional / business & services listing
     },
 
     // ─── Extra features typed in by the admin (shown to members as text only) ─

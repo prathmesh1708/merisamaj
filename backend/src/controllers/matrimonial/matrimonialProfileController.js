@@ -204,7 +204,12 @@ exports.getUserProfile = async (req, res) => {
 
     // Another community's profile needs the viewer's plan feature (an accepted/pending
     // interest between the two still allows it, so existing conversations keep working).
-    const hasSubCommunityAccess = isCrossSubCommunity && (features.crossCommunityVisibility || await canSeeSiblingSubCommunities(req.user, req.communityId));
+    // Opening one profile from another sub-community: plan feature (either sub-community
+    // feature, since browsing all of them includes opening them) or the sub-community's CommunityPlan
+    const hasSubCommunityAccess = isCrossSubCommunity && (
+      features.crossCommunityVisibility || features.viewOtherSubCommunityProfile || features.viewAllSubCommunityProfiles ||
+      await canSeeSiblingSubCommunities(req.user, req.communityId)
+    );
     if (((isCrossCommunity && !features.crossCommunityVisibility) || (isCrossSubCommunity && !hasSubCommunityAccess)) && !profileOwnerUserId.equals(viewerId)) {
       const hasConnection = await InterestRequest.findOne({
         $or: [
@@ -213,7 +218,13 @@ exports.getUserProfile = async (req, res) => {
         ]
       });
       if (!hasConnection) {
-        return res.status(403).json({ status: 'error', message: isCrossSubCommunity ? 'This profile is only visible to members of your sub-community. Your community admin can enable cross-sub-community access.' : 'This profile is only visible to members of the same community. Upgrade your plan to see other-community profiles.' });
+        return res.status(403).json({
+          status: 'error',
+          code: isCrossSubCommunity ? 'SUB_COMMUNITY_LOCKED' : 'COMMUNITY_LOCKED',
+          message: isCrossSubCommunity
+            ? 'This profile is from another sub-community. Upgrade your plan to view other sub-community profiles.'
+            : 'This profile is only visible to members of the same community. Upgrade your plan to see other-community profiles.'
+        });
       }
     }
 
@@ -300,7 +311,8 @@ exports.getUserProfile = async (req, res) => {
       interestRelationship = {
         _id:      pendingInterest._id,
         status:   'pending',
-        isSender: pendingInterest.senderId.toString() === viewerId.toString()
+        isSender: pendingInterest.senderId.toString() === viewerId.toString(),
+        isSuper:  !!pendingInterest.isSuper
       };
     }
 
@@ -317,8 +329,10 @@ exports.getUserProfile = async (req, res) => {
     // ─── Build Response based on Privacy Rules ───────────────────────────────
     // Full profile only once an interest is accepted; before that the owner's
     // public/private setting decides (see middleware/matrimonialPrivacy.js).
-    if (!acceptedInterest) await ensureBlurredPhotos([profile]);
-    const profileData = buildProfileForViewer(profile, { isConnected: !!acceptedInterest, features });
+    // Photos of public profiles also need the viewer's plan photo access
+    const canViewPhotos = !!features.viewProfilePhotos || profileOwnerUserId.equals(viewerId);
+    if (!acceptedInterest) await ensureBlurredPhotos([profile], { includePublic: !canViewPhotos });
+    const profileData = buildProfileForViewer(profile, { isConnected: !!acceptedInterest, features, canViewPhotos });
 
     res.json({
       status: 'success',
@@ -452,7 +466,8 @@ exports.searchProfiles = async (req, res) => {
     const { profileScopeCondition } = require('../../utils/matrimonialCommunityScope');
     const scope = req.query.communityScope === 'other' ? 'other' : (req.query.communityScope === 'my' ? 'my' : 'all');
     const { condition: scopeCondition, blocked } = await profileScopeCondition({
-      user: req.user, reqCommunityId: req.communityId, canSeeOtherCommunities: hasCrossCommunityAccess, scope
+      user: req.user, reqCommunityId: req.communityId, canSeeOtherCommunities: hasCrossCommunityAccess,
+      canSeeSiblingSubCommunities: !!req.userFeatures?.viewAllSubCommunityProfiles, scope
     });
     if (blocked) {
       // Other communities are a paid plan feature: nothing to show without it.
@@ -529,7 +544,8 @@ exports.searchProfiles = async (req, res) => {
     }).lean();
     const sentToUserIds = new Set(sentInterests.map(i => i.receiverId.toString()));
 
-    await ensureBlurredPhotos(profiles.filter(p => !connectedUserIds.has(p.userId.toString())));
+    const canViewPhotos = !!req.userFeatures?.viewProfilePhotos;
+    await ensureBlurredPhotos(profiles.filter(p => !connectedUserIds.has(p.userId.toString())), { includePublic: !canViewPhotos });
 
     profiles = await Promise.all(profiles.map(async (profile) => {
       const isOwner     = profile.userId.toString() === req.user._id.toString();
@@ -537,7 +553,7 @@ exports.searchProfiles = async (req, res) => {
       const hasSentInterest = sentToUserIds.has(profile.userId.toString());
 
       // Full profile only for connected members; otherwise the owner's privacy setting decides
-      const safeProfile = buildProfileForViewer(profile, { isOwner, isConnected, features: { contactDetailsAccess: false } });
+      const safeProfile = buildProfileForViewer(profile, { isOwner, isConnected, features: { contactDetailsAccess: false }, canViewPhotos });
 
       let matchPercentage = 0;
       let matchedCriteria = [];

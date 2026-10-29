@@ -10,6 +10,9 @@ import {
 import { Avatar } from '../../components/common/Avatar';
 import { InstagramStoryComposer } from './components/InstagramStoryComposer';
 import { useData } from '../../context/DataProvider';
+import { usePostUploads, previewFor } from '../../context/PostUploadContext';
+import { useAppPermissions } from '../../hooks/useAppPermissions';
+import { PlanLockedNotice } from '../../components/common/PlanLockedNotice';
 
 const Instagram = (props) => (
   <svg
@@ -50,6 +53,18 @@ const CreatePostPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { createPost, currentUser, addStory } = useData();
+  const { startUpload } = usePostUploads();
+  const appPermissions = useAppPermissions(); // null while loading
+
+  // Stories upload in the background; the feed shows the progress bar
+  const publishStory = (media, text, options) => {
+    startUpload({
+      kind: 'story',
+      preview: previewFor(media),
+      run: (onUploadProgress) => addStory(media, text, { ...options, onUploadProgress })
+    });
+    navigate(-1);
+  };
 
   const createStoryMode = location.state?.createStoryMode || false;
 
@@ -83,10 +98,6 @@ const CreatePostPage = () => {
   const [isDraggingText, setIsDraggingText] = useState(false);
   const storyCanvasDesktopRef = useRef(null);
   const storyCanvasMobileRef = useRef(null);
-
-  // Upload emulation
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
 
   // Drag & drop state
   const [isDragging, setIsDragging] = useState(false);
@@ -168,20 +179,6 @@ const CreatePostPage = () => {
     }
     const files = incoming.filter(f => !tooBig.includes(f));
     if (!files.length) return;
-    setIsUploading(true);
-    setUploadProgress(0);
-
-    // Emulate progress bar
-    const interval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setTimeout(() => setIsUploading(false), 200);
-          return 100;
-        }
-        return prev + 25;
-      });
-    }, 150);
 
     files.forEach(file => {
       const type = file.type.startsWith('video/') ? 'video' : 'image';
@@ -216,11 +213,16 @@ const CreatePostPage = () => {
     setStoryTextPosition({ x, y });
   };
 
+  const publishStartedRef = useRef(false);
+
   const handlePublish = async () => {
     const mediaUrls = attachments.map(att => att.url);
 
     if (activeTab === 'post') {
       if (!caption.trim() && mediaUrls.length === 0) return;
+      // A quick double tap must not start the same upload twice
+      if (publishStartedRef.current) return;
+      publishStartedRef.current = true;
 
       const payloadOptions = {
         title: `${category} Update`,
@@ -234,22 +236,23 @@ const CreatePostPage = () => {
         isPinned,
       };
 
-      try {
-        const result = await createPost(caption.trim() || "Shared media", mediaUrls, payloadOptions);
-        if (result?.pinMessage) alert(result.pinMessage);
-        navigate(-1);
-      } catch (err) {
-        alert(`Post creation failed: ${err.message}`);
-      }
+      // Upload continues in the background (Instagram style); failures show Retry in the feed banner
+      const content = caption.trim() || "Shared media";
+      startUpload({
+        kind: 'post',
+        preview: attachments[0] ? previewFor(attachments[0].url, attachments[0].type) : null,
+        run: (onUploadProgress) => createPost(content, mediaUrls, { ...payloadOptions, onUploadProgress }),
+        onDone: (result) => { if (result?.pinMessage) alert(result.pinMessage); }
+      });
+      navigate(-1);
     } else if (activeTab === 'story') {
       // storyBg is either the media attachment URL, or default background gradient
       const storyBg = attachments.length > 0 ? attachments[0].url : 'linear-gradient(135deg, #f472b6 0%, #7c3aed 100%)';
-      addStory(storyBg, storyText.trim(), {
+      publishStory(storyBg, storyText.trim(), {
         textPosition: storyTextPosition,
         textStyle: storyTextStyle,
         feedType
       });
-      navigate(-1);
     }
   };
 
@@ -423,6 +426,26 @@ const CreatePostPage = () => {
     </div>
   );
 
+  // The member's App plan may not include posts or stories (the server enforces it too)
+  if (appPermissions && activeTab === 'story' && !appPermissions.socialStories) {
+    return (
+      <PlanLockedNotice
+        title="Stories are not in your plan"
+        message="Sharing stories is included in our membership plans. Upgrade to share stories with your community."
+        secondaryAction={appPermissions.socialPosts ? { label: 'Create a post instead', onClick: () => setActiveTab('post') } : null}
+      />
+    );
+  }
+  if (appPermissions && activeTab === 'post' && !appPermissions.socialPosts) {
+    return (
+      <PlanLockedNotice
+        title="Posting is not in your plan"
+        message="Creating posts is included in our membership plans. Upgrade to post photos, videos and updates."
+        secondaryAction={appPermissions.socialStories ? { label: 'Share a story instead', onClick: () => setActiveTab('story') } : null}
+      />
+    );
+  }
+
   // Stories use the full-screen, Instagram-style editor
   if (activeTab === 'story') {
     return (
@@ -432,10 +455,7 @@ const CreatePostPage = () => {
         onFeedTypeChange={setFeedType}
         onClose={() => navigate(-1)}
         onSwitchToPost={() => setActiveTab('post')}
-        onPublish={async ({ media, text, textPosition, textStyle }) => {
-          await addStory(media, text, { textPosition, textStyle, feedType });
-          navigate(-1);
-        }}
+        onPublish={({ media, text, textPosition, textStyle }) => publishStory(media, text, { textPosition, textStyle, feedType })}
       />
     );
   }
@@ -491,9 +511,9 @@ const CreatePostPage = () => {
           {/* Action: Publish Button */}
           <button
             onClick={handlePublish}
-            disabled={isUploading || (activeTab === 'post' && !caption.trim() && attachments.length === 0)}
+            disabled={activeTab === 'post' && !caption.trim() && attachments.length === 0}
             className={`px-3.5 sm:px-5 py-2 rounded-xl text-xs sm:text-[13px] font-bold tracking-wide transition-all active:scale-95 flex items-center gap-1.5 shrink-0 cursor-pointer shadow-sm ${
-              isUploading || (activeTab === 'post' && !caption.trim() && attachments.length === 0)
+              activeTab === 'post' && !caption.trim() && attachments.length === 0
                 ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
                 : 'bg-gradient-to-r from-purple-600 via-purple-700 to-indigo-600 text-white shadow-purple-500/25 hover:brightness-105'
             }`}
@@ -930,19 +950,6 @@ const CreatePostPage = () => {
                   <span>MP4, WEBM</span>
                 </div>
               </div>
-
-              {/* Upload Progress Bar Emulation */}
-              {isUploading && (
-                <div className="space-y-1.5">
-                  <div className="flex justify-between text-[10px] font-bold text-slate-500">
-                    <span>Uploading files...</span>
-                    <span>{uploadProgress}%</span>
-                  </div>
-                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden border border-slate-200">
-                    <div className="bg-gradient-to-r from-violet-500 to-indigo-600 h-full rounded-full transition-all duration-150" style={{ width: `${uploadProgress}%` }} />
-                  </div>
-                </div>
-              )}
 
               {/* URL Paste Media Input */}
               <div className="space-y-1.5">

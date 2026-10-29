@@ -24,6 +24,11 @@ const interestRequestSchema = new mongoose.Schema(
     // ─── Optional message from sender ────────────────────────────────────────
     message: { type: String, maxlength: 300 },
 
+    // ─── Super Interest (plan feature superInterestsPerMonth) ─────────────────
+    // Highlighted for the receiver and listed first; superAt counts toward the monthly quota
+    isSuper: { type: Boolean, default: false },
+    superAt: { type: Date },
+
     // ─── Status Timestamps (for audit trail) ─────────────────────────────────
     acceptedAt:   { type: Date },
     rejectedAt:   { type: Date },

@@ -7,10 +7,11 @@ import { Avatar } from '../../components/common/Avatar';
 import { ActivityDashboard } from './components/ActivityDashboard';
 import { AnimatePresence, motion } from 'framer-motion';
 import socialService from '../../../../core/api/socialService';
+import { axiosPrivate } from '../../../../core/api/axiosPrivate';
 import { getMemberById } from '../../services/directoryApi';
 import { resolvePostMediaUrl, isMediaVideo } from '../../utils/mediaUtils';
 import { cropImageFile } from '../../../../core/components/ImageCropper';
-import { HeadRequestOverlay } from './components/CommunityMemberRequests';
+import { isLocalHead, isCommunityHead, isAdminReviewer, canReviewRequests } from '../../utils/headRoles';
 
 // ── Profile Post Thumbnail Component (Handles media aliases, resolution & graceful fallbacks) ──
 const ProfilePostThumbnail = ({ post, onClick }) => {
@@ -106,83 +107,29 @@ const MyProfilePage = () => {
   const myId = currentUser?.id || currentUser?._id || 'u1';
   const isMe = !memberId || memberId === myId;
 
-  const isLocalHeadUser = useMemo(() => {
-    if (!currentUser) return false;
-    const roles = [currentUser.role, ...(Array.isArray(currentUser.roles) ? currentUser.roles : [])]
-      .filter(Boolean)
-      .map(r => String(r).toLowerCase());
-    const accType = String(currentUser.accountType || '').toLowerCase();
-    const subHeadType = String(currentUser.subHeadType || '').toLowerCase();
-    const des = String(currentUser.designation || '').toLowerCase();
-    return (
-      roles.includes('local_head') ||
-      accType === 'local_head' ||
-      accType === 'local_sub_head' ||
-      subHeadType === 'local' ||
-      des === 'local head' ||
-      (roles.includes('sub_head') && subHeadType !== 'admin' && accType !== 'community_head')
-    );
-  }, [currentUser]);
-
-  const isCommunityHeadUser = useMemo(() => {
-    if (!currentUser) return false;
-    const roles = [currentUser.role, ...(Array.isArray(currentUser.roles) ? currentUser.roles : [])]
-      .filter(Boolean)
-      .map(r => String(r).toLowerCase());
-    const accType = String(currentUser.accountType || '').toLowerCase();
-    const subHeadType = String(currentUser.subHeadType || '').toLowerCase();
-    const des = String(currentUser.designation || '').toLowerCase();
-    return (
-      roles.includes('head') ||
-      roles.includes('community_head') ||
-      accType === 'community_head' ||
-      accType === 'head' ||
-      subHeadType === 'community' ||
-      des === 'community head' ||
-      des === 'president'
-    );
-  }, [currentUser]);
-
-  const isAdminReviewer = useMemo(() => {
-    if (!currentUser) return false;
-    const roles = [currentUser.role, ...(Array.isArray(currentUser.roles) ? currentUser.roles : [])]
-      .filter(Boolean)
-      .map(r => String(r).toLowerCase());
-    const accType = String(currentUser.accountType || '').toLowerCase();
-    const adminRoles = ['admin', 'super_admin', 'master_admin', 'master', 'admin_sub_head'];
-    return roles.some(r => adminRoles.includes(r)) || adminRoles.includes(accType);
-  }, [currentUser]);
-
-  const canReviewRequests = isMe && (isLocalHeadUser || isCommunityHeadUser || isAdminReviewer || currentUser?.headPermissions?.canManageCensus === true);
-  const [headRequestPanel, setHeadRequestPanel] = useState(null);
+  const isLocalHeadUser = isLocalHead(currentUser);
+  const isCommunityHeadUser = isCommunityHead(currentUser);
+  const isAdminUser = isAdminReviewer(currentUser);
+  const canReviewHeadRequests = isMe && canReviewRequests(currentUser);
   const [pendingMemberCount, setPendingMemberCount] = useState(0);
   const [pendingFamilyCount, setPendingFamilyCount] = useState(0);
 
-  // Fetch pending request counts for authorized Local Heads and Community Heads
+  // Pending badges on the request buttons. This page remounts when the Head
+  // comes back from the request screens, so the counts refresh after each review.
   useEffect(() => {
-    if (!canReviewRequests) return;
+    if (!canReviewHeadRequests) return;
     let cancelled = false;
 
-    axiosPrivate.get('/head/dashboard/stats?limit=50')
-      .then(res => {
-        if (!cancelled) {
-          const count = res.data?.data?.summary?.pendingMembersCount ?? (res.data?.data?.pendingMembersList?.length || 0);
-          setPendingMemberCount(count);
-        }
-      })
+    axiosPrivate.get('/head/dashboard/members/requests', { params: { status: 'pending', limit: 1 } })
+      .then(res => { if (!cancelled) setPendingMemberCount(res.data?.counts?.pending || 0); })
       .catch(() => {});
 
     axiosPrivate.get('/head/family-requests/stats')
-      .then(res => {
-        if (!cancelled) {
-          const count = res.data?.data?.pendingRequests || 0;
-          setPendingFamilyCount(count);
-        }
-      })
+      .then(res => { if (!cancelled) setPendingFamilyCount(res.data?.data?.pendingRequests || 0); })
       .catch(() => {});
 
     return () => { cancelled = true; };
-  }, [canReviewRequests]);
+  }, [canReviewHeadRequests]);
 
   const [activeTab, setActiveTab] = useState('posts');
   const [profileReloadKey, setProfileReloadKey] = useState(0);
@@ -1061,10 +1008,10 @@ const MyProfilePage = () => {
           <>
             {/* ─── PRIVILEGED HEAD CONTROL PANEL TOGGLE (ONLY FOR COMMUNITY HEAD / ADMIN / LOCAL HEAD) ─── */}
             {(() => {
-              const isHeadUser = isMe && (isLocalHeadUser || isCommunityHeadUser || isAdminReviewer);
+              const isHeadUser = isMe && (isLocalHeadUser || isCommunityHeadUser || isAdminUser);
               if (!isHeadUser) return null;
 
-              const panelTitle = isLocalHeadUser && !isCommunityHeadUser && !isAdminReviewer
+              const panelTitle = isLocalHeadUser && !isCommunityHeadUser && !isAdminUser
                 ? 'Local Head Panel'
                 : 'Head Control Panel';
 
@@ -1097,46 +1044,34 @@ const MyProfilePage = () => {
             })()}
 
             {/* ─── HEAD REQUEST BUTTONS (Community Member Request & Family Request) ─── */}
-            {canReviewRequests && (
+            {canReviewHeadRequests && (
               <div className="mx-3.5 sm:mx-0 grid grid-cols-2 gap-2 sm:gap-3">
-                <button
-                  type="button"
-                  onClick={() => setHeadRequestPanel('member')}
-                  className="min-h-[76px] rounded-2xl bg-white border border-purple-100/50 shadow-sm px-3 py-3 flex items-center gap-2.5 text-left hover:shadow-md active:scale-[0.98] transition-all cursor-pointer group"
-                >
-                  <span className="w-11 h-11 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 group-hover:bg-purple-100/70 transition-colors">
-                    <Users size={21} />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <span className="text-[12px] sm:text-[13px] leading-snug font-extrabold text-slate-800 block">
-                      Community Member Request
+                {[
+                  { label: 'Community Member Request', path: '/member/profile/requests/members', count: pendingMemberCount, icon: <Users size={21} />, iconClass: 'bg-purple-50 text-purple-600 group-hover:bg-purple-100/70' },
+                  { label: 'Family Request', path: '/member/profile/requests/family', count: pendingFamilyCount, icon: <Heart size={21} fill="currentColor" />, iconClass: 'bg-rose-50 text-rose-600 group-hover:bg-rose-100/70' }
+                ].map(item => (
+                  <button
+                    key={item.path}
+                    type="button"
+                    onClick={() => navigate(item.path)}
+                    className="relative min-h-[76px] rounded-2xl bg-white border border-purple-100/50 shadow-sm px-3 py-3 flex items-center gap-2.5 text-left hover:shadow-md active:scale-[0.98] transition-all cursor-pointer group"
+                  >
+                    <span className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 transition-colors ${item.iconClass}`}>
+                      {item.icon}
                     </span>
-                    {pendingMemberCount > 0 && (
-                      <span className="inline-block mt-0.5 text-[10px] font-bold text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded-md">
-                        {pendingMemberCount} pending
+                    <span className="min-w-0 flex-1 text-[12px] sm:text-[13px] leading-snug font-extrabold text-slate-800">
+                      {item.label}
+                    </span>
+                    {item.count > 0 && (
+                      <span
+                        aria-label={`${item.count} pending`}
+                        className="absolute -top-2 -right-1.5 min-w-[22px] h-[22px] px-1.5 rounded-full bg-rose-500 text-white text-[11px] font-black flex items-center justify-center ring-2 ring-white shadow-md"
+                      >
+                        {item.count > 99 ? '99+' : item.count}
                       </span>
                     )}
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setHeadRequestPanel('family')}
-                  className="min-h-[76px] rounded-2xl bg-white border border-purple-100/50 shadow-sm px-3 py-3 flex items-center gap-2.5 text-left hover:shadow-md active:scale-[0.98] transition-all cursor-pointer group"
-                >
-                  <span className="w-11 h-11 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 group-hover:bg-rose-100/70 transition-colors">
-                    <Heart size={21} fill="currentColor" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <span className="text-[12px] sm:text-[13px] leading-snug font-extrabold text-slate-800 block">
-                      Family Request
-                    </span>
-                    {pendingFamilyCount > 0 && (
-                      <span className="inline-block mt-0.5 text-[10px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded-md">
-                        {pendingFamilyCount} pending
-                      </span>
-                    )}
-                  </div>
-                </button>
+                  </button>
+                ))}
               </div>
             )}
 
@@ -1383,21 +1318,6 @@ const MyProfilePage = () => {
           </>
         )}
       </div>
-
-      {headRequestPanel && createPortal(
-        <HeadRequestOverlay
-          type={headRequestPanel}
-          onClose={() => setHeadRequestPanel(null)}
-          onCountChange={(newCount) => {
-            if (headRequestPanel === 'member') {
-              setPendingMemberCount(newCount);
-            } else if (headRequestPanel === 'family') {
-              setPendingFamilyCount(newCount);
-            }
-          }}
-        />,
-        document.body
-      )}
 
       {/* Social Links Modal */}
       {showSocialModal && createPortal(

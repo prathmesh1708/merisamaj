@@ -52,6 +52,11 @@ import DeclinedInterestsPage from '../pages/matrimonial/DeclinedInterestsPage';
 import EditProfilePage from '../pages/profile/EditProfilePage';
 import FamilyPage from '../pages/profile/FamilyPage';
 import VerifyMembershipPage from '../pages/profile/VerifyMembershipPage';
+import MemberRequestsPage from '../pages/profile/requests/MemberRequestsPage';
+import MemberRequestDetailPage from '../pages/profile/requests/MemberRequestDetailPage';
+import MemberRequestProfilePage from '../pages/profile/requests/MemberRequestProfilePage';
+import FamilyRequestsPage from '../pages/profile/requests/FamilyRequestsPage';
+import FamilyRequestDetailPage from '../pages/profile/requests/FamilyRequestDetailPage';
 import AppMembershipPage from '../pages/profile/AppMembershipPage';
 import ProfessionalDirectoryPage from '../pages/directory/ProfessionalDirectoryPage';
 import ProfessionalDetailPage from '../pages/directory/ProfessionalDetailPage';
@@ -140,6 +145,12 @@ export const MemberRoutes = () => {
               <Route path="profile/edit" element={<AnimatedPage><EditProfilePage /></AnimatedPage>} />
               <Route path="profile/family" element={<AnimatedPage><FamilyPage /></AnimatedPage>} />
               <Route path="profile/verify" element={<AnimatedPage><VerifyMembershipPage /></AnimatedPage>} />
+              {/* Head request review from Member Profile (Local / Community Heads; server-scoped) */}
+              <Route path="profile/requests/members" element={<AnimatedPage><MemberRequestsPage /></AnimatedPage>} />
+              <Route path="profile/requests/members/:memberId" element={<AnimatedPage><MemberRequestDetailPage /></AnimatedPage>} />
+              <Route path="profile/requests/members/:memberId/profile" element={<AnimatedPage><MemberRequestProfilePage /></AnimatedPage>} />
+              <Route path="profile/requests/family" element={<AnimatedPage><FamilyRequestsPage /></AnimatedPage>} />
+              <Route path="profile/requests/family/:requestId" element={<AnimatedPage><FamilyRequestDetailPage /></AnimatedPage>} />
               {/* The old demo checkout is retired — "Upgrade" now uses the real, admin-managed plans */}
               <Route path="profile/upgrade" element={<Navigate to="/member/membership" replace />} />
               {/* App membership plans (PRO badge, pinned posts …) — separate from Matrimonial plans */}

@@ -16,8 +16,9 @@ const getPostById = async (id) => {
   return response.data;
 };
 
-const createPost = async (postData) => {
-  const response = await axiosPrivate.post(`${API_URL}/posts`, postData);
+// config lets callers pass axios options such as onUploadProgress
+const createPost = async (postData, config = {}) => {
+  const response = await axiosPrivate.post(`${API_URL}/posts`, postData, config);
   return response.data;
 };
 
@@ -81,8 +82,8 @@ const getStories = async () => {
   return response.data;
 };
 
-const createStory = async (storyData) => {
-  const response = await axiosPrivate.post(`${API_URL}/stories`, storyData);
+const createStory = async (storyData, config = {}) => {
+  const response = await axiosPrivate.post(`${API_URL}/stories`, storyData, config);
   return response.data;
 };
 

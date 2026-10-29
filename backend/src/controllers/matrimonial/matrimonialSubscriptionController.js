@@ -25,8 +25,21 @@ const { syncMembership } = require('../../services/membershipService');
 // ─── List All Active Plans ────────────────────────────────────────────────────
 exports.listPlans = async (req, res) => {
   try {
-    const plans = await SubscriptionPlan.find({ isActive: true, ...planTypeFilter(typeOf(req)) }).sort({ displayOrder: 1, price: 1 });
+    // A ₹0 App plan only sets what members without a plan may do; it is not for sale
+    const priceFilter = typeOf(req) === 'app' ? { price: { $gt: 0 } } : {};
+    const plans = await SubscriptionPlan.find({ isActive: true, ...planTypeFilter(typeOf(req)), ...priceFilter }).sort({ displayOrder: 1, price: 1 });
     res.json({ status: 'success', data: { plans } });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+// ─── What the member may create (posts, stories, professional listing) ──────────
+// @route GET /api/v1/member/app-subscription/permissions
+exports.getAppPermissions = async (req, res) => {
+  try {
+    const { getAppPermissions } = require('../../services/planFeatureDefaults');
+    res.json({ status: 'success', data: await getAppPermissions(req.user) });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }
@@ -130,7 +143,8 @@ exports.getSubscriptionOverview = async (req, res) => {
         limits: {
           profileViewsPerDay: limit(features.profileViewsPerDay),
           interestLimit: limit(features.interestLimit),
-          messageLimit: limit(features.messageLimit)
+          messageLimit: limit(features.messageLimit),
+          superInterestsPerMonth: limit(features.superInterestsPerMonth)
         },
         usage,
         features,

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Outlet, useLocation, useNavigate, NavLink } from 'react-router-dom';
 import { BottomNav } from './BottomNav';
 import { SideNav } from './SideNav';
+import { PostUploadBanner } from '../common/PostUploadBanner';
 import { useData } from '../../context/DataProvider';
 import { useAuth } from '../../../../core/auth/useAuth';
 import { useHeadAuth } from '../../../head/auth/useHeadAuth';
@@ -115,6 +116,8 @@ export const MemberLayout = () => {
         <Outlet />
       </div>
       <BottomNav isVisible={isBottomNavVisible} />
+      {/* Post / story uploads continue in the background; the feed shows this inline instead */}
+      {!location.pathname.startsWith('/member/social/create') && <PostUploadBanner variant="floating" />}
 
       {/* ─── MOBILE DRAWER MENU ─── */}
       {isMobileMenuOpen && (

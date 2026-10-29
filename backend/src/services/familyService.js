@@ -497,7 +497,7 @@ const listRequests = async (reviewer, filter) => {
   if (!level) throw new FamilyError('You are not allowed to review family requests.', 403);
 
   return FamilyMember.find(filter)
-    .populate('familyId', 'familyCode headUserId')
+    .populate({ path: 'familyId', select: 'familyCode headUserId', populate: { path: 'headUserId', select: 'name' } })
     .populate('addedBy', 'name phone avatar')
     .populate('userId', 'name phone avatar')
     .sort({ createdAt: -1 })

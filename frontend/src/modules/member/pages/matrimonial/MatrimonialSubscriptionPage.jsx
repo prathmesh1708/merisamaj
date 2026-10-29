@@ -20,7 +20,16 @@ const FEATURE_ROWS = [
   { label: 'Contact Details Access', key: 'contactDetailsAccess', type: 'boolean', tooltip: 'View phone/email after a match accepts.' },
   { label: 'Other-Community Profiles', key: 'crossCommunityVisibility', type: 'boolean', tooltip: 'See and be matched with profiles outside your own community.' },
   { label: 'Community Filter', key: 'communityFilter', type: 'boolean', tooltip: 'Filter matches by community and sub-community.' },
+  { label: 'Super Interests / Month', key: 'superInterestsPerMonth', type: 'value', tooltip: 'Highlighted interests that appear first for the person you send them to (-1 for unlimited).' },
+  { label: 'Open Other Sub-community Profiles', key: 'viewOtherSubCommunityProfile', type: 'boolean', tooltip: 'Open a profile from another sub-community of your community.' },
+  { label: 'Browse All Sub-communities', key: 'viewAllSubCommunityProfiles', type: 'boolean', tooltip: 'Your matches and search include profiles from every sub-community, with a sub-community filter.' },
+  { label: 'View Profile Photos', key: 'viewProfilePhotos', type: 'boolean', tooltip: 'See clear photos of public profiles. Private profiles show their photo once your interest is accepted.' },
 ];
+
+// Plans saved before "View Profile Photos" existed: on for paid plans, off for Free (as the server applies it)
+const featureValue = (plan, key) => (key === 'viewProfilePhotos'
+  ? plan.features?.viewProfilePhotos ?? plan.price > 0
+  : plan.features?.[key]);
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 const MatrimonialSubscriptionPage = () => {
@@ -361,7 +370,7 @@ const MatrimonialSubscriptionPage = () => {
                             </div>
                             <ul className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-1 gap-1.5">
                               {FEATURE_ROWS.map(feature => {
-                                const val = plan.features?.[feature.key];
+                                const val = featureValue(plan, feature.key);
                                 const on = feature.type === 'value' ? !!val : !!val;
                                 return (
                                   <li key={feature.key} className={`flex items-center justify-between gap-2 text-[12px] ${on ? 'text-slate-700' : 'text-slate-400'}`}>
@@ -455,7 +464,7 @@ const MatrimonialSubscriptionPage = () => {
 
                               {/* Values per plan */}
                               {plans.map(plan => {
-                                const val = plan.features?.[feature.key];
+                                const val = featureValue(plan, feature.key);
                                 const isSelected = selectedPlan?._id === plan._id;
                                 return (
                                   <div key={plan._id} className={`py-1 ${isSelected ? 'bg-rose-50/50' : ''}`}>

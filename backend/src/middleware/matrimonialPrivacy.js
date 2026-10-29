@@ -14,6 +14,9 @@
  * Nothing else is sent (no account id either: it would lead to the member's social
  * profile, i.e. their name and clear avatar). Once an interest is accepted, both see
  * the full profile. The owner always sees their own full profile.
+ *
+ * Viewers whose plan lacks `viewProfilePhotos` get the blurred photo for public
+ * profiles too (callers pass canViewPhotos: false).
  */
 
 const idOf = (v) => (v ? String(v._id || v) : null);
@@ -50,26 +53,31 @@ const visibleNameOf = (profile) =>
 /**
  * buildRestrictedProfile
  * What a member who is NOT connected to the owner may receive (see the rules above).
- * Private profiles need photo.blurredUrl (services/matrimonialPhotoBlur.ensureBlurredPhotos);
+ * A blurred photo needs photo.blurredUrl (services/matrimonialPhotoBlur.ensureBlurredPhotos);
  * without it no photo is sent rather than the clear one.
  * @param {Object} profile - Full MatrimonialProfile object (lean or toObject)
+ * @param {Object} [options]
+ * @param {boolean} [options.canViewPhotos=true] - viewer's plan includes viewProfilePhotos
  * @returns {Object} - Restricted profile safe to send to client
  */
-const buildRestrictedProfile = (profile) => {
+const buildRestrictedProfile = (profile, { canViewPhotos = true } = {}) => {
   const isPrivate = isPhotoPrivate(profile);
+  const blurPhoto = isPrivate || !canViewPhotos;
   const photo = primaryPhotoOf(profile);
   const owner = profile.userId && typeof profile.userId === 'object' ? profile.userId : null;
 
   let photos = [];
-  if (photo && !isPrivate) photos = [{ _id: photo._id, url: photo.url, isPrimary: true }];
-  if (photo && isPrivate && photo.blurredUrl) photos = [{ _id: photo._id, url: photo.blurredUrl, isPrimary: true, isBlurred: true }];
+  if (photo && !blurPhoto) photos = [{ _id: photo._id, url: photo.url, isPrimary: true }];
+  if (photo && blurPhoto && photo.blurredUrl) photos = [{ _id: photo._id, url: photo.blurredUrl, isPrimary: true, isBlurred: true }];
 
   return {
     _id:      profile._id,
     status:   profile.status,
     verificationStatus: profile.verificationStatus,
     photoPrivate: isPrivate,
-    photoBlurred: isPrivate,
+    photoBlurred: blurPhoto,
+    // true = the photo is blurred only because the viewer's plan has no photo access
+    photoLockedByPlan: !isPrivate && !canViewPhotos,
     photos,
     photoCount: activePhotos(profile).length,
     personal: isPrivate ? { fullName: profile.personal?.fullName } : {},
@@ -134,8 +142,8 @@ const buildFullProfile = (profile, features = {}) => {
 };
 
 /** Full profile for the owner or a connected member, restricted otherwise. */
-const buildProfileForViewer = (profile, { isOwner = false, isConnected = false, features = {} } = {}) =>
-  (isOwner || isConnected) ? { ...buildFullProfile(profile, features), isConnected } : buildRestrictedProfile(profile);
+const buildProfileForViewer = (profile, { isOwner = false, isConnected = false, features = {}, canViewPhotos = true } = {}) =>
+  (isOwner || isConnected) ? { ...buildFullProfile(profile, features), isConnected } : buildRestrictedProfile(profile, { canViewPhotos });
 
 /**
  * Of `userIds`, the ones the viewer has an accepted interest with (either direction).

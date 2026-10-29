@@ -123,9 +123,17 @@ const userSchema = new mongoose.Schema({
     enum: ['pending', 'verified', 'rejected'], 
     default: 'pending' // New users require approval by Community Head
   },
-  registrationSource: { 
-    type: String, 
-    default: 'mobile' 
+  registrationSource: {
+    type: String,
+    default: 'mobile'
+  },
+  // Who decided this member's community-membership request, so Heads can list
+  // their Approved / Rejected requests (stamped by headDashboardController).
+  membershipReview: {
+    status: { type: String, enum: ['approved', 'rejected', null], default: null },
+    by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    at: { type: Date, default: null },
+    note: { type: String, trim: true, default: '' }
   },
   
   // Preferences

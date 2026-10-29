@@ -7,13 +7,15 @@
 const UserSubscription = require('../models/UserSubscription');
 const MatrimonialSettings = require('../models/MatrimonialSettings');
 const SubscriptionPlan = require('../models/SubscriptionPlan');
+const { withMatrimonialDefaults, getAppPermissions } = require('../services/planFeatureDefaults');
 
 // Fills any feature the Free plan document does not define.
 const FREE_FALLBACK = {
   profileViewsPerDay: 10, interestLimit: 5, messageLimit: -1, advancedFilters: false,
   visitorHistory: false, chat: false, profileBoosts: 0, highlightProfile: false,
   priorityListing: false, contactDetailsAccess: false, unlimitedShortlist: false,
-  readReceipts: false, profileBadge: false, crossCommunityVisibility: false, communityFilter: false
+  readReceipts: false, profileBadge: false, crossCommunityVisibility: false, communityFilter: false,
+  viewOtherSubCommunityProfile: false, viewAllSubCommunityProfiles: false, superInterestsPerMonth: 0, viewProfilePhotos: false
 };
 
 // ─── Load Active Subscription for a User ─────────────────────────────────────
@@ -41,12 +43,12 @@ const getActiveSubscription = async (userId, planType = 'matrimonial') => {
 // ─── Get effective features (subscription snapshot or free defaults) ──────────
 const getEffectiveFeatures = async (userId) => {
   const sub = await getActiveSubscription(userId);
-  if (sub) return { features: sub.featuresSnapshot, subscription: sub };
+  if (sub) return { features: withMatrimonialDefaults(sub.featuresSnapshot || {}, { paid: true }), subscription: sub };
 
   // No paid plan: use the Free plan exactly as the Admin configured it (active, price 0).
   const freePlan = await SubscriptionPlan.findOne({ isActive: true, price: 0, planType: { $ne: 'app' } }).sort({ displayOrder: 1 }).lean();
   if (freePlan?.features) {
-    return { features: { ...FREE_FALLBACK, ...freePlan.features }, subscription: null };
+    return { features: withMatrimonialDefaults({ ...FREE_FALLBACK, ...freePlan.features }, { paid: false }), subscription: null };
   }
 
   // No Free plan configured: built-in defaults.
@@ -66,7 +68,11 @@ const getEffectiveFeatures = async (userId) => {
       unlimitedShortlist:   false,
       readReceipts:         false,
       profileBadge:         false,
-      crossCommunityVisibility: false
+      crossCommunityVisibility: false,
+      viewOtherSubCommunityProfile: false,
+      viewAllSubCommunityProfiles: false,
+      superInterestsPerMonth: 0,
+      viewProfilePhotos: false
     },
     subscription: null
   };
@@ -164,4 +170,30 @@ const attachSubscription = async (req, res, next) => {
   }
 };
 
-module.exports = { checkFeature, checkInterestLimit, attachSubscription, getActiveSubscription, getEffectiveFeatures, planTypeFilter };
+const APP_PERMISSION_MESSAGES = {
+  socialPosts: 'Creating posts is not included in your plan. Upgrade your membership to post.',
+  socialStories: 'Sharing stories is not included in your plan. Upgrade your membership to share stories.',
+  professionalListing: 'Adding professional or business details is not included in your plan. Upgrade your membership to list your business and services.'
+};
+
+/**
+ * requireAppPermission(key)
+ * Blocks creating posts / stories / professional listings when the member's App plan
+ * (or the Free App plan) has that switch off. Community leaders are never blocked.
+ */
+const requireAppPermission = (key) => async (req, res, next) => {
+  try {
+    const permissions = await getAppPermissions(req.user);
+    if (permissions[key]) return next();
+    return res.status(403).json({
+      status: 'error',
+      code: 'PLAN_FEATURE_REQUIRED',
+      feature: key,
+      message: APP_PERMISSION_MESSAGES[key] || 'Upgrade your membership to use this feature.'
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { checkFeature, checkInterestLimit, attachSubscription, getActiveSubscription, getEffectiveFeatures, planTypeFilter, requireAppPermission };

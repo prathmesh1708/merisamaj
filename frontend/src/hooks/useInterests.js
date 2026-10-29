@@ -36,10 +36,11 @@ export const useInterests = () => {
     }
   }, []);
 
-  const sendInterest = useCallback(async (receiverProfileId, message = '') => {
+  // superInterest: send a Super Interest (or upgrade a pending interest to one)
+  const sendInterest = useCallback(async (receiverProfileId, message = '', { superInterest = false } = {}) => {
     setActionLoading(true);
     try {
-      const res = await matrimonialInterestService.sendInterest({ receiverProfileId, message });
+      const res = await matrimonialInterestService.sendInterest({ receiverProfileId, message, ...(superInterest ? { superInterest: true } : {}) });
       return { success: true, interest: res.data.data.interest };
     } catch (err) {
       return { success: false, error: err.response?.data?.message || 'Failed to send interest', code: err.response?.data?.code };

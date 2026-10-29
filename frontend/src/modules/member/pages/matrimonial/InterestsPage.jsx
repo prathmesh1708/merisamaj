@@ -49,7 +49,12 @@ const InterestCard = ({ interest, tab, onAccept, onReject, onCancel, onChat, tog
   const message    = interest.message;
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-100/70 shadow-sm overflow-hidden mb-3">
+    <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden mb-3 ${interest.isSuper ? 'border-amber-300 ring-1 ring-amber-200/70' : 'border-slate-100/70'}`}>
+      {interest.isSuper && (
+        <div className="px-4 py-1.5 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
+          ⭐ Super Interest
+        </div>
+      )}
       <div className="flex gap-3.5 p-4">
         {/* Photo */}
         <div

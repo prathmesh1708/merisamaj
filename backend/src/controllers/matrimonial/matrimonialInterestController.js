@@ -4,7 +4,7 @@
  */
 const InterestRequest = require('../../models/InterestRequest');
 
-const { countInterestsThisMonth } = require('../../services/matrimonialUsageService');
+const { countInterestsThisMonth, countSuperInterestsThisMonth } = require('../../services/matrimonialUsageService');
 const MatrimonialProfile = require('../../models/MatrimonialProfile');
 const Conversation = require('../../models/Conversation');
 const UserBlock = require('../../models/UserBlock');
@@ -15,11 +15,48 @@ const {
   notifyInterestRejected
 } = require('../../services/notificationService');
 const { sendPushNotification } = require('../../services/pushNotificationService');
+const { getEffectiveFeatures } = require('../../middleware/subscriptionMiddleware');
+
+// Super Interests have their own monthly quota (plan feature superInterestsPerMonth: 0 = none, -1 = unlimited)
+const checkSuperInterestQuota = async (userId) => {
+  const { features } = await getEffectiveFeatures(userId);
+  const limit = Number(features.superInterestsPerMonth) || 0;
+  if (limit === 0) {
+    return { ok: false, code: 'SUPER_INTEREST_NOT_IN_PLAN', message: 'Super Interest is not included in your plan. Upgrade to send one.' };
+  }
+  if (limit === -1) return { ok: true };
+  const used = await countSuperInterestsThisMonth(userId);
+  if (used >= limit) {
+    return { ok: false, code: 'SUPER_INTEREST_LIMIT_REACHED', message: `You have used all ${limit} Super Interests for this month.`, used, limit };
+  }
+  return { ok: true };
+};
+
+// Tells the receiver (name only if the sender's privacy setting shows it)
+const notifyReceiver = async (senderId, receiverId, interestId, isSuper) => {
+  const senderProfile = await MatrimonialProfile.findOneAndUpdate({ userId: senderId }, { lastActiveAt: new Date() }, { new: true })
+    .select('personal.fullName visibilitySettings').lean();
+  const senderName = visibleNameOf(senderProfile) || 'A member';
+  const notif = await notifyInterestReceived(receiverId, senderName, interestId, { isSuper });
+  if (notif) {
+    sendPushNotification({
+      userId: receiverId,
+      notificationId: notif._id,
+      type: 'matrimonial_interest_received',
+      title: isSuper ? 'Super Interest Received! ⭐' : 'New Interest Received! 💌',
+      message: isSuper ? `${senderName} sent you a Super Interest.` : `${senderName} has sent you an interest request.`,
+      icon: isSuper ? '⭐' : '💌',
+      actionUrl: '/member/matrimonial/interests'
+    }).catch(err => console.error('[PushError]', err.message));
+  }
+};
 
 // ─── Send Interest ────────────────────────────────────────────────────────────
+// body.superInterest = true sends a Super Interest, or upgrades a pending interest to one
 exports.sendInterest = async (req, res) => {
   try {
     const { receiverProfileId, message } = req.body;
+    const wantsSuper = req.body.superInterest === true || req.body.superInterest === 'true';
     const senderId = req.user._id;
 
     const mongoose = require('mongoose');
@@ -67,6 +104,20 @@ exports.sendInterest = async (req, res) => {
       receiverId,
       status: { $in: ['pending', 'accepted'] }
     });
+    // Upgrading a pending interest to a Super Interest
+    if (existing && wantsSuper && existing.status === 'pending') {
+      if (existing.isSuper) {
+        return res.status(400).json({ status: 'error', message: 'You have already sent a Super Interest to this member.', currentStatus: 'pending' });
+      }
+      const quota = await checkSuperInterestQuota(senderId);
+      if (!quota.ok) return res.status(403).json({ status: 'error', ...quota, ok: undefined });
+      existing.isSuper = true;
+      existing.superAt = new Date();
+      await existing.save();
+      await notifyReceiver(senderId, receiverId, existing._id, true);
+      return res.json({ status: 'success', message: 'Your interest is now a Super Interest.', data: { interest: existing } });
+    }
+
     if (existing) {
       return res.status(400).json({
         status: 'error',
@@ -75,9 +126,15 @@ exports.sendInterest = async (req, res) => {
       });
     }
 
+    // ─── Super Interest quota (instead of the regular interest limit) ─────────
+    if (wantsSuper) {
+      const quota = await checkSuperInterestQuota(senderId);
+      if (!quota.ok) return res.status(403).json({ status: 'error', ...quota, ok: undefined });
+    }
+
     // ─── Plan limit check ─────────────────────────────────────────────────────
     const { userSubscription } = req;
-    if (userSubscription && req.userFeatures?.interestLimit !== -1) {
+    if (!wantsSuper && userSubscription && req.userFeatures?.interestLimit !== -1) {
       const used = await countInterestsThisMonth(req.user._id);
       const limit = req.userFeatures.interestLimit;
       if (used >= limit) {
@@ -104,32 +161,18 @@ exports.sendInterest = async (req, res) => {
       staleInterest.cancelledAt = undefined;
       staleInterest.withdrawnAt = undefined;
       staleInterest.conversationId = undefined;
+      staleInterest.isSuper     = wantsSuper;
+      staleInterest.superAt     = wantsSuper ? new Date() : undefined;
       await staleInterest.save();
       interest = staleInterest;
     } else {
-      interest = await InterestRequest.create({ senderId, receiverId, message });
+      interest = await InterestRequest.create({ senderId, receiverId, message, isSuper: wantsSuper, superAt: wantsSuper ? new Date() : undefined });
     }
 
-    // Update sender's lastActiveAt
-    const senderProfile = await MatrimonialProfile.findOneAndUpdate({ userId: senderId }, { lastActiveAt: new Date() }, { new: true })
-      .select('personal.fullName visibilitySettings').lean();
+    // Updates the sender's lastActiveAt and notifies the receiver
+    await notifyReceiver(senderId, receiverId, interest._id, wantsSuper);
 
-    // Notify receiver — with the sender's name only if their privacy setting shows it
-    const senderName = visibleNameOf(senderProfile) || 'A member';
-    const notifReceived = await notifyInterestReceived(receiverId, senderName, interest._id);
-    if (notifReceived) {
-      sendPushNotification({
-        userId: receiverId,
-        notificationId: notifReceived._id,
-        type: 'matrimonial_interest_received',
-        title: 'New Interest Received! 💌',
-        message: `${senderName} has sent you an interest request.`,
-        icon: '💌',
-        actionUrl: '/member/matrimonial/interests'
-      }).catch(err => console.error('[PushError]', err.message));
-    }
-
-    res.status(201).json({ status: 'success', message: 'Interest sent successfully.', data: { interest } });
+    res.status(201).json({ status: 'success', message: wantsSuper ? 'Super Interest sent.' : 'Interest sent successfully.', data: { interest } });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }
@@ -247,12 +290,12 @@ const { ensureBlurredPhotos } = require('../../services/matrimonialPhotoBlur');
 
 // The other person in an interest: full profile once accepted; until then the restricted
 // view, and their account (name, avatar, id) is replaced by what that view allows.
-const presentCounterpart = async (interest, accountField, profileField) => {
+const presentCounterpart = async (interest, accountField, profileField, canViewPhotos) => {
   const accountId = interest[accountField]?._id || interest[accountField];
   const profile = await MatrimonialProfile.findOne({ userId: accountId, isDeleted: false }).lean({ virtuals: true });
   const connected = interest.status === 'accepted';
-  if (!connected && profile) await ensureBlurredPhotos([profile]);
-  const out = { ...interest, [profileField]: profile ? buildProfileForViewer(profile, { isConnected: connected }) : null };
+  if (!connected && profile) await ensureBlurredPhotos([profile], { includePublic: !canViewPhotos });
+  const out = { ...interest, [profileField]: profile ? buildProfileForViewer(profile, { isConnected: connected, canViewPhotos }) : null };
   if (!connected) {
     const shown = out[profileField];
     out[accountField] = { name: (profile && visibleNameOf(profile)) || 'Member', avatar: shown?.photos?.[0]?.url || null };
@@ -275,7 +318,8 @@ exports.getSentInterests = async (req, res) => {
       .lean();
 
     // Enrich with receiver's matrimonial profile
-    const enriched = await Promise.all(interests.map(i => presentCounterpart(i, 'receiverId', 'receiverProfile')));
+    const { features } = await getEffectiveFeatures(req.user._id);
+    const enriched = await Promise.all(interests.map(i => presentCounterpart(i, 'receiverId', 'receiverProfile', !!features.viewProfilePhotos)));
 
     res.json({ status: 'success', data: { interests: enriched, total, page: Number(page) } });
   } catch (err) {
@@ -293,13 +337,14 @@ exports.getReceivedInterests = async (req, res) => {
     const total = await InterestRequest.countDocuments(query);
     const interests = await InterestRequest.find(query)
       .populate('senderId', 'name avatar')
-      .sort({ createdAt: -1 })
+      .sort({ isSuper: -1, createdAt: -1 }) // Super Interests first
       .skip((Number(page) - 1) * Number(limit))
       .limit(Number(limit))
       .lean();
 
     // Enrich with sender's matrimonial profile
-    const enriched = await Promise.all(interests.map(i => presentCounterpart(i, 'senderId', 'senderProfile')));
+    const { features } = await getEffectiveFeatures(req.user._id);
+    const enriched = await Promise.all(interests.map(i => presentCounterpart(i, 'senderId', 'senderProfile', !!features.viewProfilePhotos)));
 
     res.json({ status: 'success', data: { interests: enriched, total, page: Number(page) } });
   } catch (err) {
@@ -325,7 +370,9 @@ exports.getDeclinedInterests = async (req, res) => {
     const profiles = await MatrimonialProfile.find({ userId: { $in: otherIds }, isDeleted: false })
       .populate('userId', 'verificationStatus isAadharVerified')
       .lean({ virtuals: true });
-    await ensureBlurredPhotos(profiles);
+    const { features } = await getEffectiveFeatures(me);
+    const canViewPhotos = !!features.viewProfilePhotos;
+    await ensureBlurredPhotos(profiles, { includePublic: !canViewPhotos });
     const profileByUser = new Map(profiles.map(p => [String(p.userId?._id || p.userId), p]));
 
     const iDeclined = [];
@@ -339,7 +386,7 @@ exports.getDeclinedInterests = async (req, res) => {
         _id: i._id,
         action,
         date: (action === 'declined' ? i.rejectedAt : (i.cancelledAt || i.withdrawnAt)) || i.updatedAt,
-        profile: profile ? buildRestrictedProfile(profile) : null
+        profile: profile ? buildRestrictedProfile(profile, { canViewPhotos }) : null
       };
       // Who closed it: the receiver declines, the sender cancels
       const closedByMe = action === 'declined' ? !iSent : iSent;

@@ -29,6 +29,10 @@ const countProfileViewsToday = (userId) =>
 const countInterestsThisMonth = (userId) =>
   InterestRequest.countDocuments({ senderId: userId, createdAt: { $gte: startOfMonth() } });
 
+/** Super Interests sent (or upgraded to Super) since the 1st of this month. */
+const countSuperInterestsThisMonth = (userId) =>
+  InterestRequest.countDocuments({ senderId: userId, isSuper: true, superAt: { $gte: startOfMonth() } });
+
 /** Matrimonial chat messages sent since the 1st of this month. */
 const countMessagesThisMonth = async (userId) => {
   const conversations = await Conversation.find({ participants: userId, type: 'matrimonial' }).distinct('_id');
@@ -37,10 +41,11 @@ const countMessagesThisMonth = async (userId) => {
 };
 
 const getUsage = async (userId) => {
-  const [profileViewsToday, interestsThisMonth, messagesThisMonth] = await Promise.all([
+  const [profileViewsToday, interestsThisMonth, messagesThisMonth, superInterestsThisMonth] = await Promise.all([
     countProfileViewsToday(userId),
     countInterestsThisMonth(userId),
-    countMessagesThisMonth(userId)
+    countMessagesThisMonth(userId),
+    countSuperInterestsThisMonth(userId)
   ]);
 
   const nextDay = startOfToday();
@@ -52,6 +57,7 @@ const getUsage = async (userId) => {
     profileViewsToday,
     interestsThisMonth,
     messagesThisMonth,
+    superInterestsThisMonth,
     dailyResetAt: nextDay,     // profile views reset at midnight
     monthlyResetAt: nextMonth  // interests & messages reset on the 1st
   };
@@ -63,5 +69,6 @@ module.exports = {
   countProfileViewsToday,
   countInterestsThisMonth,
   countMessagesThisMonth,
+  countSuperInterestsThisMonth,
   getUsage
 };

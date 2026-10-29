@@ -5,6 +5,7 @@ const storyController = require('../../controllers/member/storyController');
 const followerController = require('../../controllers/member/followerController');
 const highlightController = require('../../controllers/member/highlightController');
 const authMiddleware = require('../../middleware/authMiddleware');
+const { requireAppPermission } = require('../../middleware/subscriptionMiddleware');
 
 // Secure all endpoints under member authentication middleware
 router.use(authMiddleware.protect);
@@ -19,7 +20,7 @@ router.get('/posts/liked', socialController.getMyLikedPosts);
 // ─────────────────────────────────────────────
 router.route('/posts')
   .get(socialController.getPosts)
-  .post(socialController.createPost);
+  .post(requireAppPermission('socialPosts'), socialController.createPost);
 
 router.get('/posts/user/:userId', socialController.getUserPosts);
 
@@ -59,7 +60,7 @@ router.post('/announcements/toggle-follow', socialController.toggleFollowAnnounc
 // ─────────────────────────────────────────────
 router.route('/stories')
   .get(storyController.getStories)
-  .post(storyController.createStory);
+  .post(requireAppPermission('socialStories'), storyController.createStory);
 
 router.delete('/stories/:id', storyController.deleteStory);
 router.post('/stories/:id/view', storyController.viewStory);

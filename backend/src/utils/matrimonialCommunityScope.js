@@ -12,6 +12,8 @@ const Community = require('../models/Community');
  *     viewer's own community.
  *   - With it: own community, plus other communities' members whose profile
  *     visibility is "all_members" / "public" (their own privacy choice still applies).
+ *   - Other sub-communities of the viewer's own community: allowed by the member's
+ *     plan (viewAllSubCommunityProfiles) or the sub-community's CommunityPlan.
  */
 const idOf = (v) => (v ? String(v._id || v) : null);
 
@@ -41,12 +43,12 @@ const canSeeSiblingSubCommunities = async (viewer, reqCommunityId) => {
  * scope: 'all' (default) | 'my' | 'other'
  * Returns { condition, blocked } — blocked=true means "plan does not allow this".
  */
-const profileScopeCondition = async ({ user, reqCommunityId, canSeeOtherCommunities, scope = 'all' }) => {
+const profileScopeCondition = async ({ user, reqCommunityId, canSeeOtherCommunities, canSeeSiblingSubCommunities: planSiblings = false, scope = 'all' }) => {
   const communityId = viewerCommunityId(user, reqCommunityId);
   const community = communityId ? await Community.findById(communityId).select('subCommunities').lean() : null;
   const mySub = String(user?.subCommunity || '').trim().toLowerCase();
   const subDoc = (community?.subCommunities || []).find(s => String(s.name || '').trim().toLowerCase() === mySub);
-  const canSeeSiblings = !!canSeeOtherCommunities || !!(subDoc?.planId && (await require('../models/CommunityPlan').findById(subDoc.planId).select('features.crossSubCommunityVisibility').lean())?.features?.crossSubCommunityVisibility);
+  const canSeeSiblings = !!canSeeOtherCommunities || !!planSiblings || !!(subDoc?.planId && (await require('../models/CommunityPlan').findById(subDoc.planId).select('features.crossSubCommunityVisibility').lean())?.features?.crossSubCommunityVisibility);
   let ownIds = await communityUserIds(communityId);
   if (!canSeeSiblings && mySub) {
     const escapedSub = mySub.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

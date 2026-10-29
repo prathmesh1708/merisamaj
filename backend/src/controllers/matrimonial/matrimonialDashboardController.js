@@ -154,7 +154,8 @@ const getRecommendations = async (userId, myProfile, subscription, filters = {})
   const { features: planFeatures } = await getEffectiveFeatures(userId);
   const { condition: communityCondition } = await profileScopeCondition({
     user: userDoc,
-    canSeeOtherCommunities: !!planFeatures?.crossCommunityVisibility
+    canSeeOtherCommunities: !!planFeatures?.crossCommunityVisibility,
+    canSeeSiblingSubCommunities: !!planFeatures?.viewAllSubCommunityProfiles
   });
   baseQuery.$and = [communityCondition];
 
@@ -262,8 +263,10 @@ const getRecommendations = async (userId, myProfile, subscription, filters = {})
   const shown = [...top.map(s => s.profile), ...Object.values(lists).flat()];
   const connected = await connectedUserIds(userId, shown.map(p => p.userId?._id || p.userId));
   const isConnectedTo = (p) => connected.has(String(p.userId?._id || p.userId));
-  await ensureBlurredPhotos(shown.filter(p => !isConnectedTo(p)));
-  const build = (p) => withTier(p, buildProfileForViewer(p, { isConnected: isConnectedTo(p) }));
+  // Without the plan's photo access, public profiles' photos are blurred too
+  const canViewPhotos = !!planFeatures?.viewProfilePhotos;
+  await ensureBlurredPhotos(shown.filter(p => !isConnectedTo(p)), { includePublic: !canViewPhotos });
+  const build = (p) => withTier(p, buildProfileForViewer(p, { isConnected: isConnectedTo(p), canViewPhotos }));
 
   return {
     recommendedMatches: top.map(({ profile, result }) => ({ ...build(profile), ...result })),

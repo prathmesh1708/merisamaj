@@ -4,8 +4,11 @@ import { ArrowLeft, Briefcase, FileText, CheckCircle, ChevronDown, Check, Trash2
 import { useData } from '../../context/DataProvider';
 import { PageHeader } from '../../components/layout/PageHeader';
 import { professionalService } from '../../../../core/api/professionalService';
+import { useAppPermissions } from '../../hooks/useAppPermissions';
+import { PlanLockedNotice } from '../../components/common/PlanLockedNotice';
 
 const ApplyProfessionalPage = () => {
+  const appPermissions = useAppPermissions(); // null while loading
   const navigate = useNavigate();
   const { currentUser } = useData();
   const [submitted, setSubmitted] = useState(false);
@@ -111,6 +114,16 @@ const ApplyProfessionalPage = () => {
           Back to Directory
         </button>
       </div>
+    );
+  }
+
+  // Adding professional / business details is an App plan feature (the server enforces it too)
+  if (appPermissions && !appPermissions.professionalListing) {
+    return (
+      <PlanLockedNotice
+        title="Business listing is not in your plan"
+        message="Adding your professional information, business and services is included in our membership plans. Upgrade to list your business."
+      />
     );
   }
 

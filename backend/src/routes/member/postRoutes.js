@@ -9,12 +9,13 @@ const {
   toggleLike,
   addComment,
 } = require('../../controllers/member/postController');
+const { requireAppPermission } = require('../../middleware/subscriptionMiddleware');
 
 // GET  /api/v1/member/posts
 router.get('/', getPosts);
 
 // POST /api/v1/member/posts
-router.post('/', createPost);
+router.post('/', requireAppPermission('socialPosts'), createPost);
 
 // GET  /api/v1/member/posts/:id
 router.get('/:id', getPostById);

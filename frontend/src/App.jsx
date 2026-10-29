@@ -5,6 +5,7 @@ import { MemberRoutes } from './modules/member/routes/MemberRoutes';
 import AdminRoutes from './modules/admin/routes/AdminRoutes';
 import HeadRoutes from './modules/head/routes/HeadRoutes';
 import { DataProvider } from './modules/member/context/DataProvider';
+import { PostUploadProvider } from './modules/member/context/PostUploadContext';
 import { FundProvider } from './modules/member/context/FundContext';
 import { AuthProvider } from './core/auth/AuthContext';
 import { NotificationProvider } from './modules/member/context/NotificationContext';
@@ -65,11 +66,13 @@ const App = () => {
     <AdminAuthProvider>
     <AxiosInterceptorProvider>
       <DataProvider>
+        <PostUploadProvider>
         <FundProvider>
           <AppContent />
           <PullToRefresh />
           <ImageCropHost />
         </FundProvider>
+        </PostUploadProvider>
       </DataProvider>
     </AxiosInterceptorProvider>
     </AdminAuthProvider>

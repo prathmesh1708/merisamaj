@@ -21,26 +21,45 @@ const EMPTY_PLAN = {
     readReceipts: false,
     profileBadge: false,
     crossCommunityVisibility: false,
-    communityFilter: false
+    communityFilter: false,
+    viewOtherSubCommunityProfile: false,
+    viewAllSubCommunityProfiles: false,
+    superInterestsPerMonth: 0,
+    viewProfilePhotos: true
   },
-  // App plans only: perks in the Social feed
+  // App plans only: perks in the Social feed and what the member may create
   appFeatures: {
     proBadge: true,
-    pinPostsPerMonth: 0
+    pinPostsPerMonth: 0,
+    socialPosts: true,
+    socialStories: true,
+    professionalListing: true
   },
   customFeatures: []
 };
 
 const PLAN_TYPES = {
   matrimonial: { label: 'Matrimonial Plans', hint: 'Matchmaking limits: profile views, interests, chat and filters.' },
-  app:         { label: 'App Plans',         hint: 'App-wide membership for every member (married too): PRO badge, pinned posts and any extra benefit you add.' }
+  app:         { label: 'App Plans',         hint: 'App-wide membership for every member (married too): PRO badge, pinned posts, creating posts / stories / professional listings and any extra benefit you add.' }
 };
+
+// What members get from the App plan's "create" switches
+const APP_PERMISSIONS = [
+  { key: 'socialPosts', label: 'Create social posts' },
+  { key: 'socialStories', label: 'Create social stories' },
+  { key: 'professionalListing', label: 'Add professional info (business & services)' }
+];
+
+// Plans saved before "View Profile Photos" existed: on for paid plans, off for the Free plan
+// (backend services/planFeatureDefaults.js applies the same rule)
+const photoAccessOf = (plan) => plan?.features?.viewProfilePhotos ?? (plan ? plan.price > 0 : true);
 
 const PlanModal = ({ plan, planType, onClose, onSaved }) => {
   const [form, setForm]       = useState(() => ({
     ...EMPTY_PLAN,
     planType,
     ...plan,
+    features: { ...EMPTY_PLAN.features, ...(plan?.features || {}), viewProfilePhotos: photoAccessOf(plan) },
     appFeatures: { ...EMPTY_PLAN.appFeatures, ...(plan?.appFeatures || {}) },
     customFeatures: plan?.customFeatures || []
   }));
@@ -67,7 +86,6 @@ const PlanModal = ({ plan, planType, onClose, onSaved }) => {
   const handleSave = async () => {
     if (!form.name || !form.name.trim()) { setErr('Plan name is required.'); return; }
     if (form.price < 0) { setErr('Price cannot be negative.'); return; }
-    if (isApp && !(form.price > 0)) { setErr('An App plan needs a price. To give it free, use "Grant Free".'); return; }
     if (form.price > 0 && !(form.durationInDays > 0)) { setErr('A paid plan needs a duration in days.'); return; }
     setSaving(true);
     try {
@@ -120,13 +138,13 @@ const PlanModal = ({ plan, planType, onClose, onSaved }) => {
             <input type="number" value={form.displayOrder ?? 0} onChange={e => set('displayOrder', Number(e.target.value))}
               className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-rose-500/50" />
           </div>
-          {!isApp && (
-            <div className="col-span-2">
-              <p className="text-[10.5px] text-gray-500 font-semibold">
-                Price ₹0 makes this the <span className="text-emerald-600">Free plan</span>: it applies to every member who has not bought a plan. Anything you switch on here is free for everyone.
-              </p>
-            </div>
-          )}
+          <div className="col-span-2">
+            <p className="text-[10.5px] text-gray-500 font-semibold">
+              {isApp
+                ? <>Price ₹0 makes this the <span className="text-emerald-600">Free App plan</span>: it is not sold, it only decides what members without an App plan may create (posts, stories, professional info). Without one, everything stays allowed.</>
+                : <>Price ₹0 makes this the <span className="text-emerald-600">Free plan</span>: it applies to every member who has not bought a plan. Anything you switch on here is free for everyone.</>}
+            </p>
+          </div>
           <div>
             <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1">Badge</label>
             <input type="text" placeholder="e.g. Most Popular" value={form.badge || ''} onChange={e => set('badge', e.target.value)}
@@ -164,6 +182,18 @@ const PlanModal = ({ plan, planType, onClose, onSaved }) => {
                 onChange={e => setAppFeature('pinPostsPerMonth', Number(e.target.value))}
                 className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none" />
               <p className="text-[10px] text-gray-400 mt-1">A pinned post stays at the top of the feed for 24 hours.</p>
+            </div>
+            <p className="text-[10px] text-gray-500 font-black uppercase tracking-wider pt-1">Members with this plan can</p>
+            <div className="flex flex-wrap gap-4">
+              {APP_PERMISSIONS.map(({ key, label }) => (
+                <label key={key} className="flex items-center gap-2 cursor-pointer">
+                  <div onClick={() => setAppFeature(key, !form.appFeatures[key])}
+                    className={`w-9 h-5 rounded-full relative transition-all cursor-pointer ${form.appFeatures[key] ? 'bg-rose-500' : 'bg-slate-200'}`}>
+                    <div className={`w-4 h-4 bg-white rounded-full absolute top-0.5 transition-transform ${form.appFeatures[key] ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                  </div>
+                  <span className="text-xs text-slate-500 font-semibold">{label}</span>
+                </label>
+              ))}
             </div>
             <div className="flex flex-wrap gap-4">
               <label className="flex items-center gap-2 cursor-pointer">
@@ -206,6 +236,12 @@ const PlanModal = ({ plan, planType, onClose, onSaved }) => {
                 onChange={e => setFeature('messageLimit', Number(e.target.value))}
                 className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none" />
             </div>
+            <div>
+              <label className="text-[10px] text-slate-500 font-bold block mb-1">Super Interests/Month (0 = off, -1 = ∞)</label>
+              <input type="number" value={form.features.superInterestsPerMonth}
+                onChange={e => setFeature('superInterestsPerMonth', Number(e.target.value))}
+                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none" />
+            </div>
           </div>
           <div className="flex flex-wrap gap-4">
             {[
@@ -215,6 +251,9 @@ const PlanModal = ({ plan, planType, onClose, onSaved }) => {
               { key: 'contactDetailsAccess', label: 'Contact Details Access' },
               { key: 'crossCommunityVisibility', label: 'See Other-Community Profiles' },
               { key: 'communityFilter', label: 'Community & Sub-community Filter' },
+              { key: 'viewOtherSubCommunityProfile', label: 'Open Other Sub-community Profiles' },
+              { key: 'viewAllSubCommunityProfiles', label: 'Browse All Sub-community Profiles' },
+              { key: 'viewProfilePhotos', label: 'View Profile Photos' },
             ].map(({ key, label }) => (
               <label key={key} className="flex items-center gap-2 cursor-pointer">
                 <div onClick={() => setFeature(key, !form.features[key])}
@@ -445,6 +484,9 @@ export const SubscriptionPlans = ({ data }) => {
                 {plan.appFeatures?.proBadge !== false && <p>• ✓ PRO badge on profile & posts</p>}
                 {plan.appFeatures?.pinPostsPerMonth === -1 && <p>• Unlimited pinned posts</p>}
                 {plan.appFeatures?.pinPostsPerMonth > 0 && <p>• {plan.appFeatures.pinPostsPerMonth} pinned posts/month</p>}
+                {APP_PERMISSIONS.map(({ key, label }) => (
+                  <p key={key} className={plan.appFeatures?.[key] === false ? 'line-through text-slate-300' : ''}>• {label}</p>
+                ))}
                 {(plan.customFeatures || []).map((label, i) => <p key={i}>• {label}</p>)}
               </div>
             ) : (
@@ -458,6 +500,11 @@ export const SubscriptionPlans = ({ data }) => {
               {plan.features?.contactDetailsAccess && <p>• Contact details access</p>}
               {plan.features?.crossCommunityVisibility && <p>• Sees other-community profiles</p>}
               {plan.features?.communityFilter && <p>• Community & sub-community filter</p>}
+              {plan.features?.viewOtherSubCommunityProfile && <p>• Opens other sub-community profiles</p>}
+              {plan.features?.viewAllSubCommunityProfiles && <p>• Browses all sub-community profiles</p>}
+              {plan.features?.superInterestsPerMonth === -1 && <p>• Unlimited Super Interests</p>}
+              {plan.features?.superInterestsPerMonth > 0 && <p>• {plan.features.superInterestsPerMonth} Super Interests/month</p>}
+              <p className={photoAccessOf(plan) ? '' : 'line-through text-slate-300'}>• View profile photos</p>
               {(plan.customFeatures || []).map((label, i) => <p key={i}>• {label}</p>)}
             </div>
             )}

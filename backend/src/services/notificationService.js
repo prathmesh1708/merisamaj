@@ -245,14 +245,16 @@ const createAggregatedNotification = async (params) => {
 };
 
 // ─── Matrimonial Convenience Helpers ─────────────────────────────────────────
-const notifyInterestReceived = (receiverId, senderName, interestId) =>
+const notifyInterestReceived = (receiverId, senderName, interestId, { isSuper = false } = {}) =>
   createNotification({
     userId:        receiverId,
     module:        'matrimonial',
     type:          'matrimonial_interest_received',
-    title:         'New Interest Received! 💌',
-    message:       `${senderName} has sent you an interest request.`,
-    icon:          '💌',
+    title:         isSuper ? 'Super Interest Received! ⭐' : 'New Interest Received! 💌',
+    message:       isSuper
+      ? `${senderName} sent you a Super Interest — they are really interested in your profile.`
+      : `${senderName} has sent you an interest request.`,
+    icon:          isSuper ? '⭐' : '💌',
     priority:      'high',
     actionUrl:     '/member/matrimonial/interests',
     referenceId:   interestId,

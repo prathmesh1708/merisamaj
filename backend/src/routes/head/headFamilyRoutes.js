@@ -12,6 +12,9 @@ router.get('/stats', reviewers, headFamilyController.getStats);
 // GET /api/v1/head/family-requests?status=pending|approved|rejected|all
 router.get('/', reviewers, headFamilyController.getRequests);
 
+// GET /api/v1/head/family-requests/:id — single request for the details screen
+router.get('/:id', reviewers, headFamilyController.getRequest);
+
 // PATCH /api/v1/head/family-requests/:id  { action: 'approve' | 'reject', note }
 router.patch('/:id', reviewers, headFamilyController.reviewRequest);
 

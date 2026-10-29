@@ -41,6 +41,9 @@ const SectionCard = ({ title, icon: Icon, children }) => (
 );
 
 // ─── Main ──────────────────────────────────────────────────────────────────────
+// Server codes for "your plan doesn't allow this profile"
+const UPGRADE_CODES = ['SUB_COMMUNITY_LOCKED', 'COMMUNITY_LOCKED', 'PROFILE_VIEW_LIMIT'];
+
 const MatrimonialProfilePage = () => {
   const { profileId } = useParams();
   const navigate = useNavigate();
@@ -56,6 +59,8 @@ const MatrimonialProfilePage = () => {
   const [toast, setToast]             = useState('');
   const [interestStatus, setInterestStatus] = useState(null); // null | 'sent' | 'accepted'
   const [myInterestId, setMyInterestId] = useState(null);
+  const [isSuperSent, setIsSuperSent] = useState(false);
+  const [errorCode, setErrorCode] = useState(null);
   const [reportModal, setReportModal]     = useState(false);
   const [reportReason, setReportReason]   = useState('');
   const [reportSending, setReportSending] = useState(false);
@@ -72,6 +77,7 @@ const MatrimonialProfilePage = () => {
   const loadProfile = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setErrorCode(null);
     try {
       const res = await matrimonialProfileService.getUserProfile(profileId);
       setProfile(res.data.data.profile);
@@ -81,9 +87,15 @@ const MatrimonialProfilePage = () => {
       else if (rel?.status === 'pending' && rel?.isSender) {
         setInterestStatus('sent');
         setMyInterestId(rel._id);
+        setIsSuperSent(!!rel.isSuper);
       }
     } catch (err) {
       if (err.response?.status === 404) setError('Profile not found.');
+      else if (err.response?.status === 403) {
+        // Plan limits (other sub-community / community, daily views) explain themselves
+        setError(err.response.data?.message || 'You cannot view this profile.');
+        setErrorCode(err.response.data?.code || null);
+      }
       else setError('Failed to load profile.');
     } finally {
       setLoading(false);
@@ -111,6 +123,11 @@ const MatrimonialProfilePage = () => {
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-4 px-6">
       <AlertCircle size={40} className="text-rose-300" />
       <p className="text-slate-500 font-semibold text-center">{error || 'Profile not found'}</p>
+      {UPGRADE_CODES.includes(errorCode) && (
+        <button onClick={() => navigate('/member/matrimonial/subscription')} className="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl text-sm font-bold flex items-center gap-2">
+          <Crown size={16} /> View Plans
+        </button>
+      )}
       <button onClick={() => navigate(-1)} className="px-6 py-2.5 bg-rose-500 text-white rounded-xl text-sm font-bold">
         Go Back
       </button>
@@ -153,7 +170,7 @@ const MatrimonialProfilePage = () => {
     if (isInterestSent) {
       // Withdraw
       const res = await cancelInterest(myInterestId);
-      if (res.success) { setInterestStatus(null); setMyInterestId(null); showToast('Interest withdrawn.'); }
+      if (res.success) { setInterestStatus(null); setMyInterestId(null); setIsSuperSent(false); showToast('Interest withdrawn.'); }
       else showToast(res.error);
       return;
     }
@@ -165,6 +182,23 @@ const MatrimonialProfilePage = () => {
       showToast('Interest sent! 💕');
     } else {
       showToast(res.error || 'Failed to send interest.');
+    }
+  };
+
+  // ─── Super Interest (plan feature; also upgrades a pending interest) ─────────
+  const handleSuperInterest = async () => {
+    const res = await sendInterest(profile._id, '', { superInterest: true });
+    if (res.success) {
+      setInterestStatus('sent');
+      setMyInterestId(res.interest?._id);
+      setIsSuperSent(true);
+      showToast('Super Interest sent! ⭐');
+    } else if (res.code === 'SUPER_INTEREST_NOT_IN_PLAN' || res.code === 'SUPER_INTEREST_LIMIT_REACHED') {
+      if (window.confirm(`${res.error}
+
+View plans?`)) navigate('/member/matrimonial/subscription');
+    } else {
+      showToast(res.error || 'Failed to send Super Interest.');
     }
   };
 
@@ -257,6 +291,17 @@ const MatrimonialProfilePage = () => {
           ) : primaryPhoto && !isPhotoVisible ? (
             <>
               <img src={primaryPhoto.url} alt={name || 'Matrimonial profile'} className="w-full h-full object-cover" />
+              {/* Blurred only because the viewer's plan has no photo access */}
+              {profile.photoLockedByPlan && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/25 text-white text-center px-6 z-10">
+                  <Lock size={28} />
+                  <p className="text-sm font-bold drop-shadow">Upgrade your plan to see profile photos</p>
+                  <button onClick={() => navigate('/member/matrimonial/subscription')}
+                    className="px-4 py-2 rounded-xl bg-white text-rose-600 text-xs font-extrabold flex items-center gap-1.5 active:scale-95">
+                    <Crown size={14} /> View Plans
+                  </button>
+                </div>
+              )}
             </>
           ) : (
             <div className="w-full h-full bg-gradient-to-br from-rose-200 to-pink-300 flex items-center justify-center">
@@ -457,6 +502,14 @@ const MatrimonialProfilePage = () => {
             <Star size={21} fill={isShortlisted ? 'currentColor' : 'none'} />
           </button>
 
+          {/* Super Interest — new, or upgrading a pending interest */}
+          {!isConnected && !isSuperSent && !profile.isClosed && (
+            <button onClick={handleSuperInterest} disabled={actionLoading} aria-label="Send Super Interest" title="Send Super Interest"
+              className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center shadow-md shadow-amber-500/25 active:scale-90 disabled:opacity-60">
+              <Sparkles size={21} />
+            </button>
+          )}
+
           <button onClick={handleInterest} disabled={actionLoading}
             className={`flex-1 py-3.5 rounded-xl text-[14px] font-extrabold flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all disabled:opacity-60 ${
               isConnected
@@ -470,7 +523,7 @@ const MatrimonialProfilePage = () => {
               : isConnected
               ? <><MessageCircle size={17} /> Chat Now</>
               : isInterestSent
-              ? <><Check size={17} strokeWidth={3} /> Sent</>
+              ? <><Check size={17} strokeWidth={3} /> {isSuperSent ? 'Super Interest Sent' : 'Sent'}</>
               : <><Heart size={17} fill="currentColor" /> Express Interest</>
             }
           </button>

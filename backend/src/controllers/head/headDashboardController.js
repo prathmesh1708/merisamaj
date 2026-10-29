@@ -19,8 +19,21 @@ const MEMBER_PROFILE_FIELDS = [
   'city district state country pincode houseNumber streetAddress landmark areaAddress detailedAddress',
   'qualification school passingYear profession company annualIncome workCity',
   'familyMembers',
-  'isAadharVerified isFaceVerified isPhoneVerified isEmailVerified verificationStatus accountStatus registrationSource referredBy createdAt'
+  'isAadharVerified isFaceVerified isPhoneVerified isEmailVerified verificationStatus accountStatus registrationSource referredBy createdAt',
+  'membershipReview'
 ].join(' ');
+
+// Membership request tabs. Approved only counts requests decided through the review
+// flow (membershipReview), otherwise every verified member would be listed.
+const PENDING_REQUEST = { $or: [{ verificationStatus: 'pending' }, { accountStatus: 'pending verification' }] };
+const REQUEST_STATUS_FILTERS = {
+  pending: PENDING_REQUEST,
+  approved: { verificationStatus: 'verified', 'membershipReview.status': 'approved' },
+  rejected: { verificationStatus: 'rejected' }
+};
+REQUEST_STATUS_FILTERS.all = { $or: [PENDING_REQUEST, REQUEST_STATUS_FILTERS.approved, REQUEST_STATUS_FILTERS.rejected] };
+
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const isLocalHeadUser = (user) => {
   if (!user) return false;
@@ -265,9 +278,49 @@ exports.getDashboardStats = async (req, res) => {
 };
 
 /**
- * @desc    Approve member account (Scoped & Validated)
- * @route   PATCH /api/v1/head/dashboard/members/:id/approve
+ * @desc    Community membership requests by status, with per-status counts (Scoped)
+ * @route   GET /api/v1/head/dashboard/members/requests?status=all|pending|approved|rejected&search=
  */
+exports.getMemberRequests = async (req, res) => {
+  try {
+    const status = REQUEST_STATUS_FILTERS[req.query.status] ? req.query.status : 'pending';
+    const activeCity = isLocalHeadUser(req.user) ? req.user.city : (req.query.city || null);
+    const scopeOptions = { overrideCity: activeCity, includeUnassignedCity: !isLocalHeadUser(req.user) };
+    const scoped = (...conditions) => applyScopeFilter(req, { role: { $in: ['user', 'member'] }, $and: conditions }, scopeOptions);
+
+    const conditions = [REQUEST_STATUS_FILTERS[status]];
+    const search = String(req.query.search || '').trim().slice(0, 60);
+    if (search) {
+      const rx = new RegExp(escapeRegex(search), 'i');
+      conditions.push({ $or: [{ name: rx }, { city: rx }, { phone: rx }, { community: rx }, { subCommunity: rx }] });
+    }
+
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 50));
+    const [requests, pending, approved, rejected] = await Promise.all([
+      User.find(scoped(...conditions))
+        .select(MEMBER_PROFILE_FIELDS)
+        .populate('communityId', 'name')
+        .populate('referredBy', 'name phone')
+        .populate('membershipReview.by', 'name')
+        .sort({ 'membershipReview.at': -1, createdAt: -1 })
+        .limit(limit)
+        .lean(),
+      User.countDocuments(scoped(REQUEST_STATUS_FILTERS.pending)),
+      User.countDocuments(scoped(REQUEST_STATUS_FILTERS.approved)),
+      User.countDocuments(scoped(REQUEST_STATUS_FILTERS.rejected))
+    ]);
+
+    res.status(200).json({
+      status: 'success',
+      counts: { all: pending + approved + rejected, pending, approved, rejected },
+      data: requests
+    });
+  } catch (error) {
+    console.error('Get Member Requests Error:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to load member requests' });
+  }
+};
+
 /**
  * @desc    Full profile of one member, for reviewing a verification request (Scoped)
  * @route   GET /api/v1/head/dashboard/members/:id
@@ -282,10 +335,23 @@ exports.getMemberProfile = async (req, res) => {
       .select(MEMBER_PROFILE_FIELDS)
       .populate('communityId', 'name')
       .populate('referredBy', 'name phone')
+      .populate('membershipReview.by', 'name')
       .lean();
     if (!member) {
       return res.status(404).json({ status: 'fail', message: 'Member not found or not in your community.' });
     }
+
+    // Gallery = photos from the member's own published posts
+    const posts = await Post.find({ $or: [{ userId: member._id }, { authorId: member._id }], status: 'published', isDeleted: false })
+      .select('images media')
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .lean();
+    member.gallery = posts
+      .flatMap(p => [...(p.images || []), ...(p.media || []).filter(m => m.type === 'image').map(m => m.url)])
+      .filter(Boolean)
+      .slice(0, 12);
+
     res.status(200).json({ status: 'success', data: member });
   } catch (error) {
     console.error('Get Member Profile Error:', error);
@@ -312,6 +378,7 @@ exports.approveMember = async (req, res) => {
     user.verificationStatus = 'verified';
     user.accountStatus = 'active';
     user.isAadharVerified = true;
+    user.membershipReview = { status: 'approved', by: req.user._id, at: new Date(), note: '' };
     await user.save();
 
     res.status(200).json({ status: 'success', message: `Approved membership for ${user.name}` });
@@ -343,6 +410,12 @@ exports.rejectMember = async (req, res) => {
 
     user.verificationStatus = 'rejected';
     user.accountStatus = 'inactive';
+    user.membershipReview = {
+      status: 'rejected',
+      by: req.user._id,
+      at: new Date(),
+      note: String(req.body?.note || '').trim().slice(0, 500)
+    };
     await user.save();
 
     res.status(200).json({ status: 'success', message: `Rejected membership for ${user.name}` });
@@ -370,6 +443,7 @@ exports.revokeMember = async (req, res) => {
 
     user.verificationStatus = 'pending';
     user.accountStatus = 'pending verification';
+    user.membershipReview = { status: null, by: null, at: null, note: '' };
     await user.save();
 
     res.status(200).json({ status: 'success', message: `Revoked verification for ${user.name}` });
@@ -510,7 +584,14 @@ exports.bulkMemberAction = async (req, res) => {
     } else if (action === 'activate') {
       updateFields = { accountStatus: 'active' };
     } else if (action === 'revoke') {
-      updateFields = { verificationStatus: 'pending', accountStatus: 'pending verification' };
+      updateFields = { verificationStatus: 'pending', accountStatus: 'pending verification', membershipReview: { status: null, by: null, at: null, note: '' } };
+    }
+
+    // Stamp the decision on members whose request was actually pending (before it changes)
+    if (action === 'verify' || action === 'reject') {
+      await User.updateMany({ $and: [filter, PENDING_REQUEST] }, {
+        $set: { membershipReview: { status: action === 'verify' ? 'approved' : 'rejected', by: req.user._id, at: new Date(), note: '' } }
+      });
     }
 
     const result = await User.updateMany(filter, { $set: updateFields });

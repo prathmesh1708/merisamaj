@@ -43,15 +43,16 @@ const makeBlurredCopy = async (photoUrl) => {
 };
 
 /**
- * Make sure every PRIVATE profile in `profiles` has a blurred copy of its primary photo.
+ * Make sure every PRIVATE profile in `profiles` has a blurred copy of its primary photo
+ * (public ones too with includePublic, for viewers whose plan has no photo access).
  * Mutates the given objects (so the privacy builders see blurredUrl) and saves new copies.
  * Never throws: a profile whose copy can't be made simply shows no photo.
  */
-const ensureBlurredPhotos = async (profiles) => {
+const ensureBlurredPhotos = async (profiles, { includePublic = false } = {}) => {
   if (!cloudinaryReady()) return;
   const jobs = [];
   for (const profile of profiles || []) {
-    if (!profile || !isPhotoPrivate(profile)) continue;
+    if (!profile || (!includePublic && !isPhotoPrivate(profile))) continue;
     const photo = primaryPhotoOf(profile);
     if (!photo || !photo.url || !/^https?:\/\//.test(photo.url)) continue;
     if (photo.blurredUrl && photo.blurLevel === BLUR_STRENGTH) continue;

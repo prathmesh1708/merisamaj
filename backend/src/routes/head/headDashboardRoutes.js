@@ -9,6 +9,8 @@ router.use(protect);
 router.get('/stats', authorize('head', 'sub_head', 'admin', 'super_admin', 'master_admin'), headDashboardCtrl.getDashboardStats);
 
 // Member verification actions — Available to Head, Sub-Head (Local Head), and Admins
+// (/members/requests must stay above /members/:id)
+router.get('/members/requests', authorize('head', 'sub_head', 'admin', 'super_admin', 'master_admin'), headDashboardCtrl.getMemberRequests);
 router.get('/members/:id', authorize('head', 'sub_head', 'admin', 'super_admin', 'master_admin'), headDashboardCtrl.getMemberProfile);
 router.patch('/members/:id/approve', authorize('head', 'sub_head', 'admin', 'super_admin', 'master_admin'), headDashboardCtrl.approveMember);
 router.patch('/members/:id/reject', authorize('head', 'sub_head', 'admin', 'super_admin', 'master_admin'), headDashboardCtrl.rejectMember);

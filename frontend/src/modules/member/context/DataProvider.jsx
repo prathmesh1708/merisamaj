@@ -1403,7 +1403,7 @@ export const DataProvider = ({ children }) => {
         location: options.city,
         feedType: options.feedType || 'city',
         isPinned: Boolean(options.isPinned)
-      });
+      }, { onUploadProgress: options.onUploadProgress });
 
       const formatSinglePost = (p) => ({
         ...p,
@@ -2032,13 +2032,16 @@ export const DataProvider = ({ children }) => {
         // Text-only stories keep their colour here too, so they render as a background
         background: isGradient ? media : undefined,
         feedType: storyOptions.feedType || 'both'
-      });
+      }, { onUploadProgress: storyOptions.onUploadProgress });
 
       const formatted = formatStory(res.data, currentUser);
       // Append: the viewer plays a person's stories oldest → newest
       setStories(prev => [...prev, formatted]);
+      return formatted;
     } catch (error) {
       console.error('Failed to add story:', error);
+      // Rethrown so the upload banner can show the failure and offer Retry
+      throw new Error(error.response?.data?.message || error.message || 'Failed to share story');
     }
   };
 

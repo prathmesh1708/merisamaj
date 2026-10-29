@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, Crown, Loader2, BadgeCheck, Pin, X, CalendarDays } from 'lucide-react';
+import { ArrowLeft, Check, Crown, Loader2, BadgeCheck, Pin, X, CalendarDays, ImagePlus, Clapperboard, Briefcase } from 'lucide-react';
 import { appSubscriptionService } from '../../../../core/api/matrimonialService';
 import { loadRazorpayScript } from '../../../../core/utils/razorpayLoader';
 import { authService } from '../../../../core/auth/authService';
@@ -14,6 +14,10 @@ const perksOf = (features = {}, customFeatures = []) => {
   if (features.proBadge !== false) perks.push({ icon: BadgeCheck, text: '✓ PRO badge on your profile & posts' });
   if (features.pinPostsPerMonth === -1) perks.push({ icon: Pin, text: 'Pin unlimited posts to the top of the feed' });
   else if (features.pinPostsPerMonth > 0) perks.push({ icon: Pin, text: `Pin ${features.pinPostsPerMonth} post${features.pinPostsPerMonth === 1 ? '' : 's'} a month to the top of the feed (24 h)` });
+  // Missing = allowed (plans saved before these switches existed)
+  if (features.socialPosts !== false) perks.push({ icon: ImagePlus, text: 'Create social posts' });
+  if (features.socialStories !== false) perks.push({ icon: Clapperboard, text: 'Share social stories' });
+  if (features.professionalListing !== false) perks.push({ icon: Briefcase, text: 'Add your professional info, business & services' });
   (customFeatures || []).forEach(text => perks.push({ icon: Check, text }));
   return perks;
 };
