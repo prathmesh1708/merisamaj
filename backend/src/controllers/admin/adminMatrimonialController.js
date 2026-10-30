@@ -99,6 +99,29 @@ exports.listProfiles = async (req, res) => {
       .limit(Number(limit))
       .lean({ virtuals: true });
 
+    // Each member's live matrimonial plan — same rule the app uses to unlock features
+    // (active / grace / cancelled-but-paid-until-endDate; App plans excluded)
+    const userIds = profiles.map(p => p.userId?._id || p.userId).filter(Boolean);
+    const subs = await UserSubscription.find({
+      userId:   { $in: userIds },
+      planType: { $ne: 'app' },
+      status:   { $in: ['active', 'grace', 'cancelled'] },
+      endDate:  { $gte: new Date() }
+    }).select('userId planName status startDate endDate').sort({ endDate: -1 }).lean();
+    const RANK = { active: 0, grace: 1, cancelled: 2 };
+    const subByUser = new Map();
+    subs.forEach(s => {
+      const key = String(s.userId);
+      const cur = subByUser.get(key);
+      if (!cur || RANK[s.status] < RANK[cur.status]) subByUser.set(key, s);
+    });
+    profiles.forEach(p => {
+      const s = subByUser.get(String(p.userId?._id || p.userId));
+      p.subscription = s
+        ? { isActive: true, planName: s.planName, status: s.status, startDate: s.startDate, endDate: s.endDate }
+        : { isActive: false, planName: 'Free' };
+    });
+
     res.json({ status: 'success', data: { profiles, total, page: Number(page), pages: Math.ceil(total / Number(limit)) } });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });

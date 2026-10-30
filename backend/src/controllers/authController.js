@@ -142,7 +142,9 @@ const registerUser = async (req, res) => {
       name: name.trim(),
       phone,
       password,
-      referralCode,
+      // NOTE: req.body.referralCode is the INVITER's code — it must not become this
+      // user's own code (that gave two accounts the same code and lost the
+      // inviter's points). The new user always gets a fresh code below.
       accountStatus: 'pending verification',
       verificationStatus: 'pending', // Pending approval by Community Head
       isPhoneVerified: true,
@@ -165,11 +167,9 @@ const registerUser = async (req, res) => {
       userData.email = email;
     }
 
-    // Auto-generate referral code for new user if not provided
+    // Every new user gets their own unique referral code
     const referralService = require('../services/referralService');
-    if (!userData.referralCode) {
-      userData.referralCode = await referralService.generateUniqueReferralCode();
-    }
+    userData.referralCode = await referralService.generateUniqueReferralCode();
 
     // The mobile number must have been verified by OTP (send-otp → verify-otp) just before
     try {

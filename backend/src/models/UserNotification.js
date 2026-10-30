@@ -38,7 +38,8 @@ const userNotificationSchema = new mongoose.Schema(
         'professional',
         'voting',
         'invitations',
-        'account'
+        'account',
+        'referral'
       ],
       required: true,
       index: true

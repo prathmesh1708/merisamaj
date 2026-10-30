@@ -1,11 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, CheckCircle, Archive, Star, Loader2, Image as ImageIcon } from 'lucide-react';
+import { Plus, Edit, Trash2, CheckCircle, Archive, Star, Loader2, Image as ImageIcon, Globe, Users } from 'lucide-react';
 import { adminMatrimonialService } from '../../../../core/api/adminMatrimonialService';
+import { axiosPrivate } from '../../../../core/api/axiosPrivate';
 
 const EMPTY_FORM = {
   title: '', shortDescription: '', story: '', coverImage: '', gallery: [],
   groomId: '', brideId: '', groomName: '', brideName: '', location: '',
-  marriageRequestId: '', weddingDate: '', communityId: '', publishNow: true
+  marriageRequestId: '', weddingDate: '', communityId: '', publishNow: true,
+  visibleToAllCommunities: true, visibleCommunityIds: []
+};
+
+const communityLabel = (c) => {
+  const city = c.city?.name || (typeof c.city === 'string' ? c.city : '');
+  return city ? `${c.name} (${city})` : c.name;
+};
+
+// "All communities" or the names the story is limited to
+const visibilityLabel = (story) => {
+  if (story.visibleToAllCommunities !== false) return 'All communities';
+  const names = (story.visibleCommunityIds || []).map(c => c?.name).filter(Boolean);
+  return names.length ? names.join(', ') : 'No community selected';
 };
 
 // "Rahul & Priya" — from linked app users, or the names typed by the admin
@@ -32,6 +46,21 @@ const SuccessStoriesManagement = () => {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [notice, setNotice] = useState('');
+  const [communities, setCommunities] = useState([]);
+  const [communitySearch, setCommunitySearch] = useState('');
+
+  useEffect(() => {
+    axiosPrivate.get('/admin/communities')
+      .then(res => setCommunities((res.data?.data || []).filter(c => c?._id && c?.name)))
+      .catch(err => console.error('Failed to load communities:', err));
+  }, []);
+
+  const toggleVisibleCommunity = (id) => setFormData(prev => ({
+    ...prev,
+    visibleCommunityIds: prev.visibleCommunityIds.includes(id)
+      ? prev.visibleCommunityIds.filter(x => x !== id)
+      : [...prev.visibleCommunityIds, id]
+  }));
 
   useEffect(() => {
     if (activeTab === 'eligible') fetchEligibleCouples();
@@ -82,6 +111,7 @@ const SuccessStoriesManagement = () => {
       setFormData(EMPTY_FORM);
     }
     setLinkedCouple(couple);
+    setCommunitySearch('');
     setEditingStory(null);
     setFormError('');
     setIsModalOpen(true);
@@ -97,8 +127,11 @@ const SuccessStoriesManagement = () => {
       location: story.location || '',
       marriageRequestId: story.marriageRequestId || '',
       weddingDate: story.weddingDate ? new Date(story.weddingDate).toISOString().split('T')[0] : '',
-      communityId: story.communityId?._id || ''
+      communityId: story.communityId?._id || '',
+      visibleToAllCommunities: story.visibleToAllCommunities !== false,
+      visibleCommunityIds: (story.visibleCommunityIds || []).map(c => c?._id || c).filter(Boolean)
     });
+    setCommunitySearch('');
     setLinkedCouple(story.groomId && story.brideId ? { groom: story.groomId, bride: story.brideId } : null);
     setEditingStory(story);
     setFormError('');
@@ -230,6 +263,11 @@ const SuccessStoriesManagement = () => {
                   <h3 className="font-bold text-slate-800">{story.title || 'Untitled'}</h3>
                   <p className="text-sm text-slate-500">
                     {coupleNames(story) || '—'}{story.location ? ` · ${story.location}` : ''}
+                    {story.communityId?.name ? ` · ${story.communityId.name}` : ''}
+                  </p>
+                  <p className="text-xs font-semibold mt-1 inline-flex items-center gap-1 text-indigo-600">
+                    {story.visibleToAllCommunities !== false ? <Globe size={12} /> : <Users size={12} />}
+                    Shown in: {visibilityLabel(story)}
                   </p>
                 </div>
               </div>
@@ -283,6 +321,83 @@ const SuccessStoriesManagement = () => {
                   <label className="block text-sm font-bold mb-1">Wedding Date</label>
                   <input type="date" value={formData.weddingDate} onChange={e => setFormData({ ...formData, weddingDate: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
                 </div>
+              </div>
+
+              {/* Community: whose story it is, and who gets to see it */}
+              <div>
+                <label className="block text-sm font-bold mb-1">Couple's Community</label>
+                <select
+                  value={formData.communityId}
+                  onChange={e => setFormData({ ...formData, communityId: e.target.value })}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-white"
+                >
+                  <option value="">— Select community —</option>
+                  {communities.map(c => <option key={c._id} value={c._id}>{communityLabel(c)}</option>)}
+                </select>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 p-3 space-y-3">
+                <p className="text-sm font-bold">Show this story in *</p>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <label className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer text-sm font-semibold ${formData.visibleToAllCommunities ? 'border-rose-400 bg-rose-50 text-rose-700' : 'border-slate-200 text-slate-600'}`}>
+                    <input
+                      type="radio"
+                      name="storyVisibility"
+                      checked={formData.visibleToAllCommunities}
+                      onChange={() => setFormData({ ...formData, visibleToAllCommunities: true })}
+                      className="accent-rose-500"
+                    />
+                    <Globe size={14} /> All communities
+                  </label>
+                  <label className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer text-sm font-semibold ${!formData.visibleToAllCommunities ? 'border-rose-400 bg-rose-50 text-rose-700' : 'border-slate-200 text-slate-600'}`}>
+                    <input
+                      type="radio"
+                      name="storyVisibility"
+                      checked={!formData.visibleToAllCommunities}
+                      onChange={() => setFormData(prev => ({
+                        ...prev,
+                        visibleToAllCommunities: false,
+                        // Start with the couple's own community ticked
+                        visibleCommunityIds: prev.visibleCommunityIds.length || !prev.communityId
+                          ? prev.visibleCommunityIds
+                          : [prev.communityId]
+                      }))}
+                      className="accent-rose-500"
+                    />
+                    <Users size={14} /> Selected communities only
+                  </label>
+                </div>
+
+                {!formData.visibleToAllCommunities && (
+                  <div>
+                    <input
+                      type="text"
+                      value={communitySearch}
+                      onChange={e => setCommunitySearch(e.target.value)}
+                      placeholder="Search community..."
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-2"
+                    />
+                    <div className="max-h-44 overflow-y-auto border border-slate-100 rounded-lg divide-y divide-slate-100">
+                      {communities
+                        .filter(c => communityLabel(c).toLowerCase().includes(communitySearch.trim().toLowerCase()))
+                        .map(c => (
+                          <label key={c._id} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-slate-50">
+                            <input
+                              type="checkbox"
+                              checked={formData.visibleCommunityIds.includes(c._id)}
+                              onChange={() => toggleVisibleCommunity(c._id)}
+                              className="w-4 h-4 accent-rose-500"
+                            />
+                            {communityLabel(c)}
+                          </label>
+                        ))}
+                      {communities.length === 0 && <p className="px-3 py-3 text-xs text-slate-400">No communities found.</p>}
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1.5">
+                      {formData.visibleCommunityIds.length} selected — only members of these communities will see this story.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div>

@@ -332,6 +332,17 @@ export const MatrimonialProvider = () => {
     myProfileLoading,
     fetchMyProfile,
 
+    // Plan features (from the member's active plan, or the Free plan). A section is
+    // locked only once the dashboard has loaded and the plan says no — avoids a
+    // lock flashing before the data arrives.
+    planFeatures: dashboard?.subscription?.features || null,
+    isLocked: (feature) => {
+      const f = dashboard?.subscription?.features;
+      if (!f) return false;
+      const v = f[feature];
+      return v === false || v === 0 || v === undefined || v === null;
+    },
+
     // Dashboard
     dashboard,
     dashboardLoading,

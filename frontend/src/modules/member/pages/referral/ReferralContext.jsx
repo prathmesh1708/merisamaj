@@ -27,7 +27,9 @@ export const ReferralProvider = ({ children }) => {
   const [totalPoints, setTotalPoints] = useState(auth?.user?.pointsBalance || 0);
   const [totalEarned, setTotalEarned] = useState(auth?.user?.totalPointsEarned || 0);
   const [pendingPoints] = useState(0); // 0 per requirements: points credited immediately
-  const [redeemedPoints] = useState(0); // Phase 2
+  const [redeemedPoints, setRedeemedPoints] = useState(0);
+  const [pendingRedemptionPoints, setPendingRedemptionPoints] = useState(0);
+  const [earningsOverview, setEarningsOverview] = useState([]);
   const [totalReferrals, setTotalReferrals] = useState(0);
   const [eventBreakdown, setEventBreakdown] = useState({
     REGISTRATION: { count: 0, points: 0 },
@@ -65,6 +67,9 @@ export const ReferralProvider = ({ children }) => {
         setTotalEarned(d.totalPointsEarned || 0);
         setTotalReferrals(d.totalReferrals || 0);
         if (d.eventBreakdown) setEventBreakdown(d.eventBreakdown);
+        setRedeemedPoints(d.pointsRedeemed || 0);
+        setPendingRedemptionPoints(d.pendingRedemptionPoints || 0);
+        if (Array.isArray(d.earningsOverview)) setEarningsOverview(d.earningsOverview);
       } else if (auth?.user?.referralCode) {
         setReferralCode(auth.user.referralCode);
       }
@@ -75,7 +80,8 @@ export const ReferralProvider = ({ children }) => {
           name: h.referredUser?.name || 'Member',
           avatar: h.referredUser?.avatar || null,
           date: new Date(h.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
-          action: h.eventType === 'REGISTRATION' ? 'Joined using your code' 
+          action: h.isWelcomeBonus ? 'Welcome bonus for joining'
+                : h.eventType === 'REGISTRATION' ? 'Joined using your code' 
                 : h.eventType === 'SUBSCRIPTION' ? 'Subscription Purchase' 
                 : h.eventType === 'MEMBERSHIP' ? 'Membership Upgrade' 
                 : 'Donation Contribution',
@@ -158,7 +164,8 @@ export const ReferralProvider = ({ children }) => {
     unlockedBadges: [],
     currentLevel,
     nextLevel,
-    earningsOverview: [],
+    earningsOverview,
+    pendingRedemptionPoints,
     earningsSummary,
     topEarners,
     recentActivity,

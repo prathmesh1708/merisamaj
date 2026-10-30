@@ -4,6 +4,7 @@ const ctrl = require('../../controllers/admin/userManagementController');
 
 // Stats endpoint first (before /:id to avoid conflict)
 router.get('/stats', ctrl.getUserStats);
+router.get('/filter-options', ctrl.getUserFilterOptions);
 
 // CRUD
 router.get('/', ctrl.getUsers);

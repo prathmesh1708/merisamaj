@@ -1277,6 +1277,12 @@ main input[type="text"], main input[type="email"], main input[type="password"], 
   transition: all 150ms ease !important;
   background-color: #ffffff !important;
 }
+/* Inputs with a leading icon (<svg> placed absolutely before the input) — the
+   padding rule above would otherwise put the typed text under the icon. */
+main svg ~ input[type="text"], main svg ~ input[type="email"], main svg ~ input[type="password"],
+main svg ~ input[type="search"], main svg ~ input[type="tel"], main svg ~ input[type="number"] {
+  padding-left: 2.5rem !important;
+}
 main input:focus, main select:focus, main textarea:focus {
   border-color: #6f42c1 !important;
   box-shadow: 0 0 0 3px rgba(111, 66, 193, 0.12) !important;

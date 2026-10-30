@@ -116,6 +116,8 @@ export const matrimonialMarriageService = {
   respond:        (id, data) => axiosPrivate.post(`${BASE}/marriage/respond/${id}`, data),
   getRequests:    () => axiosPrivate.get(`${BASE}/marriage/requests`),
   getStatus:      () => axiosPrivate.get(`${BASE}/marriage/status`),
+  // Marriage ended → profile back in matchmaking with the new marital status
+  reopenProfile:  (data) => axiosPrivate.post(`${BASE}/marriage/reopen`, data),
 };
 
 // ─── Success Stories ──────────────────────────────────────────────────────────
