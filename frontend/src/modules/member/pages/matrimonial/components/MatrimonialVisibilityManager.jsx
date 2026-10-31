@@ -1767,7 +1767,7 @@ export const MatrimonialVisibilityManager = ({
                     )}
 
                     {/* Reorder arrows */}
-                    <div className="absolute top-2 left-1/2 -translate-x-1/2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                       <button
                         type="button"
                         disabled={index === 0}
@@ -1788,20 +1788,23 @@ export const MatrimonialVisibilityManager = ({
                       </button>
                     </div>
 
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2.5 justify-between">
+                    {/* Always visible on mobile (no hover on touch); hover-reveal on desktop */}
+                    <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex items-end p-2.5 justify-between">
                       {!photo.isPrimary && (
                         <button
                           type="button"
+                          disabled={isBusy}
                           onClick={() => handleMakePrimary(photo)}
-                          className="px-2 py-1 bg-white text-slate-800 text-[10px] font-bold rounded-lg shadow-sm"
+                          className="pointer-events-auto px-2.5 py-1.5 bg-white text-slate-800 text-[10px] font-bold rounded-lg shadow-sm active:scale-95"
                         >
                           Make Primary
                         </button>
                       )}
                       <button
                         type="button"
+                        disabled={isBusy}
                         onClick={() => handleDeletePhoto(photo)}
-                        className="p-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 shadow-sm"
+                        className="pointer-events-auto ml-auto p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 shadow-sm active:scale-95"
                       >
                         <Trash2 size={13} />
                       </button>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Search, Filter, ShieldCheck, Eye, CheckCircle, XCircle, Loader2, MoreVertical, ChevronLeft, ChevronRight } from 'lucide-react';
 import { matrimonialService } from '../../services/matrimonialService';
+import ProfileDetailDrawer from './ProfileDetailDrawer';
 
 const STATUS_COLORS = {
   active:   'bg-emerald-500/20 text-emerald-400',
@@ -29,6 +30,7 @@ export const ProfilesDirectory = ({ data }) => {
 
   const [actionId, setActionId]   = useState(null);
   const [toast, setToast]         = useState('');
+  const [viewProfile, setViewProfile] = useState(null);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
 
@@ -83,6 +85,8 @@ export const ProfilesDirectory = ({ data }) => {
         </div>
       )}
 
+      {viewProfile && <ProfileDetailDrawer profile={viewProfile} onClose={() => setViewProfile(null)} />}
+
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
@@ -129,12 +133,12 @@ export const ProfilesDirectory = ({ data }) => {
                   <tr key={p._id} className="border-b border-slate-100 hover:bg-slate-50/60 transition-colors">
                     {/* Profile */}
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 cursor-pointer" onClick={() => setViewProfile(p)}>
                         <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-rose-500/10 to-pink-500/20 text-rose-600 flex items-center justify-center font-bold text-sm shrink-0 overflow-hidden border border-rose-100">
                           {photo ? <img src={photo} alt={name} className="w-full h-full object-cover" /> : name[0]}
                         </div>
                         <div>
-                          <p className="font-bold text-slate-900 text-sm">{name}{age ? `, ${age}` : ''}</p>
+                          <p className="font-bold text-slate-900 text-sm hover:text-rose-600">{name}{age ? `, ${age}` : ''}</p>
                           <p className="text-[10px] text-slate-500">{p.personal?.gender || ''} · {p.personal?.community || ''}</p>
                         </div>
                       </div>
@@ -164,12 +168,23 @@ export const ProfilesDirectory = ({ data }) => {
                     {/* Subscription */}
                     <td className="px-4 py-3 text-slate-600 text-xs">
                       {p.subscription?.isActive ? (
-                        <span className="text-purple-600 font-bold">Premium</span>
+                        <div>
+                          <span className="text-purple-600 font-bold">{p.subscription.planName || 'Premium'}</span>
+                          <span className="block text-[10px] text-slate-400">
+                            {p.subscription.status === 'cancelled' ? 'Cancelled · ' : p.subscription.status === 'grace' ? 'Grace · ' : ''}
+                            till {new Date(p.subscription.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </span>
+                        </div>
                       ) : 'Free'}
                     </td>
                     {/* Actions */}
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">
+                        <button onClick={() => setViewProfile(p)}
+                          className="p-1.5 bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-100 transition-colors border border-slate-200"
+                          title="View Profile">
+                          <Eye size={13} />
+                        </button>
                         {p.verificationStatus !== 'verified' && !p.isClosed && (
                           <button onClick={() => handleVerify(p._id, 'verified')} disabled={isLoading}
                             className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 disabled:opacity-40 transition-colors border border-emerald-200"

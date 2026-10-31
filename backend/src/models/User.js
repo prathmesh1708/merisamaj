@@ -156,6 +156,9 @@ const userSchema = new mongoose.Schema({
   referralCode: { type: String, index: true },
   referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   pointsBalance: { type: Number, default: 0 },
+  // Lifetime points earned (never goes down) and points paid out as cash
+  totalPointsEarned: { type: Number, default: 0 },
+  pointsRedeemed: { type: Number, default: 0 },
   // Membership & Subscription Fields
   isPremium: { type: Boolean, default: false },
   membershipPlan: { type: String, default: '' },

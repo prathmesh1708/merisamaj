@@ -35,6 +35,8 @@ const { loginLimiter, otpLimiter, forgotLimiter } = require('../middleware/rateL
 router.get('/communities', getPublicCommunities);
 router.get('/cities', getPublicCities);
 router.post('/register', validateRegister, registerUser);
+// Referral code check on the register screen (user isn't logged in yet)
+router.post('/referral/validate', require('../controllers/member/referralController').validateReferralCode);
 router.post('/login', loginLimiter, validateLogin, loginUser);
 router.post('/logout', logoutUser);
 router.post('/logout/admin', logoutAdmin);

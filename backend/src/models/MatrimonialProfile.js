@@ -210,6 +210,15 @@ const matrimonialProfileSchema = new mongoose.Schema(
       ref: 'MarriageRequest'
     },
     allowPublicStory: { type: Boolean, default: false, index: true },
+    // Earlier marriages that ended (member reopened their profile as Divorced/Widowed…)
+    previousMarriages: [{
+      partnerUserId:     { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      marriageRequestId: { type: mongoose.Schema.Types.ObjectId, ref: 'MarriageRequest' },
+      marriedAt:         { type: Date },
+      endedAt:           { type: Date, default: Date.now },
+      newMaritalStatus:  { type: String },
+      note:              { type: String, trim: true }
+    }],
 
     // ─── Soft Delete ─────────────────────────────────────────────────────────
     isDeleted:  { type: Boolean, default: false, index: true },

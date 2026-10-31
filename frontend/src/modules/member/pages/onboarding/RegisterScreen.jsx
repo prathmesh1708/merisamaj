@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Phone, ArrowRight, Bell, Eye, EyeOff, Lock, Check, AlertCircle, Gift, CheckCircle2, Loader2
 } from 'lucide-react';
@@ -13,7 +13,6 @@ import {
   validatePassword,
   validateConfirmPassword,
   validatePhone,
-  validateAlphanumeric,
   validatePastedValue,
   getPasswordStrength,
 } from '../../../../core/utils/validators';
@@ -62,7 +61,9 @@ const RegisterScreen = () => {
 
   // Referral State
   const { validateReferralCode } = useReferral();
-  const [referralCodeInput, setReferralCodeInput] = useState('');
+  const [searchParams] = useSearchParams();
+  // Opened from a shared link (/member/register?ref=SAMAJ-XXXX) → code pre-filled
+  const [referralCodeInput, setReferralCodeInput] = useState(() => (searchParams.get('ref') || '').trim().toUpperCase());
   const [referralStatus, setReferralStatus] = useState(null); // null, 'loading', 'success', 'error'
   const [referralMessage, setReferralMessage] = useState('');
 
@@ -176,15 +177,16 @@ const RegisterScreen = () => {
     }
   };
 
-  const handleValidateReferral = async () => {
-    if (!referralCodeInput.trim()) return;
-    const alphaResult = validateAlphanumeric(referralCodeInput);
-    if (!alphaResult.valid) {
-      setFieldErrors(prev => ({ ...prev, referral: alphaResult.error }));
+  const handleValidateReferral = async (codeArg) => {
+    const code = typeof codeArg === 'string' ? codeArg : referralCodeInput;
+    if (!code.trim()) return;
+    // Codes look like SAMAJ-A492 (a phone number also works), so allow the hyphen
+    if (!/^[A-Za-z0-9-]+$/.test(code.trim())) {
+      setFieldErrors(prev => ({ ...prev, referral: 'Only letters, numbers and - are allowed.' }));
       return;
     }
     setReferralStatus('loading');
-    const result = await validateReferralCode(referralCodeInput);
+    const result = await validateReferralCode(code);
     if (result.valid) {
       setReferralStatus('success');
       setReferralMessage(result.message);
@@ -193,6 +195,12 @@ const RegisterScreen = () => {
       setReferralMessage(result.message);
     }
   };
+
+  // Check a code that came in through the shared link once, automatically
+  useEffect(() => {
+    const fromLink = (searchParams.get('ref') || '').trim();
+    if (fromLink) handleValidateReferral(fromLink.toUpperCase());
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const renderToast = () => toastMessage && (
     <div className="fixed top-24 left-1/2 -translate-x-1/2 z-50 bg-[#1e1145] text-white border border-purple-500/20 px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 animate-bounce font-sans text-xs font-bold select-none">

@@ -22,8 +22,40 @@ export const UserManagement = () => {
     page, setPage, pagination,
     handleVerifyUser, handleSuspendUser, handleBlockUser,
     handleActivateUser, handleDeleteUser,
-    refreshData,
+    refreshData, fetchAllFiltered,
   } = useUserManagement();
+
+  const [exporting, setExporting] = useState(false);
+
+  // Download every user matching the current filters as CSV
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const rows = await fetchAllFiltered();
+      const headers = ['Customer ID', 'Name', 'Phone', 'Email', 'Gender', 'Community', 'Sub Community',
+        'City', 'District', 'State', 'Pincode', 'Head', 'Verified By', 'Verification', 'Status', 'Joined', 'Photo URL'];
+      const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+      const lines = rows.map(u => [
+        u.customerId, u.name, u.phone, u.email, u.gender, u.community, u.subCommunity,
+        u.city, u.district, u.state, u.pincode, u.headName, u.verifiedByName,
+        u.verificationStatus, u.accountStatus,
+        u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-IN') : '',
+        u.avatar && !String(u.avatar).startsWith('data:') ? u.avatar : '',
+      ].map(esc).join(','));
+      // BOM so Excel reads Hindi names correctly
+      const blob = new Blob(['﻿' + [headers.map(esc).join(','), ...lines].join('\n')], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `users-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Export failed');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'list';
@@ -96,8 +128,12 @@ export const UserManagement = () => {
             >
               <RefreshCw size={16} /> Refresh
             </button>
-            <button className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-gray-700 hover:bg-gray-50 transition-all text-sm font-semibold border border-gray-200 shadow-sm">
-              <Download size={16} /> Export
+            <button
+              onClick={handleExport}
+              disabled={exporting}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-gray-700 hover:bg-gray-50 transition-all text-sm font-semibold border border-gray-200 shadow-sm disabled:opacity-60"
+            >
+              <Download size={16} /> {exporting ? 'Exporting...' : 'Export'}
             </button>
           </div>
         </div>

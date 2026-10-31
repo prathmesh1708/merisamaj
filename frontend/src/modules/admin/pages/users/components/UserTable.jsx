@@ -4,7 +4,6 @@ import {
   MoreVertical, Eye, ShieldAlert, CheckCircle2, ShieldBan, Trash2, RotateCcw, Clock,
   ChevronLeft, ChevronRight, User, ShieldCheck, Crown, AlertCircle, Building2
 } from 'lucide-react';
-import { Avatar } from '../../../../member/components/common/Avatar';
 import { StatusChangeModal } from './StatusChangeModal';
 import { AssignHeadModal } from './AssignHeadModal';
 import { EditUserCommunityModal } from './EditUserCommunityModal';
@@ -191,9 +190,13 @@ export const UserTable = ({
           <table className="w-full text-left text-sm whitespace-nowrap">
             <thead className="bg-gray-50 border-b border-gray-100 text-gray-500 font-bold uppercase tracking-wider text-[11px]">
               <tr>
-                <th className="px-6 py-4">Member</th>
+                <th className="px-4 py-4">Photo</th>
+                <th className="px-4 py-4">Customer ID</th>
+                <th className="px-6 py-4">Customer Name</th>
                 <th className="px-6 py-4">Contact</th>
-                <th className="px-6 py-4">Community &amp; Location</th>
+                <th className="px-6 py-4">Community</th>
+                <th className="px-6 py-4">Location</th>
+                <th className="px-6 py-4">Head / Verified By</th>
                 <th className="px-6 py-4">Verification</th>
                 <th className="px-6 py-4">Status</th>
                 <th className="px-6 py-4">Joined</th>
@@ -203,7 +206,7 @@ export const UserTable = ({
             <tbody className="divide-y divide-gray-100">
               {users.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="px-6 py-16 text-center">
+                  <td colSpan="11" className="px-6 py-16 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center">
                         <User size={24} className="text-gray-400" />
@@ -216,20 +219,37 @@ export const UserTable = ({
               ) : (
                 users.map((user) => (
                   <tr key={user.id} className="hover:bg-gray-50/50 transition-colors">
-                    {/* Member */}
+                    {/* Photo */}
+                    <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={() => onViewProfile(user)}
+                        className="block w-12 h-12 rounded-xl overflow-hidden border border-gray-200 bg-purple-50 shrink-0"
+                        title="View profile"
+                      >
+                        {user.avatar ? (
+                          <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" loading="lazy" />
+                        ) : (
+                          <span className="w-full h-full flex items-center justify-center text-purple-600 font-black text-lg">
+                            {user.name?.charAt(0)?.toUpperCase() || '?'}
+                          </span>
+                        )}
+                      </button>
+                    </td>
+
+                    {/* Customer ID */}
+                    <td className="px-4 py-4">
+                      <span className="font-mono text-xs font-bold text-gray-600 bg-gray-50 border border-gray-200 px-2 py-1 rounded-md">
+                        {user.customerId || String(user.id).slice(-8).toUpperCase()}
+                      </span>
+                    </td>
+
+                    {/* Customer Name */}
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <Avatar
-                          initials={user.name?.charAt(0) || '?'}
-                          imageUrl={user.avatar}
-                          size="md"
-                          color="bg-purple-100 text-purple-600"
-                        />
-                        <div>
-                          <p className="font-bold text-gray-800">{user.name}</p>
-                          <p className="text-xs text-gray-400 font-mono mt-0.5">{String(user.id).slice(-8).toUpperCase()}</p>
-                        </div>
-                      </div>
+                      <button type="button" onClick={() => onViewProfile(user)} className="font-bold text-gray-800 hover:text-brand-primary text-left">
+                        {user.name}
+                      </button>
+                      {user.gender && <p className="text-xs text-gray-400 mt-0.5 capitalize">{user.gender}</p>}
                     </td>
 
                     {/* Contact */}
@@ -238,14 +258,24 @@ export const UserTable = ({
                       <p className="text-xs text-gray-400 mt-0.5">{user.email || '—'}</p>
                     </td>
 
-                    {/* Community & Location */}
+                    {/* Community */}
                     <td className="px-6 py-4">
                       <p className="font-bold text-gray-800">{user.community || '—'}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{user.subCommunity || '—'}</p>
+                    </td>
+
+                    {/* Location */}
+                    <td className="px-6 py-4">
+                      <p className="font-semibold text-gray-700">{user.city || '—'}</p>
                       <p className="text-xs text-gray-500 mt-0.5">
-                        {[user.city, user.state].filter(Boolean).join(', ') || '—'}
+                        {[user.district && user.district !== user.city ? user.district : null, user.state, user.pincode].filter(Boolean).join(', ') || '—'}
                       </p>
-                      {user.headStatus === 'unassigned' ? (
-                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                    </td>
+
+                    {/* Head / Verified By */}
+                    <td className="px-6 py-4">
+                      {user.headStatus === 'unassigned' || user.headStatus === 'no_community' ? (
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
                             🔴 Head Pending
                           </span>
@@ -259,11 +289,14 @@ export const UserTable = ({
                           </button>
                         </div>
                       ) : (
-                        <div className="mt-1.5">
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                            🟢 Head: {user.headName || 'Assigned'}
-                          </span>
-                        </div>
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                          🟢 Head: {user.headName || 'Assigned'}
+                        </span>
+                      )}
+                      {user.verifiedByName && (
+                        <p className="text-[11px] text-blue-700 font-semibold mt-1.5 flex items-center gap-1">
+                          <ShieldCheck size={11} /> Verified by {user.verifiedByName}
+                        </p>
                       )}
                     </td>
 

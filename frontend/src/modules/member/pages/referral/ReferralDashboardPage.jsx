@@ -29,6 +29,10 @@ const MiniStat = ({ icon: Icon, title, value, colorClass, iconBgClass }) => (
   </div>
 );
 
+// Opens registration with the code already filled in
+const referralLink = (code) =>
+  `${(import.meta.env.VITE_CLIENT_URL || window.location.origin).replace(/\/$/, '')}/member/register?ref=${encodeURIComponent(code)}`;
+
 const ReferralDashboardPage = () => {
   const navigate = useNavigate();
   const { auth } = useAuth();
@@ -61,8 +65,8 @@ const ReferralDashboardPage = () => {
     const code = activeReferralCode;
     const shareData = {
       title: 'Join ApniSamaj',
-      text: `Use my referral code ${code} to get 10% OFF on your first purchase and exclusive benefits!`,
-      url: `https://app.merisamaj.com/register?ref=${code}`
+      text: `Join ApniSamaj with my referral code ${code} and get welcome bonus points!`,
+      url: referralLink(code)
     };
     if (navigator.share) {
       try { await navigator.share(shareData); } catch (err) { console.log(err); }
@@ -74,27 +78,20 @@ const ReferralDashboardPage = () => {
 
   const handleWhatsAppShare = () => {
     const code = activeReferralCode;
-    const text = `Join ApniSamaj! Use my referral code *${code}* to get exclusive community benefits, register events & connect with community members: https://app.merisamaj.com/register?ref=${code}`;
+    const text = `Join ApniSamaj! Use my referral code *${code}* to get exclusive community benefits, register events & connect with community members: ${referralLink(code)}`;
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
   };
 
   const handleFacebookShare = () => {
     const code = activeReferralCode;
-    const url = `https://app.merisamaj.com/register?ref=${code}`;
+    const url = `${referralLink(code)}`;
     window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank');
   };
 
   // Simple SVG Line Chart generation
   const validEarnings = Array.isArray(earningsOverview) && earningsOverview.length > 0
     ? earningsOverview
-    : [
-        { month: 'Jan', value: 300 },
-        { month: 'Feb', value: 450 },
-        { month: 'Mar', value: 600 },
-        { month: 'Apr', value: 850 },
-        { month: 'May', value: 1100 },
-        { month: 'Jun', value: 1250 }
-      ];
+    : [{ month: '', value: 0 }, { month: '', value: 0 }]; // flat line until real data loads
   const maxEarnings = Math.max(...validEarnings.map(d => d.value), 100);
   const chartHeight = 120;
   const chartWidth = 300;
