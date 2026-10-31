@@ -58,6 +58,7 @@ const subscriptionPlanSchema = new mongoose.Schema(
       readReceipts:           { type: Boolean, default: false },
       profileBadge:           { type: Boolean, default: false }, // Premium badge in search
       crossCommunityVisibility: { type: Boolean, default: false }, // See/be seen by other communities' profiles
+      allSubCommunitiesAccess: { type: Boolean, default: false }, // Browse and be visible across sibling sub-communities
       communityFilter:        { type: Boolean, default: false }, // Community & sub-community filter on matches
       // Plans saved before these existed get them from services/planFeatureDefaults.js
       viewOtherSubCommunityProfile: { type: Boolean, default: false }, // Open a single profile from another sub-community

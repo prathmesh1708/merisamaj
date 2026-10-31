@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const User = require('../models/User');
-const Community = require('../models/Community');
+const MatrimonialProfile = require('../models/MatrimonialProfile');
+const UserSubscription = require('../models/UserSubscription');
 
 /**
  * Which matrimonial profiles a member may see, by community.
@@ -13,7 +14,7 @@ const Community = require('../models/Community');
  *   - With it: own community, plus other communities' members whose profile
  *     visibility is "all_members" / "public" (their own privacy choice still applies).
  *   - Other sub-communities of the viewer's own community: allowed by the member's
- *     plan (viewAllSubCommunityProfiles) or the sub-community's CommunityPlan.
+ *     active matrimonial subscription with allSubCommunitiesAccess.
  */
 const idOf = (v) => (v ? String(v._id || v) : null);
 
@@ -28,14 +29,30 @@ const communityUserIds = async (communityId) => {
 };
 
 const canSeeSiblingSubCommunities = async (viewer, reqCommunityId) => {
-  const communityId = viewerCommunityId(viewer, reqCommunityId);
-  const mySub = String(viewer?.subCommunity || '').trim().toLowerCase();
-  if (!communityId || !mySub) return false;
-  const community = await Community.findById(communityId).select('subCommunities').lean();
-  const sub = (community?.subCommunities || []).find(s => String(s.name || '').trim().toLowerCase() === mySub);
-  if (!sub?.planId) return false;
-  const plan = await require('../models/CommunityPlan').findById(sub.planId).select('features.crossSubCommunityVisibility').lean();
-  return !!plan?.features?.crossSubCommunityVisibility;
+  if (!viewer?._id) return false;
+  const { features } = await require('../middleware/subscriptionMiddleware').getEffectiveFeatures(viewer._id);
+  return !!features?.allSubCommunitiesAccess;
+};
+
+const eligibleSiblingProfileUserIds = async (ids) => {
+  if (!ids.length) return [];
+  const now = new Date();
+  const activePlans = await UserSubscription.find({
+    userId: { $in: ids }, planType: { $ne: 'app' }, status: { $in: ['active', 'grace'] }, endDate: { $gte: now },
+    'featuresSnapshot.allSubCommunitiesAccess': true
+  }).distinct('userId');
+  if (!activePlans.length) return [];
+  return MatrimonialProfile.find({
+    userId: { $in: activePlans }, isDeleted: false,
+    visibility: { $in: ['all_members', 'public'] },
+    'visibilitySettings.allSubCommunities.enabled': true
+  }).distinct('userId');
+};
+
+const canAccessSiblingProfile = async (viewer, reqCommunityId, ownerId) => {
+  const canBrowse = await canSeeSiblingSubCommunities(viewer, reqCommunityId);
+  if (!canBrowse) return false;
+  return (await eligibleSiblingProfileUserIds([ownerId])).some(id => String(id) === String(ownerId));
 };
 
 /**
@@ -45,24 +62,23 @@ const canSeeSiblingSubCommunities = async (viewer, reqCommunityId) => {
  */
 const profileScopeCondition = async ({ user, reqCommunityId, canSeeOtherCommunities, canSeeSiblingSubCommunities: planSiblings = false, scope = 'all' }) => {
   const communityId = viewerCommunityId(user, reqCommunityId);
-  const community = communityId ? await Community.findById(communityId).select('subCommunities').lean() : null;
   const mySub = String(user?.subCommunity || '').trim().toLowerCase();
-  const subDoc = (community?.subCommunities || []).find(s => String(s.name || '').trim().toLowerCase() === mySub);
-  const canSeeSiblings = !!canSeeOtherCommunities || !!planSiblings || !!(subDoc?.planId && (await require('../models/CommunityPlan').findById(subDoc.planId).select('features.crossSubCommunityVisibility').lean())?.features?.crossSubCommunityVisibility);
-  let ownIds = await communityUserIds(communityId);
-  if (!canSeeSiblings && mySub) {
-    const escapedSub = mySub.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    ownIds = await User.find({ _id: { $in: ownIds }, subCommunity: new RegExp('^' + escapedSub + '$', 'i') }).distinct('_id');
-  }
+  const canSeeSiblings = !!planSiblings;
   const communityIds = await communityUserIds(communityId);
+  let ownIds = communityIds;
+  if (mySub) {
+    const escapedSub = mySub.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    ownIds = await User.find({ _id: { $in: communityIds }, subCommunity: new RegExp('^' + escapedSub + '$', 'i') }).distinct('_id');
+  }
   const otherCommunityIds = communityIds.filter(id => !ownIds.some(own => String(own) === String(id)));
+  const visibleSiblingIds = canSeeSiblings ? await eligibleSiblingProfileUserIds(otherCommunityIds) : [];
   const shareable = { visibility: { $in: ['all_members', 'public'] } };
 
   if (scope === 'my') return { condition: { userId: { $in: ownIds } }, blocked: false };
   if (scope === 'other') {
     if (!canSeeOtherCommunities && !canSeeSiblings) return { condition: { _id: null }, blocked: true };
     return { condition: { $or: [
-      ...(canSeeSiblings ? [{ userId: { $in: otherCommunityIds } }] : []),
+      ...(canSeeSiblings ? [{ userId: { $in: visibleSiblingIds } }] : []),
       ...(canSeeOtherCommunities ? [{ userId: { $nin: communityIds }, ...shareable }] : [])
     ] }, blocked: false };
   }
@@ -70,7 +86,7 @@ const profileScopeCondition = async ({ user, reqCommunityId, canSeeOtherCommunit
   return {
     condition: { $or: [
       { userId: { $in: ownIds } },
-      ...(canSeeSiblings ? [{ userId: { $in: otherCommunityIds } }] : []),
+      ...(canSeeSiblings ? [{ userId: { $in: visibleSiblingIds } }] : []),
       ...(canSeeOtherCommunities ? [{ userId: { $nin: communityIds }, ...shareable }] : [])
     ] },
     blocked: false
@@ -86,4 +102,4 @@ const sameCommunity = async (viewer, reqCommunityId, ownerUserId) => {
   return theirs.includes(mine);
 };
 
-module.exports = { viewerCommunityId, communityUserIds, profileScopeCondition, sameCommunity, canSeeSiblingSubCommunities };
+module.exports = { viewerCommunityId, communityUserIds, profileScopeCondition, sameCommunity, canSeeSiblingSubCommunities, canAccessSiblingProfile, eligibleSiblingProfileUserIds };

@@ -489,7 +489,7 @@ Module access was not saved: ${moduleErr.response?.data?.message || moduleErr.me
 
   const patchGroup = (payload) => axiosPrivate.patch(
     `/head/local-community/groups/${encodeURIComponent(groupDetail.grp.name)}`,
-    { city: groupDetail.loc.name, ...payload }
+    { city: groupDetail.loc.name, subCommunity: selectedSubCommunity, ...payload }
   );
 
   const handleSaveGroupRename = async () => {

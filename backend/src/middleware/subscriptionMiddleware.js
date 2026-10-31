@@ -15,7 +15,8 @@ const FREE_FALLBACK = {
   visitorHistory: false, chat: false, profileBoosts: 0, highlightProfile: false,
   priorityListing: false, contactDetailsAccess: false, unlimitedShortlist: false,
   readReceipts: false, profileBadge: false, crossCommunityVisibility: false, communityFilter: false,
-  viewOtherSubCommunityProfile: false, viewAllSubCommunityProfiles: false, superInterestsPerMonth: 0, viewProfilePhotos: false
+  viewOtherSubCommunityProfile: false, viewAllSubCommunityProfiles: false, allSubCommunitiesAccess: false,
+  superInterestsPerMonth: 0, viewProfilePhotos: false
 };
 
 // ─── Load Active Subscription for a User ─────────────────────────────────────
@@ -43,12 +44,20 @@ const getActiveSubscription = async (userId, planType = 'matrimonial') => {
 // ─── Get effective features (subscription snapshot or free defaults) ──────────
 const getEffectiveFeatures = async (userId) => {
   const sub = await getActiveSubscription(userId);
-  if (sub) return { features: withMatrimonialDefaults(sub.featuresSnapshot || {}, { paid: true }), subscription: sub };
+  if (sub) {
+    const features = withMatrimonialDefaults(sub.featuresSnapshot || {}, { paid: true });
+    // This entitlement comes from the active subscription's package snapshot.
+    // With no active subscription, even a misconfigured Free plan cannot unlock it.
+    features.allSubCommunitiesAccess = sub.status !== 'cancelled' && sub.featuresSnapshot?.allSubCommunitiesAccess === true;
+    return { features, subscription: sub };
+  }
 
   // No paid plan: use the Free plan exactly as the Admin configured it (active, price 0).
   const freePlan = await SubscriptionPlan.findOne({ isActive: true, price: 0, planType: { $ne: 'app' } }).sort({ displayOrder: 1 }).lean();
   if (freePlan?.features) {
-    return { features: withMatrimonialDefaults({ ...FREE_FALLBACK, ...freePlan.features }, { paid: false }), subscription: null };
+    const features = withMatrimonialDefaults({ ...FREE_FALLBACK, ...freePlan.features }, { paid: false });
+    features.allSubCommunitiesAccess = false;
+    return { features, subscription: null };
   }
 
   // No Free plan configured: built-in defaults.
@@ -71,6 +80,7 @@ const getEffectiveFeatures = async (userId) => {
       crossCommunityVisibility: false,
       viewOtherSubCommunityProfile: false,
       viewAllSubCommunityProfiles: false,
+      allSubCommunitiesAccess: false,
       superInterestsPerMonth: 0,
       viewProfilePhotos: false
     },

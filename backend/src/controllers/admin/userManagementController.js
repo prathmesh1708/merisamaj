@@ -5,6 +5,7 @@ const Community = require('../../models/Community');
 const Post = require('../../models/Post');
 const Donation = require('../../models/Donation');
 const { applyScopeFilter } = require('../../utils/queryScopeHelper');
+const { invalidateEffectiveCache } = require('../../services/modulePermissionService');
 
 // ─── Helper: normalize filter value to lowercase for DB match ───
 const statusMap = {
@@ -243,6 +244,7 @@ exports.assignHeadToUserCommunity = async (req, res) => {
 
     await session.commitTransaction();
     session.endSession();
+    invalidateEffectiveCache();
 
     res.status(200).json({
       status: 'success',

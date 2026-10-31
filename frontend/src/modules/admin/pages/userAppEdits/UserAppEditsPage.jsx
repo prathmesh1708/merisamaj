@@ -98,6 +98,7 @@ export const UserAppEditsPage = () => {
   const [activeTab, setActiveTab] = useState('banner'); // banner | features | stories | leadership | census | footer
   const [communities, setCommunities] = useState([]);
   const [selectedCommunityId, setSelectedCommunityId] = useState('');
+  const [selectedSubCommunity, setSelectedSubCommunity] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
@@ -143,6 +144,7 @@ export const UserAppEditsPage = () => {
   const [isCommunityDropdownOpen, setIsCommunityDropdownOpen] = useState(false);
   const [communitySearchQuery, setCommunitySearchQuery] = useState('');
   const communityDropdownRef = useRef(null);
+  const heroImageInputRef = useRef(null);
 
   // Click outside to close community dropdown
   useEffect(() => {
@@ -178,6 +180,9 @@ export const UserAppEditsPage = () => {
   const communityName = selectedCommunity?.name || 'Agrawal Samaj';
   const communityCity = selectedCommunity?.city || '';
   const communityFullTitle = communityCity ? `${communityName} (${communityCity})` : communityName;
+  const subCommunities = useMemo(() => (selectedCommunity?.subCommunities || [])
+    .filter(sub => sub.isActive !== false)
+    .sort((a, b) => a.name.localeCompare(b.name)), [selectedCommunity]);
 
   // Fetch Communities
   useEffect(() => {
@@ -201,7 +206,7 @@ export const UserAppEditsPage = () => {
   const fetchAppContent = async (commId) => {
     setLoading(true);
     try {
-      const res = await appContentService.getAppContent(commId);
+      const res = await appContentService.getAppContent(commId, selectedSubCommunity);
       if (res.success && res.data) {
         setAppContent(res.data);
         if (res.data.heroBanner) {
@@ -245,13 +250,13 @@ export const UserAppEditsPage = () => {
     if (selectedCommunityId) {
       fetchAppContent(selectedCommunityId);
     }
-  }, [selectedCommunityId]);
+  }, [selectedCommunityId, selectedSubCommunity]);
 
   // Save Hero Banner
   const handleSaveHero = async () => {
     setSaving(true);
     try {
-      const res = await appContentService.updateHeroBanner(heroForm, selectedCommunityId);
+      const res = await appContentService.updateHeroBanner(heroForm, selectedCommunityId, selectedSubCommunity);
       if (res.success) {
         showToast('Header banner updated successfully!');
         fetchAppContent(selectedCommunityId);
@@ -264,11 +269,33 @@ export const UserAppEditsPage = () => {
     }
   };
 
+  // Read a locally selected banner image into the existing app-content image field.
+  const handleHeroImageUpload = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showToast('Please choose an image file', 'error');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('Image size should be under 5MB', 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setHeroForm(prev => ({ ...prev, backgroundImage: event.target.result }));
+      showToast('Banner image uploaded. Click Save Banner to apply it.');
+    };
+    reader.onerror = () => showToast('Could not read this image. Please try another file.', 'error');
+    reader.readAsDataURL(file);
+  };
+
   // Save Community Census Banner
   const handleSaveCensus = async () => {
     setSaving(true);
     try {
-      const res = await appContentService.updateCensusBanner(censusForm, selectedCommunityId);
+      const res = await appContentService.updateCensusBanner(censusForm, selectedCommunityId, selectedSubCommunity);
       if (res.success) {
         showToast('Community Census Banner updated successfully!');
         fetchAppContent(selectedCommunityId);
@@ -305,7 +332,7 @@ export const UserAppEditsPage = () => {
   const handleSaveFooter = async () => {
     setSaving(true);
     try {
-      const res = await appContentService.updateFooterArtwork(footerForm, selectedCommunityId);
+      const res = await appContentService.updateFooterArtwork(footerForm, selectedCommunityId, selectedSubCommunity);
       if (res.success) {
         showToast('End of Feed & Footer Artwork updated successfully!');
         fetchAppContent(selectedCommunityId);
@@ -344,10 +371,10 @@ export const UserAppEditsPage = () => {
     setSaving(true);
     try {
       if (featureModal.isEditing) {
-        await appContentService.updateFeature(featureModal.data.id, formData, selectedCommunityId);
+        await appContentService.updateFeature(featureModal.data.id, formData, selectedCommunityId, selectedSubCommunity);
         showToast('Exclusive feature updated successfully!');
       } else {
-        await appContentService.createFeature(formData, selectedCommunityId);
+        await appContentService.createFeature(formData, selectedCommunityId, selectedSubCommunity);
         showToast('New exclusive feature added successfully!');
       }
       setFeatureModal({ isOpen: false, isEditing: false, data: null });
@@ -362,7 +389,7 @@ export const UserAppEditsPage = () => {
 
   const handleDeleteFeature = async (id) => {
     try {
-      await appContentService.deleteFeature(id, selectedCommunityId);
+      await appContentService.deleteFeature(id, selectedCommunityId, selectedSubCommunity);
       showToast('Feature deleted successfully');
       setDeleteConfirm({ isOpen: false, type: '', id: '', title: '' });
       fetchAppContent(selectedCommunityId);
@@ -376,10 +403,10 @@ export const UserAppEditsPage = () => {
     setSaving(true);
     try {
       if (storyModal.isEditing) {
-        await appContentService.updateSuccessStory(storyModal.data.id, formData, selectedCommunityId);
+        await appContentService.updateSuccessStory(storyModal.data.id, formData, selectedCommunityId, selectedSubCommunity);
         showToast('Success story updated successfully!');
       } else {
-        await appContentService.createSuccessStory(formData, selectedCommunityId);
+        await appContentService.createSuccessStory(formData, selectedCommunityId, selectedSubCommunity);
         showToast('New success story created successfully!');
       }
       setStoryModal({ isOpen: false, isEditing: false, data: null });
@@ -394,7 +421,7 @@ export const UserAppEditsPage = () => {
 
   const handleDeleteStory = async (id) => {
     try {
-      await appContentService.deleteSuccessStory(id, selectedCommunityId);
+      await appContentService.deleteSuccessStory(id, selectedCommunityId, selectedSubCommunity);
       showToast('Success story deleted successfully');
       setDeleteConfirm({ isOpen: false, type: '', id: '', title: '' });
       fetchAppContent(selectedCommunityId);
@@ -407,7 +434,7 @@ export const UserAppEditsPage = () => {
   const handleSaveHead = async (formData) => {
     setSaving(true);
     try {
-      await appContentService.updateCommunityHead(formData, selectedCommunityId);
+      await appContentService.updateCommunityHead(formData, selectedCommunityId, selectedSubCommunity);
       showToast('Community Head profile updated successfully!');
       setHeadModal({ isOpen: false, data: null });
       fetchAppContent(selectedCommunityId);
@@ -424,10 +451,10 @@ export const UserAppEditsPage = () => {
     setSaving(true);
     try {
       if (committeeModal.isEditing) {
-        await appContentService.updateCommitteeMember(committeeModal.data.id, formData, selectedCommunityId);
+        await appContentService.updateCommitteeMember(committeeModal.data.id, formData, selectedCommunityId, selectedSubCommunity);
         showToast('Committee member updated successfully!');
       } else {
-        await appContentService.createCommitteeMember(formData, selectedCommunityId);
+        await appContentService.createCommitteeMember(formData, selectedCommunityId, selectedSubCommunity);
         showToast('New committee member added successfully!');
       }
       setCommitteeModal({ isOpen: false, isEditing: false, data: null });
@@ -442,7 +469,7 @@ export const UserAppEditsPage = () => {
 
   const handleDeleteCommittee = async (id) => {
     try {
-      await appContentService.deleteCommitteeMember(id, selectedCommunityId);
+      await appContentService.deleteCommitteeMember(id, selectedCommunityId, selectedSubCommunity);
       showToast('Committee member removed successfully');
       setDeleteConfirm({ isOpen: false, type: '', id: '', title: '' });
       fetchAppContent(selectedCommunityId);
@@ -456,10 +483,10 @@ export const UserAppEditsPage = () => {
     setSaving(true);
     try {
       if (promoBannerModal.isEditing) {
-        await appContentService.updatePromotionalBanner(promoBannerModal.data.id, formData, selectedCommunityId);
+        await appContentService.updatePromotionalBanner(promoBannerModal.data.id, formData, selectedCommunityId, selectedSubCommunity);
         showToast('Sliding banner updated successfully!');
       } else {
-        await appContentService.createPromotionalBanner(formData, selectedCommunityId);
+        await appContentService.createPromotionalBanner(formData, selectedCommunityId, selectedSubCommunity);
         showToast('New sliding banner created successfully!');
       }
       setPromoBannerModal({ isOpen: false, isEditing: false, data: null });
@@ -474,7 +501,7 @@ export const UserAppEditsPage = () => {
 
   const handleDeletePromoBanner = async (id) => {
     try {
-      await appContentService.deletePromotionalBanner(id, selectedCommunityId);
+      await appContentService.deletePromotionalBanner(id, selectedCommunityId, selectedSubCommunity);
       showToast('Sliding banner deleted successfully');
       setDeleteConfirm({ isOpen: false, type: '', id: '', title: '' });
       fetchAppContent(selectedCommunityId);
@@ -485,7 +512,7 @@ export const UserAppEditsPage = () => {
 
   const handleTogglePromoBanner = async (banner) => {
     try {
-      await appContentService.updatePromotionalBanner(banner.id, { enabled: !banner.enabled }, selectedCommunityId);
+      await appContentService.updatePromotionalBanner(banner.id, { enabled: !banner.enabled }, selectedCommunityId, selectedSubCommunity);
       showToast(`Banner ${!banner.enabled ? 'activated' : 'deactivated'}`);
       fetchAppContent(selectedCommunityId);
     } catch (err) {
@@ -524,7 +551,7 @@ export const UserAppEditsPage = () => {
             </div>
             <h1 className="text-2xl font-black tracking-tight">User App Edits</h1>
             <p className="text-purple-200/80 text-xs mt-1 max-w-xl">
-              Manage and customize the member mobile home screen: Top Palace Banner, Exclusive Features grid, Matrimonial Success Stories, and Leadership Profiles.
+              Manage and customize the member mobile home screen: Top Palace Banner, Exclusive Features grid, and Matrimonial Success Stories.
             </p>
           </div>
 
@@ -608,6 +635,7 @@ export const UserAppEditsPage = () => {
                             type="button"
                             onClick={() => {
                               setSelectedCommunityId(c._id || c.id);
+                              setSelectedSubCommunity('');
                               setIsCommunityDropdownOpen(false);
                             }}
                             className={`w-full flex items-center justify-between p-2 rounded-xl text-xs font-bold text-left transition-all ${
@@ -646,6 +674,24 @@ export const UserAppEditsPage = () => {
               )}
             </AnimatePresence>
           </div>
+          {subCommunities.length > 0 && (
+            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md p-1.5 pl-3 rounded-2xl border border-white/20 shadow-lg">
+              <div className="flex items-center gap-1.5 text-purple-200 text-xs font-bold shrink-0">
+                <Layers size={15} className="text-amber-400" />
+                <span>Sub-community:</span>
+              </div>
+              <select
+                value={selectedSubCommunity}
+                onChange={e => setSelectedSubCommunity(e.target.value)}
+                className="!bg-[#211145] !text-white text-xs font-bold px-3.5 py-2 rounded-xl border border-purple-400/40 outline-none min-w-[200px] cursor-pointer"
+              >
+                <option value="" className="bg-white text-slate-900">Community-wide settings</option>
+                {subCommunities.map(sub => (
+                  <option key={sub._id || sub.id || sub.name} value={sub.name} className="bg-white text-slate-900">{sub.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       </div>
 
@@ -697,18 +743,6 @@ export const UserAppEditsPage = () => {
         >
           <Heart size={15} />
           Success Stories ({(appContent?.successStories || []).length})
-        </button>
-
-        <button
-          onClick={() => setActiveTab('leadership')}
-          className={`flex items-center gap-2 px-5 py-3 rounded-xl text-xs font-black transition-all ${
-            activeTab === 'leadership'
-              ? 'bg-white text-purple-700 shadow-md shadow-purple-900/5'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-          }`}
-        >
-          <Crown size={15} />
-          Core Members & Leadership
         </button>
 
         <button
@@ -765,16 +799,31 @@ export const UserAppEditsPage = () => {
 
                 <div>
                   <label className="block text-[11px] font-black uppercase text-slate-500 mb-1.5">
-                    Background Image URL (Palace / Temple Backdrop)
+                    Background Image (Palace / Temple Backdrop)
                   </label>
                   <input
-                    type="text"
-                    value={heroForm.backgroundImage}
-                    onChange={(e) => setHeroForm({ ...heroForm, backgroundImage: e.target.value })}
-                    placeholder="https://images.unsplash.com/photo-..."
-                    className="w-full px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 focus:bg-white focus:border-purple-500 outline-none transition-all"
+                    ref={heroImageInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleHeroImageUpload}
+                    className="sr-only"
                   />
-                  <p className="text-[10px] text-slate-400 mt-1">Recommended size: 1200x600 px (Landscape photo with dark top)</p>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    {heroForm.backgroundImage && (
+                      <img src={heroForm.backgroundImage} alt="Banner background preview" className="h-16 w-28 rounded-xl object-cover border border-slate-200" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <button
+                        type="button"
+                        onClick={() => heroImageInputRef.current?.click()}
+                        className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-purple-700"
+                      >
+                        <ImageIcon size={15} />
+                        Choose image from device
+                      </button>
+                      <p className="text-[10px] text-slate-500 mt-1.5">JPG, PNG, or WebP up to 5MB. Recommended: 1200 × 600 px landscape.</p>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

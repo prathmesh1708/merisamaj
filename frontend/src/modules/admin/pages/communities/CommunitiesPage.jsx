@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   X, CheckCircle, ChevronRight, ChevronLeft, Shield, Building2, User, Key,
-  LayoutDashboard, Wallet, Vote, Send, Users, Calendar, Briefcase, Heart, HeartHandshake, Home, Mail, Share2, Award, LayoutTemplate, Eye, EyeOff, Upload
+  LayoutDashboard, Wallet, Vote, Send, Users, Calendar, Briefcase, Heart, HeartHandshake, Home, Mail, Share2, Award, LayoutTemplate, Eye, EyeOff, Upload, MapPin
 } from 'lucide-react';
 import { cityService } from '../../services/cityService';
 import { communityHeadService } from '../../services/communityHeadService';
@@ -30,7 +30,7 @@ import { cropImageFile } from '../../../../core/components/ImageCropper';
 import ModuleAccessPicker, { saveModuleAccess } from '../../../../core/permissions/ModuleAccessPicker';
 
 // ─────────────────────────────────────────────
-// FULL 14 HEAD MODULES CONFIGURATION (matching CommunityHeadForm)
+// Head module permission controls (matching CommunityHeadForm)
 // ─────────────────────────────────────────────
 const FULL_HEAD_MODULES = [
   {
@@ -111,6 +111,13 @@ const FULL_HEAD_MODULES = [
     keys: ['canViewLeadership', 'canManageLeadership']
   },
   {
+    id: 'localCommunity',
+    title: 'Local Community Management',
+    description: 'Manage local heads, locations and groups',
+    icon: MapPin,
+    keys: ['canManageLocalCommunity']
+  },
+  {
     id: 'obituary',
     title: 'Obituaries (Shradhanjali)',
     description: 'Shradhanjali posts, condolences & remembrance notices',
@@ -153,7 +160,8 @@ const DEFAULT_HEAD_PERMISSIONS = {
   canViewLeadership: true, canManageLeadership: true,
   canViewObituary: true, canManageObituary: true,
   canViewElections: true, canManageElections: true,
-  canViewHomeContent: true, canManageHomeContent: true
+  canViewHomeContent: true, canManageHomeContent: true,
+  canManageLocalCommunity: true
 };
 
 // ─────────────────────────────────────────────
@@ -4192,7 +4200,7 @@ const SubCommunityLocationView = ({
               )}
 
               {/* ─────────────────────────────────────────────
-                  STEP 3: PERMISSIONS (Full 14-Module Controls)
+                  STEP 3: PERMISSIONS (Full 15-Module Controls)
               ───────────────────────────────────────────── */}
               {leaderStep === 3 && (
                 <div style={{ maxWidth: '740px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -4237,7 +4245,7 @@ const SubCommunityLocationView = ({
                     </button>
                   </div>
 
-                  {/* 14 Modules Switch Cards Grid */}
+                  {/* Module Switch Cards Grid */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                     {FULL_HEAD_MODULES.map(mod => {
                       const ModuleIcon = mod.icon;
@@ -4396,7 +4404,7 @@ const SubCommunityLocationView = ({
                       {/* Active Modules Badges */}
                       <div>
                         <h5 style={{ fontSize: '0.72rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
-                          Active Modules ({FULL_HEAD_MODULES.filter(m => m.keys.some(k => assignLeaderForm.headPermissions?.[k])).length} of 14)
+                          Active Modules ({FULL_HEAD_MODULES.filter(m => m.keys.some(k => assignLeaderForm.headPermissions?.[k])).length} of {FULL_HEAD_MODULES.length})
                         </h5>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', maxHeight: '120px', overflowY: 'auto' }}>
                           {FULL_HEAD_MODULES.filter(m => m.keys.some(k => assignLeaderForm.headPermissions?.[k])).map(m => (

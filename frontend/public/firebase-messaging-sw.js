@@ -57,7 +57,7 @@ self.addEventListener('push', (event) => {
     // Big picture under the text (admin broadcast posters); Chrome/Edge show it, others ignore it
     ...(data.image || payload.notification?.image ? { image: data.image || payload.notification.image } : {}),
     data: {
-      actionUrl: data.actionUrl || '/member/notifications',
+      actionUrl: data.actionUrl || (data.type === 'admin_broadcast' ? '/member/home' : '/member/notifications'),
       notificationId: data.notificationId
     },
     // Chats share one tag per conversation, so new messages replace the old pop-up

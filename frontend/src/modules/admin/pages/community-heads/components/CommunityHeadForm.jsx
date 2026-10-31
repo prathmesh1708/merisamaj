@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, CheckCircle, ChevronRight, ChevronLeft, Shield, Building2, User, Key, Upload,
-  LayoutDashboard, Wallet, Vote, Send, Users, Calendar, Briefcase, Heart, HeartHandshake, Home, Mail, Share2, Award, LayoutTemplate
+  LayoutDashboard, Wallet, Vote, Send, Users, Calendar, Briefcase, Heart, HeartHandshake, Home, Mail, Share2, Award, LayoutTemplate, MapPin
 } from 'lucide-react';
 import { axiosPrivate } from '../../../../../core/api/axiosPrivate';
 import { cropImageFile } from '../../../../../core/components/ImageCropper';
@@ -22,7 +22,8 @@ const defaultPermissions = {
   canViewLeadership: true, canManageLeadership: true,
   canViewObituary: true, canManageObituary: true,
   canViewElections: true, canManageElections: true,
-  canViewHomeContent: true, canManageHomeContent: true
+  canViewHomeContent: true, canManageHomeContent: true,
+  canManageLocalCommunity: true
 };
 
 const HEAD_MODULES = [
@@ -102,6 +103,13 @@ const HEAD_MODULES = [
     description: 'Executive committee, sub-heads & leadership team',
     icon: Shield,
     keys: ['canViewLeadership', 'canManageLeadership']
+  },
+  {
+    id: 'localCommunity',
+    title: 'Local Community Management',
+    description: 'Manage local heads, locations and groups',
+    icon: MapPin,
+    keys: ['canManageLocalCommunity']
   },
   {
     id: 'obituary',

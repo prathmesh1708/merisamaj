@@ -195,22 +195,26 @@ exports.getUserProfile = async (req, res) => {
     // ─── Cross-community Privacy Check (bypassed by a plan with crossCommunityVisibility) ──
     const { features } = await getEffectiveFeatures(viewerId);
     // Same community = same real community on both members' accounts (as the lists use).
-    const { sameCommunity, canSeeSiblingSubCommunities } = require('../../utils/matrimonialCommunityScope');
+    const { sameCommunity, canAccessSiblingProfile } = require('../../utils/matrimonialCommunityScope');
     const isCrossCommunity = !(await sameCommunity(req.user, req.communityId, profileOwnerUserId));
     const viewerSub = String(req.user?.subCommunity || '').trim().toLowerCase();
     const ownerSub = String(profile.userId?.subCommunity || '').trim().toLowerCase();
-    const isCrossSubCommunity = !isCrossCommunity && viewerSub && ownerSub && viewerSub !== ownerSub;
+    const isCrossSubCommunity = !isCrossCommunity && viewerSub && viewerSub !== ownerSub;
     const isAllMembers = profile.visibility === 'all_members' || profile.visibility === 'public';
 
     // Another community's profile needs the viewer's plan feature (an accepted/pending
     // interest between the two still allows it, so existing conversations keep working).
     // Opening one profile from another sub-community: plan feature (either sub-community
     // feature, since browsing all of them includes opening them) or the sub-community's CommunityPlan
-    const hasSubCommunityAccess = isCrossSubCommunity && (
-      features.crossCommunityVisibility || features.viewOtherSubCommunityProfile || features.viewAllSubCommunityProfiles ||
-      await canSeeSiblingSubCommunities(req.user, req.communityId)
-    );
-    if (((isCrossCommunity && !features.crossCommunityVisibility) || (isCrossSubCommunity && !hasSubCommunityAccess)) && !profileOwnerUserId.equals(viewerId)) {
+    const hasSubCommunityAccess = isCrossSubCommunity && await canAccessSiblingProfile(req.user, req.communityId, profileOwnerUserId);
+    if (isCrossSubCommunity && !hasSubCommunityAccess && !profileOwnerUserId.equals(viewerId)) {
+      return res.status(403).json({
+        status: 'error',
+        code: 'SUB_COMMUNITY_LOCKED',
+        message: 'This profile is from another sub-community. An active plan with All Sub-Communities Access is required.'
+      });
+    }
+    if (isCrossCommunity && !features.crossCommunityVisibility && !profileOwnerUserId.equals(viewerId)) {
       const hasConnection = await InterestRequest.findOne({
         $or: [
           { senderId: viewerId, receiverId: profileOwnerUserId },
@@ -220,10 +224,8 @@ exports.getUserProfile = async (req, res) => {
       if (!hasConnection) {
         return res.status(403).json({
           status: 'error',
-          code: isCrossSubCommunity ? 'SUB_COMMUNITY_LOCKED' : 'COMMUNITY_LOCKED',
-          message: isCrossSubCommunity
-            ? 'This profile is from another sub-community. Upgrade your plan to view other sub-community profiles.'
-            : 'This profile is only visible to members of the same community. Upgrade your plan to see other-community profiles.'
+          code: 'COMMUNITY_LOCKED',
+          message: 'This profile is only visible to members of the same community. Upgrade your plan to see other-community profiles.'
         });
       }
     }
@@ -467,7 +469,7 @@ exports.searchProfiles = async (req, res) => {
     const scope = req.query.communityScope === 'other' ? 'other' : (req.query.communityScope === 'my' ? 'my' : 'all');
     const { condition: scopeCondition, blocked } = await profileScopeCondition({
       user: req.user, reqCommunityId: req.communityId, canSeeOtherCommunities: hasCrossCommunityAccess,
-      canSeeSiblingSubCommunities: !!req.userFeatures?.viewAllSubCommunityProfiles, scope
+      canSeeSiblingSubCommunities: !!req.userFeatures?.allSubCommunitiesAccess, scope
     });
     if (blocked) {
       // Other communities are a paid plan feature: nothing to show without it.
@@ -674,13 +676,23 @@ exports.getAvailableLocations = async (req, res) => {
     const match = { isDeleted: false, status: 'active', userId: { $ne: req.user._id }, ...(await oppositeGenderOf(req.user)) };
 
     if (filtered) {
-      const { viewerCommunityId, communityUserIds } = require('../../utils/matrimonialCommunityScope');
+      const { viewerCommunityId, communityUserIds, eligibleSiblingProfileUserIds } = require('../../utils/matrimonialCommunityScope');
       const Community = require('../../models/Community');
       const exact = (v) => new RegExp('^' + String(v).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i');
       const list = (v) => String(v || '').split(',').map(x => x.trim()).filter(Boolean);
       const ownId = viewerCommunityId(req.user, req.communityId);
       // ObjectIds, not strings: aggregate() does not cast them
-      const ownIds = await communityUserIds(ownId);
+      let ownIds = await communityUserIds(ownId);
+      const ownSub = String(req.user?.subCommunity || '').trim();
+      const { features: viewerFeatures } = await getEffectiveFeatures(req.user._id);
+      const canBrowseSiblings = !!viewerFeatures?.allSubCommunitiesAccess;
+      if (ownSub) {
+        const siblingIds = canBrowseSiblings
+          ? await eligibleSiblingProfileUserIds(ownIds.filter(id => String(id) !== String(req.user._id)))
+          : [];
+        const ownSubIds = await User.find({ _id: { $in: ownIds }, subCommunity: exact(ownSub) }).distinct('_id');
+        ownIds = [...ownSubIds, ...siblingIds];
+      }
       const or = [];
 
       if (String(myCommunity) === '1' && ownIds.length) {
@@ -770,12 +782,14 @@ exports.getVisibilitySettings = async (req, res) => {
     const communityDoc = communityId ? await Community.findById(communityId).select('name subCommunities').lean() : null;
     const { features } = await getEffectiveFeatures(req.user._id);
     const canUseOtherCommunities = !!features?.crossCommunityVisibility;
+    const canUseAllSubCommunities = !!features?.allSubCommunitiesAccess;
     const memberOf = {
       communityName: communityDoc?.name || '',
       subCommunityName: (req.user?.subCommunity || '').trim(),
       // All active sub-communities of the member's community (for the selector)
       subCommunities: (communityDoc?.subCommunities || []).filter(sc => sc.isActive !== false).map(sc => sc.name).filter(Boolean),
-      canUseOtherCommunities
+      canUseOtherCommunities,
+      canUseAllSubCommunities
     };
 
     // How many other members with an active matrimonial profile are Aadhaar-verified /
@@ -818,6 +832,7 @@ exports.getVisibilitySettings = async (req, res) => {
         enabled: true,
         scope: 'all'
       },
+      allSubCommunities: { enabled: false },
       aadharVerifiedOnly: true,
       communityVerifiedOnly: true,
       selectedLocations: {
@@ -840,6 +855,7 @@ exports.getVisibilitySettings = async (req, res) => {
     if (!canUseOtherCommunities) {
       settings.otherCommunities = { ...(settings.otherCommunities || {}), enabled: false };
     }
+    if (!canUseAllSubCommunities) settings.allSubCommunities = { ...(settings.allSubCommunities || {}), enabled: false };
 
     res.json({ status: 'success', data: settings, memberOf, verifiedCounts });
   } catch (err) {
@@ -853,6 +869,9 @@ exports.updateVisibilitySettings = async (req, res) => {
     const { features } = await getEffectiveFeatures(req.user._id);
     if (!features?.crossCommunityVisibility && req.body?.otherCommunities) {
       req.body.otherCommunities = { ...req.body.otherCommunities, enabled: false };
+    }
+    if (!features?.allSubCommunitiesAccess && req.body?.allSubCommunities) {
+      req.body.allSubCommunities = { ...req.body.allSubCommunities, enabled: false };
     }
     let profile = await MatrimonialProfile.findOne({ userId: req.user._id, isDeleted: false });
     if (!profile) {

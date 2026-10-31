@@ -22,8 +22,7 @@ const EMPTY_PLAN = {
     profileBadge: false,
     crossCommunityVisibility: false,
     communityFilter: false,
-    viewOtherSubCommunityProfile: false,
-    viewAllSubCommunityProfiles: false,
+    allSubCommunitiesAccess: false,
     superInterestsPerMonth: 0,
     viewProfilePhotos: true
   },
@@ -251,8 +250,7 @@ const PlanModal = ({ plan, planType, onClose, onSaved }) => {
               { key: 'contactDetailsAccess', label: 'Contact Details Access' },
               { key: 'crossCommunityVisibility', label: 'See Other-Community Profiles' },
               { key: 'communityFilter', label: 'Community & Sub-community Filter' },
-              { key: 'viewOtherSubCommunityProfile', label: 'Open Other Sub-community Profiles' },
-              { key: 'viewAllSubCommunityProfiles', label: 'Browse All Sub-community Profiles' },
+              { key: 'allSubCommunitiesAccess', label: 'All Sub-Communities Access' },
               { key: 'viewProfilePhotos', label: 'View Profile Photos' },
             ].map(({ key, label }) => (
               <label key={key} className="flex items-center gap-2 cursor-pointer">
@@ -500,8 +498,7 @@ export const SubscriptionPlans = ({ data }) => {
               {plan.features?.contactDetailsAccess && <p>• Contact details access</p>}
               {plan.features?.crossCommunityVisibility && <p>• Sees other-community profiles</p>}
               {plan.features?.communityFilter && <p>• Community & sub-community filter</p>}
-              {plan.features?.viewOtherSubCommunityProfile && <p>• Opens other sub-community profiles</p>}
-              {plan.features?.viewAllSubCommunityProfiles && <p>• Browses all sub-community profiles</p>}
+              {plan.features?.allSubCommunitiesAccess && <p>• All sub-communities access</p>}
               {plan.features?.superInterestsPerMonth === -1 && <p>• Unlimited Super Interests</p>}
               {plan.features?.superInterestsPerMonth > 0 && <p>• {plan.features.superInterestsPerMonth} Super Interests/month</p>}
               <p className={photoAccessOf(plan) ? '' : 'line-through text-slate-300'}>• View profile photos</p>

@@ -29,7 +29,7 @@ export const AdminNotificationsPage = () => {
   const [targetCommunity, setTargetCommunity] = useState(''); // '' = All
   const [targetRole, setTargetRole] = useState('ALL'); // 'ALL' | 'HEAD' | 'MEMBER'
   const [channel, setChannel] = useState('in_app'); // 'in_app' | 'in_app_push'
-  const [actionUrl, setActionUrl] = useState('/member/notifications');
+  const [actionUrl, setActionUrl] = useState('/member/home');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [sending, setSending] = useState(false);
   const [broadcastSuccessMsg, setBroadcastSuccessMsg] = useState('');

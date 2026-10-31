@@ -49,6 +49,7 @@ exports.getDashboard = async (req, res) => {
     ]);
 
     const interests = interestStats[0] || { sent: 0, received: 0, accepted: 0, pending: 0, rejected: 0 };
+    const { features: effectiveFeatures } = await require('../../middleware/subscriptionMiddleware').getEffectiveFeatures(userId);
 
     // ─── Build Response ────────────────────────────────────────────────────────
     const dashboard = {
@@ -62,8 +63,9 @@ exports.getDashboard = async (req, res) => {
         status:     subscription?.status  || 'free',
         daysLeft:   subscription ? Math.ceil((subscription.endDate - now) / (1000 * 60 * 60 * 24)) : 0,
         // What the member's current plan (paid or Free) unlocks; the app hides anything not included.
-        features: (await require('../../middleware/subscriptionMiddleware').getEffectiveFeatures(userId)).features || {},
-        canSeeOtherCommunities: !!(await require('../../middleware/subscriptionMiddleware').getEffectiveFeatures(userId)).features?.crossCommunityVisibility
+        features: effectiveFeatures || {},
+        canSeeOtherCommunities: !!effectiveFeatures?.crossCommunityVisibility,
+        canSeeAllSubCommunities: !!effectiveFeatures?.allSubCommunitiesAccess
       },
       interests: {
         sent:     interests.sent,
@@ -116,7 +118,7 @@ const getRecommendations = async (userId, myProfile, subscription, filters = {})
   // Pre-fetch settings, user doc, and blocks in a single parallel step
   const [settings, userDoc, blocks] = await Promise.all([
     MatrimonialSettings.findOne().lean(),
-    User.findById(userId).select('gender communityId assignedCommunityIds city').lean(),
+    User.findById(userId).select('gender communityId assignedCommunityIds subCommunity city').lean(),
     UserBlock.find({ $or: [{ userId }, { blockedUserId: userId }] }).lean()
   ]);
 
@@ -155,7 +157,7 @@ const getRecommendations = async (userId, myProfile, subscription, filters = {})
   const { condition: communityCondition } = await profileScopeCondition({
     user: userDoc,
     canSeeOtherCommunities: !!planFeatures?.crossCommunityVisibility,
-    canSeeSiblingSubCommunities: !!planFeatures?.viewAllSubCommunityProfiles
+    canSeeSiblingSubCommunities: !!planFeatures?.allSubCommunitiesAccess
   });
   baseQuery.$and = [communityCondition];
 

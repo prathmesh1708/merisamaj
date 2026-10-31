@@ -14,6 +14,7 @@ const withMatrimonialDefaults = (features = {}, { paid = false } = {}) => ({
   ...features,
   viewOtherSubCommunityProfile: features.viewOtherSubCommunityProfile ?? false,
   viewAllSubCommunityProfiles:  features.viewAllSubCommunityProfiles ?? false,
+  allSubCommunitiesAccess:      features.allSubCommunitiesAccess ?? false,
   superInterestsPerMonth:       features.superInterestsPerMonth ?? 0,
   viewProfilePhotos:            features.viewProfilePhotos ?? paid
 });

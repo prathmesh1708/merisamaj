@@ -7,9 +7,10 @@ const UserNotification = require('../models/UserNotification');
 // ─── List Notifications ───────────────────────────────────────────────────────
 exports.getNotifications = async (req, res) => {
   try {
-    const { page = 1, limit = 20, module, isRead } = req.query;
+    const { page = 1, limit = 20, module, type, isRead } = req.query;
     const query = { userId: req.user._id };
     if (module) query.module = module;
+    if (type) query.type = type;
     if (isRead !== undefined) query.isRead = isRead === 'true';
 
     const total = await UserNotification.countDocuments(query);

@@ -1,4 +1,5 @@
 const AppContent = require('../../models/AppContent');
+const SubCommunityAppContent = AppContent.SubCommunityAppContent;
 const Community = require('../../models/Community');
 const User = require('../../models/User');
 const mongoose = require('mongoose');
@@ -18,13 +19,17 @@ exports.getMemberAppContent = async (req, res) => {
     // City-scoped so a Local Head's location banner never leaks to another
     // city's members (or vice versa) via a shared community-wide cache entry.
     const memberCityKey = (req.user?.city || '').trim().toLowerCase() || 'default';
-    const cacheKey = `app_content_${targetCommunityId.toString()}_${memberCityKey}`;
+    const memberSubCommunity = (req.user?.subCommunity || '').trim();
+    const cacheKey = `app_content_${targetCommunityId.toString()}_${memberSubCommunity.toLowerCase()}_${memberCityKey}`;
     const cached = cacheService.get(cacheKey);
     if (cached) {
       return res.status(200).json(cached);
     }
 
-    let doc = await AppContent.findOne({ communityId: targetCommunityId }).lean();
+    let doc = memberSubCommunity
+      ? await SubCommunityAppContent.findOne({ communityId: targetCommunityId, subCommunity: memberSubCommunity }).lean()
+      : null;
+    if (!doc) doc = await AppContent.findOne({ communityId: targetCommunityId }).lean();
     if (!doc) {
       // Return default configuration if no custom document exists yet
       doc = {

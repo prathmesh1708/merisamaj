@@ -24,7 +24,7 @@ const cacheService = require('../utils/cacheService');
 const { ALL_MODULE_KEYS, MODULE_BY_KEY } = require('../config/moduleCatalog');
 
 const MASTER_ROLES = ['admin', 'super_admin', 'master_admin', 'master'];
-const USER_FIELDS = 'name email phone role accountType subHeadType parentHeadId communityId assignedCommunityIds moduleAccess accountStatus city designation avatar createdAt';
+const USER_FIELDS = 'name email phone role accountType subHeadType parentHeadId communityId assignedCommunityIds moduleAccess headPermissions accountStatus city designation avatar createdAt';
 const EFFECTIVE_TTL = 30;      // seconds — cache is flushed on every change anyway
 const MAX_DEPTH = 6;           // hierarchy is 4 levels; guards against bad parent loops
 const MAX_DESCENDANTS = 5000;
@@ -176,6 +176,18 @@ const getEffectiveModules = async (userId, depth = 0) => {
     const communityModules = await communityAllowedModules(user);
     effective = ALL_MODULE_KEYS.filter(k =>
       own.includes(k) && parentModules.includes(k) && communityModules.includes(k));
+    // The older Community Head editor grants Local Community through
+    // headPermissions. Keep that grant effective in the newer module gate too,
+    // so its sidebar item and API routes follow the permission the admin saved.
+    if (
+      user.role === 'head' &&
+      user.headPermissions?.canManageLocalCommunity === true &&
+      parentModules.includes('localCommunity') &&
+      communityModules.includes('localCommunity') &&
+      !effective.includes('localCommunity')
+    ) {
+      effective = ALL_MODULE_KEYS.filter(k => effective.includes(k) || k === 'localCommunity');
+    }
   }
   cacheService.set(cacheKey, effective, EFFECTIVE_TTL);
   return effective;

@@ -4,111 +4,111 @@ const BASE_URL = '/admin/user-app-edits';
 
 export const appContentService = {
   // Get all app content customization
-  getAppContent: async (communityId) => {
-    const params = communityId ? { communityId } : {};
+  getAppContent: async (communityId, subCommunity = '') => {
+    const params = { ...(communityId ? { communityId } : {}), ...(subCommunity ? { subCommunity } : {}) };
     const res = await axiosPrivate.get(BASE_URL, { params });
     return res.data;
   },
 
   // Update Hero Banner
-  updateHeroBanner: async (data, communityId) => {
-    const payload = { ...data, communityId };
+  updateHeroBanner: async (data, communityId, subCommunity = '') => {
+    const payload = { ...data, communityId, subCommunity };
     const res = await axiosPrivate.put(`${BASE_URL}/hero`, payload);
     return res.data;
   },
 
   // Update Community Census Banner
-  updateCensusBanner: async (data, communityId) => {
-    const payload = { ...data, communityId };
+  updateCensusBanner: async (data, communityId, subCommunity = '') => {
+    const payload = { ...data, communityId, subCommunity };
     const res = await axiosPrivate.put(`${BASE_URL}/census`, payload);
     return res.data;
   },
 
   // Exclusive Features CRUD
-  createFeature: async (data, communityId) => {
-    const payload = { ...data, communityId };
+  createFeature: async (data, communityId, subCommunity = '') => {
+    const payload = { ...data, communityId, subCommunity };
     const res = await axiosPrivate.post(`${BASE_URL}/features`, payload);
     return res.data;
   },
 
-  updateFeature: async (id, data, communityId) => {
-    const payload = { ...data, communityId };
+  updateFeature: async (id, data, communityId, subCommunity = '') => {
+    const payload = { ...data, communityId, subCommunity };
     const res = await axiosPrivate.put(`${BASE_URL}/features/${id}`, payload);
     return res.data;
   },
 
-  deleteFeature: async (id, communityId) => {
-    const params = communityId ? { communityId } : {};
+  deleteFeature: async (id, communityId, subCommunity = '') => {
+    const params = { ...(communityId ? { communityId } : {}), ...(subCommunity ? { subCommunity } : {}) };
     const res = await axiosPrivate.delete(`${BASE_URL}/features/${id}`, { params });
     return res.data;
   },
 
   // Success Stories CRUD
-  createSuccessStory: async (data, communityId) => {
-    const payload = { ...data, communityId };
+  createSuccessStory: async (data, communityId, subCommunity = '') => {
+    const payload = { ...data, communityId, subCommunity };
     const res = await axiosPrivate.post(`${BASE_URL}/success-stories`, payload);
     return res.data;
   },
 
-  updateSuccessStory: async (id, data, communityId) => {
-    const payload = { ...data, communityId };
+  updateSuccessStory: async (id, data, communityId, subCommunity = '') => {
+    const payload = { ...data, communityId, subCommunity };
     const res = await axiosPrivate.put(`${BASE_URL}/success-stories/${id}`, payload);
     return res.data;
   },
 
-  deleteSuccessStory: async (id, communityId) => {
-    const params = communityId ? { communityId } : {};
+  deleteSuccessStory: async (id, communityId, subCommunity = '') => {
+    const params = { ...(communityId ? { communityId } : {}), ...(subCommunity ? { subCommunity } : {}) };
     const res = await axiosPrivate.delete(`${BASE_URL}/success-stories/${id}`, { params });
     return res.data;
   },
 
   // Core Members & Leadership CRUD
-  updateCommunityHead: async (data, communityId) => {
-    const payload = { ...data, communityId };
+  updateCommunityHead: async (data, communityId, subCommunity = '') => {
+    const payload = { ...data, communityId, subCommunity };
     const res = await axiosPrivate.put(`${BASE_URL}/core-members/head`, payload);
     return res.data;
   },
 
-  createCommitteeMember: async (data, communityId) => {
-    const payload = { ...data, communityId };
+  createCommitteeMember: async (data, communityId, subCommunity = '') => {
+    const payload = { ...data, communityId, subCommunity };
     const res = await axiosPrivate.post(`${BASE_URL}/core-members/committee`, payload);
     return res.data;
   },
 
-  updateCommitteeMember: async (id, data, communityId) => {
-    const payload = { ...data, communityId };
+  updateCommitteeMember: async (id, data, communityId, subCommunity = '') => {
+    const payload = { ...data, communityId, subCommunity };
     const res = await axiosPrivate.put(`${BASE_URL}/core-members/committee/${id}`, payload);
     return res.data;
   },
 
-  deleteCommitteeMember: async (id, communityId) => {
-    const params = communityId ? { communityId } : {};
+  deleteCommitteeMember: async (id, communityId, subCommunity = '') => {
+    const params = { ...(communityId ? { communityId } : {}), ...(subCommunity ? { subCommunity } : {}) };
     const res = await axiosPrivate.delete(`${BASE_URL}/core-members/committee/${id}`, { params });
     return res.data;
   },
 
   // End of Feed / Footer Artwork
-  updateFooterArtwork: async (data, communityId) => {
-    const payload = { ...data, communityId };
+  updateFooterArtwork: async (data, communityId, subCommunity = '') => {
+    const payload = { ...data, communityId, subCommunity };
     const res = await axiosPrivate.put(`${BASE_URL}/footer-artwork`, payload);
     return res.data;
   },
 
   // Promotional Sliding Banners CRUD
-  createPromotionalBanner: async (data, communityId) => {
-    const payload = { ...data, communityId };
+  createPromotionalBanner: async (data, communityId, subCommunity = '') => {
+    const payload = { ...data, communityId, subCommunity };
     const res = await axiosPrivate.post(`${BASE_URL}/promotional-banners`, payload);
     return res.data;
   },
 
-  updatePromotionalBanner: async (id, data, communityId) => {
-    const payload = { ...data, communityId };
+  updatePromotionalBanner: async (id, data, communityId, subCommunity = '') => {
+    const payload = { ...data, communityId, subCommunity };
     const res = await axiosPrivate.put(`${BASE_URL}/promotional-banners/${id}`, payload);
     return res.data;
   },
 
-  deletePromotionalBanner: async (id, communityId) => {
-    const params = communityId ? { communityId } : {};
+  deletePromotionalBanner: async (id, communityId, subCommunity = '') => {
+    const params = { ...(communityId ? { communityId } : {}), ...(subCommunity ? { subCommunity } : {}) };
     const res = await axiosPrivate.delete(`${BASE_URL}/promotional-banners/${id}`, { params });
     return res.data;
   }

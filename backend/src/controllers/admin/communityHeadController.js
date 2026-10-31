@@ -4,6 +4,7 @@ const HeadActivityLog = require('../../models/HeadActivityLog');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const { resolveAvatarUpload } = require('../../utils/avatarUploadHelper');
+const { invalidateEffectiveCache } = require('../../services/modulePermissionService');
 
 // @desc    Get all community heads
 // @route   GET /api/v1/admin/community-heads
@@ -146,6 +147,7 @@ exports.createCommunityHead = async (req, res) => {
     }
 
     await newHead.save();
+    invalidateEffectiveCache();
 
     // Bidirectional sync: assign this new head to the selected communities
     if (assignedCommunityIds && assignedCommunityIds.length > 0) {
@@ -255,6 +257,7 @@ exports.updateCommunityHead = async (req, res) => {
     }
 
     await head.save();
+    invalidateEffectiveCache();
 
     const updatedHead = await User.findById(head._id).populate('assignedCommunityIds', 'name _id city').select('-password');
 

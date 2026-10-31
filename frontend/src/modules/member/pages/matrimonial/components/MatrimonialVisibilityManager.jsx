@@ -100,6 +100,7 @@ export const MatrimonialVisibilityManager = ({
       scope: 'all', // 'all' | 'selected'
       selectedSubCommunities: []
     },
+    allSubCommunities: { enabled: false },
     aadharVerifiedOnly: true,
     communityVerifiedOnly: true,
     selectedLocations: {
@@ -138,8 +139,9 @@ export const MatrimonialVisibilityManager = ({
   }, [currentScreen]);
 
   // The member's real community / sub-community names for the visibility cards
-  const [memberOf, setMemberOf] = useState({ communityName: '', subCommunityName: '', canUseOtherCommunities: false, subCommunities: [] });
+  const [memberOf, setMemberOf] = useState({ communityName: '', subCommunityName: '', canUseOtherCommunities: false, canUseAllSubCommunities: false, subCommunities: [] });
   const otherLocked = memberOf.canUseOtherCommunities === false;
+  const allSubCommunitiesLocked = memberOf.canUseAllSubCommunities !== true;
   // How many members are Aadhaar / community verified (shown on those two switches)
   const [verifiedCounts, setVerifiedCounts] = useState(null);
   // "Gupta ji" -> "Gupta ji Samaj" (names that already say Samaj are left as they are)
@@ -925,6 +927,36 @@ export const MatrimonialVisibilityManager = ({
               )}
             </div>
 
+            {/* Free own-sub-community visibility is controlled by My Community above. */}
+            <div className={`bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs ${allSubCommunitiesLocked ? 'opacity-90' : ''}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5"><Users size={16} /></div>
+                  <div>
+                    <h4 className="text-[13px] font-bold text-slate-800 flex items-center gap-1.5">
+                      All Sub-Community Members
+                      {allSubCommunitiesLocked && <Lock size={12} className="text-slate-400" />}
+                    </h4>
+                    <p className="text-[11px] text-slate-400 font-medium leading-tight mt-0.5">
+                      View profiles of members from all sub-communities within your main community and make your profile visible to them.
+                    </p>
+                  </div>
+                </div>
+                <label className={`relative inline-flex items-center shrink-0 mt-1 ${allSubCommunitiesLocked ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
+                  <input type="checkbox" checked={!allSubCommunitiesLocked && settings.allSubCommunities.enabled}
+                    disabled={allSubCommunitiesLocked}
+                    onChange={() => { if (!allSubCommunitiesLocked) toggleNestedSetting('allSubCommunities', 'enabled'); }} className="sr-only peer" />
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                </label>
+              </div>
+              {allSubCommunitiesLocked && (
+                <div className="mt-3 pt-2.5 border-t border-slate-100 pl-11 flex items-center justify-between gap-2">
+                  <span className="text-[11.5px] font-semibold text-slate-500">Included with selected subscription plans.</span>
+                  <button type="button" onClick={() => navigate('/member/matrimonial/subscription')} className="shrink-0 px-3 py-1.5 bg-rose-500 text-white rounded-full text-[11px] font-bold active:scale-95">Upgrade</button>
+                </div>
+              )}
+            </div>
+
             {/* Setting 2: My Community Members */}
             <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs">
               <div className="flex items-start justify-between gap-3">
@@ -935,7 +967,7 @@ export const MatrimonialVisibilityManager = ({
                   <div>
                     <h4 className="text-[13px] font-bold text-slate-800">{memberOf.communityName ? `All ${samaj(memberOf.communityName)} Members` : 'My Community Members'}</h4>
                     <p className="text-[11px] text-slate-400 font-medium leading-tight mt-0.5">
-                      Sirf meri community{memberOf.communityName ? ` (${memberOf.communityName})` : ''} ke members dekh sakte hain.
+                      Your own sub-community is always included for free{memberOf.communityName ? ` within ${memberOf.communityName}` : ''}.
                     </p>
                   </div>
                 </div>

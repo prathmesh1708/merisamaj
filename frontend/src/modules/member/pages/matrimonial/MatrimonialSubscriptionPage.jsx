@@ -21,15 +21,16 @@ const FEATURE_ROWS = [
   { label: 'Other-Community Profiles', key: 'crossCommunityVisibility', type: 'boolean', tooltip: 'See and be matched with profiles outside your own community.' },
   { label: 'Community Filter', key: 'communityFilter', type: 'boolean', tooltip: 'Filter matches by community and sub-community.' },
   { label: 'Super Interests / Month', key: 'superInterestsPerMonth', type: 'value', tooltip: 'Highlighted interests that appear first for the person you send them to (-1 for unlimited).' },
-  { label: 'Open Other Sub-community Profiles', key: 'viewOtherSubCommunityProfile', type: 'boolean', tooltip: 'Open a profile from another sub-community of your community.' },
-  { label: 'Browse All Sub-communities', key: 'viewAllSubCommunityProfiles', type: 'boolean', tooltip: 'Your matches and search include profiles from every sub-community, with a sub-community filter.' },
+  { label: 'All Sub-Communities Access', key: 'allSubCommunitiesAccess', type: 'boolean', tooltip: 'View profiles of members from all sub-communities within your main community and make your profile visible to them.' },
   { label: 'View Profile Photos', key: 'viewProfilePhotos', type: 'boolean', tooltip: 'See clear photos of public profiles. Private profiles show their photo once your interest is accepted.' },
 ];
 
 // Plans saved before "View Profile Photos" existed: on for paid plans, off for Free (as the server applies it)
 const featureValue = (plan, key) => (key === 'viewProfilePhotos'
   ? plan.features?.viewProfilePhotos ?? plan.price > 0
-  : plan.features?.[key]);
+  : key === 'allSubCommunitiesAccess'
+    ? plan.price > 0 && plan.features?.[key] === true
+    : plan.features?.[key]);
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 const MatrimonialSubscriptionPage = () => {

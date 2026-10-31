@@ -30,6 +30,15 @@ const levelOf = (user) => {
 };
 
 const myGroupOf = (user) => (user.group && user.group.trim()) || 'Group 1';
+// A Community Head assigned to a specific sub-community must stay within that
+// scope. Heads without a subCommunity assignment retain community-wide access.
+const assignedSubCommunityOf = (user) => (
+  user?.role === 'head' ? String(user.subCommunity || '').trim() : ''
+);
+const isAssignedSubCommunity = (user, requestedName) => {
+  const assigned = assignedSubCommunityOf(user);
+  return !assigned || sameText(assigned, requestedName);
+};
 
 // Run an admin controller with the caller's community injected and its JSON response transformed
 const runScoped = (handler, req, res, transform) => {
@@ -55,11 +64,20 @@ exports.getStructure = async (req, res) => {
     const community = await Community.findById(communityId).select('name createdAt subCommunities isActive').lean();
     if (!community) return res.status(404).json({ status: 'error', message: 'Community not found.' });
 
+    const assignedSubCommunity = assignedSubCommunityOf(req.user);
+    const activeSubCommunities = (community.subCommunities || []).filter(s => s.isActive !== false);
+    const visibleSubCommunities = assignedSubCommunity
+      ? activeSubCommunities.filter(s => sameText(s.name, assignedSubCommunity))
+      : activeSubCommunities;
+    if (assignedSubCommunity && visibleSubCommunities.length === 0) {
+      return res.status(403).json({ status: 'error', message: `Your assigned sub-community (${assignedSubCommunity}) is not active or no longer exists.` });
+    }
+
     res.status(200).json({
       success: true,
       data: {
         community: { _id: community._id, name: community.name, createdAt: community.createdAt, isActive: community.isActive !== false },
-        subCommunities: (community.subCommunities || []).map(s => ({ _id: s._id, name: s.name, isActive: s.isActive !== false })),
+        subCommunities: visibleSubCommunities.map(s => ({ _id: s._id, name: s.name, isActive: true })),
         viewer: {
           id: req.user._id,
           level: levelOf(req.user),
@@ -80,6 +98,9 @@ exports.getLocations = (req, res) => {
   const level = levelOf(req.user);
   if (level === 'community_sub') {
     return res.status(403).json({ status: 'error', message: 'Only Community Heads and Local Heads can view the location matrix.' });
+  }
+  if (!isAssignedSubCommunity(req.user, req.params.subName)) {
+    return res.status(403).json({ status: 'error', message: 'You can only view your assigned sub-community.' });
   }
   if (level === 'community') return runScoped(communityController.getSubCommunityLocationBreakdown, req, res);
 
@@ -130,6 +151,9 @@ exports.assignHead = async (req, res) => {
   try {
     const level = levelOf(req.user);
     const communityId = resolveCommunityId(req);
+    if (!isAssignedSubCommunity(req.user, req.params.subName)) {
+      return res.status(403).json({ status: 'error', message: 'You can only manage your assigned sub-community.' });
+    }
     if (!['community', 'local'].includes(level)) {
       return res.status(403).json({ status: 'error', message: 'You are not allowed to appoint heads.' });
     }
@@ -171,6 +195,11 @@ exports.updateGroup = (req, res) => {
   const level = levelOf(req.user);
   const groupName = decodeURIComponent(req.params.groupName || '').trim();
   const city = (req.body.city || '').trim();
+  if (!isAssignedSubCommunity(req.user, req.body.subCommunity)) {
+    return res.status(403).json({ status: 'error', message: 'You can only manage your assigned sub-community.' });
+  }
+  const assignedSubCommunity = assignedSubCommunityOf(req.user);
+  if (assignedSubCommunity) req.body.subCommunity = assignedSubCommunity;
 
   if (!['community', 'local'].includes(level)) {
     return res.status(403).json({ status: 'error', message: 'You are not allowed to edit groups.' });

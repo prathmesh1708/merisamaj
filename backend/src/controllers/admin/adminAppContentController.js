@@ -1,4 +1,5 @@
 const AppContent = require('../../models/AppContent');
+const SubCommunityAppContent = AppContent.SubCommunityAppContent;
 const Community = require('../../models/Community');
 const mongoose = require('mongoose');
 const cacheService = require('../../utils/cacheService');
@@ -251,17 +252,21 @@ const getDefaultPromotionalBanners = () => [
   }
 ];
 
-const getOrCreateAppContent = async (communityId) => {
+const getOrCreateAppContent = async (communityId, subCommunity = '') => {
+  const ContentModel = subCommunity ? SubCommunityAppContent : AppContent;
   let targetCommunityId = communityId;
   if (!targetCommunityId) {
     const firstComm = await Community.findOne({ status: 'Active' });
     targetCommunityId = firstComm ? firstComm._id : new mongoose.Types.ObjectId('000000000000000000000001');
   }
 
-  let doc = await AppContent.findOne({ communityId: targetCommunityId });
+  let doc = await ContentModel.findOne(subCommunity
+    ? { communityId: targetCommunityId, subCommunity }
+    : { communityId: targetCommunityId });
   if (!doc) {
-    doc = await AppContent.create({
+    doc = await ContentModel.create({
       communityId: targetCommunityId,
+      ...(subCommunity ? { subCommunity } : {}),
       promotionalBanners: getDefaultPromotionalBanners(),
       heroBanner: {
         backgroundImage: 'https://images.unsplash.com/photo-1590050752117-238cb0fb12b1?auto=format&fit=crop&w=1200&q=80',
@@ -295,6 +300,18 @@ const getOrCreateAppContent = async (communityId) => {
         enabled: true
       }
     });
+    if (subCommunity) {
+      const communityDefaults = await AppContent.findOne({ communityId: targetCommunityId }).lean();
+      if (communityDefaults) {
+        [
+          'promotionalBanners', 'heroBanner', 'locationHeroBanners', 'exclusiveFeatures',
+          'successStories', 'coreMembers', 'donationBanner', 'censusBanner', 'footerArtwork'
+        ].forEach((field) => {
+          if (communityDefaults[field] !== undefined) doc[field] = communityDefaults[field];
+        });
+        await saveAndInvalidate(doc);
+      }
+    }
   } else if (!doc.promotionalBanners || doc.promotionalBanners.length === 0) {
     doc.promotionalBanners = getDefaultPromotionalBanners();
     await saveAndInvalidate(doc);
@@ -344,7 +361,7 @@ const getOrCreateAppContent = async (communityId) => {
 exports.getAppContent = async (req, res) => {
   try {
     const targetCommunityId = req.query.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId);
+    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || '');
     return res.status(200).json({
       success: true,
       data: doc
@@ -361,7 +378,7 @@ exports.getAppContent = async (req, res) => {
 exports.updateHeroBanner = async (req, res) => {
   try {
     const targetCommunityId = req.body.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId);
+    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
 
     // Prefer a real uploaded file (goes to Cloudinary, returns a URL) over a
     // raw `backgroundImage` string — a base64 data URL must never be stored
@@ -407,7 +424,7 @@ exports.updateDonationBanner = async (req, res) => {
   try {
     const { resolveAvatarUpload } = require('../../utils/avatarUploadHelper');
     const targetCommunityId = req.body.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId);
+    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
 
     // Resolve uploaded banner image file (if provided)
     const uploadedImageUrl = await resolveAvatarUpload(req, `community_${targetCommunityId}`);
@@ -447,7 +464,7 @@ exports.getLocationHeroBanner = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Only Local Heads (accounts with their own city/location) can manage a location-specific home banner.' });
     }
     const targetCommunityId = req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId);
+    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
     const entry = (doc.locationHeroBanners || []).find(b => b.city.toLowerCase() === city.toLowerCase());
     return res.status(200).json({
       success: true,
@@ -472,7 +489,7 @@ exports.updateLocationHeroBanner = async (req, res) => {
     }
     const { resolveAvatarUpload } = require('../../utils/avatarUploadHelper');
     const targetCommunityId = req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId);
+    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
 
     if (!Array.isArray(doc.locationHeroBanners)) doc.locationHeroBanners = [];
     let entry = doc.locationHeroBanners.find(b => b.city.toLowerCase() === city.toLowerCase());
@@ -514,7 +531,7 @@ exports.updateLocationHeroBanner = async (req, res) => {
 exports.updateCensusBanner = async (req, res) => {
   try {
     const targetCommunityId = req.body.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId);
+    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
 
     const { backgroundImage, overlayOpacity, overlayGradient, enabled } = req.body;
     if (!doc.censusBanner) {
@@ -543,7 +560,7 @@ exports.updateCensusBanner = async (req, res) => {
 exports.updateFooterArtwork = async (req, res) => {
   try {
     const targetCommunityId = req.body.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId);
+    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
 
     const { artworkType, backgroundImage, hashtagText, caughtUpTitle, caughtUpSubtitle, enabled } = req.body;
     if (!doc.footerArtwork) {
@@ -577,7 +594,7 @@ exports.updateFooterArtwork = async (req, res) => {
 exports.createFeature = async (req, res) => {
   try {
     const targetCommunityId = req.body.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId);
+    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
 
     const { label, desc, path, state, icon, bgImage, displayOrder, enabled } = req.body;
     if (!label) {
@@ -617,7 +634,7 @@ exports.updateFeature = async (req, res) => {
   try {
     const { id } = req.params;
     const targetCommunityId = req.body.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId);
+    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
 
     const featureIndex = doc.exclusiveFeatures.findIndex(f => f.id === id);
     if (featureIndex === -1) {
@@ -650,7 +667,7 @@ exports.deleteFeature = async (req, res) => {
   try {
     const { id } = req.params;
     const targetCommunityId = req.query.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId);
+    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
 
     doc.exclusiveFeatures = doc.exclusiveFeatures.filter(f => f.id !== id);
     await saveAndInvalidate(doc);
@@ -673,7 +690,7 @@ exports.deleteFeature = async (req, res) => {
 exports.createSuccessStory = async (req, res) => {
   try {
     const targetCommunityId = req.body.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId);
+    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
 
     const { title, tag, quote, shortDescription, coverImage, weddingDate, groomName, brideName, featured, displayOrder, enabled } = req.body;
     if (!title) {
@@ -720,7 +737,7 @@ exports.updateSuccessStory = async (req, res) => {
   try {
     const { id } = req.params;
     const targetCommunityId = req.body.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId);
+    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
 
     const storyIndex = doc.successStories.findIndex(s => s.id === id);
     if (storyIndex === -1) {
@@ -757,7 +774,7 @@ exports.deleteSuccessStory = async (req, res) => {
   try {
     const { id } = req.params;
     const targetCommunityId = req.query.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId);
+    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
 
     doc.successStories = doc.successStories.filter(s => s.id !== id);
     await saveAndInvalidate(doc);
@@ -780,7 +797,7 @@ exports.deleteSuccessStory = async (req, res) => {
 exports.updateCommunityHead = async (req, res) => {
   try {
     const targetCommunityId = req.body.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId);
+    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
 
     const fields = ['name', 'role', 'designation', 'avatar', 'city', 'state', 'phone', 'termYears', 'enabled'];
     fields.forEach(f => {
@@ -807,7 +824,7 @@ exports.updateCommunityHead = async (req, res) => {
 exports.createCommitteeMember = async (req, res) => {
   try {
     const targetCommunityId = req.body.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId);
+    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
 
     const { name, role, designation, avatar, phone, city, displayOrder, enabled } = req.body;
     if (!name) {
@@ -847,7 +864,7 @@ exports.updateCommitteeMember = async (req, res) => {
   try {
     const { id } = req.params;
     const targetCommunityId = req.body.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId);
+    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
 
     const memberIndex = doc.coreMembers.committee.findIndex(m => m.id === id);
     if (memberIndex === -1) {
@@ -880,7 +897,7 @@ exports.deleteCommitteeMember = async (req, res) => {
   try {
     const { id } = req.params;
     const targetCommunityId = req.query.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId);
+    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
 
     doc.coreMembers.committee = doc.coreMembers.committee.filter(m => m.id !== id);
     await saveAndInvalidate(doc);
@@ -903,7 +920,7 @@ exports.deleteCommitteeMember = async (req, res) => {
 exports.createPromotionalBanner = async (req, res) => {
   try {
     const targetCommunityId = req.body.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId);
+    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
 
     const newBanner = {
       id: req.body.id || `promo_${Date.now()}`,
@@ -941,7 +958,7 @@ exports.updatePromotionalBanner = async (req, res) => {
   try {
     const { id } = req.params;
     const targetCommunityId = req.body.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId);
+    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
 
     if (!doc.promotionalBanners) doc.promotionalBanners = [];
     const bannerIndex = doc.promotionalBanners.findIndex(b => b.id === id);
@@ -975,7 +992,7 @@ exports.deletePromotionalBanner = async (req, res) => {
   try {
     const { id } = req.params;
     const targetCommunityId = req.query.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId);
+    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
 
     if (!doc.promotionalBanners) doc.promotionalBanners = [];
     doc.promotionalBanners = doc.promotionalBanners.filter(b => b.id !== id);

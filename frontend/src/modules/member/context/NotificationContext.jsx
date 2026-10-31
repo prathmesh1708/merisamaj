@@ -125,6 +125,7 @@ export const NotificationProvider = ({ children }) => {
     const newHandler = (notification) => {
       setUnreadCount(c => c + 1);
       setLatestNotification(notification);
+      if (notification?.type === 'admin_broadcast') return;
       setToastNotif(notification);
 
       if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
@@ -135,6 +136,7 @@ export const NotificationProvider = ({ children }) => {
 
     const updateHandler = (notification) => {
       setLatestNotification(notification);
+      if (notification?.type === 'admin_broadcast') return;
       setToastNotif(notification);
 
       if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);

@@ -190,4 +190,14 @@ const appContentSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
+// Sub-community content uses its own collection so existing community-wide
+// documents and their unique communityId index remain compatible.
+const subCommunityAppContentSchema = appContentSchema.clone();
+subCommunityAppContentSchema.path('communityId').options.unique = false;
+subCommunityAppContentSchema.add({
+  subCommunity: { type: String, required: true, trim: true }
+});
+subCommunityAppContentSchema.index({ communityId: 1, subCommunity: 1 }, { unique: true });
+
 module.exports = mongoose.model('AppContent', appContentSchema);
+module.exports.SubCommunityAppContent = mongoose.model('SubCommunityAppContent', subCommunityAppContentSchema);

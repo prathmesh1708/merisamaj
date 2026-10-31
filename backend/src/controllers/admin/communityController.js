@@ -3,6 +3,7 @@ const Community = require('../../models/Community');
 const User = require('../../models/User');
 const { notifyHeadAssigned } = require('../../services/notificationService');
 const { resolveAvatarUpload } = require('../../utils/avatarUploadHelper');
+const { invalidateEffectiveCache } = require('../../services/modulePermissionService');
 
 // ─────────────────────────────────────────────
 // Normalize a create/update payload's subCommunities into the sub-document shape.
@@ -1471,6 +1472,7 @@ exports.assignLocalHeadToLocationGroup = async (req, res) => {
       }
 
       await user.save();
+      invalidateEffectiveCache();
 
       // If assigned as community head and community has no head, link them
       if (targetRole === 'head' && !community.headId) {

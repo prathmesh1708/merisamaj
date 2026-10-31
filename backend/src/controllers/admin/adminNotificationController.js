@@ -96,7 +96,7 @@ exports.sendAdminBroadcast = async (req, res) => {
       communityId, 
       targetRole = 'ALL', 
       channel = 'in_app',
-      actionUrl = '/member/notifications',
+      actionUrl = '/member/home',
       imageUrl
     } = req.body;
 
@@ -165,21 +165,28 @@ exports.sendAdminBroadcast = async (req, res) => {
       updatedAt: now
     }));
 
-    await UserNotification.insertMany(notificationsToInsert);
+    const savedNotifications = await UserNotification.insertMany(notificationsToInsert);
 
     // Socket Broadcast Notification
     try {
       const io = req.app.get('io');
       if (io) {
-        if (communityId) {
-          io.to(`community:${communityId}`).emit('notification:new', {
-            title, message, icon: '📢', module: 'announcement', actionUrl, imageUrl: image
+        savedNotifications.forEach(notification => {
+          io.to(`user:${notification.userId}`).emit('notification:new', {
+            _id: notification._id,
+            type: notification.type,
+            title: notification.title,
+            message: notification.message,
+            icon: notification.icon,
+            module: notification.module,
+            priority: notification.priority,
+            actionUrl: notification.actionUrl,
+            imageUrl: notification.imageUrl,
+            referenceId: notification.referenceId,
+            isRead: notification.isRead,
+            createdAt: notification.createdAt
           });
-        } else {
-          io.emit('notification:new', {
-            title, message, icon: '📢', module: 'announcement', actionUrl, imageUrl: image
-          });
-        }
+        });
       }
     } catch (sErr) {
       console.warn('[BroadcastSocketNotice]', sErr.message);

@@ -758,7 +758,7 @@ const MatrimonialHomePage = () => {
                 { label: 'All matches', key: 'all' },
                 { label: 'Other Communities', key: 'other_community' },
                 { label: 'My Community', key: 'my_community' },
-                ...((dashboard?.subscription?.features?.communityFilter === true || dashboard?.subscription?.features?.viewAllSubCommunityProfiles === true) && (subCommunityInfo.subCommunityName || dashboard?.community?.mySubCommunity)
+                ...((dashboard?.subscription?.features?.communityFilter === true || dashboard?.subscription?.features?.allSubCommunitiesAccess === true) && (subCommunityInfo.subCommunityName || dashboard?.community?.mySubCommunity)
                   ? [{ label: 'My Sub-Community', key: 'my_subcommunity' }]
                   : []),
                 { label: 'Verified', key: 'verified' },
@@ -2609,7 +2609,7 @@ const MatrimonialHomePage = () => {
               </div>
 
               {/* ─── COMMUNITY FILTER — only for plans that include it ─── */}
-              {(dashboard?.subscription?.features?.communityFilter === true || dashboard?.subscription?.features?.viewAllSubCommunityProfiles === true) && (
+              {(dashboard?.subscription?.features?.communityFilter === true || dashboard?.subscription?.features?.allSubCommunitiesAccess === true) && (
               <div>
                 <div className="flex justify-between items-center mb-2">
                   <label className="text-[11px] text-slate-400 font-extrabold uppercase tracking-wide">Community Filter</label>

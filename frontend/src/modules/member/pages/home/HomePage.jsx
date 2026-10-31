@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useDraggableScroll } from '../../../../hooks/useDraggableScroll';
-import { Bell, Search, Calendar, Heart, Users, BookOpen, Briefcase, Vote, ChevronRight, MapPin, Shield, Crown, ImagePlus, ArrowRight, Plus, Sparkles, GraduationCap, HeartHandshake, Flame, User, Smile, Phone, MessageCircle, Clock, CalendarDays, Mail, Home, Wallet, Megaphone } from 'lucide-react';
+import { Bell, Search, Calendar, Heart, Users, BookOpen, Briefcase, Vote, ChevronRight, MapPin, Shield, Crown, ImagePlus, ArrowRight, Plus, Sparkles, GraduationCap, HeartHandshake, Flame, User, Smile, Phone, MessageCircle, Clock, CalendarDays, Mail, Home, Wallet, Megaphone, X } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { Avatar } from '../../components/common/Avatar';
 import { Badge } from '../../components/common/Badge';
@@ -21,10 +21,11 @@ const mockSuccessStories = [
 import ReferAndEarnBanner from './ReferAndEarnBanner';
 import DynamicPromoSlider from './DynamicPromoSlider';
 import donationService from '../../../../core/api/donationService';
-import { successStoryService } from '../../../../core/api/matrimonialService';
+import { notificationService, successStoryService } from '../../../../core/api/matrimonialService';
 import { axiosPrivate } from '../../../../core/api/axiosPrivate';
 import { AnimatedIconCards } from '../../components/common/AnimatedIconCards';
 import { useAuth } from '../../../../core/auth/useAuth';
+import { useNotifications } from '../../context/NotificationContext';
 import { isMemberApproved, showApprovalRequiredNotice } from '../../utils/approvalUtils';
 import { isRealPhoto, getInitials } from '../../../../core/utils/photo';
 
@@ -137,8 +138,10 @@ const getFeatureModuleKey = (action) => {
 const HomePage = () => {
   const navigate = useNavigate();
   const { auth } = useAuth();
+  const { latestNotification, decrementUnreadCount } = useNotifications();
   const { currentUser, members: mockMembers, admins: contextAdmins, posts: mockPosts, events: mockEvents, language, setLanguage, notifications, getUnreadCountForModule, markModuleAsVisited } = useData();
   const effectiveUser = auth?.isAuthenticated ? auth?.user : currentUser;
+  const [adminBroadcastPopup, setAdminBroadcastPopup] = useState(null);
   const isApproved = isMemberApproved(effectiveUser);
   const mockAdmins = contextAdmins && contextAdmins.length > 0 ? contextAdmins : mockAdminsRaw;
   const subHeadsRef = useDraggableScroll();
@@ -163,6 +166,51 @@ const HomePage = () => {
   const [leadershipLoading, setLeadershipLoading] = useState(true);
   const [liveCensusBanner, setLiveCensusBanner] = useState(null);
   const [liveFooterArtwork, setLiveFooterArtwork] = useState(null);
+  const [footerImageAspectRatio, setFooterImageAspectRatio] = useState(null);
+
+  const popupDismissed = (notification) => {
+    const key = notification?._id || notification?.referenceId;
+    if (!key) return false;
+    try { return localStorage.getItem(`admin_broadcast_popup_dismissed_${key}`) === '1'; }
+    catch { return false; }
+  };
+
+  useEffect(() => {
+    let active = true;
+    notificationService.getAll({ page: 1, limit: 20, isRead: false, type: 'admin_broadcast' })
+      .then(res => {
+        if (!active) return;
+        const pending = (res.data?.data?.notifications || []).find(n => !popupDismissed(n));
+        if (pending) setAdminBroadcastPopup(current => current || pending);
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [effectiveUser?._id]);
+
+  useEffect(() => {
+    if (latestNotification?.type !== 'admin_broadcast' || popupDismissed(latestNotification)) return;
+    setAdminBroadcastPopup(current => current || latestNotification);
+  }, [latestNotification]);
+
+  const closeAdminBroadcastPopup = async (openNotification = false) => {
+    const notification = adminBroadcastPopup;
+    if (!notification) return;
+    const key = notification._id || notification.referenceId;
+    if (key) {
+      try { localStorage.setItem(`admin_broadcast_popup_dismissed_${key}`, '1'); } catch {}
+    }
+    setAdminBroadcastPopup(null);
+    if (notification._id) {
+      notificationService.markRead(notification._id).catch(() => {});
+      decrementUnreadCount();
+    }
+    if (openNotification) {
+      const actionUrl = notification.actionUrl && notification.actionUrl !== '/member/home'
+        ? notification.actionUrl
+        : '/member/notifications?module=announcement';
+      navigate(actionUrl);
+    }
+  };
 
   // Home census card shows only the member's own city (e.g. Indore members → Indore counts)
   const censusCity = (effectiveUser?.city || '').trim();
@@ -1672,13 +1720,20 @@ const HomePage = () => {
 
           {/* ─── END OF FEED ILLUSTRATION ─── */}
           {liveFooterArtwork?.enabled !== false && (
-            <div className="mt-8 relative w-full h-[450px] flex flex-col items-center justify-end overflow-hidden pb-[160px] -mb-[120px] bg-gradient-to-b from-transparent to-purple-50/50">
+            <div
+              className={`mt-8 relative w-full flex flex-col items-center justify-end overflow-hidden bg-gradient-to-b from-transparent to-purple-50/50 ${liveFooterArtwork?.artworkType === 'image' && liveFooterArtwork?.backgroundImage ? 'h-auto min-h-[320px] max-h-[70vh] sm:h-[450px] sm:max-h-none pb-24 sm:pb-40 -mb-8 sm:-mb-[120px]' : 'h-[360px] sm:h-[450px] pb-[128px] sm:pb-[160px] -mb-[88px] sm:-mb-[120px]'}`}
+              style={liveFooterArtwork?.artworkType === 'image' && footerImageAspectRatio ? { aspectRatio: `${footerImageAspectRatio}`, maxHeight: '70vh' } : undefined}
+            >
               {/* Background Artwork: Custom Image (100% natural) or SVG CityLandscape */}
               {liveFooterArtwork?.artworkType === 'image' && liveFooterArtwork?.backgroundImage ? (
                 <img 
                   src={liveFooterArtwork.backgroundImage} 
                   alt="Footer Background" 
-                  className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
+                  onLoad={e => {
+                    const { naturalWidth, naturalHeight } = e.currentTarget;
+                    if (naturalWidth && naturalHeight) setFooterImageAspectRatio(naturalWidth / naturalHeight);
+                  }}
+                  className="absolute inset-0 w-full h-full object-contain object-center select-none pointer-events-none"
                 />
               ) : (
                 <div className="absolute inset-0 w-full h-full pointer-events-none select-none text-brand-primary">
@@ -1688,7 +1743,7 @@ const HomePage = () => {
               
               {/* End text */}
               <div className="relative z-10 flex flex-col items-center">
-                 <h3 className="text-brand-primary/40 text-[42px] font-black italic tracking-tighter mb-2 drop-shadow-md leading-none select-none">
+                 <h3 className="text-brand-primary/40 text-[clamp(30px,10vw,42px)] sm:text-[42px] font-black italic tracking-tighter mb-2 drop-shadow-md leading-none select-none">
                    {liveFooterArtwork?.hashtagText || '#ApniSamaj'}
                  </h3>
                  <div className="bg-white/85 backdrop-blur-xl px-6 py-2.5 rounded-2xl border border-purple-200/40 shadow-sm flex flex-col items-center text-center">
@@ -1711,6 +1766,68 @@ const HomePage = () => {
             <ImagePlus size={23} />
           </button>
         </>
+      )}
+
+      {adminBroadcastPopup && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 sm:p-6" role="presentation">
+          <button
+            type="button"
+            aria-label="Dismiss announcement"
+            onClick={() => closeAdminBroadcastPopup(false)}
+            className="absolute inset-0 cursor-default"
+          />
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-broadcast-title"
+            className="relative z-10 w-full max-w-md max-h-[88dvh] overflow-y-auto rounded-[28px] bg-white shadow-[0_28px_90px_rgba(15,23,42,0.35)] animate-in fade-in zoom-in-95 duration-200"
+          >
+            <button
+              type="button"
+              aria-label="Close announcement"
+              onClick={() => closeAdminBroadcastPopup(false)}
+              className="absolute right-3 top-3 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-slate-500 shadow-sm hover:bg-slate-100 hover:text-slate-900"
+            >
+              <X size={18} />
+            </button>
+            {adminBroadcastPopup.imageUrl ? (
+              <img src={adminBroadcastPopup.imageUrl} alt="Announcement" className="h-44 sm:h-52 w-full object-cover" />
+            ) : (
+              <div className="flex h-36 items-center justify-center bg-gradient-to-br from-violet-700 via-purple-600 to-fuchsia-500">
+                <div className="flex h-20 w-20 items-center justify-center rounded-full border-4 border-white/35 bg-white/15 text-white shadow-lg backdrop-blur-sm">
+                  <Megaphone size={34} />
+                </div>
+              </div>
+            )}
+            <div className="px-6 pb-6 pt-5 text-center sm:px-8 sm:pb-8">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-violet-700">
+                <Megaphone size={12} /> Admin announcement
+              </span>
+              <h2 id="admin-broadcast-title" className="mt-3 text-xl font-black leading-tight text-slate-900 sm:text-2xl">
+                {adminBroadcastPopup.title || 'Community Announcement'}
+              </h2>
+              <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-600 sm:text-base">
+                {adminBroadcastPopup.message}
+              </p>
+              <div className="mt-7 space-y-3">
+                <button
+                  type="button"
+                  onClick={() => closeAdminBroadcastPopup(true)}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-700 to-purple-600 px-5 py-4 text-sm font-black tracking-wide text-white shadow-lg shadow-violet-500/25 transition hover:brightness-105 active:scale-[0.99]"
+                >
+                  View notification <ArrowRight size={17} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => closeAdminBroadcastPopup(false)}
+                  className="w-full rounded-xl py-2 text-sm font-bold text-rose-700 hover:bg-rose-50"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
       )}
 
     </div>
