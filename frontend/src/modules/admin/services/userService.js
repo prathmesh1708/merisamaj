@@ -18,8 +18,22 @@ export const userService = {
     if (filters.city && filters.city !== 'All') params.set('city', filters.city);
     if (filters.headStatus && filters.headStatus !== 'all') params.set('headStatus', filters.headStatus);
 
+    // Text / dropdown filters — sent only when set
+    ['communityName', 'subCommunity', 'state', 'district', 'location', 'verifiedBy',
+     'customerId', 'name', 'gender', 'hasPhoto', 'dateFrom', 'dateTo'].forEach(key => {
+      const v = filters[key];
+      if (v && v !== 'all' && v !== 'All') params.set(key, v);
+    });
+    if (filters.all) params.set('all', 'true');
+
     const res = await axiosPrivate.get(`${API}?${params.toString()}`);
     return res.data; // { status, data, pagination }
+  },
+
+  // ─── Dropdown values for filters ────────────────────────────────────────────
+  getFilterOptions: async () => {
+    const res = await axiosPrivate.get(`${API}/filter-options`);
+    return res.data.data;
   },
 
   // ─── Dashboard stats ────────────────────────────────────────────────────────

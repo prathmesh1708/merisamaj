@@ -14,6 +14,37 @@ const { ensureBlurredPhotos } = require('../../services/matrimonialPhotoBlur');
 const { notifyProfileViewed, createNotification } = require('../../services/notificationService');
 const { getEffectiveFeatures } = require('../../middleware/subscriptionMiddleware');
 const { inheritTenantPayload } = require('../../utils/queryScopeHelper');
+const { presentProfiles } = require('../../services/matrimonialPresentProfiles');
+
+// ─── "X viewed your profile" push, with the visitor's photo ───────────────────
+// Owners whose plan includes visitor history see who it was (name + photo, both as
+// the visitor's privacy settings allow — a private photo arrives blurred). Others
+// get a "someone viewed" nudge without the visitor's details.
+const notifyOwnerOfVisit = async (ownerUserId, viewerId) => {
+  const { features } = await getEffectiveFeatures(ownerUserId);
+  if (!features?.visitorHistory) return notifyProfileViewed(ownerUserId, null);
+
+  const viewerProfile = await MatrimonialProfile.findOne({ userId: viewerId, isDeleted: false })
+    .lean({ virtuals: true });
+
+  let name = null;
+  let photo = null;
+  if (viewerProfile) {
+    name = visibleNameOf(viewerProfile);
+    const shown = (await presentProfiles(ownerUserId, [viewerProfile])).get(String(viewerProfile._id));
+    const photos = shown?.photos || [];
+    photo = (photos.find(p => p.isPrimary) || photos[0])?.url || null;
+  } else {
+    // Visitor has no matrimonial profile — fall back to their community account
+    const viewer = await User.findById(viewerId).select('name avatar').lean();
+    name = viewer?.name || null;
+    photo = viewer?.avatar || null;
+  }
+  // Push images must be a public https URL (base64 avatars can't be sent)
+  if (photo && !/^https:\/\//i.test(photo)) photo = null;
+
+  return notifyProfileViewed(ownerUserId, name || 'A member', photo);
+};
 
 // ─── Completion Calculator ────────────────────────────────────────────────────
 const SECTION_REQUIRED_FIELDS = {
@@ -255,22 +286,24 @@ exports.getUserProfile = async (req, res) => {
 
     // ─── Record Visit (Premium feature) ────────────────────────────────────
     if (!profileOwnerUserId.equals(viewerId)) {
-      await ProfileVisitor.findOneAndUpdate(
+      // new:false → the visit as it was before this one, to tell a first visit today from a repeat
+      const prevVisit = await ProfileVisitor.findOneAndUpdate(
         { visitorId: viewerId, profileId: profile._id },
         { $inc: { visitCount: 1 }, $set: { lastVisited: new Date() } },
-        { upsert: true, new: true }
+        { upsert: true, new: false }
       );
       // Update profile view counters
       await MatrimonialProfile.findByIdAndUpdate(profile._id, {
         $inc: { totalProfileViews: 1, monthlyProfileViews: 1, weeklyProfileViews: 1 }
       });
-      // Notify profile owner if they have Premium
-      const ownerFeatures = await getEffectiveFeatures(profileOwnerUserId);
-      if (ownerFeatures.features.visitorHistory) {
-        // The viewer's name only if their own privacy rules let the owner see it
-        const viewerProfile = await MatrimonialProfile.findOne({ userId: viewerId, isDeleted: false })
-          .select('personal.fullName visibilitySettings').lean();
-        notifyProfileViewed(profileOwnerUserId, visibleNameOf(viewerProfile) || 'A member');
+
+      // Notify the owner once per visitor per day (re-opening the profile doesn't re-notify).
+      // Runs in the background so the viewer's page load isn't slowed by it.
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      if (!prevVisit || prevVisit.lastVisited < todayStart) {
+        notifyOwnerOfVisit(profileOwnerUserId, viewerId)
+          .catch(err => console.error('[ProfileVisit] notify failed:', err.message));
       }
     }
 

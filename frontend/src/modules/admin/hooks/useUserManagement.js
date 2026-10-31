@@ -1,6 +1,27 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { userService } from '../services/userService';
 
+export const DEFAULT_USER_FILTERS = {
+  search: '',
+  status: 'All',
+  verificationStatus: 'All',
+  communityId: 'all',
+  city: 'All',
+  headStatus: 'all',
+  communityName: 'all',
+  subCommunity: '',
+  state: 'all',
+  district: '',
+  location: '',
+  verifiedBy: '',
+  customerId: '',
+  name: '',
+  gender: 'all',
+  hasPhoto: 'all',
+  dateFrom: '',
+  dateTo: '',
+};
+
 export const useUserManagement = () => {
   const [users, setUsers] = useState([]);
   const [stats, setStats] = useState(null);
@@ -13,13 +34,7 @@ export const useUserManagement = () => {
   const [pagination, setPagination] = useState(null);
 
   // Filters
-  const [filters, setFilters] = useState({
-    search: '',
-    status: 'All',
-    verificationStatus: 'All',
-    communityId: 'all',
-    city: 'All',
-  });
+  const [filters, setFilters] = useState(DEFAULT_USER_FILTERS);
 
   // Debounce search to avoid rapid API calls
   const searchTimer = useRef(null);
@@ -176,5 +191,7 @@ export const useUserManagement = () => {
     handleUpdateUser,
     refreshData: fetchUsers,
     refreshStats: fetchStats,
+    // All rows matching the current filters (no pagination) — used by Export
+    fetchAllFiltered: async () => (await userService.getUsers({ ...debouncedFilters, all: true }, 1)).data || [],
   };
 };

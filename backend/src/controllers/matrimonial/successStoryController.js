@@ -1,10 +1,31 @@
 const SuccessStory = require('../../models/SuccessStory');
 const MatrimonialProfile = require('../../models/MatrimonialProfile');
+const Community = require('../../models/Community');
+
+// Stories this member may see: ones shown to all communities, plus ones the admin
+// limited to the member's community. Matched by community name as well, since the
+// same samaj can exist as a separate community record in each city.
+const visibilityFilter = async (user) => {
+  const anyCommunity = { visibleToAllCommunities: { $ne: false } };
+  let name = user?.community || '';
+  if (user?.communityId) {
+    const own = await Community.findById(user.communityId).select('name').lean();
+    if (own?.name) name = own.name;
+  }
+  const ids = user?.communityId ? [user.communityId] : [];
+  if (name) {
+    const escaped = name.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const sameName = await Community.find({ name: new RegExp(`^${escaped}$`, 'i') }).select('_id').lean();
+    ids.push(...sameName.map(c => c._id));
+  }
+  if (!ids.length) return anyCommunity;
+  return { $or: [anyCommunity, { visibleCommunityIds: { $in: ids } }] };
+};
 
 // ─── Get Published Stories ─────────────────────────────────────────────────
 exports.getPublishedStories = async (req, res) => {
   try {
-    const stories = await SuccessStory.find({ status: 'published' })
+    const stories = await SuccessStory.find({ status: 'published', ...(await visibilityFilter(req.user)) })
       .populate('groomId', 'name avatar')
       .populate('brideId', 'name avatar')
       .populate('communityId', 'name')
@@ -22,7 +43,7 @@ exports.getPublishedStories = async (req, res) => {
 // ─── Get Single Story ──────────────────────────────────────────────────────
 exports.getStoryDetails = async (req, res) => {
   try {
-    const story = await SuccessStory.findOne({ _id: req.params.id, status: 'published' })
+    const story = await SuccessStory.findOne({ _id: req.params.id, status: 'published', ...(await visibilityFilter(req.user)) })
       .populate('groomId', 'name avatar')
       .populate('brideId', 'name avatar')
       .populate('communityId', 'name');

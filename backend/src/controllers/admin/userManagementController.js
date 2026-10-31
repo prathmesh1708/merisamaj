@@ -24,9 +24,14 @@ const formatUser = (user) => {
   const headPhone = comm?.headId?.phone || null;
 
   const headStatus = !comm ? 'no_community' : (hasHead ? 'assigned' : 'unassigned');
+  const reviewer = user.membershipReview?.by;
 
   return {
     id: user._id,
+    customerId: String(user._id).slice(-8).toUpperCase(),
+    verifiedByName: reviewer?.name || null,
+    verifiedAt: user.membershipReview?.at || null,
+    pincode: user.pincode || null,
     name: user.name || 'N/A',
     email: user.email || null,
     phone: user.phone || 'N/A',
@@ -70,26 +75,77 @@ exports.getUsers = async (req, res) => {
       communityId = '',
       city = '',
       headStatus = '',
+      communityName = '',
+      subCommunity = '',
+      state = '',
+      district = '',
+      location = '',
+      verifiedBy = '',
+      customerId = '',
+      name = '',
+      gender = '',
+      hasPhoto = '',
+      dateFrom = '',
+      dateTo = '',
+      all = '',
       sortBy = 'createdAt',
       sortOrder = 'desc',
     } = req.query;
 
     const pageNum = Math.max(1, parseInt(page));
-    const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
+    // all=true is used by Export to get every matching row in one go
+    const limitNum = all === 'true' ? Number.MAX_SAFE_INTEGER : Math.min(100, Math.max(1, parseInt(limit)));
 
     // Build query — only regular users (not admin/head)
     const query = { role: { $in: ['user', 'member'] } };
+    const and = [];
+
+    const escapeRegex = (str) => (str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const rx = (str) => new RegExp(escapeRegex(String(str).trim()), 'i');
+    // Customer ID shown in UI = last 8 hex chars of _id, so match on the stringified _id
+    const idMatch = (str) => ({
+      $expr: { $regexMatch: { input: { $toString: '$_id' }, regex: escapeRegex(String(str).trim()), options: 'i' } },
+    });
+    const isHexLike = (str) => /^[0-9a-f]{4,24}$/i.test(String(str).trim());
 
     // Search
     if (search && search.trim()) {
-      const escapeRegex = (str) => (str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const searchRegex = new RegExp(escapeRegex(search.trim()), 'i');
-      query.$or = [
+      const searchRegex = rx(search);
+      const or = [
         { name: searchRegex },
         { email: searchRegex },
         { phone: searchRegex },
       ];
+      if (isHexLike(search)) or.push(idMatch(search));
+      and.push({ $or: or });
     }
+
+    if (customerId && customerId.trim()) and.push(idMatch(customerId));
+    if (name && name.trim()) query.name = rx(name);
+    if (subCommunity && subCommunity.trim()) query.subCommunity = rx(subCommunity);
+    if (state && state.trim()) query.state = rx(state);
+    if (district && district.trim()) query.district = rx(district);
+    if (gender && gender !== 'all') query.gender = new RegExp(`^${escapeRegex(gender)}$`, 'i');
+
+    if (location && location.trim()) {
+      const locRx = rx(location);
+      and.push({ $or: [{ city: locRx }, { district: locRx }, { state: locRx }, { pincode: locRx }, { pincodeAddress: locRx }] });
+    }
+
+    if (hasPhoto === 'yes') query.avatar = { $exists: true, $nin: [null, ''] };
+    else if (hasPhoto === 'no') and.push({ $or: [{ avatar: { $exists: false } }, { avatar: null }, { avatar: '' }] });
+
+    if (dateFrom || dateTo) {
+      query.createdAt = {};
+      if (dateFrom) query.createdAt.$gte = new Date(dateFrom);
+      if (dateTo) {
+        const end = new Date(dateTo);
+        end.setHours(23, 59, 59, 999);
+        query.createdAt.$lte = end;
+      }
+    }
+
+    if (and.length) query.$and = and;
 
     // Status filter
     if (status && status !== 'all') {
@@ -121,10 +177,9 @@ exports.getUsers = async (req, res) => {
         select: 'name _id headId city cityIds',
         populate: { path: 'headId', select: 'name phone email' }
       })
+      .populate({ path: 'membershipReview.by', select: 'name' })
       .sort(sortObj)
       .lean();
-
-    let totalCount = users.length;
 
     // In-memory filter for headStatus if requested
     if (headStatus && headStatus !== 'all') {
@@ -133,9 +188,21 @@ exports.getUsers = async (req, res) => {
       } else if (headStatus === 'assigned') {
         users = users.filter(u => u.communityId && u.communityId.headId);
       }
-      totalCount = users.length;
     }
 
+    // Community name lives on the populated Community (or legacy string field)
+    if (communityName && communityName !== 'all') {
+      const target = communityName.trim().toLowerCase();
+      users = users.filter(u => (u.communityId?.name || u.community || '').trim().toLowerCase() === target);
+    }
+
+    // Head name: whoever approved the membership, or the community's current head
+    if (verifiedBy && verifiedBy.trim()) {
+      const vRx = rx(verifiedBy);
+      users = users.filter(u => vRx.test(u.membershipReview?.by?.name || '') || vRx.test(u.communityId?.headId?.name || ''));
+    }
+
+    const totalCount = users.length;
     const paginatedUsers = users.slice((pageNum - 1) * limitNum, pageNum * limitNum);
 
     res.status(200).json({
@@ -153,6 +220,38 @@ exports.getUsers = async (req, res) => {
   } catch (error) {
     console.error('Get Users Error:', error);
     res.status(500).json({ status: 'error', message: 'Failed to fetch users' });
+  }
+};
+
+// @desc    Distinct values for the admin users filter dropdowns
+// @route   GET /api/v1/admin/users/filter-options
+// @access  Admin
+exports.getUserFilterOptions = async (req, res) => {
+  try {
+    const roleQuery = { role: { $in: ['user', 'member'] } };
+    const clean = (arr) => [...new Set(arr.filter(Boolean).map(v => String(v).trim()).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b));
+
+    const [communityNames, legacyCommunities, subCommunities, states, heads] = await Promise.all([
+      Community.distinct('name'),
+      User.distinct('community', roleQuery),
+      User.distinct('subCommunity', roleQuery),
+      User.distinct('state', roleQuery),
+      User.find({ role: { $in: ['head', 'sub_head'] } }).select('name').lean(),
+    ]);
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        communities: clean([...communityNames, ...legacyCommunities]),
+        subCommunities: clean(subCommunities),
+        states: clean(states),
+        heads: clean(heads.map(h => h.name)),
+      },
+    });
+  } catch (error) {
+    console.error('Get User Filter Options Error:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to fetch filter options' });
   }
 };
 

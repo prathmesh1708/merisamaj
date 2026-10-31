@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Search, X, SlidersHorizontal, Loader2,
   Heart, BookmarkCheck, Bookmark, ShieldCheck, Crown,
-  MapPin, Briefcase, ChevronDown, Check
+  MapPin, Briefcase, ChevronDown, Check, Lock
 } from 'lucide-react';
 import { useMatrimonial } from './MatrimonialContext';
 import { matrimonialProfileService, matrimonialInterestService } from '../../../../core/api/matrimonialService';
@@ -102,6 +102,7 @@ const ProfileCard = ({ profile, onInterest, onShortlist, isShortlisted, interest
 const MatrimonialSearchPage = () => {
   const navigate  = useNavigate();
   const matriCtx  = useMatrimonial();
+  const advancedLocked = !!matriCtx?.isLocked?.('advancedFilters');
 
   const [profiles, setProfiles]     = useState([]);
   const [loading, setLoading]       = useState(false);
@@ -269,13 +270,17 @@ const MatrimonialSearchPage = () => {
                   { v: 'all', l: '🌐 All Members' },
                   { v: 'my', l: '🤝 My Samaj' },
                   { v: 'other', l: '🌍 Other Samaj' }
-                ].map(cs => (
-                  <button key={cs.v} type="button"
-                    onClick={() => setFilters(f => ({ ...f, communityScope: cs.v }))}
-                    className={`flex-1 py-2 rounded-xl text-[11px] font-bold border transition-all ${filters.communityScope === cs.v ? 'bg-rose-500 border-rose-500 text-white' : 'bg-white border-slate-200 text-slate-600'}`}>
-                    {cs.l}
-                  </button>
-                ))}
+                ].map(cs => {
+                  // Other communities' profiles need a plan with cross-community access
+                  const locked = cs.v === 'other' && matriCtx?.isLocked?.('crossCommunityVisibility');
+                  return (
+                    <button key={cs.v} type="button"
+                      onClick={() => locked ? navigate('/member/matrimonial/subscription') : setFilters(f => ({ ...f, communityScope: cs.v }))}
+                      className={`flex-1 py-2 rounded-xl text-[11px] font-bold border transition-all inline-flex items-center justify-center gap-1 ${filters.communityScope === cs.v ? 'bg-rose-500 border-rose-500 text-white' : 'bg-white border-slate-200 text-slate-600'} ${locked ? 'opacity-70' : ''}`}>
+                      {locked && <Lock size={11} className="text-amber-500" />}{cs.l}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -315,6 +320,7 @@ const MatrimonialSearchPage = () => {
             </div>
 
             {/* Diet */}
+            {!advancedLocked && (
             <div>
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Diet</label>
               <select value={filters.diet} onChange={e => setFilters(f => ({ ...f, diet: e.target.value }))} className={selectCls}>
@@ -322,6 +328,7 @@ const MatrimonialSearchPage = () => {
                 {['Vegetarian', 'Non-Vegetarian', 'Vegan', 'Eggetarian', 'Jain'].map(d => <option key={d} value={d}>{d}</option>)}
               </select>
             </div>
+            )}
 
             {/* Sort */}
             <div className="col-span-2">
@@ -334,7 +341,20 @@ const MatrimonialSearchPage = () => {
               </select>
             </div>
 
+            {/* Advanced filters are a plan feature */}
+            {advancedLocked && (
+              <button type="button" onClick={() => navigate('/member/matrimonial/subscription')}
+                className="col-span-2 flex items-center justify-between gap-3 p-3 rounded-xl border border-amber-200 bg-amber-50 text-left">
+                <span>
+                  <span className="block text-[12.5px] font-bold text-amber-900">Advanced filters</span>
+                  <span className="block text-[11px] font-semibold text-amber-700">Diet, With Photo only, Verified only — upgrade to unlock</span>
+                </span>
+                <Lock size={16} className="text-amber-600 shrink-0" />
+              </button>
+            )}
+
             {/* Toggles */}
+            {!advancedLocked && (<>
             <div className="col-span-2 flex items-center justify-between">
               <span className="text-[12.5px] font-bold text-slate-700">With Photo Only</span>
               <div onClick={() => setFilters(f => ({ ...f, withPhoto: !f.withPhoto }))}
@@ -349,6 +369,7 @@ const MatrimonialSearchPage = () => {
                 <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-transform shadow ${filters.verifiedOnly ? 'translate-x-5.5' : 'translate-x-0.5'}`} />
               </div>
             </div>
+            </>)}
           </div>
 
           <button onClick={handleApplyFilters}

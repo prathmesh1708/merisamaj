@@ -69,7 +69,7 @@ const getEffectiveFeatures = async (userId) => {
       messageLimit:         -1,
       advancedFilters:      false,
       visitorHistory:       false,
-      chat:                 true, // TEMPORARY: Enabled for testing until subscription module is released
+      chat:                 false, // paid feature — unlocked by a plan that includes chat
       profileBoosts:        0,
       highlightProfile:     false,
       priorityListing:      false,

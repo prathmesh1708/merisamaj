@@ -71,7 +71,7 @@ const PUSH_ELIGIBLE_TYPES = new Set([
   // Matrimonial
   'matrimonial_interest_received', 'matrimonial_interest_accepted',
   'matrimonial_marriage_request_received', 'matrimonial_marriage_accepted',
-  'matrimonial_subscription_expired',
+  'matrimonial_subscription_expired', 'matrimonial_profile_viewed',
   // Events
   'event_reminder', 'event_updated', 'event_cancelled',
   // Donations & Funds
@@ -89,7 +89,7 @@ const PUSH_ELIGIBLE_TYPES = new Set([
   // Voting
   'election_created', 'election_results_published',
   // Invitations & Referrals
-  'invitation_received', 'referral_bonus_earned',
+  'invitation_received', 'referral_bonus_earned', 'referral_redemption_update',
   // Account
   'account_security_alert', 'account_status_changed', 'account_blocked', 'account_activated', 'head_assigned',
   // Broadcasts from the Head / Admin panels

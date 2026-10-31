@@ -1,15 +1,103 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Wallet, Building2, Smartphone, Coins, Lock } from 'lucide-react';
+import { ArrowLeft, Building2, Smartphone, Coins, Loader2, CheckCircle2, Clock, XCircle, BadgeCheck, Ban } from 'lucide-react';
 import { useReferral } from './ReferralContext';
+import { memberReferralService } from '../../../../core/api/referralService';
+
+const STATUS_STYLE = {
+  pending:   { label: 'Pending review', cls: 'bg-amber-50 text-amber-700 border-amber-200', Icon: Clock },
+  approved:  { label: 'Approved — payment soon', cls: 'bg-blue-50 text-blue-700 border-blue-200', Icon: BadgeCheck },
+  paid:      { label: 'Paid', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200', Icon: CheckCircle2 },
+  rejected:  { label: 'Rejected', cls: 'bg-rose-50 text-rose-700 border-rose-200', Icon: XCircle },
+  cancelled: { label: 'Cancelled', cls: 'bg-slate-100 text-slate-500 border-slate-200', Icon: Ban },
+};
+
+const inputCls = 'w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-[14px] font-semibold text-slate-800 outline-none focus:border-brand-primary focus:bg-white transition-all';
+
+const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
 
 const RedeemPointsPage = () => {
   const navigate = useNavigate();
-  const { availablePoints } = useReferral();
-  
+  const { refreshReferralData } = useReferral();
+
+  const [info, setInfo] = useState(null);
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState(null); // { type: 'success' | 'error', text }
+
+  const [points, setPoints] = useState('');
   const [method, setMethod] = useState('UPI');
-  const [details, setDetails] = useState('');
-  const [amount, setAmount] = useState('');
+  const [form, setForm] = useState({ accountHolderName: '', upiId: '', bankName: '', accountNumber: '', ifscCode: '' });
+
+  const load = useCallback(async () => {
+    try {
+      const [infoRes, listRes] = await Promise.all([
+        memberReferralService.getRedeemInfo(),
+        memberReferralService.getMyRedemptions()
+      ]);
+      const data = infoRes.data?.data;
+      setInfo(data);
+      setRequests(listRes.data?.data || []);
+      // Pre-fill the payout details used last time
+      const last = data?.lastPayoutDetails || {};
+      setForm(prev => ({
+        accountHolderName: prev.accountHolderName || last.accountHolderName || '',
+        upiId: prev.upiId || last.upiId || '',
+        bankName: prev.bankName || last.bankName || '',
+        accountNumber: prev.accountNumber || last.accountNumber || '',
+        ifscCode: prev.ifscCode || last.ifscCode || ''
+      }));
+      if (last.method) setMethod(last.method);
+    } catch (err) {
+      setMessage({ type: 'error', text: err.response?.data?.message || 'Could not load your points. Please try again.' });
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const balance = info?.pointsBalance || 0;
+  const rate = info?.rupeesPerPoint ?? 1;
+  const minPoints = info?.minRedeemPoints ?? 500;
+  const pointsNum = Math.floor(Number(points) || 0);
+  const amount = Math.round(pointsNum * rate * 100) / 100;
+  const canRequest = info?.redemptionEnabled && !info?.hasOpenRequest && balance >= minPoints;
+
+  const set = (key) => (e) => setForm(prev => ({ ...prev, [key]: e.target.value }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setMessage(null);
+    if (pointsNum < minPoints) return setMessage({ type: 'error', text: `Minimum ${minPoints} points can be redeemed.` });
+    if (pointsNum > balance) return setMessage({ type: 'error', text: 'You do not have enough points.' });
+
+    setSubmitting(true);
+    try {
+      const res = await memberReferralService.createRedemption({ points: pointsNum, method, ...form });
+      setMessage({ type: 'success', text: res.data?.message || 'Request sent!' });
+      setPoints('');
+      await load();
+      refreshReferralData?.();
+    } catch (err) {
+      setMessage({ type: 'error', text: err.response?.data?.message || 'Could not send the request.' });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleCancel = async (id) => {
+    if (!window.confirm('Cancel this request? The points will come back to your balance.')) return;
+    try {
+      const res = await memberReferralService.cancelRedemption(id);
+      setMessage({ type: 'success', text: res.data?.message || 'Request cancelled.' });
+      await load();
+      refreshReferralData?.();
+    } catch (err) {
+      setMessage({ type: 'error', text: err.response?.data?.message || 'Could not cancel.' });
+    }
+  };
 
   return (
     <div className="bg-[#F8F7FC] min-h-screen pb-24 font-sans">
@@ -21,109 +109,171 @@ const RedeemPointsPage = () => {
         <h1 className="text-[17px] font-black text-slate-800 ml-3">Redeem Points</h1>
       </div>
 
-      <div className="p-5 space-y-6 max-w-xl mx-auto">
-        
-        {/* Phase 2 Coming Soon Alert Banner */}
-        <div className="bg-amber-50 border-2 border-amber-200/80 rounded-2xl p-4 flex items-start gap-3 text-amber-900 shadow-sm">
-          <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center shrink-0 mt-0.5">
-            <Lock size={20} className="text-amber-700" />
-          </div>
-          <div>
-            <h4 className="text-[13px] font-black text-amber-900">Cash Payouts & Redemption Opening Soon (Phase 2)</h4>
-            <p className="text-[11px] font-medium text-amber-700 mt-1 leading-snug">
-              Your points are safely being accumulated in real time with every referral event! Cash withdrawals via UPI and Bank transfer will be unlocked in Phase 2.
-            </p>
-          </div>
-        </div>
+      {loading ? (
+        <div className="flex justify-center py-20"><Loader2 className="animate-spin text-brand-primary" size={28} /></div>
+      ) : (
+        <div className="p-5 space-y-5 max-w-xl mx-auto">
 
-        {/* Available Points Card */}
-        <div className="relative rounded-[24px] overflow-hidden shadow-[0_8px_24px_rgba(16,185,129,0.15)] bg-gradient-to-br from-[#065F46] via-[#047857] to-[#059669]">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 blur-2xl rounded-full translate-x-1/2 -translate-y-1/2" />
-          
-          <div className="relative z-10 p-6">
-            <div className="flex items-center gap-2 mb-2">
-              <Coins size={16} className="text-emerald-200" />
-              <p className="text-emerald-100 text-[12px] font-bold uppercase tracking-wider">Available Points Balance</p>
-            </div>
-            
-            <div className="flex flex-col">
-              <h2 className="text-white text-4xl font-black leading-none">{availablePoints.toLocaleString()}</h2>
-              <div className="mt-4 pt-4 border-t border-emerald-500/30 flex justify-between items-center">
-                <span className="text-emerald-200/80 text-[12px] font-semibold uppercase tracking-wider">Equivalent Cash Value</span>
-                <span className="text-white text-xl font-black">₹{availablePoints.toLocaleString()}.00</span>
+          {/* Balance */}
+          <div className="relative rounded-[24px] overflow-hidden shadow-[0_8px_24px_rgba(16,185,129,0.15)] bg-gradient-to-br from-[#065F46] via-[#047857] to-[#059669]">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 blur-2xl rounded-full translate-x-1/2 -translate-y-1/2" />
+            <div className="relative z-10 p-6">
+              <div className="flex items-center gap-2 mb-2">
+                <Coins size={16} className="text-emerald-200" />
+                <p className="text-emerald-100 text-[12px] font-bold uppercase tracking-wider">Available Points</p>
               </div>
+              <h2 className="text-white text-4xl font-black leading-none">{balance.toLocaleString('en-IN')}</h2>
+              <div className="mt-4 pt-4 border-t border-emerald-500/30 flex justify-between items-center">
+                <span className="text-emerald-200/80 text-[12px] font-semibold uppercase tracking-wider">Cash value</span>
+                <span className="text-white text-xl font-black">₹{(Math.round(balance * rate * 100) / 100).toLocaleString('en-IN')}</span>
+              </div>
+              <p className="text-emerald-100/80 text-[11px] font-semibold mt-2">
+                1 point = ₹{rate} · Minimum {minPoints.toLocaleString('en-IN')} points · Paid out so far: {(info?.pointsRedeemed || 0).toLocaleString('en-IN')} pts
+              </p>
             </div>
+          </div>
+
+          {message && (
+            <div className={`rounded-2xl px-4 py-3 text-[13px] font-semibold border ${
+              message.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'
+            }`}>
+              {message.text}
+            </div>
+          )}
+
+          {/* Why the form is unavailable */}
+          {!info?.redemptionEnabled ? (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-[13px] font-semibold text-amber-800">
+              Redemption is paused by the admin right now. Your points are safe — please check back later.
+            </div>
+          ) : info?.hasOpenRequest ? (
+            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-[13px] font-semibold text-blue-800">
+              Your redemption request is being processed. You can send a new one after it's completed.
+            </div>
+          ) : balance < minPoints ? (
+            <div className="bg-slate-100 border border-slate-200 rounded-2xl p-4 text-[13px] font-semibold text-slate-600">
+              You need at least {minPoints.toLocaleString('en-IN')} points to redeem. Earn {(minPoints - balance).toLocaleString('en-IN')} more by inviting members with your referral code!
+            </div>
+          ) : null}
+
+          {/* Request form */}
+          {canRequest && (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="bg-white rounded-[24px] p-5 shadow-sm border border-gray-100/50">
+                <label className="text-[12px] font-bold text-gray-400 uppercase tracking-wider block mb-3">Points to Redeem</label>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={minPoints}
+                  max={balance}
+                  required
+                  placeholder={`Min ${minPoints}, max ${balance}`}
+                  value={points}
+                  onChange={(e) => setPoints(e.target.value)}
+                  className={inputCls}
+                />
+                <div className="flex items-center justify-between mt-2">
+                  <button type="button" onClick={() => setPoints(String(balance))} className="text-[12px] font-bold text-brand-primary">
+                    Use all {balance.toLocaleString('en-IN')} points
+                  </button>
+                  {pointsNum > 0 && <span className="text-[13px] font-black text-emerald-700">You get ₹{amount.toLocaleString('en-IN')}</span>}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-[24px] p-5 shadow-sm border border-gray-100/50 space-y-3">
+                <label className="text-[12px] font-bold text-gray-400 uppercase tracking-wider block">Receive payment by</label>
+                <div className="grid grid-cols-2 gap-2.5">
+                  {[
+                    { id: 'UPI', icon: Smartphone, label: 'UPI' },
+                    { id: 'BANK', icon: Building2, label: 'Bank Transfer' }
+                  ].map(opt => {
+                    const Icon = opt.icon;
+                    const active = method === opt.id;
+                    return (
+                      <button
+                        type="button"
+                        key={opt.id}
+                        onClick={() => setMethod(opt.id)}
+                        className={`flex items-center gap-2 p-3.5 rounded-xl border-2 text-[14px] font-bold transition-all ${
+                          active ? 'border-brand-primary bg-brand-primary/5 text-brand-primary' : 'border-slate-100 text-slate-600'
+                        }`}
+                      >
+                        <Icon size={16} /> {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <input required placeholder="Account holder name" value={form.accountHolderName} onChange={set('accountHolderName')} className={inputCls} />
+                {method === 'UPI' ? (
+                  <input required placeholder="UPI ID (e.g. name@okaxis)" value={form.upiId} onChange={set('upiId')} className={inputCls} autoCapitalize="none" />
+                ) : (
+                  <>
+                    <input placeholder="Bank name" value={form.bankName} onChange={set('bankName')} className={inputCls} />
+                    <input required inputMode="numeric" placeholder="Account number" value={form.accountNumber} onChange={set('accountNumber')} className={inputCls} />
+                    <input required placeholder="IFSC code (e.g. SBIN0001234)" value={form.ifscCode} onChange={e => setForm(prev => ({ ...prev, ifscCode: e.target.value.toUpperCase() }))} className={`${inputCls} uppercase`} />
+                  </>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full py-4 bg-brand-primary text-white rounded-2xl text-[14px] font-bold flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-all disabled:opacity-60"
+              >
+                {submitting ? <Loader2 size={16} className="animate-spin" /> : <Coins size={16} />}
+                {submitting ? 'Sending…' : `Request ₹${amount.toLocaleString('en-IN')} payout`}
+              </button>
+              <p className="text-[11px] text-slate-400 text-center">
+                The points are held now. The admin verifies your request and sends the money; if it's rejected, the points come back.
+              </p>
+            </form>
+          )}
+
+          {/* My requests */}
+          <div className="bg-white rounded-[24px] p-5 shadow-sm border border-gray-100/50">
+            <h3 className="text-[14px] font-black text-slate-800 mb-3">My Redemption Requests</h3>
+            {requests.length === 0 ? (
+              <p className="text-[12px] text-slate-400 py-4 text-center">No requests yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {requests.map(r => {
+                  const st = STATUS_STYLE[r.status] || STATUS_STYLE.pending;
+                  const StIcon = st.Icon;
+                  return (
+                    <div key={r._id} className="border border-slate-100 rounded-2xl p-3.5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-[15px] font-black text-slate-800">₹{Number(r.amount).toLocaleString('en-IN')}</p>
+                          <p className="text-[11px] text-slate-400 font-semibold mt-0.5">
+                            {r.points.toLocaleString('en-IN')} pts · {r.method === 'UPI' ? r.upiId : `A/c ••••${String(r.accountNumber).slice(-4)}`} · {fmtDate(r.createdAt)}
+                          </p>
+                        </div>
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-[10.5px] font-bold whitespace-nowrap ${st.cls}`}>
+                          <StIcon size={12} /> {st.label}
+                        </span>
+                      </div>
+                      {r.status === 'paid' && (
+                        <p className="text-[11.5px] text-emerald-700 font-semibold mt-2">
+                          Paid on {fmtDate(r.paidAt)}{r.transactionRef ? ` · Ref: ${r.transactionRef}` : ''}
+                        </p>
+                      )}
+                      {r.status === 'rejected' && r.rejectionReason && (
+                        <p className="text-[11.5px] text-rose-600 font-semibold mt-2">Reason: {r.rejectionReason}</p>
+                      )}
+                      {r.status === 'pending' && (
+                        <button onClick={() => handleCancel(r._id)} className="text-[12px] font-bold text-rose-500 mt-2">
+                          Cancel request
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
-
-        {/* Disabled Form Preview */}
-        <form onSubmit={(e) => e.preventDefault()} className="space-y-6 opacity-75">
-          
-          <div className="bg-white rounded-[24px] p-5 shadow-sm border border-gray-100/50">
-            <label className="text-[12px] font-bold text-gray-400 uppercase tracking-wider block mb-3">Points to Redeem</label>
-            <div className="relative">
-              <Coins size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-primary" />
-              <input
-                type="number"
-                disabled
-                placeholder="Enter points (Min 500)"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className="w-full bg-slate-100 border border-slate-200 rounded-xl py-3.5 pl-11 pr-4 text-[15px] font-bold text-slate-500 outline-none cursor-not-allowed"
-              />
-            </div>
-          </div>
-
-          <div className="bg-white rounded-[24px] p-5 shadow-sm border border-gray-100/50">
-            <label className="text-[12px] font-bold text-gray-400 uppercase tracking-wider block mb-3">Withdrawal Method</label>
-            <div className="space-y-2.5">
-              {[
-                { id: 'UPI', icon: Smartphone, label: 'UPI Transfer' },
-                { id: 'Bank Transfer', icon: Building2, label: 'Bank Transfer' },
-                { id: 'Wallet', icon: Wallet, label: 'Wallet Balance' }
-              ].map(opt => {
-                const Icon = opt.icon;
-                const isSelected = method === opt.id;
-                return (
-                  <label key={opt.id} className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all cursor-not-allowed ${
-                    isSelected ? 'border-brand-primary bg-brand-primary/5' : 'border-slate-100 bg-white'
-                  }`}>
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isSelected ? 'bg-brand-primary text-white' : 'bg-slate-100 text-slate-500'}`}>
-                        <Icon size={16} />
-                      </div>
-                      <span className={`text-[14px] font-bold ${isSelected ? 'text-brand-primary' : 'text-slate-700'}`}>{opt.label}</span>
-                    </div>
-                    <input type="radio" disabled className="hidden" name="method" value={opt.id} checked={isSelected} onChange={() => setMethod(opt.id)} />
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="bg-white rounded-[24px] p-5 shadow-sm border border-gray-100/50">
-            <label className="text-[12px] font-bold text-gray-400 uppercase tracking-wider block mb-3">
-              Payment Details
-            </label>
-            <input
-              type="text"
-              disabled
-              placeholder="e.g. yourname@upi or Account Number"
-              value={details}
-              onChange={(e) => setDetails(e.target.value)}
-              className="w-full bg-slate-100 border border-slate-200 rounded-xl py-3.5 px-4 text-[14px] font-bold text-slate-500 outline-none cursor-not-allowed"
-            />
-          </div>
-
-          <button 
-            type="button"
-            disabled
-            className="w-full py-4 bg-slate-300 text-slate-600 rounded-2xl text-[14px] font-bold flex items-center justify-center gap-2 cursor-not-allowed shadow-none"
-          >
-            <Lock size={16} /> Coming Soon (Phase 2)
-          </button>
-        </form>
-      </div>
+      )}
     </div>
   );
 };

@@ -32,6 +32,7 @@ router.post('/marriage/request',          marriageCtrl.sendMarriageRequest);
 router.post('/marriage/respond/:id',      marriageCtrl.respondToMarriageRequest);
 router.get('/marriage/requests',          marriageCtrl.getMyMarriageRequests);
 router.get('/marriage/status',            marriageCtrl.getMarriageStatus);
+router.post('/marriage/reopen',           marriageCtrl.reopenMyProfile);   // marriage ended → back to matchmaking
 
 // ─── Success Stories ────────────────────────────────────────────────────────
 router.get('/success-stories',              successStoryCtrl.getPublishedStories);

@@ -55,6 +55,7 @@ const createNotification = async (params) => {
         tag:            params.push?.tag,
         ackConversationId: params.push?.ackConversationId,
         icon:           notification.icon,
+        image:          params.image,
         actionUrl:      params.actionUrl || '/member/notifications'
       });
     }
@@ -381,16 +382,21 @@ const notifyNewMessage = (receiverId, senderName, conversationId, module = 'matr
     referenceType: 'Conversation'
   });
 
-const notifyProfileViewed = (profileOwnerId, viewerName) =>
+// viewerName/viewerPhoto are null when the owner's plan doesn't show visitors —
+// they still get a "someone viewed" nudge, just without who it was.
+const notifyProfileViewed = (profileOwnerId, viewerName, viewerPhoto = null) =>
   createNotification({
     userId:   profileOwnerId,
     module:   'matrimonial',
     type:     'matrimonial_profile_viewed',
-    title:    'Someone Viewed Your Profile 👀',
-    message:  `${viewerName} viewed your matrimonial profile.`,
+    title:    viewerName ? `${viewerName} viewed your profile 👀` : 'Someone Viewed Your Profile 👀',
+    message:  viewerName
+      ? `${viewerName} visited your matrimonial profile. Tap to see who's interested.`
+      : 'Someone visited your matrimonial profile. Upgrade your plan to see who.',
     icon:     '👀',
+    image:    viewerPhoto,
     priority: 'low',
-    actionUrl:'/member/matrimonial/profile'
+    actionUrl: viewerName ? '/member/matrimonial?view=visits' : '/member/matrimonial/subscription'
   });
 
 // ─── Group & Community Chat Notification Helpers ──────────────────────────────

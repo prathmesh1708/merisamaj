@@ -45,9 +45,22 @@ const successStorySchema = new mongoose.Schema(
     weddingDate: {
       type: Date
     },
+    // The couple's own community (shown on the story)
     communityId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Community',
+      index: true
+    },
+    // Who sees the story: every community, or only the ones listed. Each community
+    // has its own wedding customs, so admins can keep a story to its own samaj.
+    // Default true keeps stories made before this setting visible everywhere.
+    visibleToAllCommunities: {
+      type: Boolean,
+      default: true
+    },
+    visibleCommunityIds: {
+      type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Community' }],
+      default: [],
       index: true
     },
     featured: {

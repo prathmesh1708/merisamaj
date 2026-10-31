@@ -1,17 +1,19 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { InterestProfileCard } from './components/InterestProfileCard';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Search, Heart, Bell, SlidersHorizontal, X, Star, Crown, ChevronRight,
   ChevronLeft, Home, Mail, MessageCircle, Sparkles, ShieldCheck, MapPin,
   Briefcase, GraduationCap, Clock, Check, CheckCheck, Bookmark, BookmarkCheck,
-  Play, Pencil, User, Image, Lock, ShieldAlert, EyeOff, ArrowLeft, Plus,
+  Play, Pencil, User, Image, Lock, ShieldAlert, Eye, EyeOff, ArrowLeft, Plus,
   Phone, MailCheck, ShieldCheck as VerifiedIcon, Sparkles as SpotlightIcon,
   PhoneCall, Users, SwitchCamera, Settings, ChevronDown, BadgeCheck
 } from 'lucide-react';
 import { useData } from '../../context/DataProvider';
 import { useMatrimonial } from './MatrimonialContext';
-import { matrimonialChatService, matrimonialProfileService } from '../../../../core/api/matrimonialService';
+import { matrimonialChatService, matrimonialProfileService, matrimonialMarriageService } from '../../../../core/api/matrimonialService';
+import ReopenProfileSheet from './components/ReopenProfileSheet';
+import PlanLockScreen from './components/PlanLockScreen';
 import { MatrimonialVisibilityManager } from './components/MatrimonialVisibilityManager';
 import InterestsPage from './InterestsPage';
 
@@ -33,12 +35,12 @@ const MatrimonialHomePage = () => {
   const { currentUser, updateProfile, markModuleAsVisited } = useData();
   const {
     dashboard, dashboardLoading, fetchDashboard,
-    myProfile,
+    myProfile, fetchMyProfile, isLocked,
     receivedInterests, sentInterests, acceptedInterests, interestsLoading,
     fetchInterests,
     sendInterest, acceptInterest: acceptInterestAPI, rejectInterest: rejectInterestAPI,
     cancelInterest: cancelInterestAPI,
-    visitors, visitorsTotal, visitorsLocked, visited,
+    visitors, visitorsTotal, visitorsLocked, visited, fetchVisitors,
     toggleShortlist, isShortlisted, searchFilters, setSearchFilters,
     shortlistedIds = []
   } = useMatrimonial();
@@ -259,6 +261,18 @@ const MatrimonialHomePage = () => {
   // Sub-navigation view inside activity hub
   const [currentSubView, setCurrentSubView] = useState(null); // null (default bottom nav matches/activity) | 'visits' | 'shortlisted' | 'contacts' | 'interests'
   const [visitsTab, setVisitsTab] = useState('visitors'); // 'visitors' | 'visited'
+  const [showReopenSheet, setShowReopenSheet] = useState(false);
+
+  // Deep link from the "X viewed your profile" notification: /member/matrimonial?view=visits
+  const location = useLocation();
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get('view') === 'visits') {
+      setActiveBottomTab('activity'); // Visits lives under Activity; Matches would render on top of it
+      setCurrentSubView('visits');
+      setVisitsTab('visitors');
+      fetchVisitors?.();
+    }
+  }, [location.search]); // eslint-disable-line react-hooks/exhaustive-deps
   const [contactsTab, setContactsTab] = useState('viewed-my'); // 'viewed-my' | 'i-viewed'
   const [shortlistTab, setShortlistTab] = useState('they-shortlisted'); // 'they-shortlisted' | 'i-shortlisted'
   
@@ -547,8 +561,19 @@ const MatrimonialHomePage = () => {
     };
   }, []);
 
+  // Visitors without a (visible) matrimonial profile still count in the total, so show
+  // them too — as a small card with their account name/photo — instead of dropping them.
   const dynamicVisitors = useMemo(
-    () => visitors.filter(v => v.visitorProfile).map(v => toVisitCard(v.visitorProfile, v.lastVisited, v._id)),
+    () => visitors.map(v => v.visitorProfile
+      ? toVisitCard(v.visitorProfile, v.lastVisited, v._id)
+      : {
+          key: v._id,
+          noProfile: true,
+          name: v.visitorId?.name || 'A member',
+          avatar: v.visitorId?.avatar || null,
+          visitCount: v.visitCount || 1,
+          visitedDate: v.lastVisited ? new Date(v.lastVisited).toLocaleDateString('en-IN') : 'Recently'
+        }),
     [visitors, toVisitCard]
   );
   const dynamicVisited = useMemo(
@@ -680,7 +705,7 @@ const MatrimonialHomePage = () => {
   );
 
   const renderMatrimonialSubTabs = () => {
-    const tab = (key, label, Icon, badge) => {
+    const tab = (key, label, Icon, badge, locked = false) => {
       const active = activeBottomTab === key;
       return (
         <button
@@ -692,7 +717,8 @@ const MatrimonialHomePage = () => {
         >
           <Icon size={15} className={`shrink-0 ${active ? 'text-rose-500' : 'text-slate-500'}`} />
           <span className="truncate">{label}</span>
-          {badge > 0 && (
+          {locked && <Lock size={11} className="shrink-0 text-amber-500" />}
+          {!locked && badge > 0 && (
             <span className="min-w-[16px] h-4 px-1 bg-rose-500 text-white text-[9.5px] font-bold rounded-full flex items-center justify-center shrink-0">
               {badge > 99 ? '99+' : badge}
             </span>
@@ -705,7 +731,7 @@ const MatrimonialHomePage = () => {
         <div className="flex items-center gap-1 p-1 bg-slate-100/80 rounded-2xl max-w-md mx-auto">
           {tab('matches', 'Matches', Users, 0)}
           {tab('activity', 'Activity', Clock, receivedCount)}
-          {tab('messenger', 'Chat', MessageCircle, chatUnread)}
+          {tab('messenger', 'Chat', MessageCircle, chatUnread, isLocked('chat'))}
         </div>
       </div>
     );
@@ -821,6 +847,18 @@ const MatrimonialHomePage = () => {
               </div>
             </div>
 
+            {showReopenSheet && (
+              <ReopenProfileSheet
+                onClose={() => setShowReopenSheet(false)}
+                onSubmit={async (data) => {
+                  const res = await matrimonialMarriageService.reopenProfile(data);
+                  await Promise.all([fetchMyProfile?.(), fetchDashboard?.()]);
+                  setShowReopenSheet(false);
+                  showToast(res.data?.message || 'Your profile is active again!');
+                }}
+              />
+            )}
+
             {/* ─── MARRIED / CLOSED PROFILE BANNER ─── */}
             {myProfile?.isClosed && (
               <div
@@ -843,6 +881,13 @@ const MatrimonialHomePage = () => {
                   >
                     View Your Journey 💑
                   </button>
+                  {/* Marriage ended (divorce / separation / widowed) → back into matchmaking */}
+                  <button
+                    onClick={() => setShowReopenSheet(true)}
+                    className="block mx-auto mt-3 text-[11.5px] font-bold text-white/80 underline underline-offset-2"
+                  >
+                    Marriage didn't work out? Update marital status
+                  </button>
                 </div>
               </div>
             )}
@@ -856,6 +901,12 @@ const MatrimonialHomePage = () => {
                   <p className="text-[12px] text-slate-400 font-semibold max-w-[240px] leading-relaxed">
                     Your profile is closed. You no longer appear in matchmaking or search results.
                   </p>
+                  <button
+                    onClick={() => setShowReopenSheet(true)}
+                    className="mt-4 px-4 py-2 rounded-xl border border-slate-200 text-[12px] font-bold text-slate-600 bg-white active:scale-95"
+                  >
+                    Divorced / Separated? Reopen my profile
+                  </button>
                 </div>
               ) : (
               <>
@@ -1140,7 +1191,9 @@ const MatrimonialHomePage = () => {
                 onClick={() => setCurrentSubView('visits')}
                 className="flex-1 bg-white rounded-2xl p-3.5 border border-slate-200/50 shadow-[0_2px_8px_rgba(0,0,0,0.03)] text-center cursor-pointer active:scale-95 transition-all"
               >
-                <span className="text-[26px] font-black text-indigo-600 block leading-none">{visitorsLocked ? 0 : visitorsTotal}</span>
+                <span className="text-[26px] font-black text-indigo-600 leading-none flex items-center justify-center gap-1">
+                  {visitorsLocked || isLocked('visitorHistory') ? <Lock size={20} className="text-amber-500" /> : visitorsTotal}
+                </span>
                 <span className="text-[11.5px] font-bold text-slate-650 mt-1.5 block leading-tight">Profile<br/>Visits</span>
               </div>
 
@@ -1158,7 +1211,9 @@ const MatrimonialHomePage = () => {
                 onClick={() => setCurrentSubView('contacts')}
                 className="flex-1 bg-white rounded-2xl p-3.5 border border-slate-200/50 shadow-[0_2px_8px_rgba(0,0,0,0.03)] text-center cursor-pointer active:scale-95 transition-all"
               >
-                <span className="text-[26px] font-black text-emerald-600 block leading-none">0</span>
+                <span className="text-[26px] font-black text-emerald-600 leading-none flex items-center justify-center">
+                  {isLocked('contactDetailsAccess') ? <Lock size={20} className="text-amber-500" /> : 0}
+                </span>
                 <span className="text-[11.5px] font-bold text-slate-650 mt-1.5 block leading-tight">Contact<br/>Views</span>
               </div>
             </div>
@@ -1314,8 +1369,46 @@ const MatrimonialHomePage = () => {
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {visitsTab === 'visitors' ? (
               <div className="space-y-6">
-                {dynamicVisitors.map((visitor) => (
-                  <div key={visitor.id} className="bg-white rounded-[32px] overflow-hidden border border-slate-200/40 shadow-md relative">
+                {dynamicVisitors.length === 0 && (
+                  <div className="text-center py-16 px-6">
+                    <div className="w-14 h-14 mx-auto rounded-full bg-rose-50 flex items-center justify-center mb-3">
+                      {visitorsLocked ? <Lock size={22} className="text-rose-500" /> : <Eye size={22} className="text-rose-500" />}
+                    </div>
+                    <p className="text-[14px] font-bold text-slate-700">
+                      {visitorsLocked ? 'See who visited your profile' : 'No visitors yet'}
+                    </p>
+                    <p className="text-[12px] text-slate-400 mt-1">
+                      {visitorsLocked
+                        ? 'Upgrade your plan to see members who viewed your profile.'
+                        : "When someone views your profile, they'll show up here."}
+                    </p>
+                    {visitorsLocked && (
+                      <button
+                        onClick={() => navigate('/member/matrimonial/subscription')}
+                        className="mt-4 px-5 py-2.5 bg-rose-500 text-white rounded-full text-[12.5px] font-black active:scale-95"
+                      >
+                        Upgrade to view
+                      </button>
+                    )}
+                  </div>
+                )}
+                {dynamicVisitors.map((visitor) => visitor.noProfile ? (
+                  <div key={visitor.key} className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4 flex items-center gap-3">
+                    <img
+                      src={visitor.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(visitor.name)}&background=f43f5e&color=fff&size=128`}
+                      alt={visitor.name}
+                      className="w-14 h-14 rounded-full object-cover border border-slate-200"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[14.5px] font-black text-slate-800 truncate">{visitor.name}</p>
+                      <p className="text-[11.5px] text-slate-400 font-semibold mt-0.5">
+                        Visited {visitor.visitedDate}{visitor.visitCount > 1 ? ` · ${visitor.visitCount} times` : ''}
+                      </p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">No matrimonial profile yet</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div key={visitor.key} className="bg-white rounded-[32px] overflow-hidden border border-slate-200/40 shadow-md relative">
                     <div className="relative aspect-[3/4.5] overflow-hidden bg-slate-900 cursor-pointer flex flex-col justify-end" style={{ minHeight: '480px' }}>
                       {/* Photo base */}
                       <img
@@ -1570,7 +1663,24 @@ const MatrimonialHomePage = () => {
       )}
 
       {/* ─── SUBVIEW 2: CONTACT VIEWS PAGE (Cloned from Image 4) ─── */}
-      {currentSubView === 'contacts' && (
+      {currentSubView === 'contacts' && isLocked('contactDetailsAccess') && (
+        <div className="flex-1 flex flex-col bg-slate-50 overflow-hidden font-sans">
+          <div className="bg-white/80 backdrop-blur-xl border-b border-purple-100/30 px-4 h-14 flex items-center gap-3 shrink-0">
+            <button onClick={() => setCurrentSubView(null)} className="w-8 h-8 rounded-xl bg-gray-50 flex items-center justify-center text-slate-800">
+              <ArrowLeft size={18} strokeWidth={2.5} />
+            </button>
+            <h1 className="text-[17px] font-bold text-text-primary tracking-tight">Contact Views</h1>
+          </div>
+          <div className="flex-1 overflow-y-auto bg-white">
+            <PlanLockScreen
+              title="Contact details are locked"
+              description="See phone numbers of your matches and who viewed your contact. Upgrade your plan to unlock contact details."
+            />
+          </div>
+        </div>
+      )}
+
+      {currentSubView === 'contacts' && !isLocked('contactDetailsAccess') && (
         <div className="flex-1 flex flex-col bg-slate-50 overflow-hidden font-sans">
           {/* Header Bar — Glass morphism */}
           <div className="bg-white/80 backdrop-blur-xl border-b border-purple-100/30 px-4 h-14 flex items-center gap-3 sticky top-0 z-35 shrink-0 shadow-[0_2px_12px_rgba(244,63,94,0.02)]">
@@ -1745,7 +1855,20 @@ const MatrimonialHomePage = () => {
       )}
 
       {/* ─── MESSENGER VIEW (Cloned from Images 1 & 2) ─── */}
-      {activeBottomTab === 'messenger' && (
+      {activeBottomTab === 'messenger' && isLocked('chat') && (
+        <div className="flex-1 flex flex-col overflow-hidden bg-slate-50 font-sans">
+          {renderMatrimonialHeader()}
+          {renderMatrimonialSubTabs()}
+          <div className="flex-1 overflow-y-auto pb-28">
+            <PlanLockScreen
+              title="Chat is a premium feature"
+              description="Message your matches directly once you upgrade. Your accepted interests will be waiting here."
+            />
+          </div>
+        </div>
+      )}
+
+      {activeBottomTab === 'messenger' && !isLocked('chat') && (
         <div className="flex-1 flex flex-col overflow-hidden bg-slate-50 font-sans">
           {/* Header — same as the Matches tab */}
           {renderMatrimonialHeader()}

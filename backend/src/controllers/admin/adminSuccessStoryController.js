@@ -21,6 +21,7 @@ exports.getAllStories = async (req, res) => {
       .populate('groomId', 'name email avatar')
       .populate('brideId', 'name email avatar')
       .populate('communityId', 'name')
+      .populate('visibleCommunityIds', 'name')
       .sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -100,7 +101,8 @@ exports.getEligibleCouples = async (req, res) => {
 // fields (the form sends '' when no app couple is linked) become null instead of
 // failing with a cast error.
 const STORY_FIELDS = ['title', 'shortDescription', 'story', 'coverImage', 'gallery', 'weddingDate',
-  'groomName', 'brideName', 'location', 'groomId', 'brideId', 'marriageRequestId', 'communityId', 'displayOrder'];
+  'groomName', 'brideName', 'location', 'groomId', 'brideId', 'marriageRequestId', 'communityId', 'displayOrder',
+  'visibleToAllCommunities', 'visibleCommunityIds'];
 const ID_FIELDS = ['groomId', 'brideId', 'marriageRequestId', 'communityId'];
 
 const pickStoryFields = (body = {}) => {
@@ -110,6 +112,13 @@ const pickStoryFields = (body = {}) => {
     if (data[f] === '' || (data[f] && !mongoose.Types.ObjectId.isValid(data[f]))) data[f] = null;
   });
   if (data.weddingDate === '') data.weddingDate = null;
+  if (data.visibleToAllCommunities !== undefined) {
+    data.visibleToAllCommunities = data.visibleToAllCommunities === true || data.visibleToAllCommunities === 'true';
+  }
+  if (data.visibleCommunityIds !== undefined) {
+    data.visibleCommunityIds = (Array.isArray(data.visibleCommunityIds) ? data.visibleCommunityIds : [])
+      .filter(id => mongoose.Types.ObjectId.isValid(id));
+  }
   ['title', 'shortDescription', 'groomName', 'brideName', 'location'].forEach(f => {
     if (typeof data[f] === 'string') data[f] = data[f].trim();
   });
@@ -120,6 +129,9 @@ const coupleError = (data) => {
   if (!data.title) return 'Title is required.';
   if (!data.groomId && !data.groomName) return "Groom's name is required.";
   if (!data.brideId && !data.brideName) return "Bride's name is required.";
+  if (data.visibleToAllCommunities === false && !(data.visibleCommunityIds || []).length) {
+    return 'Choose at least one community to show this story in, or select "All communities".';
+  }
   return null;
 };
 

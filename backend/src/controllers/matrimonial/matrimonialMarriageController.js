@@ -20,6 +20,88 @@ const {
 } = require('../../services/notificationService');
 const { sendPushNotification } = require('../../services/pushNotificationService');
 const { getIO } = require('../../services/socketRegistry');
+const { createNotification } = require('../../services/notificationService');
+const SuccessStory       = require('../../models/SuccessStory');
+
+// Statuses a member can choose when their marriage has ended
+const REOPEN_STATUSES = ['Divorced', 'Separated', 'Awaiting Divorce', 'Widowed', 'Never Married'];
+exports.REOPEN_STATUSES = REOPEN_STATUSES;
+
+// ─── Reopen My Profile (marriage ended) ───────────────────────────────────────
+// A member whose profile was closed as married (through the app or by an admin)
+// can mark the marriage as ended. The profile goes back into matchmaking with the
+// new marital status; what they can search/see is then governed by their plan,
+// exactly like any other active profile. The former partner's profile is not touched.
+exports.reopenMyProfile = async (req, res) => {
+  try {
+    const { maritalStatus, note } = req.body;
+    if (!REOPEN_STATUSES.includes(maritalStatus)) {
+      return res.status(400).json({ status: 'error', message: `Choose your current marital status: ${REOPEN_STATUSES.join(', ')}.` });
+    }
+
+    const profile = await MatrimonialProfile.findOne({ userId: req.user._id, isDeleted: false });
+    if (!profile) return res.status(404).json({ status: 'error', message: 'You do not have a matrimonial profile.' });
+    if (!profile.isClosed && profile.status !== 'married') {
+      return res.status(400).json({ status: 'error', message: 'Your profile is already open for matchmaking.' });
+    }
+    if (['suspended', 'deleted'].includes(profile.status)) {
+      return res.status(400).json({ status: 'error', message: `Your profile is ${profile.status}. Please contact support.` });
+    }
+
+    const formerPartner = profile.marriageConfirmedWith;
+    profile.previousMarriages.push({
+      partnerUserId:     formerPartner || undefined,
+      marriageRequestId: profile.marriageRequestId || undefined,
+      marriedAt:         profile.closedAt || undefined,
+      endedAt:           new Date(),
+      newMaritalStatus:  maritalStatus,
+      note:              typeof note === 'string' ? note.trim().slice(0, 500) : undefined
+    });
+
+    profile.personal.maritalStatus = maritalStatus;
+    profile.status                 = 'active';
+    profile.maritalLifecycle       = 'single';
+    profile.isClosed               = false;
+    profile.closedAt               = undefined;
+    profile.marriageConfirmedWith  = undefined;
+    profile.marriageRequestId      = undefined;
+    profile.allowPublicStory       = false;
+    profile.updatedBy              = req.user._id;
+    await profile.save();
+
+    // A published success story about this marriage shouldn't stay up
+    if (formerPartner) {
+      await SuccessStory.updateMany(
+        {
+          status: 'published',
+          $or: [
+            { groomId: req.user._id, brideId: formerPartner },
+            { groomId: formerPartner, brideId: req.user._id }
+          ]
+        },
+        { status: 'archived', updatedBy: req.user._id }
+      );
+    }
+
+    createNotification({
+      userId:   req.user._id,
+      module:   'matrimonial',
+      type:     'matrimonial_profile_reopened',
+      title:    'Profile Reopened',
+      message:  `Your matrimonial profile is active again with marital status "${maritalStatus}". You can now find new matches as per your plan.`,
+      icon:     '🔓',
+      actionUrl:'/member/matrimonial'
+    }).catch(() => {});
+
+    res.json({
+      status:  'success',
+      message: 'Your profile is active again. You can now see new matches as per your plan.',
+      data:    { status: profile.status, maritalStatus, maritalLifecycle: profile.maritalLifecycle }
+    });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
 
 // ─── Send Marriage Confirmation Request ───────────────────────────────────────
 // Either connected partner can initiate.

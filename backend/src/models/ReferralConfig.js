@@ -24,6 +24,26 @@ const referralConfigSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
+  },
+  // Subscription / membership points only for the referred member's FIRST purchase
+  rewardFirstPurchaseOnly: {
+    type: Boolean,
+    default: true
+  },
+  // ─── Cash redemption ───
+  redemptionEnabled: {
+    type: Boolean,
+    default: true
+  },
+  rupeesPerPoint: {
+    type: Number,
+    default: 1,
+    min: 0
+  },
+  minRedeemPoints: {
+    type: Number,
+    default: 500,
+    min: 1
   }
 }, {
   timestamps: true

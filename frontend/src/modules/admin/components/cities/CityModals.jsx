@@ -90,14 +90,14 @@ export const AddEditCityModal = ({ isOpen, onClose, city, onSave }) => {
             </div>
           </div>
           <div className="space-y-1.5">
-            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">City Code <span className="text-rose-500">*</span></label>
-            <input 
-              required 
+            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">City Code / Pin Code <span className="text-rose-500">*</span></label>
+            <input
+              required
               value={formData.code}
               onChange={e => setFormData({...formData, code: e.target.value.toUpperCase()})}
-              type="text" 
-              maxLength={4}
-              placeholder="e.g. MUM"
+              type="text"
+              maxLength={6}
+              placeholder="e.g. MUM or 400001"
               className="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 transition-all uppercase"
             />
           </div>

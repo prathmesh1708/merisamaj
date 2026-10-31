@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { useMatrimonialChat } from '../../../../hooks/useMatrimonialChat';
 import { matrimonialChatService } from '../../../../core/api/matrimonialService';
+import { useMatrimonial } from './MatrimonialContext';
+import PlanLockScreen from './components/PlanLockScreen';
 
 // ─── Get current user ID from localStorage ────────────────────────────────────
 const getCurrentUserId = () => {
@@ -18,9 +20,10 @@ const getCurrentUserId = () => {
 };
 
 // ─── Message Status Icon ───────────────────────────────────────────────────────
-const MsgStatus = ({ msg, currentUserId }) => {
+// showSeen: blue "seen" ticks only on plans with read receipts
+const MsgStatus = ({ msg, currentUserId, showSeen = true }) => {
   if (msg.senderId?._id !== currentUserId && msg.senderId !== currentUserId) return null;
-  if (msg.seenBy?.length > 0) return <CheckCheck size={12} className="text-blue-400" />;
+  if (showSeen && msg.seenBy?.length > 0) return <CheckCheck size={12} className="text-blue-400" />;
   // deliveredTo always holds the sender; anyone else in it means the other phone got it
   const senderId = String(msg.senderId?._id || msg.senderId);
   const delivered = msg.deliveredAt || (msg.deliveredTo || []).some(id => String(id?._id || id) !== senderId);
@@ -61,7 +64,7 @@ const ImageModal = ({ url, onClose }) => {
 };
 
 // ─── Message Bubble ───────────────────────────────────────────────────────────
-const MessageBubble = ({ msg, currentUserId, onReply, onDelete, onCopy, onImageClick }) => {
+const MessageBubble = ({ msg, currentUserId, onReply, onDelete, onCopy, onImageClick, showSeen }) => {
   const isMine = msg.senderId?._id === currentUserId || msg.senderId === currentUserId;
   const time   = msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '';
   const isDeleted = msg.deletedFor?.includes(currentUserId) || msg.isDeleted || msg.type === 'deleted';
@@ -107,7 +110,7 @@ const MessageBubble = ({ msg, currentUserId, onReply, onDelete, onCopy, onImageC
 
           <div className={`flex items-center gap-1 mt-1 ${isMine ? 'justify-end' : 'justify-start'}`}>
             <span className={`text-[10px] font-semibold ${isMine ? 'text-white/60' : 'text-slate-400'}`}>{time}</span>
-            <MsgStatus msg={msg} currentUserId={currentUserId} />
+            <MsgStatus msg={msg} currentUserId={currentUserId} showSeen={showSeen} />
           </div>
         </div>
 
@@ -154,6 +157,7 @@ const MatrimonialChatPage = () => {
   const { conversationId } = useParams();
   const navigate = useNavigate();
   const currentUserId = getCurrentUserId();
+  const { isLocked } = useMatrimonial();
 
   const handleBack = () => {
     navigate(-1);
@@ -327,6 +331,21 @@ const MatrimonialChatPage = () => {
   const partnerOnline = isOnline(partner?._id);
   const isTyping = typingUsers[conversationId];
 
+  // Plan without chat → upgrade screen instead of the conversation
+  if (isLocked('chat')) {
+    return (
+      <div className="flex flex-col h-screen bg-slate-50">
+        <div className="bg-white border-b border-slate-100 px-4 h-14 flex items-center gap-3 shrink-0">
+          <button onClick={handleBack} className="w-8 h-8 rounded-xl bg-gray-50 flex items-center justify-center text-slate-800">
+            <ArrowLeft size={18} strokeWidth={2.5} />
+          </button>
+          <h1 className="text-[17px] font-bold text-slate-800">Chat</h1>
+        </div>
+        <PlanLockScreen title="Chat is a premium feature" description="Upgrade your plan to message your matches." />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-screen bg-slate-50 relative">
       {/* Toast Notification */}
@@ -416,6 +435,7 @@ const MatrimonialChatPage = () => {
                 onDelete={setMessageToDelete}
                 onCopy={handleCopy}
                 onImageClick={setViewImage}
+                showSeen={!isLocked('readReceipts')}
               />
             ))}
             {isTyping && <TypingIndicator />}
