@@ -153,12 +153,15 @@ const userSchema = new mongoose.Schema({
   country: { type: String, default: 'India' },
   
   // Referral & Rewards Fields
-  referralCode: { type: String, index: true },
+  referralCode: { type: String, default: undefined },
   referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   pointsBalance: { type: Number, default: 0 },
+  pointsReserved: { type: Number, default: 0, min: 0 },
   // Lifetime points earned (never goes down) and points paid out as cash
   totalPointsEarned: { type: Number, default: 0 },
   pointsRedeemed: { type: Number, default: 0 },
+  // Idempotency keys for wallet increments, so reward retries cannot double-credit.
+  processedRewardEventKeys: { type: [String], default: [] },
   // Membership & Subscription Fields
   isPremium: { type: Boolean, default: false },
   membershipPlan: { type: String, default: '' },
@@ -375,6 +378,11 @@ const userSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
+
+userSchema.index(
+  { referralCode: 1 },
+  { unique: true, name: 'uniq_user_referral_code', partialFilterExpression: { referralCode: { $type: 'string', $gt: '' } } }
+);
 
 // Password Hash Middleware
 userSchema.pre('save', async function (next) {

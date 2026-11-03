@@ -21,6 +21,16 @@ const snapshotOf = (plan) => {
 
 const { getUsage } = require('../../services/matrimonialUsageService');
 const { syncMembership } = require('../../services/membershipService');
+const { quoteSubscription } = require('../../services/subscriptionPricingService');
+
+exports.quotePurchase = async (req, res) => {
+  try {
+    const plan = await SubscriptionPlan.findById(req.body.planId);
+    if (!plan || !plan.isActive || !planMatches(plan, req) || plan.price <= 0) return res.status(404).json({ status: 'error', message: 'Plan not found or not available.' });
+    const quote = await quoteSubscription({ userId: req.user._id, plan, code: req.body.code || req.body.discountCode, pointsToRedeem: req.body.pointsToRedeem, planType: typeOf(req) });
+    res.json({ status: 'success', data: { quote, plan: { name: plan.name, rewardPoints: plan.rewardPoints || 0 } } });
+  } catch (err) { res.status(400).json({ status: 'error', message: err.message }); }
+};
 
 // ─── List All Active Plans ────────────────────────────────────────────────────
 exports.listPlans = async (req, res) => {
@@ -173,20 +183,46 @@ exports.initiatePurchase = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'This is a free plan and does not require payment.' });
     }
 
+    const quote = await quoteSubscription({ userId: req.user._id, plan, code: req.body.code || req.body.discountCode, pointsToRedeem: req.body.pointsToRedeem, planType: typeOf(req) });
     const order = await initiatePayment({
       gateway,
-      amount:  plan.price,
+      amount:  quote.finalAmount,
       currency:'INR',
       receipt: `rct_${req.user._id.toString().slice(-6)}_${Date.now()}`,
       notes:   { userId: req.user._id.toString(), planId: plan._id.toString() }
     });
 
-    // The checkout needs the order id, amount and public key at the top level.
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+    let pointsReserved = false;
+    let couponReserved = false;
+    try {
+      const User = require('../../models/User');
+      if (quote.pointsRedeemed) {
+        const reserved = await User.updateOne({ _id: req.user._id, $expr: { $gte: [{ $subtract: ['$pointsBalance', { $ifNull: ['$pointsReserved', 0] }] }, quote.pointsRedeemed] } }, { $inc: { pointsReserved: quote.pointsRedeemed } });
+        if (!reserved.modifiedCount) throw new Error('Your points balance changed. Please review checkout again.');
+        pointsReserved = true;
+      }
+      if (quote.discountCodeId) {
+        const DiscountCode = require('../../models/DiscountCode');
+        const reserved = await DiscountCode.updateOne({ _id: quote.discountCodeId, isActive: true, $expr: { $or: [{ $eq: ['$maxUses', 0] }, { $lt: [{ $add: ['$usedCount', '$reservedCount'] }, '$maxUses'] }] } }, { $inc: { reservedCount: 1 } });
+        if (!reserved.modifiedCount) throw new Error('This discount code has just reached its usage limit.');
+        couponReserved = true;
+      }
+      const starts = new Date();
+      const ends = new Date(starts.getTime() + Number(plan.durationInDays || 0) * 86400000);
+      await UserSubscription.create({ userId: req.user._id, planId: plan._id, planName: plan.name, planType: plan.planType || 'matrimonial', pricePaid: quote.finalAmount, durationInDays: plan.durationInDays, featuresSnapshot: snapshotOf(plan), planRewardPoints: plan.rewardPoints || 0, paymentId: undefined, razorpayOrderId: order?.id, paymentGateway: gateway, paymentStatus: 'pending', listPrice: quote.listPrice, discountAmount: quote.codeDiscount + quote.pointsDiscount, discountCode: quote.code, referralCode: quote.codeType === 'referral' ? quote.code : '', couponCodeId: quote.discountCodeId, couponReserved: Boolean(quote.discountCodeId), pointsRedeemed: quote.pointsRedeemed, checkoutExpiresAt: expiresAt, startDate: starts, endDate: ends, status: 'pending', createdBy: req.user._id });
+    } catch (reservationError) {
+      if (pointsReserved) await require('../../models/User').updateOne({ _id: req.user._id, pointsReserved: { $gte: quote.pointsRedeemed } }, { $inc: { pointsReserved: -quote.pointsRedeemed } });
+      if (couponReserved) await require('../../models/DiscountCode').updateOne({ _id: quote.discountCodeId, reservedCount: { $gt: 0 } }, { $inc: { reservedCount: -1 } });
+      throw reservationError;
+    }
+    // The server calculated the amount and saved its quote with this order.
     res.json({
       status: 'success',
       data:   {
         order,
-        plan: { name: plan.name, price: plan.price },
+        plan: { name: plan.name, price: plan.price, rewardPoints: plan.rewardPoints || 0 },
+        quote,
         gateway,
         razorpayOrderId: order?.id,
         amount:          order?.amount,
@@ -205,13 +241,13 @@ exports.verifyAndActivate = async (req, res) => {
   try {
     const {
       planId, gateway = 'razorpay', razorpayOrderId,
-      razorpayPaymentId, razorpaySignature, simulatedPayment
+      razorpayPaymentId, razorpaySignature
     } = req.body;
 
     const plan = await SubscriptionPlan.findById(planId);
-    if (!plan || !planMatches(plan, req)) {
-      return res.status(404).json({ status: 'error', message: 'Plan not found.' });
-    }
+    if (!plan || !planMatches(plan, req)) return res.status(404).json({ status: 'error', message: 'Plan not found.' });
+    const pendingSub = await UserSubscription.findOne({ userId: req.user._id, planId, razorpayOrderId, planType: typeOf(req), status: 'pending', paymentStatus: 'pending', checkoutExpiresAt: { $gt: new Date() } });
+    if (!pendingSub) return res.status(400).json({ status: 'error', message: 'Checkout expired or could not be found. Please start checkout again.' });
 
     // ─── Verify Payment Signature ───────────────────────────────────────────
     if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
@@ -229,11 +265,18 @@ exports.verifyAndActivate = async (req, res) => {
     if (isValid) {
       const { fetchRazorpayPaymentDetails } = require('../../services/paymentService');
       const paid = await fetchRazorpayPaymentDetails(razorpayPaymentId).catch(() => null);
-      if (!paid || Math.round(Number(paid.amount)) !== Math.round(plan.price * 100) || paid.order_id !== razorpayOrderId) {
+      if (!paid || paid.status !== 'captured' || paid.currency !== 'INR' || Math.round(Number(paid.amount)) !== Math.round(pendingSub.pricePaid * 100) || paid.order_id !== razorpayOrderId) {
         return res.status(400).json({ status: 'error', message: 'The payment does not match this plan.' });
       }
       if (await UserSubscription.exists({ paymentId: razorpayPaymentId })) {
         return res.status(400).json({ status: 'error', message: 'This payment has already been used.' });
+      }
+      if (pendingSub.pointsRedeemed) {
+        const consumed = await require('../../models/User').updateOne(
+          { _id: req.user._id, pointsReserved: { $gte: pendingSub.pointsRedeemed }, pointsBalance: { $gte: pendingSub.pointsRedeemed } },
+          { $inc: { pointsReserved: -pendingSub.pointsRedeemed, pointsBalance: -pendingSub.pointsRedeemed, pointsRedeemed: pendingSub.pointsRedeemed } }
+        );
+        if (!consumed.modifiedCount) return res.status(409).json({ status: 'error', message: 'Reserved points could not be confirmed. Please contact support with your payment ID.' });
       }
     }
 
@@ -242,39 +285,41 @@ exports.verifyAndActivate = async (req, res) => {
     }
 
     // ─── Create Subscription with Snapshot ──────────────────────────────────
-    const startDate = new Date();
-    const endDate   = new Date();
-    endDate.setDate(endDate.getDate() + plan.durationInDays);
-
-    const sub = await UserSubscription.create({
-      userId:           req.user._id,
-      planId:           plan._id,
-      planName:         plan.name,
-      planType:         plan.planType || 'matrimonial',
-      pricePaid:        plan.price,
-      durationInDays:   plan.durationInDays,
-      featuresSnapshot: snapshotOf(plan),
-      paymentId:        razorpayPaymentId,
-      paymentGateway:   'razorpay',
-      paymentStatus:    'success',
-      startDate,
-      endDate,
-      status:           'active',
-      createdBy:        req.user._id
-    });
+    const sub = await UserSubscription.findOneAndUpdate({ _id: pendingSub._id, status: 'pending', paymentStatus: 'pending' }, { $set: { paymentId: razorpayPaymentId, paymentStatus: 'success', status: 'active', startDate: new Date(), endDate: new Date(Date.now() + Number(pendingSub.durationInDays || 0) * 86400000), couponReserved: false } }, { new: true });
+    if (!sub) return res.status(409).json({ status: 'error', message: 'This checkout has already been completed or cancelled.' });
+    if (pendingSub.couponCodeId) {
+      const DiscountCode = require('../../models/DiscountCode');
+      const DiscountCodeUsage = require('../../models/DiscountCodeUsage');
+      await DiscountCode.updateOne({ _id: pendingSub.couponCodeId, reservedCount: { $gt: 0 } }, { $inc: { reservedCount: -1, usedCount: 1 } });
+      await DiscountCodeUsage.create({ discountCodeId: pendingSub.couponCodeId, userId: req.user._id, subscriptionId: sub._id, code: pendingSub.discountCode, discountAmount: pendingSub.discountAmount });
+    }
+    if (pendingSub.pointsRedeemed) {
+      await require('../../models/RewardTransaction').findOneAndUpdate({ idempotencyKey: `subscription:redeem:${sub._id}` }, { $setOnInsert: { userId: req.user._id, kind: 'debit', eventType: 'SUBSCRIPTION_REDEMPTION', points: pendingSub.pointsRedeemed, status: 'posted', idempotencyKey: `subscription:redeem:${sub._id}`, sourceReference: sub._id, description: `Redeemed for ${plan.name}`, postedAt: new Date() } }, { upsert: true, new: true });
+    }
+    if ((sub.planRewardPoints || 0) > 0) await require('../../services/referralService').awardPoints({ userId: req.user._id, points: sub.planRewardPoints, eventKey: `subscription:plan-reward:${sub._id}`, eventType: 'SUBSCRIPTION_PLAN_REWARD', sourceReference: sub._id, subscriptionId: sub._id, description: `${plan.name} subscription reward` });
 
     // Notify user
     notifySubscriptionActivated(req.user._id, plan.name);
 
     // Process Referral Side-Effect (Non-blocking)
     const { processReferralEvent } = require('../../services/referralService');
-    processReferralEvent('SUBSCRIPTION', req.user._id, sub._id).catch(err => console.error('[SubReferralError]', err.message));
+    await processReferralEvent('SUBSCRIPTION', req.user._id, sub._id).catch(err => console.error('[SubReferralError]', err.message));
 
     await syncMembership(req.user._id).catch(err => console.warn('[MembershipSync] activate:', err.message));
     res.json({ status: 'success', message: 'Subscription activated!', data: { subscription: sub } });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }
+};
+
+exports.cancelPendingPurchase = async (req, res) => {
+  try {
+    const sub = await UserSubscription.findOneAndUpdate({ userId: req.user._id, razorpayOrderId: req.body.razorpayOrderId, planType: typeOf(req), status: 'pending', paymentStatus: 'pending', reservationReleasedAt: null }, { $set: { status: 'cancelled', paymentStatus: 'cancelled', reservationReleasedAt: new Date(), couponReserved: false } }, { new: true });
+    if (!sub) return res.json({ status: 'success', message: 'Checkout was already closed.' });
+    if (sub.pointsRedeemed) await require('../../models/User').updateOne({ _id: req.user._id, pointsReserved: { $gte: sub.pointsRedeemed } }, { $inc: { pointsReserved: -sub.pointsRedeemed } });
+    if (sub.couponCodeId) await require('../../models/DiscountCode').updateOne({ _id: sub.couponCodeId, reservedCount: { $gt: 0 } }, { $inc: { reservedCount: -1 } });
+    res.json({ status: 'success', message: 'Checkout cancelled and reserved rewards restored.' });
+  } catch (err) { res.status(500).json({ status: 'error', message: err.message }); }
 };
 
 // ─── Cancel Subscription ──────────────────────────────────────────────────────
@@ -295,6 +340,7 @@ exports.cancelSubscription = async (req, res) => {
     sub.cancelReason = req.body.reason || 'User requested cancellation';
     sub.updatedBy    = req.user._id;
     await sub.save();
+    await require('../../services/referralService').cancelSubscriptionRewardSchedules(sub._id).catch(err => console.warn('[RewardSchedule] cancel:', err.message));
     await syncMembership(req.user._id).catch(err => console.warn('[MembershipSync] cancel:', err.message));
     res.json({ status: 'success', message: 'Subscription cancelled. You can still use features until the billing period ends.' });
   } catch (err) {

@@ -92,23 +92,41 @@ export const CommunitySettings = () => {
   const headUser = headAuth?.headUser;
 
   const communityId = useMemo(() => {
-    const comName = currentUser?.community || headUser?.community;
-    if (comName) {
-      return comName.toLowerCase().replace(/\s/g, '_');
-    }
-    return 'cm_123';
+    const community = headUser?.communityId || currentUser?.communityId || headUser?.community || currentUser?.community;
+    if (community && typeof community === 'object') return community._id || community.id || community.name || 'current-community';
+    return community || 'current-community';
   }, [currentUser, headUser]);
   const {
     settings,
     loading,
     saving,
     hasUnsavedChanges,
+    error,
     updateDraft,
     saveSettings,
-    discardChanges
+    discardChanges,
+    replaceDraftSettings,
+    reload
   } = useCommunitySettings(communityId);
 
   const [activeTab, setActiveTab] = useState('general');
+  const [saveNotice, setSaveNotice] = useState('');
+
+  const handleSaveSettings = async () => {
+    const saved = await saveSettings();
+    setSaveNotice(saved ? 'Settings saved successfully.' : 'Settings could not be saved. Please try again.');
+    window.setTimeout(() => setSaveNotice(''), 4000);
+  };
+
+  const exportSettings = () => {
+    const blob = new Blob([JSON.stringify(settings || {}, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `community-settings-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   // Find active component safely
   const ActiveComponent = useMemo(() => {
@@ -156,7 +174,7 @@ export const CommunitySettings = () => {
                 Discard
               </button>
               <button 
-                onClick={saveSettings}
+                onClick={handleSaveSettings}
                 disabled={saving}
                 className="px-6 py-2 rounded-xl bg-amber-500 text-amber-950 text-xs font-bold hover:bg-amber-400 transition-all flex items-center gap-2 shadow-lg shadow-amber-500/20"
               >
@@ -168,10 +186,10 @@ export const CommunitySettings = () => {
       </AnimatePresence>
 
       {/* ─── MAIN LAYOUT ─── */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
         
         {/* LEFT STICKY NAVIGATION */}
-        <aside className="w-[280px] shrink-0 h-full overflow-y-auto no-scrollbar border-r border-gray-200 bg-white py-6 px-4">
+        <aside className="max-h-[34vh] w-full shrink-0 overflow-y-auto border-b border-gray-200 bg-white px-3 py-4 no-scrollbar sm:px-4 md:max-h-none md:h-full md:w-[280px] md:border-b-0 md:border-r md:py-6">
           <div className="mb-6 px-2">
             <h2 className="text-xl font-black text-gray-900 tracking-tight flex items-center gap-2">
               <Settings className="text-brand-primary" />
@@ -218,7 +236,9 @@ export const CommunitySettings = () => {
         </aside>
 
         {/* RIGHT CONTENT PANEL */}
-        <main className="flex-1 h-full overflow-y-auto no-scrollbar relative bg-transparent">
+        <main className="flex-1 min-w-0 h-full overflow-y-auto no-scrollbar relative bg-transparent">
+          {saveNotice && <div role="status" className={`fixed right-5 top-20 z-[70] rounded-xl border px-4 py-3 text-sm font-bold shadow-lg ${saveNotice.startsWith('Settings saved') ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>{saveNotice}</div>}
+          {error && <div role="alert" className="mx-6 mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700"><span>{error}</span><button type="button" onClick={reload} className="font-bold underline">Retry loading settings</button></div>}
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
@@ -226,7 +246,7 @@ export const CommunitySettings = () => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.2 }}
-              className="p-6 md:p-8 max-w-5xl mx-auto min-h-full pb-32"
+              className="w-full p-4 sm:p-6 lg:p-8 min-h-full pb-32"
             >
               {/* Header for the current tab */}
               <div className="mb-8 flex items-center justify-between">
@@ -237,7 +257,7 @@ export const CommunitySettings = () => {
                   <p className="text-sm text-gray-500">Manage configurations for your community</p>
                 </div>
                 {/* Export Button Example */}
-                <button className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 transition-all shadow-sm">
+                <button type="button" onClick={exportSettings} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 transition-all shadow-sm">
                   <Download size={14} className="text-gray-700" /> 
                   <span className="text-xs font-bold text-gray-700">Export JSON</span>
                 </button>
@@ -249,6 +269,9 @@ export const CommunitySettings = () => {
                   <ActiveComponent 
                     settings={settings} 
                     updateDraft={updateDraft} 
+                    replaceDraftSettings={replaceDraftSettings}
+                    communityId={communityId}
+                    reloadSettings={reload}
                   />
                 )}
               </div>

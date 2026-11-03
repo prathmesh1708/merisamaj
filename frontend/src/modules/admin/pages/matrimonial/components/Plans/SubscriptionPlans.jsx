@@ -3,7 +3,7 @@ import { Plus, Edit3, Trash2, Crown, Check, Loader2, X, Gift } from 'lucide-reac
 import { matrimonialService } from '../../services/matrimonialService';
 
 const EMPTY_PLAN = {
-  name: '', price: 0, originalPrice: 0, durationInDays: 30, displayOrder: 10,
+  name: '', price: 0, originalPrice: 0, durationInDays: 30, rewardPoints: 0, displayOrder: 10,
   description: '', isActive: true, isFeatured: false,
   badge: '', themeColor: '#f43f5e',
   features: {
@@ -130,6 +130,11 @@ const PlanModal = ({ plan, planType, onClose, onSaved }) => {
           <div>
             <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1">Duration (days)</label>
             <input type="number" value={form.durationInDays} onChange={e => set('durationInDays', Number(e.target.value))}
+              className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-rose-500/50" />
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1">Reward points on verified purchase</label>
+            <input type="number" min="0" value={form.rewardPoints ?? 0} onChange={e => set('rewardPoints', Math.max(0, Number(e.target.value) || 0))}
               className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-rose-500/50" />
           </div>
           <div>

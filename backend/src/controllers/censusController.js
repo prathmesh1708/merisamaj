@@ -25,6 +25,14 @@ const computeAge = (dob, staticAge) => {
   return 30; // sensible default fallback
 };
 
+const isFemaleGender = (gender) => ['female', 'f'].includes(String(gender || '').trim().toLowerCase());
+const normalizeGender = (gender) => {
+  const normalized = String(gender || '').trim().toLowerCase();
+  if (['female', 'f'].includes(normalized)) return 'Female';
+  if (['male', 'm'].includes(normalized)) return 'Male';
+  return gender || '';
+};
+
 // Helper to classify marital status into distinct categories
 const classifyMaritalStatus = (status) => {
   if (!status || typeof status !== 'string' || !status.trim()) {
@@ -112,22 +120,28 @@ exports.getCensusSummary = async (req, res) => {
     const commId = (req.communityId || req.user?.communityId?._id || req.user?.communityId || 'global').toString();
     // Optional ?city= narrows every number to that city (applyScopeFilter reads it).
     const selectedCity = (req.query.city && req.query.city !== 'all' && req.query.city !== 'All') ? String(req.query.city).trim() : '';
+    const selectedSubCommunity = (req.query.subCommunity && req.query.subCommunity !== 'all' && req.query.subCommunity !== 'All') ? String(req.query.subCommunity).trim() : '';
+    const selectedCommunityId = req.query.communityId && req.query.communityId !== 'all' ? String(req.query.communityId) : '';
     // In the member app every member (Local Heads too) may browse all cities of their
     // community; the app opens on their own city. Only the Head panel keeps a Local Head
     // to their city, so the two views are cached separately.
     const memberView = String(req.originalUrl || '').includes('/member/census');
     const scopeReq = memberView && !selectedCity ? { ...req, query: { ...req.query, city: 'all' } } : req;
     const viewKey = memberView ? 'member' : `panel_${req.user?._id || ''}`;
-    const cacheKey = `census_summary_${viewKey}_${commId}_${selectedCity.toLowerCase() || 'all'}`;
+    const cacheKey = `census_summary_${viewKey}_${commId}_${selectedCommunityId || 'all'}_${selectedSubCommunity.toLowerCase() || 'all'}_${selectedCity.toLowerCase() || 'all'}`;
     const cached = cacheService.get(cacheKey);
     if (cached) {
       return res.status(200).json(cached);
     }
 
-    const filter = applyScopeFilter(scopeReq, { accountStatus: { $ne: 'deleted' } });
+    const filter = applyScopeFilter(scopeReq, { accountStatus: { $ne: 'deleted' } }, { includeUnassignedCity: selectedCity.toLowerCase() === 'indore' });
+    if (selectedSubCommunity) {
+      const escapedSubCommunity = selectedSubCommunity.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      filter.subCommunity = new RegExp(`^${escapedSubCommunity}$`, 'i');
+    }
 
     const users = await User.find(filter)
-      .select('name gender dob city maritalStatus qualification profession phone role communityId familyMembers familyId accountStatus profileImage avatar')
+      .select('name gender dob age city maritalStatus qualification profession phone role communityId familyMembers familyId subCommunity accountStatus profileImage avatar')
       .lean();
     const familyContext = await buildFamilyContext(users);
 
@@ -168,9 +182,9 @@ exports.getCensusSummary = async (req, res) => {
       };
 
       if (uAge < 18) {
-        kids.push({ ...primaryMemberObj, gender: u.gender === 'Female' ? 'Girl' : 'Boy' });
+        kids.push({ ...primaryMemberObj, gender: isFemaleGender(u.gender) ? 'Girl' : 'Boy' });
         ageBrackets['0-17']++;
-      } else if (u.gender === 'Female' || u.gender === 'F') {
+      } else if (isFemaleGender(u.gender)) {
         females.push(primaryMemberObj);
         if (uAge >= 18 && uAge <= 25) ageBrackets['18-25']++;
         else if (uAge >= 26 && uAge <= 35) ageBrackets['26-35']++;
@@ -191,7 +205,9 @@ exports.getCensusSummary = async (req, res) => {
       if (famCtx && !famCtx.isHead) return;
       const famMembers = famCtx ? famCtx.members : (Array.isArray(u.familyMembers) ? u.familyMembers : []);
       // Linked relatives are registered users, already counted above as primary members
-      totalEmbeddedMembers += famMembers.filter(fm => !fm.isLinked).length;
+      const countableFamilyMembers = famMembers.filter(fm => !fm.isLinked).length;
+      totalEmbeddedMembers += countableFamilyMembers;
+      cityMap[uCity] = (cityMap[uCity] || 0) + countableFamilyMembers;
 
       const famMales = [];
       const famFemales = [];
@@ -200,7 +216,7 @@ exports.getCensusSummary = async (req, res) => {
       famMembers.forEach((fm, idx) => {
         const fmAge = computeAge(fm.dob, fm.age);
         const isChild = fmAge < 18 || /son|daughter|grandson|granddaughter|child/i.test(fm.relation || '');
-        const isFemale = fm.gender === 'Female' || /wife|mother|daughter|sister|grandmother|aunt/i.test(fm.relation || '');
+        const isFemale = isFemaleGender(fm.gender) || /wife|mother|daughter|sister|grandmother|aunt/i.test(fm.relation || '');
         const fmRawStatus = fm.maritalStatus ? fm.maritalStatus.trim() : (isChild ? 'Single' : '');
 
         const fmObj = {
@@ -294,12 +310,25 @@ exports.getCensusSummary = async (req, res) => {
     if (selectedCity) {
       const reqAllCities = { ...req, query: { ...req.query, city: memberView ? 'all' : undefined } };
       const allFilter = applyScopeFilter(reqAllCities, { accountStatus: { $ne: 'deleted' } });
-      const grouped = await User.aggregate([
-        { $match: allFilter },
-        { $group: { _id: { $ifNull: ['$city', 'Indore'] }, count: { $sum: 1 } } }
-      ]);
-      citiesBreakdown = grouped
-        .map(g => ({ name: g._id || 'Indore', count: g.count }))
+      if (selectedSubCommunity) {
+        const escapedSubCommunity = selectedSubCommunity.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        allFilter.subCommunity = new RegExp(`^${escapedSubCommunity}$`, 'i');
+      }
+      const cityUsers = await User.find(allFilter)
+        .select('name city familyId familyMembers')
+        .lean();
+      const cityFamilyContext = await buildFamilyContext(cityUsers);
+      const countsByCity = {};
+      cityUsers.forEach(cityUser => {
+        const cityName = cityUser.city || 'Indore';
+        const familyCtx = cityFamilyContext.get(cityUser._id.toString());
+        const familyRecords = familyCtx
+          ? (familyCtx.isHead ? familyCtx.members : [])
+          : (Array.isArray(cityUser.familyMembers) ? cityUser.familyMembers : []);
+        countsByCity[cityName] = (countsByCity[cityName] || 0) + 1 + familyRecords.filter(member => !member.isLinked).length;
+      });
+      citiesBreakdown = Object.entries(countsByCity)
+        .map(([name, count]) => ({ name, count }))
         .sort((a, b) => b.count - a.count);
     }
 
@@ -367,12 +396,15 @@ exports.getCensusSummary = async (req, res) => {
 exports.getCensusMembers = async (req, res) => {
   try {
     const { gender, city, ageGroup, maritalStatus, search } = req.query;
+    const selectedSubCommunity = req.query.subCommunity && req.query.subCommunity !== 'all' && req.query.subCommunity !== 'All'
+      ? String(req.query.subCommunity).trim()
+      : '';
     // status: all | active (registered) | inactive (approved family-added members without an account)
     const status = (req.query.status || 'all').toLowerCase();
 
     const baseFilter = { accountStatus: { $ne: 'deleted' } };
     if (gender && gender !== 'all') {
-      baseFilter.gender = gender === 'male' || gender === 'Male' ? 'Male' : 'Female';
+      baseFilter.gender = { $in: gender.toLowerCase() === 'male' ? ['Male', 'male', 'M', 'm'] : ['Female', 'female', 'F', 'f'] };
     }
     if (city && city !== 'all') {
       baseFilter.city = city;
@@ -381,7 +413,11 @@ exports.getCensusMembers = async (req, res) => {
       baseFilter.maritalStatus = maritalStatus;
     }
 
-    const filter = applyScopeFilter(req, baseFilter);
+    const filter = applyScopeFilter(req, baseFilter, { includeUnassignedCity: String(city || '').toLowerCase() === 'indore' });
+    if (selectedSubCommunity) {
+      const escapedSubCommunity = selectedSubCommunity.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      filter.subCommunity = new RegExp(`^${escapedSubCommunity}$`, 'i');
+    }
 
     const searchRegex = search && search.trim()
       ? new RegExp(search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
@@ -397,8 +433,22 @@ exports.getCensusMembers = async (req, res) => {
     }
 
     const users = status === 'inactive' ? [] : await User.find(filter)
-      .select('name gender dob city maritalStatus qualification profession phone role communityId familyMembers accountStatus')
+      .select('name gender dob age city maritalStatus qualification profession phone role communityId familyId subCommunity familyMembers accountStatus')
       .lean();
+    const memberFamilyContext = await buildFamilyContext(users);
+
+    const familyScopeFilter = applyScopeFilter(req, { accountStatus: { $ne: 'deleted' } }, {
+      includeUnassignedCity: String(city || '').toLowerCase() === 'indore'
+    });
+    if (selectedSubCommunity) {
+      const escapedSubCommunity = selectedSubCommunity.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      familyScopeFilter.subCommunity = new RegExp(`^${escapedSubCommunity}$`, 'i');
+    }
+    const scopedHeadUserIds = await User.distinct('_id', familyScopeFilter);
+    const scopedFamilyIds = await Family.distinct('_id', {
+      headUserId: { $in: scopedHeadUserIds },
+      status: 'active'
+    });
 
     const members = [];
     users.forEach(u => {
@@ -407,17 +457,49 @@ exports.getCensusMembers = async (req, res) => {
         id: u._id,
         name: u.name,
         fatherName: `${u.name}'s Family`,
-        gender: u.gender || 'Male',
+        gender: normalizeGender(u.gender) || 'Male',
         age: uAge,
         city: u.city || 'Indore',
         phone: u.phone || '',
         maritalStatus: u.maritalStatus || 'Married',
+        subCommunity: u.subCommunity || '',
         active: !['inactive', 'blocked'].includes(u.accountStatus),
         memberStatus: 'Active',
         relation: 'Head',
         education: u.qualification || 'Graduate',
         profession: u.profession || 'Professional'
       });
+
+      // Keep the legacy embedded family roster visible until it is migrated to
+      // approved FamilyMember records. Family-backed users are listed below.
+      if (!memberFamilyContext.has(u._id.toString()) && Array.isArray(u.familyMembers)) {
+        u.familyMembers.forEach((fm, index) => {
+          const age = computeAge(fm.dob, fm.age);
+          const memberGender = fm.gender || '';
+          const memberCity = u.city || 'Indore';
+          if (gender && gender !== 'all' && normalizeGender(memberGender).toLowerCase() !== String(gender).toLowerCase()) return;
+          if (city && city !== 'all' && memberCity !== city) return;
+          if (maritalStatus && maritalStatus !== 'all' && fm.maritalStatus !== maritalStatus) return;
+          if (searchRegex && !searchRegex.test(`${fm.name || ''} ${fm.phone || fm.mobile || ''} ${memberCity}`)) return;
+          members.push({
+            id: `legacy_${u._id}_${index}`,
+            name: fm.name || 'Family Member',
+            fatherName: `${u.name}'s Family`,
+            gender: normalizeGender(memberGender),
+            age,
+            city: memberCity,
+            phone: fm.phone || fm.mobile || '',
+            maritalStatus: fm.maritalStatus || '',
+            subCommunity: u.subCommunity || '',
+            active: false,
+            memberStatus: (fm.phone || fm.mobile) ? 'Inactive' : 'Dummy',
+            isFamilyRecord: true,
+            relation: fm.relation || 'Family Member',
+            education: fm.qualification || '',
+            profession: fm.profession || 'Family Member'
+          });
+        });
+      }
     });
 
     // Approved family-added members without an account: listed as Inactive (Dummy = no mobile),
@@ -430,28 +512,31 @@ exports.getCensusMembers = async (req, res) => {
         linkStatus: { $ne: 'declined' },
         relationToHead: { $ne: 'Self' }
       };
-      if (gender && gender !== 'all') recordBase.gender = gender === 'male' || gender === 'Male' ? 'Male' : 'Female';
-      if (city && city !== 'all') recordBase.city = city;
+      recordBase.familyId = { $in: scopedFamilyIds };
+      if (gender && gender !== 'all') recordBase.gender = { $in: gender.toLowerCase() === 'male' ? ['Male', 'male', 'M', 'm'] : ['Female', 'female', 'F', 'f'] };
       if (maritalStatus && maritalStatus !== 'all') recordBase.maritalStatus = maritalStatus;
-      const recordFilter = applyScopeFilter(req, recordBase);
+      const recordReq = { ...req, query: { ...req.query, city: 'all' } };
+      const recordFilter = applyScopeFilter(recordReq, recordBase, { includeUnassignedCity: String(city || '').toLowerCase() === 'indore' });
       if (searchRegex) {
         recordFilter.$and = [...(recordFilter.$and || []), { $or: [{ name: searchRegex }, { phone: searchRegex }, { city: searchRegex }] }];
       }
 
       const records = await FamilyMember.find(recordFilter)
-        .populate('familyId', 'familyCode headUserId')
+        .populate({ path: 'familyId', select: 'familyCode headUserId', populate: { path: 'headUserId', select: 'name city subCommunity' } })
         .populate('addedBy', 'name')
         .lean();
       records.forEach(r => {
+        const familyHead = r.familyId?.headUserId && typeof r.familyId.headUserId === 'object' ? r.familyId.headUserId : null;
         members.push({
           id: r._id,
           name: r.name,
-          fatherName: r.addedBy?.name ? `${r.addedBy.name}'s Family` : 'Family Member',
-          gender: r.gender || '',
+          fatherName: familyHead?.name ? `${familyHead.name}'s Family` : (r.addedBy?.name ? `${r.addedBy.name}'s Family` : 'Family Member'),
+          gender: normalizeGender(r.gender),
           age: computeAge(r.dob, r.age),
-          city: r.city || '',
+          city: familyHead?.city || r.city || 'Indore',
           phone: r.phone || '',
           maritalStatus: r.maritalStatus || '',
+          subCommunity: familyHead?.subCommunity || '',
           active: false,
           memberStatus: r.phone ? 'Inactive' : 'Dummy',
           isFamilyRecord: true,
@@ -530,13 +615,22 @@ exports.createUpdateRequest = async (req, res) => {
 // GET /api/v1/head/census/update-requests (or /admin/census/update-requests)
 exports.getUpdateRequests = async (req, res) => {
   try {
-    const { status } = req.query;
+    const { status, subCommunity, city } = req.query;
     const baseFilter = {};
     if (status && status !== 'all') {
       baseFilter.status = status;
     }
 
-    const filter = applyScopeFilter(req, baseFilter);
+    const filter = applyScopeFilter({ ...req, query: { ...req.query, city: 'all' } }, baseFilter);
+    if ((subCommunity && subCommunity !== 'all') || (city && city !== 'all')) {
+      const applicantFilter = applyScopeFilter(req, { accountStatus: { $ne: 'deleted' } }, { includeUnassignedCity: String(city || '').toLowerCase() === 'indore' });
+      if (subCommunity && subCommunity !== 'all') {
+        const escapedSubCommunity = String(subCommunity).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        applicantFilter.subCommunity = new RegExp(`^${escapedSubCommunity}$`, 'i');
+      }
+      const applicantIds = await User.distinct('_id', applicantFilter);
+      filter.applicantId = { $in: applicantIds };
+    }
 
     const requests = await CensusUpdateRequest.find(filter)
       .populate('applicantId', 'name phone avatar role')

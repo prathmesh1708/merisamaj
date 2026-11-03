@@ -26,7 +26,7 @@ export const ReferralProvider = ({ children }) => {
   const [referralCode, setReferralCode] = useState(auth?.user?.referralCode || '');
   const [totalPoints, setTotalPoints] = useState(auth?.user?.pointsBalance || 0);
   const [totalEarned, setTotalEarned] = useState(auth?.user?.totalPointsEarned || 0);
-  const [pendingPoints] = useState(0); // 0 per requirements: points credited immediately
+  const [pendingPoints, setPendingPoints] = useState(0);
   const [redeemedPoints, setRedeemedPoints] = useState(0);
   const [pendingRedemptionPoints, setPendingRedemptionPoints] = useState(0);
   const [earningsOverview, setEarningsOverview] = useState([]);
@@ -39,6 +39,7 @@ export const ReferralProvider = ({ children }) => {
   });
 
   const [referralHistory, setReferralHistory] = useState([]);
+  const [rewardTransactions, setRewardTransactions] = useState([]);
   const [referredUsers, setReferredUsers] = useState([]);
   const [topEarners, setTopEarners] = useState([]);
 
@@ -52,9 +53,10 @@ export const ReferralProvider = ({ children }) => {
   const fetchReferralData = useCallback(async () => {
     setLoading(true);
     try {
-      const [infoRes, historyRes, usersRes, leaderboardRes] = await Promise.allSettled([
+      const [infoRes, historyRes, transactionsRes, usersRes, leaderboardRes] = await Promise.allSettled([
         memberReferralService.getMyReferralInfo(),
         memberReferralService.getMyReferralHistory(),
+        memberReferralService.getMyRewardTransactions(),
         memberReferralService.getMyReferredUsers(),
         memberReferralService.getLeaderboard()
       ]);
@@ -65,6 +67,7 @@ export const ReferralProvider = ({ children }) => {
         if (code) setReferralCode(code);
         setTotalPoints(d.pointsBalance || 0);
         setTotalEarned(d.totalPointsEarned || 0);
+        setPendingPoints(d.pendingPoints || 0);
         setTotalReferrals(d.totalReferrals || 0);
         if (d.eventBreakdown) setEventBreakdown(d.eventBreakdown);
         setRedeemedPoints(d.pointsRedeemed || 0);
@@ -91,6 +94,7 @@ export const ReferralProvider = ({ children }) => {
         }));
         setReferralHistory(hist);
       }
+      if (transactionsRes.status === 'fulfilled') setRewardTransactions(transactionsRes.value.data?.data?.transactions || []);
 
       if (usersRes.status === 'fulfilled' && usersRes.value.data?.data) {
         setReferredUsers(usersRes.value.data.data);
@@ -126,17 +130,9 @@ export const ReferralProvider = ({ children }) => {
     }
   };
 
-  const calculateCheckoutDiscount = (originalPrice, applyPoints = false, appliedCode = null) => {
-    let codeDiscount = appliedCode ? 100 : 0;
-    let subtotal = originalPrice - codeDiscount;
-    let pointsRedeemed = applyPoints ? Math.min(totalPoints, subtotal) : 0;
-    return {
-      originalPrice,
-      codeDiscount,
-      pointsRedeemed,
-      finalAmount: Math.max(0, subtotal - pointsRedeemed)
-    };
-  };
+  const calculateCheckoutDiscount = (originalPrice) => ({
+    originalPrice, codeDiscount: 0, pointsRedeemed: 0, finalAmount: originalPrice
+  });
 
   const currentLevel = LEVELS.slice().reverse().find(l => totalReferrals >= l.minReferrals) || LEVELS[0];
   const nextLevel = LEVELS.find(l => l.minReferrals > totalReferrals) || null;
@@ -170,6 +166,7 @@ export const ReferralProvider = ({ children }) => {
     topEarners,
     recentActivity,
     referralHistory,
+    rewardTransactions,
     referredUsers,
     validateReferralCode,
     calculateCheckoutDiscount,

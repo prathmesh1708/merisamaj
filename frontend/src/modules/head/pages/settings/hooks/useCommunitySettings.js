@@ -8,18 +8,21 @@ export const useCommunitySettings = (communityId) => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
-  const loadSettings = useCallback(async () => {
+  const loadSettings = useCallback(async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const data = await fetchCommunitySettings(communityId);
       setSettings(data);
-      setDraftSettings(data); // clone essentially
+      setDraftSettings(JSON.parse(JSON.stringify(data)));
+      setError(null);
     } catch (err) {
       setError(err.message);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [communityId]);
+
+  const reloadSettings = useCallback(() => loadSettings(true), [loadSettings]);
 
   useEffect(() => {
     if (communityId) {
@@ -65,8 +68,17 @@ export const useCommunitySettings = (communityId) => {
   const saveSettings = useCallback(async () => {
     try {
       setSaving(true);
-      await updateCommunitySettings(communityId, draftSettings);
-      setSettings(draftSettings); // Sync settings with draft
+      setError(null);
+      const nextSettings = {
+        ...draftSettings,
+        auditTimeline: [
+          { id: `${Date.now()}`, savedAt: new Date().toISOString(), summary: 'Community settings were updated.' },
+          ...(draftSettings.auditTimeline || [])
+        ].slice(0, 50)
+      };
+      await updateCommunitySettings(communityId, nextSettings);
+      setSettings(nextSettings);
+      setDraftSettings(nextSettings);
       return true;
     } catch (err) {
       setError(err.message);
@@ -77,8 +89,14 @@ export const useCommunitySettings = (communityId) => {
   }, [communityId, draftSettings]);
 
   const discardChanges = useCallback(() => {
-    setDraftSettings(settings);
+    setDraftSettings(JSON.parse(JSON.stringify(settings)));
   }, [settings]);
+
+  const replaceDraftSettings = useCallback((nextSettings) => {
+    if (nextSettings && typeof nextSettings === 'object' && !Array.isArray(nextSettings)) {
+      setDraftSettings(nextSettings);
+    }
+  }, []);
 
   return {
     settings: draftSettings, // We expose draftSettings as 'settings' to the UI
@@ -90,6 +108,7 @@ export const useCommunitySettings = (communityId) => {
     updateDraft,
     saveSettings,
     discardChanges,
-    reload: loadSettings
+    replaceDraftSettings,
+    reload: reloadSettings
   };
 };

@@ -3,6 +3,22 @@ const RedemptionRequest = require('../../models/RedemptionRequest');
 const User = require('../../models/User');
 const referralService = require('../../services/referralService');
 const { createNotification } = require('../../services/notificationService');
+const RewardTransaction = require('../../models/RewardTransaction');
+
+exports.getRewardTransactions = async (req, res) => {
+  try {
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+    const filter = {};
+    if (req.query.status) filter.status = req.query.status;
+    if (req.query.userId) filter.userId = req.query.userId;
+    const [transactions, total] = await Promise.all([
+      RewardTransaction.find(filter).populate('userId', 'name phone referralCode').sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      RewardTransaction.countDocuments(filter)
+    ]);
+    res.json({ success: true, data: { transactions, pagination: { page, limit, total, pages: Math.ceil(total / limit) } } });
+  } catch (error) { res.status(500).json({ success: false, message: error.message }); }
+};
 
 const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -146,6 +162,11 @@ exports.getReferralConfig = async (req, res) => {
 const NUMBER_FIELDS = ['registrationReferrerPoints', 'registrationReferredPoints', 'subscriptionPoints',
   'membershipPoints', 'donationPoints', 'rupeesPerPoint', 'minRedeemPoints'];
 const BOOL_FIELDS = ['isActive', 'rewardFirstPurchaseOnly', 'redemptionEnabled'];
+const EXTRA_NUMBER_FIELDS = [
+  'dailyRewardDays', 'referralDiscountValue', 'referralDiscountMaxAmount',
+  'rupeesPerSubscriptionPoint', 'minSubscriptionRedeemPoints', 'maxSubscriptionRedeemPoints'
+];
+const EXTRA_BOOL_FIELDS = ['referralDiscountEnabled', 'subscriptionPointsEnabled'];
 
 /**
  * Update referral configuration settings
@@ -154,7 +175,7 @@ exports.updateReferralConfig = async (req, res) => {
   try {
     const config = await referralService.getOrCreateConfig();
 
-    for (const f of NUMBER_FIELDS) {
+    for (const f of [...NUMBER_FIELDS, ...EXTRA_NUMBER_FIELDS]) {
       if (req.body[f] === undefined || req.body[f] === '') continue;
       const n = Number(req.body[f]);
       if (!Number.isFinite(n) || n < 0) {
@@ -165,7 +186,21 @@ exports.updateReferralConfig = async (req, res) => {
     for (const f of BOOL_FIELDS) {
       if (req.body[f] !== undefined) config[f] = req.body[f] === true || req.body[f] === 'true';
     }
+    for (const f of EXTRA_BOOL_FIELDS) {
+      if (req.body[f] !== undefined) config[f] = req.body[f] === true || req.body[f] === 'true';
+    }
+    if (req.body.rewardAllocation !== undefined) {
+      if (!['one_time', 'daily'].includes(req.body.rewardAllocation)) return res.status(400).json({ success: false, message: 'Reward allocation must be one_time or daily.' });
+      config.rewardAllocation = req.body.rewardAllocation;
+    }
+    if (req.body.referralDiscountType !== undefined) {
+      if (!['percentage', 'fixed'].includes(req.body.referralDiscountType)) return res.status(400).json({ success: false, message: 'Referral discount type must be percentage or fixed.' });
+      config.referralDiscountType = req.body.referralDiscountType;
+    }
     if (config.minRedeemPoints < 1) config.minRedeemPoints = 1;
+    if (config.minSubscriptionRedeemPoints < 1) config.minSubscriptionRedeemPoints = 1;
+    if (config.dailyRewardDays < 1 || config.dailyRewardDays > 365) return res.status(400).json({ success: false, message: 'Daily reward duration must be between 1 and 365 days.' });
+    if (config.referralDiscountType === 'percentage' && config.referralDiscountValue > 100) return res.status(400).json({ success: false, message: 'Referral discount percentage cannot exceed 100.' });
 
     await config.save();
 
@@ -325,6 +360,7 @@ exports.markRedemptionPaid = async (req, res) => {
     if (!request) return res.status(400).json({ success: false, message: 'This request is already closed.' });
 
     await User.updateOne({ _id: request.user }, { $inc: { pointsRedeemed: request.points } });
+    await RewardTransaction.updateOne({ idempotencyKey: `cash-redemption:${request._id}`, status: 'pending' }, { $set: { status: 'posted', postedAt: new Date() } });
     notifyRedemption(request, 'Payment Sent 💸',
       `₹${request.amount} has been paid for your ${request.points} referral points. Transaction ref: ${transactionRef}.`);
     res.json({ success: true, message: 'Marked as paid.', data: request });
@@ -352,6 +388,8 @@ exports.rejectRedemption = async (req, res) => {
 
     // Points go back to the member
     await User.updateOne({ _id: request.user }, { $inc: { pointsBalance: request.points } });
+    await RewardTransaction.updateOne({ idempotencyKey: `cash-redemption:${request._id}` }, { $set: { status: 'cancelled' } });
+    await RewardTransaction.findOneAndUpdate({ idempotencyKey: `cash-redemption-reversal:${request._id}` }, { $setOnInsert: { userId: request.user, kind: 'reversal', eventType: 'CASH_REDEMPTION_REJECTED', points: request.points, status: 'posted', idempotencyKey: `cash-redemption-reversal:${request._id}`, sourceReference: request._id, description: 'Points returned after redemption rejection', postedAt: new Date() } }, { upsert: true });
     notifyRedemption(request, 'Redemption Request Rejected',
       `Your request to redeem ${request.points} points was rejected: ${reason}. The points are back in your balance.`);
     res.json({ success: true, message: 'Request rejected and points returned to the member.', data: request });

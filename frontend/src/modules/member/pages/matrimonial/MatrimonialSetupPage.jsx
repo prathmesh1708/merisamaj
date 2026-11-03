@@ -7,6 +7,7 @@ import {
 import { useMatrimonialProfile } from '../../../../hooks/useMatrimonialProfile';
 import { matrimonialProfileService } from '../../../../core/api/matrimonialService';
 import { useData } from '../../context/DataProvider';
+import { useAuth } from '../../../../core/auth/useAuth';
 
 // ─── Sub-Components ───────────────────────────────────────────────────────────
 const CustomSelect = ({ value, onChange, options }) => {
@@ -59,6 +60,40 @@ const MatrimonialSetupPage = ({ isHub = false, onPublish }) => {
   const navigate = useNavigate();
   const { profile, loading, saving, fetchMyProfile, saveProfile } = useMatrimonialProfile();
   const { currentUser } = useData();
+  const { auth } = useAuth();
+  const registrationUser = { ...(currentUser || {}), ...(auth?.user || {}) };
+
+  const getRegistrationPrefill = (user) => {
+    const family = Array.isArray(user?.familyMembers) ? user.familyMembers : [];
+    const countRelations = (...relations) => family.filter(member => relations.includes((member.relation || '').toLowerCase())).length;
+    const ageRange = String(user?.prefAge || '').match(/\d+/g) || [];
+    return {
+      fullName: user?.name || '',
+      gender: user?.gender || 'male',
+      dateOfBirth: user?.dob ? String(user.dob).split('T')[0] : '',
+      maritalStatus: user?.maritalStatus || 'Never Married',
+      community: typeof user?.community === 'string' ? user.community : user?.community?.name || '',
+      gotra: user?.gotra || '',
+      highestQualification: user?.qualification || '',
+      college: user?.school || '',
+      profession: user?.profession || '',
+      occupation: user?.profession || '',
+      company: user?.company || '',
+      annualIncome: user?.annualIncome || '',
+      fatherOccupation: family.find(member => (member.relation || '').toLowerCase() === 'father')?.occupation || '',
+      motherOccupation: family.find(member => (member.relation || '').toLowerCase() === 'mother')?.occupation || '',
+      brothers: String(countRelations('brother', 'brothers')),
+      sisters: String(countRelations('sister', 'sisters')),
+      familyType: user?.familyType || 'Nuclear',
+      ageMin: ageRange[0] || '22',
+      ageMax: ageRange[1] || '30',
+      partnerEducation: user?.prefEducation || '',
+      partnerOccupation: user?.prefOccupation || '',
+      partnerCity: user?.prefCity || '',
+      state: user?.state || '',
+      city: user?.city || '',
+    };
+  };
 
   const [step, setStep] = useState(1);
   const [isEdit, setIsEdit]   = useState(false);
@@ -121,83 +156,72 @@ const MatrimonialSetupPage = ({ isHub = false, onPublish }) => {
     fetchMyProfile().then(p => {
       if (p) {
         setIsEdit(true);
+        const registered = getRegistrationPrefill(registrationUser);
         // Prefill form from profile, fallback to currentUser data
         setForm(prev => ({
           ...prev,
-          fullName:     p.personal?.fullName || currentUser?.name || '',
-          gender:       p.personal?.gender || currentUser?.gender || 'male',
-          dateOfBirth:  p.personal?.dateOfBirth ? p.personal.dateOfBirth.split('T')[0] : (currentUser?.dob ? currentUser.dob.split('T')[0] : ''),
+          fullName:     p.personal?.fullName || registered.fullName,
+          gender:       p.personal?.gender || registered.gender,
+          dateOfBirth:  p.personal?.dateOfBirth ? p.personal.dateOfBirth.split('T')[0] : registered.dateOfBirth,
           height:       p.personal?.height || '',
           weight:       p.personal?.weight || '',
-          maritalStatus:p.personal?.maritalStatus || currentUser?.maritalStatus || 'Never Married',
+          maritalStatus:p.personal?.maritalStatus || registered.maritalStatus,
           motherTongue: p.personal?.motherTongue || 'Hindi',
           religion:     p.personal?.religion || 'Hindu',
-          community:    p.personal?.community || currentUser?.community || '',
-          gotra:        p.personal?.gotra || currentUser?.gotra || '',
-          highestQualification: p.education?.highestQualification || '',
-          college:      p.education?.college || '',
-          profession:   p.education?.profession || '',
-          occupation:   p.education?.occupation || '',
-          company:      p.education?.company || '',
-          annualIncome: p.education?.annualIncome || '',
-          fatherOccupation: p.family?.fatherOccupation || '',
-          motherOccupation: p.family?.motherOccupation || '',
-          brothers:     String(p.family?.brothers || '0'),
-          sisters:      String(p.family?.sisters || '0'),
-          familyType:   p.family?.familyType || 'Nuclear',
+          community:    p.personal?.community || registered.community,
+          gotra:        p.personal?.gotra || registered.gotra,
+          highestQualification: p.education?.highestQualification || registered.highestQualification,
+          college:      p.education?.college || registered.college,
+          profession:   p.education?.profession || registered.profession,
+          occupation:   p.education?.occupation || registered.occupation,
+          company:      p.education?.company || registered.company,
+          annualIncome: p.education?.annualIncome || registered.annualIncome,
+          fatherOccupation: p.family?.fatherOccupation || registered.fatherOccupation,
+          motherOccupation: p.family?.motherOccupation || registered.motherOccupation,
+          brothers:     String(p.family?.brothers ?? registered.brothers),
+          sisters:      String(p.family?.sisters ?? registered.sisters),
+          familyType:   p.family?.familyType || registered.familyType,
           familyValues: p.family?.familyValues || 'Moderate',
           diet:         p.lifestyle?.diet || 'Vegetarian',
           manglik:      p.horoscope?.manglik || 'No',
           rashi:        p.horoscope?.rashi || '',
           star:         p.horoscope?.star || '',
-          ageMin:       String(p.preferences?.ageMin || '22'),
-          ageMax:       String(p.preferences?.ageMax || '30'),
+          ageMin:       String(p.preferences?.ageMin || registered.ageMin),
+          ageMax:       String(p.preferences?.ageMax || registered.ageMax),
           heightMin:    String(p.preferences?.heightMin || ''),
           heightMax:    String(p.preferences?.heightMax || ''),
-          partnerEducation: p.preferences?.education || '',
-          partnerOccupation:p.preferences?.occupation || '',
+          partnerEducation: p.preferences?.education || registered.partnerEducation,
+          partnerOccupation:p.preferences?.occupation || registered.partnerOccupation,
           partnerCommunity: p.preferences?.community || '',
-          partnerCity:      p.preferences?.city || '',
+          partnerCity:      p.preferences?.city || registered.partnerCity,
           about:            p.about?.biography || '',
           partnerExpectations: p.about?.partnerExpectations || '',
-          state:            p.location?.state || currentUser?.state || '',
-          city:             p.location?.city || currentUser?.city || '',
+          state:            p.location?.state || registered.state,
+          city:             p.location?.city || registered.city,
           photoVisibility:  p.visibility || 'all_members',
           visibility:       p.visibility || 'all_members',
         }));
-      } else if (currentUser) {
+      } else if (Object.keys(registrationUser).length) {
         // First time setup: Pre-fill from user registration data
-        setForm(prev => ({
-          ...prev,
-          fullName: currentUser.name || '',
-          gender: currentUser.gender || 'male',
-          dateOfBirth: currentUser.dob ? currentUser.dob.split('T')[0] : '',
-          gotra: currentUser.gotra || '',
-          community: currentUser.community || '',
-          city: currentUser.city || '',
-          state: currentUser.state || '',
-          maritalStatus: currentUser.maritalStatus || 'Never Married'
-        }));
+        setForm(prev => ({ ...prev, ...getRegistrationPrefill(registrationUser) }));
       }
     });
   }, []);
 
-  // Listen to currentUser updates (it may load late from AuthContext)
+  // Keep the matrimonial editor hydrated from the saved member profile too.
+  // Existing matrimonial values always win; registration/onboarding fills blanks.
   useEffect(() => {
-    if (currentUser && !isEdit) {
+    if (Object.keys(registrationUser).length) {
+      const source = getRegistrationPrefill(registrationUser);
       setForm(prev => ({
         ...prev,
-        fullName: prev.fullName || currentUser.name || '',
-        gender: (prev.gender && prev.gender !== 'male') ? prev.gender : (currentUser.gender || 'male'),
-        dateOfBirth: prev.dateOfBirth || (currentUser.dob ? currentUser.dob.split('T')[0] : ''),
-        gotra: prev.gotra || currentUser.gotra || '',
-        community: prev.community || currentUser.community || '',
-        city: prev.city || currentUser.city || '',
-        state: prev.state || currentUser.state || '',
-        maritalStatus: prev.maritalStatus !== 'Never Married' ? prev.maritalStatus : (currentUser.maritalStatus || 'Never Married')
+        ...Object.fromEntries(Object.entries(source).map(([key, value]) => {
+          const isDefault = (key === 'gender' && prev[key] === 'male') || (key === 'maritalStatus' && prev[key] === 'Never Married');
+          return [key, (!prev[key] || isDefault) ? value || prev[key] : prev[key]];
+        })),
       }));
     }
-  }, [currentUser, isEdit]);
+  }, [currentUser, auth?.user, profile]);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
   const handleChange = (e) => setForm(f => ({ ...f, [e.target.name]: e.target.value }));

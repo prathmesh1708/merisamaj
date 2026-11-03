@@ -155,7 +155,7 @@ export const PostDetailDrawer = ({ postId, isOpen, onClose, onPostUpdated }) => 
       : [];
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden flex justify-end bg-slate-900/60 backdrop-blur-sm transition-opacity">
+    <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm transition-opacity">
       
       {/* Lightbox Modal for Full Media Preview */}
       {selectedMedia && (
@@ -171,11 +171,11 @@ export const PostDetailDrawer = ({ postId, isOpen, onClose, onPostUpdated }) => 
         </div>
       )}
 
-      {/* Slide Drawer Panel */}
-      <div className="w-full max-w-2xl bg-white h-full shadow-2xl flex flex-col transform transition-transform duration-300 ease-in-out">
+      {/* Centered Post Details Modal */}
+      <div className="w-full max-w-4xl h-[calc(100dvh-1.5rem)] sm:h-[92vh] max-h-[900px] min-h-0 bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col">
         
         {/* Drawer Header */}
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 flex items-center justify-between gap-3 bg-slate-50 shrink-0">
           <div className="flex items-center space-x-3">
             <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
               <FileText className="w-5 h-5 text-indigo-600" />
@@ -559,8 +559,8 @@ export const PostDetailDrawer = ({ postId, isOpen, onClose, onPostUpdated }) => 
 
         {/* Drawer Footer Moderation Bar */}
         {post && (
-          <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
+          <div className="p-3 sm:p-4 border-t border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-2 shrink-0">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={handleTogglePin}
                 disabled={actionLoading}

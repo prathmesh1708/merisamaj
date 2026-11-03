@@ -5,10 +5,17 @@ import { useReferral } from './ReferralContext';
 
 const MyEarningsPage = () => {
   const navigate = useNavigate();
-  const { totalPoints, pendingPoints, redeemedPoints, referralHistory } = useReferral();
+  const { totalPoints, pendingPoints, redeemedPoints, referralHistory, rewardTransactions = [] } = useReferral();
   const [activeTab, setActiveTab] = useState('ALL');
 
-  const filteredHistory = referralHistory.filter(item => {
+  const ledger = rewardTransactions.length ? rewardTransactions.map(item => ({
+    id: item._id, name: item.kind === 'credit' ? 'Reward earned' : item.kind === 'reversal' ? 'Points returned' : 'Points redeemed',
+    action: item.description || item.eventType, date: item.createdAt, points: item.points,
+    type: /SUBSCRIPTION/i.test(item.eventType) ? 'subscription' : 'registration',
+    status: item.status === 'posted' ? 'earned' : item.status === 'pending' ? 'pending' : 'cancelled',
+    kind: item.kind
+  })) : referralHistory;
+  const filteredHistory = ledger.filter(item => {
     if (activeTab === 'ALL') return true;
     if (activeTab === 'REGISTRATION') return item.type === 'registration';
     if (activeTab === 'SUBSCRIPTION') return item.type === 'subscription';
@@ -32,7 +39,7 @@ const MyEarningsPage = () => {
       );
     }
     return (
-      <span className="flex items-center gap-1 text-[10px] font-bold text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded uppercase">
+    <span className="flex items-center gap-1 text-[10px] font-bold text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded uppercase">
         <Clock size={10} /> Pending
       </span>
     );
@@ -132,7 +139,7 @@ const MyEarningsPage = () => {
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1.5">
-                    <span className="text-[14px] font-black text-brand-primary">+{item.points}</span>
+                    <span className={`text-[14px] font-black ${item.kind === 'debit' ? 'text-rose-600' : 'text-brand-primary'}`}>{item.kind === 'debit' ? '−' : '+'}{item.points}</span>
                     {getStatusBadge(item.status)}
                   </div>
                 </div>

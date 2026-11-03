@@ -1,25 +1,22 @@
-/**
- * Service for core community settings operations.
- * Simulates API calls with delays.
- */
+import { axiosPrivate } from '../../../../../core/api/axiosPrivate';
 
-// Mock initial state
+// Defaults are used only for settings that have not been configured yet.
 const INITIAL_SETTINGS = {
   general: {
-    name: 'Agrawal Samaj Indore',
-    description: 'A progressive community for the Agrawal families in Indore.',
-    tagline: 'Unity in Diversity',
-    mission: 'To unite, uplift and empower our community members.',
-    vision: 'A globally recognized, strong, and self-sufficient community.',
-    history: 'Established in 1980 by visionary leaders.',
-    establishedYear: '1980',
-    registrationNumber: 'REG-12345-IND',
-    website: 'https://agrawalsamaj.org',
-    email: 'contact@agrawalsamaj.org',
-    phone: '+91-9876543210',
-    officeAddress: '123, Samaj Bhavan, MG Road, Indore, MP',
-    workingHours: 'Mon-Sat: 10:00 AM - 6:00 PM',
-    supportDetails: '24/7 Helpline: 1800-123-456',
+    name: '',
+    description: '',
+    tagline: '',
+    mission: '',
+    vision: '',
+    history: '',
+    establishedYear: '',
+    registrationNumber: '',
+    website: '',
+    email: '',
+    phone: '',
+    officeAddress: '',
+    workingHours: '',
+    supportDetails: '',
     mapIframe: ''
   },
   theme: {
@@ -33,6 +30,10 @@ const INITIAL_SETTINGS = {
     glassIntensity: 'medium',
     typographyScale: 'normal'
   },
+  branding: { logoUrl: '', bannerUrl: '', primaryColor: '#6f42c1', accentColor: '#db2777' },
+  bank: { accountHolderName: '', bankName: '', accountNumber: '', ifscCode: '', upiId: '' },
+  automationRules: [],
+  auditTimeline: [],
   modules: {
     donation: true,
     matrimonial: true,
@@ -138,38 +139,51 @@ const INITIAL_SETTINGS = {
 };
 
 export const fetchCommunitySettings = async (communityId) => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      // In a real app, we would fetch by communityId
-      const saved = localStorage.getItem(`community_settings_${communityId}`);
-      if (saved) {
-        resolve(JSON.parse(saved));
-      } else {
-        resolve(INITIAL_SETTINGS);
-      }
-    }, 800);
-  });
+  const res = await axiosPrivate.get('/head/dashboard/community/settings');
+  const community = res.data?.data || {};
+  const saved = community.configuration || {};
+  return {
+    ...INITIAL_SETTINGS,
+    ...saved,
+    general: {
+      ...INITIAL_SETTINGS.general,
+      ...(saved.general || {}),
+      name: community.name || saved.general?.name || '',
+      description: community.description || saved.general?.description || '',
+      city: community.city || saved.general?.city || ''
+    },
+    branding: {
+      ...INITIAL_SETTINGS.branding,
+      ...(saved.branding || {}),
+      logoUrl: community.logoUrl || saved.branding?.logoUrl || '',
+      bannerUrl: community.bannerUrl || saved.branding?.bannerUrl || ''
+    },
+    bank: {
+      ...INITIAL_SETTINGS.bank,
+      ...(saved.bank || {}),
+      ...(community.accountDetails || {})
+    },
+    modules: {
+      ...INITIAL_SETTINGS.modules,
+      ...(saved.modules || {}),
+      ...(community.settings ? {
+        donation: community.settings.donationEnabled,
+        matrimonial: community.settings.matrimonialEnabled,
+        events: community.settings.eventEnabled,
+        professionalDirectory: community.settings.directoryEnabled,
+        directory: community.settings.directoryEnabled,
+        dharmashala: community.settings.dharmashalaEnabled,
+        obituary: community.settings.obituaryEnabled,
+        socialFeed: community.settings.socialFeedEnabled
+      } : {})
+    }
+  };
 };
 
 export const updateCommunitySettings = async (communityId, payload) => {
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      try {
-        localStorage.setItem(`community_settings_${communityId}`, JSON.stringify(payload));
-        // Also log to audit history
-        resolve({ success: true, message: 'Settings updated successfully' });
-      } catch (err) {
-        reject(new Error('Failed to update settings'));
-      }
-    }, 1000);
-  });
+  return axiosPrivate.put('/head/dashboard/community/settings', payload);
 };
 
 export const resetCommunitySettings = async (communityId) => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      localStorage.removeItem(`community_settings_${communityId}`);
-      resolve({ success: true, data: INITIAL_SETTINGS });
-    }, 800);
-  });
+  return axiosPrivate.put('/head/dashboard/community/settings', INITIAL_SETTINGS);
 };

@@ -13,6 +13,12 @@ const referralConfigSchema = new mongoose.Schema({
     type: Number,
     default: 100
   },
+  rewardAllocation: { type: String, enum: ['one_time', 'daily'], default: 'one_time' },
+  dailyRewardDays: { type: Number, default: 7, min: 1, max: 365 },
+  referralDiscountEnabled: { type: Boolean, default: false },
+  referralDiscountType: { type: String, enum: ['percentage', 'fixed'], default: 'percentage' },
+  referralDiscountValue: { type: Number, default: 0, min: 0 },
+  referralDiscountMaxAmount: { type: Number, default: 0, min: 0 },
   membershipPoints: {
     type: Number,
     default: 150
@@ -44,7 +50,11 @@ const referralConfigSchema = new mongoose.Schema({
     type: Number,
     default: 500,
     min: 1
-  }
+  },
+  subscriptionPointsEnabled: { type: Boolean, default: true },
+  rupeesPerSubscriptionPoint: { type: Number, default: 0.1, min: 0 },
+  minSubscriptionRedeemPoints: { type: Number, default: 100, min: 1 },
+  maxSubscriptionRedeemPoints: { type: Number, default: 1000, min: 0 }
 }, {
   timestamps: true
 });

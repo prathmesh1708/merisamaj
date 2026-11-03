@@ -22,6 +22,8 @@ router.put('/community/banner', authorize('head', 'sub_head', 'admin', 'super_ad
 
 // Community Profile details (including accountDetails) — Scoped to req.communityId
 router.get('/community/details', authorize('head', 'sub_head', 'admin', 'super_admin', 'master_admin'), headDashboardCtrl.getCommunityDetails);
+router.get('/community/settings', authorize('head', 'admin', 'super_admin', 'master_admin'), headDashboardCtrl.getCommunitySettings);
+router.put('/community/settings', authorize('head', 'admin', 'super_admin', 'master_admin'), headDashboardCtrl.updateCommunitySettings);
 router.put('/community/account-details', authorize('head', 'admin', 'super_admin', 'master_admin'), headDashboardCtrl.updateCommunityAccountDetails);
 
 module.exports = router;

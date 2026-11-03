@@ -11,6 +11,21 @@ import {
 import { matrimonialProfileService, matrimonialSubscriptionService } from '../../../../../core/api/matrimonialService';
 import { useData } from '../../../context/DataProvider';
 
+const toDateInputValue = (value) => {
+  if (!value) return '';
+  const raw = String(value);
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+  const dmy = raw.match(/^(\d{2})[-/](\d{2})[-/](\d{4})$/);
+  if (dmy) return `${dmy[3]}-${dmy[2]}-${dmy[1]}`;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
+};
+
+const normalizeGender = value => {
+  const gender = String(value || '').trim().toLowerCase();
+  return ['male', 'female', 'other'].includes(gender) ? gender : '';
+};
+
 export const MatrimonialVisibilityManager = ({
   onClose,
   initialScreen = 'menu', // 'menu' | 'visibility' | 'select-communities' | 'select-locations' | 'preview' | 'edit-profile' | 'photos' | 'preferences' | 'privacy' | 'subscription' | 'help'
@@ -48,7 +63,7 @@ export const MatrimonialVisibilityManager = ({
   const [editForm, setEditForm] = useState({
     fullName: user?.name || '',
     dateOfBirth: '',
-    gender: user?.gender || '',
+    gender: normalizeGender(user?.gender),
     height: '',
     weight: '',
     maritalStatus: '',
@@ -194,16 +209,16 @@ export const MatrimonialVisibilityManager = ({
         if (p) {
           setEditForm({
             fullName: p.personal?.fullName || user?.name || '',
-            dateOfBirth: p.personal?.dateOfBirth ? String(p.personal.dateOfBirth).slice(0, 10) : '',
-            gender: p.personal?.gender || user?.gender || '',
+            dateOfBirth: toDateInputValue(p.personal?.dateOfBirth || user?.dob || user?.dateOfBirth),
+            gender: normalizeGender(p.personal?.gender || user?.gender),
             height: p.personal?.height || '',
             weight: p.personal?.weight || '',
-            maritalStatus: p.personal?.maritalStatus || '',
+            maritalStatus: p.personal?.maritalStatus || user?.maritalStatus || '',
             education: p.education?.highestQualification || '',
             profession: p.education?.profession || '',
             annualIncome: p.education?.annualIncome || '',
             community: p.personal?.community || user?.community || '',
-            gotra: p.personal?.gotra || '',
+            gotra: p.personal?.gotra || user?.gotra || '',
             diet: p.lifestyle?.diet || '',
             city: p.location?.city || user?.city || '',
             state: p.location?.state || '',
@@ -228,6 +243,22 @@ export const MatrimonialVisibilityManager = ({
             protectPhotosScreenshot: p.privacy?.protectPhotosScreenshot ?? true,
             accountStatus: p.status === 'hidden' ? 'hidden' : 'active'
           });
+        } else {
+          // No MatrimonialProfile document yet: seed the editor from registration data.
+          setEditForm(prev => ({
+            ...prev,
+            fullName: prev.fullName || user?.name || '',
+            dateOfBirth: prev.dateOfBirth || toDateInputValue(user?.dob || user?.dateOfBirth),
+            gender: prev.gender || normalizeGender(user?.gender),
+            maritalStatus: prev.maritalStatus || user?.maritalStatus || '',
+            community: prev.community || user?.community || '',
+            gotra: prev.gotra || user?.gotra || '',
+            education: prev.education || user?.qualification || '',
+            profession: prev.profession || user?.profession || '',
+            annualIncome: prev.annualIncome || user?.annualIncome || '',
+            city: prev.city || user?.city || '',
+            state: prev.state || user?.state || '',
+          }));
         }
       } catch (err) {
         setMyProfile(null);
@@ -237,6 +268,25 @@ export const MatrimonialVisibilityManager = ({
     };
     loadProfile();
   }, []);
+
+  // User details can hydrate after this screen mounts; fill only missing values
+  // so the editor never asks again for information already on the member record.
+  useEffect(() => {
+    setEditForm(prev => ({
+      ...prev,
+      fullName: prev.fullName || user?.name || '',
+      dateOfBirth: prev.dateOfBirth || toDateInputValue(user?.dob || user?.dateOfBirth),
+      gender: prev.gender || normalizeGender(user?.gender),
+      maritalStatus: prev.maritalStatus || user?.maritalStatus || '',
+      community: prev.community || user?.community || '',
+      gotra: prev.gotra || user?.gotra || '',
+      education: prev.education || user?.qualification || '',
+      profession: prev.profession || user?.profession || '',
+      annualIncome: prev.annualIncome || user?.annualIncome || '',
+      city: prev.city || user?.city || '',
+      state: prev.state || user?.state || '',
+    }));
+  }, [user]);
 
   // Load real community list (with real profile counts) for the community selector screen
   useEffect(() => {
@@ -473,6 +523,9 @@ export const MatrimonialVisibilityManager = ({
         }
       });
       setMyProfile(res.data?.data?.profile || null);
+      await matrimonialProfileService.updateVisibilitySettings({
+        visibleOnlyAfterAccept: settings.visibleOnlyAfterAccept
+      });
       await matrimonialProfileService.setAccountStatus(privacySettings.accountStatus);
       showToast('Privacy & Security configurations saved! 🛡️');
       setCurrentScreen('menu');
@@ -571,6 +624,32 @@ export const MatrimonialVisibilityManager = ({
     return age;
   };
 
+  const completionFields = [
+    editForm.fullName || user?.name,
+    editForm.dateOfBirth || user?.dob || user?.dateOfBirth,
+    editForm.gender || user?.gender,
+    editForm.maritalStatus || user?.maritalStatus,
+    editForm.community || user?.community || myProfile?.personal?.community,
+    editForm.gotra || user?.gotra || myProfile?.personal?.gotra,
+    editForm.education || user?.qualification || myProfile?.education?.highestQualification,
+    editForm.profession || user?.profession || myProfile?.education?.profession,
+    editForm.annualIncome || user?.annualIncome || myProfile?.education?.annualIncome,
+    user?.familyType || (user?.familyMembers?.length ? 'family-added' : '') || myProfile?.family?.familyType,
+    editForm.diet || myProfile?.lifestyle?.diet,
+    editForm.city || user?.city || myProfile?.location?.city,
+    editForm.state || user?.state || myProfile?.location?.state,
+    preferences.minAge || user?.prefAge || myProfile?.preferences?.ageMin,
+    preferences.maxAge || myProfile?.preferences?.ageMax,
+    preferences.preferredEducation || user?.prefEducation || myProfile?.preferences?.education,
+    preferences.preferredOccupation || user?.prefOccupation || myProfile?.preferences?.occupation,
+    preferences.preferredCity || user?.prefCity || myProfile?.preferences?.city,
+    (photosList.length > 0 || myProfile?.photos?.length > 0) ? 'photos-added' : '',
+    editForm.bio || user?.bio || myProfile?.about?.biography,
+  ];
+  const calculatedCompletion = Math.round(
+    (completionFields.filter(value => value !== undefined && value !== null && value !== '').length / completionFields.length) * 100
+  );
+
   const previewUser = {
     name: editForm.fullName || user?.name || 'Your Name',
     id: user?.memberId || (user?._id ? `MP${user._id.slice(-6).toUpperCase()}` : ''),
@@ -584,7 +663,7 @@ export const MatrimonialVisibilityManager = ({
     caste: editForm.community || '',
     photo: photosList.find(p => p.isPrimary)?.url || photosList[0]?.url || user?.avatar
       || `https://ui-avatars.com/api/?name=${encodeURIComponent(editForm.fullName || user?.name || 'U')}&background=F43F5E&color=ffffff&bold=true`,
-    completionPercentage: myProfile?.profileCompletion?.percentage ?? 0,
+    completionPercentage: Math.max(myProfile?.profileCompletion?.percentage || 0, calculatedCompletion),
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -1158,14 +1237,14 @@ export const MatrimonialVisibilityManager = ({
                     <Mail size={16} />
                   </div>
                   <div>
-                    <h4 className="text-[13px] font-bold text-slate-800">Visible Only After Request Accept</h4>
+                    <h4 className="text-[13px] font-bold text-slate-800">Blur My Photo Until I Accept</h4>
                     <p className="text-[11px] text-slate-400 font-medium leading-tight mt-0.5">
-                      Jab koi member aapko request bheje aur aap accept karein tab hi aapki profile unko full visible hogi.
+                      Control whether other members can see your clear photo before you accept their interest request.
                     </p>
                     <p className="text-[11px] text-slate-500 font-semibold leading-tight mt-1">
                       {settings.visibleOnlyAfterAccept
-                        ? 'On (Private): photo blurred; name, age, education, occupation & income dikhenge.'
-                        : 'Off (Public): photo sabko dikhegi; naam aur address chhupe rahenge — sirf age, education & occupation.'}
+                        ? 'On: everyone sees a blurred photo until you accept. Photo viewing credits cannot unlock it.'
+                        : 'Off: members whose plan allows photo viewing may see your clear photo before acceptance.'}
                     </p>
                   </div>
                 </div>
@@ -2042,6 +2121,31 @@ export const MatrimonialVisibilityManager = ({
         </div>
 
         <div className="p-4 space-y-4 max-w-lg mx-auto w-full">
+          <div className="bg-white rounded-2xl p-4 border border-violet-200 shadow-xs">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-full bg-violet-50 text-violet-600 flex items-center justify-center shrink-0">
+                  <Lock size={17} />
+                </div>
+                <div>
+                  <h4 className="text-[13px] font-bold text-slate-800">Blur My Photo Until I Accept</h4>
+                  <p className="text-[11px] text-slate-500 leading-relaxed mt-1">
+                    When on, your photo stays blurred for everyone until you accept their interest request. Profile-view credits or a subscription cannot bypass this privacy choice. After acceptance, both members can see each other’s clear photos.
+                  </p>
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                <input
+                  type="checkbox"
+                  checked={settings.visibleOnlyAfterAccept}
+                  onChange={() => toggleSetting('visibleOnlyAfterAccept')}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-violet-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+              </label>
+            </div>
+          </div>
+
           <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-4">
             <div className="flex items-center justify-between">
               <div>

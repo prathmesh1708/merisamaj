@@ -30,14 +30,18 @@ export const SideNav = () => {
 
   // Matrimony is hidden when the member's community plan has that module
   // switched off (Admin → Subscriptions → assign a plan without the feature).
-  const matrimonialEnabled = true; // Matrimonial is available to every member
+  const communitySettings = activeUser?.communityId?.settings || {};
+  const matrimonialEnabled = communitySettings.matrimonialEnabled !== false;
+  const socialEnabled = communitySettings.socialFeedEnabled !== false;
+  const chatEnabled = communitySettings.chatEnabled !== false;
+  const directoryEnabled = communitySettings.directoryEnabled !== false;
 
   const navItems = [
     { name: 'Home', path: '/member/home', icon: Home },
-    { name: 'Social', path: '/member/social', icon: Users },
+    ...(socialEnabled ? [{ name: 'Social', path: '/member/social', icon: Users }] : []),
     ...(matrimonialEnabled ? [{ name: 'Matrimony', path: '/member/matrimonial', icon: Heart }] : []),
-    { name: 'Chat', path: '/member/chat', icon: MessageCircle },
-    { name: 'Directory', path: '/member/directory', icon: BookOpen },
+    ...(chatEnabled ? [{ name: 'Chat', path: '/member/chat', icon: MessageCircle }] : []),
+    ...(directoryEnabled ? [{ name: 'Directory', path: '/member/directory', icon: BookOpen }] : []),
     { name: 'Refer & Earn', path: '/member/referral', icon: Gift },
     { name: 'Profile', path: '/member/profile', icon: User },
   ];

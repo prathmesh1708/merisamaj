@@ -145,7 +145,8 @@ const communitySchema = new mongoose.Schema(
       ifscCode: { type: String, default: '' },
       upiId: { type: String, default: '' },
       accountHolderName: { type: String, default: '' }
-    }
+    },
+    configuration: { type: mongoose.Schema.Types.Mixed, default: {} }
   },
   {
     timestamps: true,

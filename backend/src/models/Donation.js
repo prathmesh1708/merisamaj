@@ -32,6 +32,10 @@ const donationSchema = new mongoose.Schema({
   communityId: { type: mongoose.Schema.Types.ObjectId, ref: 'Community', index: true },
   isGlobalCampaign: { type: Boolean, default: false, index: true },
   targetedCommunities: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Community', index: true }],
+  targetedSubCommunities: [{
+    communityId: { type: mongoose.Schema.Types.ObjectId, ref: 'Community', required: true },
+    name: { type: String, required: true, trim: true }
+  }],
   targetedMembers: [{ type: String }],
   targetAudiences: [{ type: String }],
   visibility: { type: String, default: 'All Members' },

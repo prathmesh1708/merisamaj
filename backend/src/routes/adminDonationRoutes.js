@@ -7,6 +7,7 @@ router.post('/categories', adminDonationController.createCategory);
 router.delete('/categories/:id', adminDonationController.deleteCategory);
 
 router.get('/', adminDonationController.getAllDonations);
+router.get('/:id', adminDonationController.getDonationDetails);
 router.post('/', adminDonationController.createDonation);
 router.put('/:id', adminDonationController.updateDonation);
 router.patch('/:id/close', adminDonationController.closeDonation);

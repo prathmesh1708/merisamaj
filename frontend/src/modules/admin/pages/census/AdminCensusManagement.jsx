@@ -7,6 +7,13 @@ import {
 } from 'lucide-react';
 import { axiosPrivate } from '../../../../core/api/axiosPrivate';
 
+const normalizeGender = (gender) => {
+  const value = String(gender || '').trim().toLowerCase();
+  if (value === 'f' || value === 'female') return 'Female';
+  if (value === 'm' || value === 'male') return 'Male';
+  return gender || '';
+};
+
 export const AdminCensusManagement = () => {
   const [activeTab, setActiveTab] = useState('overview'); // overview, members, requests
   const [censusSummary, setCensusSummary] = useState(null);
@@ -14,6 +21,7 @@ export const AdminCensusManagement = () => {
   const [updateRequests, setUpdateRequests] = useState([]);
   const [communities, setCommunities] = useState([]);
   const [selectedCommunity, setSelectedCommunity] = useState('all');
+  const [selectedSubCommunity, setSelectedSubCommunity] = useState('all');
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -22,6 +30,10 @@ export const AdminCensusManagement = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCity, setSelectedCity] = useState('all');
   const [selectedGender, setSelectedGender] = useState('all');
+
+  const selectedCommunityRecord = communities.find(c => String(c._id || c.id) === selectedCommunity);
+  const subCommunityOptions = selectedCommunityRecord?.subCommunities || [];
+  const cityOptions = censusSummary?.citiesBreakdown || [];
 
   // Notification Toast
   const [toast, setToast] = useState(null);
@@ -45,9 +57,14 @@ export const AdminCensusManagement = () => {
   }, []);
 
   // Fetch Live System-Wide Census Summary
-  const fetchCensusSummary = async (commId = selectedCommunity) => {
+  const fetchCensusSummary = async (commId = selectedCommunity, subCommunity = selectedSubCommunity, city = selectedCity) => {
     try {
-      const url = commId !== 'all' ? `/admin/census/summary?communityId=${commId}` : '/admin/census/summary';
+      const params = new URLSearchParams();
+      if (commId !== 'all') params.set('communityId', commId);
+      if (subCommunity !== 'all') params.set('subCommunity', subCommunity);
+      if (city !== 'all') params.set('city', city);
+      const query = params.toString();
+      const url = `/admin/census/summary${query ? `?${query}` : ''}`;
       const res = await axiosPrivate.get(url);
       if (res.data && res.data.data) {
         setCensusSummary(res.data.data);
@@ -59,44 +76,57 @@ export const AdminCensusManagement = () => {
   };
 
   // Fetch Live Global Census Member Directory
-  const fetchCensusMembers = async (commId = selectedCommunity) => {
+  const fetchCensusMembers = async (commId = selectedCommunity, subCommunity = selectedSubCommunity, city = selectedCity) => {
     try {
-      const url = commId !== 'all' ? `/admin/census/members?communityId=${commId}` : '/admin/census/members';
+      const params = new URLSearchParams();
+      if (commId !== 'all') params.set('communityId', commId);
+      if (subCommunity !== 'all') params.set('subCommunity', subCommunity);
+      if (city !== 'all') params.set('city', city);
+      const query = params.toString();
+      const url = `/admin/census/members${query ? `?${query}` : ''}`;
       const res = await axiosPrivate.get(url);
       if (res.data && res.data.data) {
         setMembersList(res.data.data);
       }
     } catch (err) {
       console.error('Failed to load Admin census members:', err);
+      setError(err.response?.data?.message || err.message || 'Failed to load census members');
     }
   };
 
   // Fetch Global Update Requests
-  const fetchUpdateRequests = async (commId = selectedCommunity) => {
+  const fetchUpdateRequests = async (commId = selectedCommunity, subCommunity = selectedSubCommunity, city = selectedCity) => {
     try {
-      const url = commId !== 'all' ? `/admin/census/update-requests?communityId=${commId}` : '/admin/census/update-requests';
+      const params = new URLSearchParams();
+      if (commId !== 'all') params.set('communityId', commId);
+      if (subCommunity !== 'all') params.set('subCommunity', subCommunity);
+      if (city !== 'all') params.set('city', city);
+      const query = params.toString();
+      const url = `/admin/census/update-requests${query ? `?${query}` : ''}`;
       const res = await axiosPrivate.get(url);
       if (res.data && res.data.data) {
         setUpdateRequests(res.data.data);
       }
     } catch (err) {
       console.error('Failed to load update requests:', err);
+      setError(err.response?.data?.message || err.message || 'Failed to load update requests');
     }
   };
 
-  const loadAllAdminCensusData = async (commId = selectedCommunity) => {
+  const loadAllAdminCensusData = async (commId = selectedCommunity, subCommunity = selectedSubCommunity, city = selectedCity) => {
     setLoading(true);
+    setError(null);
     await Promise.all([
-      fetchCensusSummary(commId),
-      fetchCensusMembers(commId),
-      fetchUpdateRequests(commId)
+      fetchCensusSummary(commId, subCommunity, city),
+      fetchCensusMembers(commId, subCommunity, city),
+      fetchUpdateRequests(commId, subCommunity, city)
     ]);
     setLoading(false);
   };
 
   useEffect(() => {
-    loadAllAdminCensusData(selectedCommunity);
-  }, [selectedCommunity]);
+    loadAllAdminCensusData(selectedCommunity, selectedSubCommunity, selectedCity);
+  }, [selectedCommunity, selectedSubCommunity, selectedCity]);
 
   // Handle Reviewing Member Update Request (Approve / Reject)
   const handleReviewRequest = async (requestId, newStatus) => {
@@ -138,7 +168,7 @@ export const AdminCensusManagement = () => {
         if (!matchName && !matchPhone && !matchCity) return false;
       }
       if (selectedCity !== 'all' && m.city !== selectedCity) return false;
-      if (selectedGender !== 'all' && m.gender !== selectedGender) return false;
+      if (selectedGender !== 'all' && normalizeGender(m.gender) !== selectedGender) return false;
       return true;
     });
   }, [membersList, searchQuery, selectedCity, selectedGender]);
@@ -178,13 +208,13 @@ export const AdminCensusManagement = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           {/* Community Filter Dropdown */}
           <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-2 rounded-2xl">
             <Building2 size={16} className="text-slate-400" />
             <select
               value={selectedCommunity}
-              onChange={(e) => setSelectedCommunity(e.target.value)}
+              onChange={(e) => { setSelectedCommunity(e.target.value); setSelectedSubCommunity('all'); setSelectedCity('all'); }}
               className="bg-transparent text-xs font-bold text-slate-700 focus:outline-none cursor-pointer"
             >
               <option value="all">All Communities (India)</option>
@@ -194,8 +224,33 @@ export const AdminCensusManagement = () => {
             </select>
           </div>
 
+          <select
+            value={selectedSubCommunity}
+            onChange={(e) => { setSelectedSubCommunity(e.target.value); setSelectedCity('all'); }}
+            disabled={!selectedCommunityRecord || subCommunityOptions.length === 0}
+            className="bg-white border border-slate-200 px-3 py-3 rounded-2xl text-xs font-bold text-slate-700 focus:outline-none focus:border-indigo-500 disabled:opacity-50"
+            aria-label="Filter by subcommunity"
+          >
+            <option value="all">All Subcommunities</option>
+            {subCommunityOptions.map(sub => (
+              <option key={sub._id || sub.name} value={sub.name}>{sub.name}</option>
+            ))}
+          </select>
+
+          <select
+            value={selectedCity}
+            onChange={(e) => setSelectedCity(e.target.value)}
+            className="bg-white border border-slate-200 px-3 py-3 rounded-2xl text-xs font-bold text-slate-700 focus:outline-none focus:border-indigo-500"
+            aria-label="Filter by city"
+          >
+            <option value="all">All Cities</option>
+            {cityOptions.map(city => (
+              <option key={city.name} value={city.name}>{city.name} ({city.count})</option>
+            ))}
+          </select>
+
           <button 
-            onClick={() => loadAllAdminCensusData(selectedCommunity)}
+            onClick={() => loadAllAdminCensusData(selectedCommunity, selectedSubCommunity, selectedCity)}
             className="px-4 py-2.5 bg-slate-100 text-slate-700 font-semibold text-xs rounded-2xl hover:bg-slate-200 transition-colors flex items-center gap-2"
           >
             <RefreshCw size={14} /> Refresh Data
@@ -203,12 +258,23 @@ export const AdminCensusManagement = () => {
         </div>
       </div>
 
+      {error && (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-700" role="alert">
+          {error}
+        </div>
+      )}
+      {loading && (
+        <div className="text-xs font-semibold text-slate-500" aria-live="polite">Refreshing census data…</div>
+      )}
+
       {/* Metrics Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-sm">
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Members</span>
           <h3 className="text-2xl font-black text-slate-900 mt-1">{summary.totalMembers || 0}</h3>
-          <span className="text-[10px] text-emerald-600 font-bold mt-1 inline-block">Global Platform Scope</span>
+          <span className="text-[10px] text-emerald-600 font-bold mt-1 inline-block">
+            {selectedCommunityRecord?.name || 'All Communities'}{selectedSubCommunity !== 'all' ? ` · ${selectedSubCommunity}` : ''}{selectedCity !== 'all' ? ` · ${selectedCity}` : ''}
+          </span>
         </div>
 
         <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-sm">
@@ -328,6 +394,16 @@ export const AdminCensusManagement = () => {
                 className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs focus:outline-none focus:border-indigo-500"
               />
             </div>
+            <select
+              value={selectedGender}
+              onChange={(e) => setSelectedGender(e.target.value)}
+              className="w-full md:w-auto px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold text-slate-700"
+              aria-label="Filter members by gender"
+            >
+              <option value="all">All Genders</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+            </select>
           </div>
 
           <div className="overflow-x-auto">
@@ -338,6 +414,7 @@ export const AdminCensusManagement = () => {
                   <th className="p-3">Gender</th>
                   <th className="p-3">Age</th>
                   <th className="p-3">City</th>
+                  <th className="p-3">Subcommunity</th>
                   <th className="p-3">Phone</th>
                   <th className="p-3">Profession</th>
                   <th className="p-3">Status</th>
@@ -349,8 +426,9 @@ export const AdminCensusManagement = () => {
                   <tr key={m.id || m._id} className="hover:bg-slate-50/50">
                     <td className="p-3 font-bold text-slate-900">{m.name}</td>
                     <td className="p-3">{m.gender || 'Male'}</td>
-                    <td className="p-3 font-semibold">{m.age || 30} yrs</td>
+                    <td className="p-3 font-semibold">{m.age ?? 30} yrs</td>
                     <td className="p-3">{m.city || 'Indore'}</td>
+                    <td className="p-3">{m.subCommunity || '—'}</td>
                     <td className="p-3 font-mono">{m.phone || '-'}</td>
                     <td className="p-3">{m.profession || 'Professional'}</td>
                     <td className="p-3">

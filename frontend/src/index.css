@@ -1018,20 +1018,21 @@
 
 @media (min-width: 1024px) {
   .app-container {
-    max-width: 1440px;
-    margin: 0 auto;
+    max-width: none;
+    margin: 0;
   }
 
   .responsive-fixed-fab {
-    right: calc(50% - 720px + 32px) !important;
+    right: 32px !important;
   }
 }
 
 @media (min-width: 1440px) {
   .responsive-fixed-top,
   .responsive-fixed-bottom {
-    left: calc(50% - 460px) !important;
-    width: 1180px !important;
+    left: 260px !important;
+    right: 0 !important;
+    width: calc(100% - 260px) !important;
   }
 }
 

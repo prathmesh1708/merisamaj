@@ -27,21 +27,21 @@ router.get('/test', (req, res) => {
 });
 
 // Invitation routes
-router.use('/invitations', invitationRoutes);
+router.use('/invitations', checkModuleEnabled('invitationEnabled'), invitationRoutes);
 
 // Donation routes
-router.use('/donations', donationRoutes);
+router.use('/donations', checkModuleEnabled('donationEnabled'), donationRoutes);
 
 // Obituary routes
-router.use('/obituaries', obituaryRoutes);
+router.use('/obituaries', checkModuleEnabled('obituaryEnabled'), obituaryRoutes);
 
 // Dharmashala routes
-router.use('/dharmashala', dharmashalaRoutes);
+router.use('/dharmashala', checkModuleEnabled('dharmashalaEnabled'), dharmashalaRoutes);
 
 // Community Social Feed (Posts & Stories)
 const socialRoutes = require('./socialRoutes');
-router.use('/social', socialRoutes);
-router.use('/posts', postRoutes);
+router.use('/social', checkModuleEnabled('socialFeedEnabled'), socialRoutes);
+router.use('/posts', checkModuleEnabled('socialFeedEnabled'), postRoutes);
 
 // Community Member Listing
 router.use('/members', memberListingRoutes);
@@ -50,7 +50,7 @@ router.use('/members', memberListingRoutes);
 router.use('/voting', votingRoutes);
 
 // Events
-router.use('/events', eventRoutes);
+router.use('/events', checkModuleEnabled('eventEnabled'), eventRoutes);
 
 // Samaj Fund Module
 router.use('/fund', fundRoutes);
@@ -60,8 +60,8 @@ const professionalRoutes = require('./professionalRoutes');
 router.use('/professional', checkModuleEnabled('directoryEnabled'), professionalRoutes);
 
 // ─── Community Chat ──────────────────────────────────────────────────────────
-router.use('/chat',           memberChatRoutes);
-router.use('/groups',         groupRoutes);
+router.use('/chat',           checkModuleEnabled('chatEnabled'), memberChatRoutes);
+router.use('/groups',         checkModuleEnabled('chatEnabled'), groupRoutes);
 
 
 // ─── Matrimonial Module (gated by the community's assigned plan) ─────────────
@@ -80,11 +80,11 @@ router.use('/app-subscription', require('./appSubscriptionRoutes'));
 const { blockMarriedMembers } = require('../../middleware/matrimonialEligibility');
 router.use('/matrimonial', blockMarriedMembers);
 
-router.use('/matrimonial/profile',       matrimonialProfileRoutes);
-router.use('/matrimonial/subscription',  matrimonialSubscriptionRoutes);
-router.use('/matrimonial/interests',     matrimonialInterestRoutes);
-router.use('/matrimonial/chat',          matrimonialChatRoutes);
-router.use('/matrimonial',               matrimonialAuxRoutes); // dashboard, shortlist, visitors, block, report
+router.use('/matrimonial/profile',       checkModuleEnabled('matrimonialEnabled'), matrimonialProfileRoutes);
+router.use('/matrimonial/subscription',  checkModuleEnabled('matrimonialEnabled'), matrimonialSubscriptionRoutes);
+router.use('/matrimonial/interests',     checkModuleEnabled('matrimonialEnabled'), matrimonialInterestRoutes);
+router.use('/matrimonial/chat',          checkModuleEnabled('matrimonialEnabled'), matrimonialChatRoutes);
+router.use('/matrimonial',               checkModuleEnabled('matrimonialEnabled'), matrimonialAuxRoutes); // dashboard, shortlist, visitors, block, report
 
 // ─── Notifications (centralized for all modules) ─────────────────────────────
 const notificationRoutes = require('./notificationRoutes');

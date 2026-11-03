@@ -8,6 +8,7 @@ router.use(protect);
 
 router.get('/info', referralCtrl.getMyReferralInfo);
 router.get('/history', referralCtrl.getMyReferralHistory);
+router.get('/reward-transactions', referralCtrl.getMyRewardTransactions);
 router.get('/referred-users', referralCtrl.getMyReferredUsers);
 router.get('/leaderboard', referralCtrl.getLeaderboard);
 router.post('/validate', referralCtrl.validateReferralCode);

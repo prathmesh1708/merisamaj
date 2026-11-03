@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useDraggableScroll } from '../../../../hooks/useDraggableScroll';
-import { Bell, Search, Calendar, Heart, Users, BookOpen, Briefcase, Vote, ChevronRight, MapPin, Shield, Crown, ImagePlus, ArrowRight, Plus, Sparkles, GraduationCap, HeartHandshake, Flame, User, Smile, Phone, MessageCircle, Clock, CalendarDays, Mail, Home, Wallet, Megaphone, X } from 'lucide-react';
+import { Bell, Search, Calendar, Heart, Users, BookOpen, Briefcase, Vote, ChevronRight, MapPin, Shield, Crown, ImagePlus, ArrowRight, Plus, Sparkles, GraduationCap, HeartHandshake, Flame, User, Smile, Phone, MessageCircle, Clock, CalendarDays, Mail, Home, Wallet, Megaphone, X, Fingerprint, ScanFace } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { Avatar } from '../../components/common/Avatar';
 import { Badge } from '../../components/common/Badge';
@@ -133,6 +133,53 @@ const getFeatureModuleKey = (action) => {
   if (path.includes('event') || label.includes('event')) return 'event';
   
   return label.replace(/\s+/g, '_');
+};
+
+const VerificationPrompt = ({ user, navigate }) => {
+  const pendingChecks = [
+    !user?.isAadharVerified && { title: 'Aadhaar Verification', description: 'Verify your identity with UIDAI', badge: 'UIDAI Enabled', Icon: Fingerprint, kind: 'aadhaar' },
+    !user?.isFaceVerified && { title: 'Face Verification', description: 'Verify your identity using live face capture', badge: 'AI Powered & Secure', Icon: ScanFace, kind: 'face' },
+  ].filter(Boolean);
+  if (!pendingChecks.length) return null;
+
+  return (
+    <div className="px-3 mb-4 animate-fade-in-up">
+      <div className="relative overflow-hidden rounded-[24px] border border-violet-100 bg-gradient-to-br from-white via-violet-50 to-indigo-50 p-4 shadow-[0_10px_30px_rgba(91,33,182,0.10)]">
+        <div className="absolute -right-8 -top-10 h-28 w-28 rounded-full bg-violet-200/40 blur-2xl" />
+        <div className="relative">
+          <div className="mb-3 flex items-center gap-2">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-md shadow-blue-300/60"><Shield size={16} /></span>
+            <div>
+              <h3 className="text-[13px] font-black tracking-tight text-slate-900">Get verified</h3>
+              <p className="text-[10px] font-medium text-slate-500">Build trust with your community</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-2.5">
+            {pendingChecks.map(({ title, description, badge, Icon, kind }) => (
+              <button
+                key={title}
+                onClick={() => {
+                  localStorage.setItem('merisamaj_onboarding_from_home', 'true');
+                  localStorage.removeItem('merisamaj_onboarding_resume_step');
+                  navigate(`/member/onboarding?verification=${kind}`);
+                }}
+                className={`group relative flex min-h-[106px] items-center gap-3 overflow-hidden rounded-[22px] border p-3.5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${kind === 'aadhaar' ? 'border-orange-200 bg-gradient-to-br from-[#fffaf4] via-[#fff8ef] to-[#fff1dc] hover:border-orange-300' : 'border-blue-200 bg-gradient-to-br from-[#f5f9ff] via-[#eff6ff] to-[#e1f0ff] hover:border-blue-300'}`}
+              >
+                <span className={`pointer-events-none absolute -bottom-8 -right-4 h-20 w-32 rotate-[-12deg] rounded-full opacity-40 blur-xl ${kind === 'aadhaar' ? 'bg-gradient-to-r from-orange-300 via-white to-emerald-300' : 'bg-gradient-to-r from-sky-300 to-blue-400'}`} />
+                <span className={`relative flex h-[60px] w-[60px] shrink-0 items-center justify-center rounded-2xl border bg-white/80 shadow-sm ${kind === 'aadhaar' ? 'border-orange-100 text-orange-600' : 'border-blue-100 text-blue-600'}`}><Icon size={32} strokeWidth={1.9} /></span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-black tracking-tight text-slate-900">{title}</span>
+                  <span className="mt-0.5 block max-w-[220px] text-[10px] font-medium leading-snug text-slate-600">{description}</span>
+                  <span className={`mt-2 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-extrabold ${kind === 'aadhaar' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-blue-200 bg-blue-50 text-blue-700'}`}><Shield size={10} /> {badge}</span>
+                </span>
+                <span className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-white/75 transition-transform group-hover:translate-x-0.5 ${kind === 'aadhaar' ? 'border-orange-300 text-orange-600' : 'border-blue-300 text-blue-600'}`}><ArrowRight size={17} /></span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 const HomePage = () => {
@@ -389,9 +436,20 @@ const HomePage = () => {
     };
   }, [loadHomepageSettings]);
 
-  // Professional Directory is hidden when the member's community plan has that
-  // module switched off (Admin → Subscriptions → assign a plan without it).
-  const directoryEnabled = currentUser?.communityId?.settings?.directoryEnabled !== false;
+  const moduleSettings = effectiveUser?.communityId?.settings || {};
+  const directoryEnabled = moduleSettings.directoryEnabled !== false;
+  const isFeatureEnabled = (path) => {
+    if (path === '/member/professional' || path === '/member/directory') return directoryEnabled;
+    if (path === '/member/social' || path === '/member/groups') return moduleSettings.socialFeedEnabled !== false;
+    if (path.startsWith('/member/events')) return moduleSettings.eventEnabled !== false;
+    if (path.startsWith('/member/invitations')) return moduleSettings.invitationEnabled !== false;
+    if (path.startsWith('/member/donation')) return moduleSettings.donationEnabled !== false;
+    if (path.startsWith('/member/obituary')) return moduleSettings.obituaryEnabled !== false;
+    if (path.startsWith('/member/dharmashala')) return moduleSettings.dharmashalaEnabled !== false;
+    if (path.startsWith('/member/matrimonial')) return moduleSettings.matrimonialEnabled !== false;
+    if (path.startsWith('/member/chat')) return moduleSettings.chatEnabled !== false;
+    return true;
+  };
 
   const mergedFeatures = useMemo(() => {
     const content = homepageContentSettings?.exclusiveFeatures;
@@ -425,8 +483,8 @@ const HomePage = () => {
           bgImage: f.bgImage || matchedStatic?.bgImage || 'https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?auto=format&fit=crop&w=400&q=80'
         };
         });
-    return directoryEnabled ? base : base.filter(f => f.path !== '/member/professional');
-  }, [homepageContentSettings, quickActions, directoryEnabled]);
+    return base.filter(feature => isFeatureEnabled(feature.path));
+  }, [homepageContentSettings, quickActions, moduleSettings, isFeatureEnabled]);
 
   const communityPosts = [...mockPosts].sort((a, b) => {
     const aMatch = a.community === userCommunity ? 1 : 0;
@@ -635,6 +693,8 @@ const HomePage = () => {
       {/* Spacer */}
       <div className="h-4" />
 
+      <VerificationPrompt user={{ ...(currentUser || {}), ...(effectiveUser || {}) }} navigate={navigate} />
+
       {/* ─── APPROVAL PENDING NOTICE BANNER (Visible ONLY when not approved) ─── */}
       {!isApproved && (
         <div className="px-3 mb-5 animate-fade-in-up">
@@ -673,79 +733,6 @@ const HomePage = () => {
       {/* ─── FULL MEMBER SECTIONS (Visible ONLY when approved by Community Head) ─── */}
       {isApproved && (
         <>
-          {/* ─── PROFILE COMPLETION CARD ─── */}
-          {(() => {
-            const getRemainingProfileSections = (user) => {
-          if (!user) return [];
-          const remaining = [];
-          if (!user.qualification && !user.school) remaining.push({ name: 'Education Details', step: 'onboarding-4' });
-          if (!user.profession && !user.company) remaining.push({ name: 'Profession Details', step: 'onboarding-5' });
-          if (!user.detailedAddress && !user.houseNumber && !user.address && !user.streetAddress && !user.city) remaining.push({ name: 'Address Details', step: 'onboarding-6' });
-          if (!user.isAadharVerified && !user.isFaceVerified) remaining.push({ name: 'Verification', step: 'onboarding-9' });
-          if (!user.prefEducation && !user.prefAge && !user.prefOccupation) remaining.push({ name: 'Partner Preferences', step: 'onboarding-10' });
-          return remaining;
-        };
-
-        const calculateCompletionForUser = (user) => {
-          if (!user) return 0;
-          let pct = 0;
-          pct += 15; // Mobile verified
-          if (user.community || user.communityId) pct += 15;
-          if (user.name && (user.gender || user.dob)) pct += 20;
-          if (user.qualification || user.school) pct += 10;
-          if (user.profession || user.company) pct += 10;
-          if (user.houseNumber || user.detailedAddress || user.address || user.streetAddress || user.alternatePhone || user.city) pct += 10;
-          if (user.familyMembers && user.familyMembers.length > 0) pct += 10;
-          if (user.isAadharVerified || user.isFaceVerified || user.prefEducation || user.prefAge || user.prefOccupation) pct += 10;
-          return Math.min(pct, 100);
-        };
-
-        const remainingSections = getRemainingProfileSections(currentUser);
-        const totalCount = remainingSections.length;
-        const compPct = calculateCompletionForUser(currentUser);
-
-        if (totalCount === 0) return null;
-
-        return (
-          <div className="px-3 mb-4 animate-fade-in-up">
-            <div className="bg-gradient-to-r from-[#6D28D9] via-[#7C3AED] to-[#5B21B6] rounded-[24px] p-4 text-white shadow-[0_8px_30px_rgb(124,58,237,0.15)] relative overflow-hidden">
-              <div className="absolute -right-4 -bottom-4 w-28 h-28 bg-white/5 rounded-full blur-xl" />
-              <div className="absolute left-1/3 top-0 w-20 h-20 bg-purple-300/10 rounded-full blur-xl" />
-              
-              <div className="flex items-center gap-3.5 relative z-10">
-                <div className="w-11 h-11 bg-white/15 backdrop-blur-md rounded-full flex items-center justify-center shrink-0 border border-white/10">
-                  <Sparkles size={18} className="text-purple-200 animate-pulse" />
-                </div>
-                
-                <div className="flex-1 min-w-0 text-left">
-                  <h3 className="text-xs font-black tracking-tight leading-tight">Complete Your Profile</h3>
-                  <div className="flex items-center gap-2 mt-1">
-                    <div className="h-1.5 w-24 bg-white/20 rounded-full overflow-hidden">
-                      <div className="h-full bg-teal-400 rounded-full" style={{ width: `${compPct}%` }} />
-                    </div>
-                    <span className="text-[10px] font-bold text-purple-200">{compPct}% done</span>
-                  </div>
-                  <p className="text-[9px] text-purple-205/70 font-semibold mt-1 truncate">
-                    {totalCount} section{totalCount !== 1 ? 's' : ''} remaining (Education, Profession, etc.)
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => {
-                    localStorage.setItem('merisamaj_onboarding_from_home', 'true');
-                    localStorage.setItem('merisamaj_onboarding_resume_step', 'onboarding-1');
-                    navigate('/member/onboarding');
-                  }}
-                  className="bg-white hover:bg-purple-50 text-purple-900 text-[11px] font-extrabold px-3.5 py-2.5 rounded-xl flex items-center gap-1 shrink-0 transition-all press-scale shadow-sm"
-                >
-                  Continue <ArrowRight size={13} strokeWidth={2.5} />
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
       {/* ─── INTERACTIVE HIGHLIGHTS MODULE ─── */}
       <AnimatedIconCards
         invitationCount={invitationCount}

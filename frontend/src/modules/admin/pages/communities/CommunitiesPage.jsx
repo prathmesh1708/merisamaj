@@ -168,6 +168,8 @@ const DEFAULT_HEAD_PERMISSIONS = {
 // MODULE SETTINGS CONFIG — Admin-configurable feature flags
 // ─────────────────────────────────────────────
 const MODULE_FLAGS = [
+  { key: 'matrimonialEnabled', label: 'Matrimony', icon: '❤️' },
+  { key: 'chatEnabled', label: 'Chat & Groups', icon: '💬' },
   { key: 'socialFeedEnabled',   label: 'Social Feed',    icon: '📰' },
   { key: 'eventEnabled',        label: 'Events',          icon: '🎉' },
   { key: 'donationEnabled',     label: 'Donations',       icon: '💰' },
@@ -1031,13 +1033,18 @@ const EditCommunityModal = ({ community, onClose, onUpdated }) => {
 // ModuleSettingsPanel
 // ─────────────────────────────────────────────
 const ModuleSettingsPanel = ({ community, onClose, onUpdated }) => {
-  const [settings, setSettings] = useState({ ...community.settings });
+  const [settings, setSettings] = useState(() => Object.fromEntries(MODULE_FLAGS.map(({ key }) => [
+    key,
+    typeof community.settings?.[key] === 'boolean' ? community.settings[key] : true,
+  ])));
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
 
   const handleToggle = (key) => {
     setSettings(s => ({ ...s, [key]: !s[key] }));
     setSaved(false);
+    setError('');
   };
 
   const handleSave = async () => {
@@ -1045,9 +1052,12 @@ const ModuleSettingsPanel = ({ community, onClose, onUpdated }) => {
     try {
       await updateCommunitySettings(community._id, settings);
       setSaved(true);
-      onUpdated();
+      setError('');
+      await onUpdated();
     } catch (err) {
       console.error('Settings update failed:', err);
+      setSaved(false);
+      setError(err.response?.data?.message || 'Could not save module settings. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -1069,21 +1079,25 @@ const ModuleSettingsPanel = ({ community, onClose, onUpdated }) => {
           </p>
           <div className="community-module-grid">
             {MODULE_FLAGS.map(({ key, label, icon }) => (
-              <div
+              <button
+                type="button"
                 key={key}
                 className={`community-module-toggle ${settings[key] ? 'active' : 'inactive'}`}
                 onClick={() => handleToggle(key)}
+                aria-pressed={!!settings[key]}
+                disabled={loading}
               >
                 <span className="community-module-icon">{icon}</span>
                 <span className="community-module-label">{label}</span>
                 <div className={`community-toggle-switch ${settings[key] ? 'on' : 'off'}`}>
                   <div className="community-toggle-knob" />
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         </div>
         <div className="community-modal-actions">
+          {error && <span role="alert" style={{ fontSize: '0.82rem', color: '#dc2626', fontWeight: 600 }}>{error}</span>}
           {saved && <span style={{ fontSize: '0.85rem', color: '#16a34a', fontWeight: 600 }}>✓ Changes saved successfully!</span>}
           <div style={{ display: 'flex', gap: '10px', marginLeft: 'auto' }}>
             <button className="community-btn-secondary" onClick={onClose}>Close</button>
@@ -5907,7 +5921,9 @@ const COMMUNITIES_PAGE_STYLES = `
     display: flex; align-items: center; gap: 8px; padding: 12px;
     border: 1.5px solid #e5e7eb; border-radius: 10px; cursor: pointer;
     transition: all 0.15s; user-select: none;
+    width: 100%; text-align: left; font: inherit; color: inherit; background: #fff;
   }
+  .community-module-toggle:disabled { cursor: wait; }
   .community-module-toggle.active { border-color: #667eea; background: #eef2ff; }
   .community-module-toggle.inactive { opacity: 0.6; }
   .community-module-icon { font-size: 1.1rem; }

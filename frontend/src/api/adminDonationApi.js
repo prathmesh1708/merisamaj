@@ -9,6 +9,11 @@ export const adminDonationApi = {
     return res.data;
   },
 
+  getDonationDetails: async (id) => {
+    const res = await axiosPrivate.get(`${API_BASE}/${id}`);
+    return res.data;
+  },
+
   getCommunities: async () => {
     const res = await axiosPrivate.get('/admin/communities');
     return res.data;

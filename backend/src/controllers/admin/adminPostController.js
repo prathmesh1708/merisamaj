@@ -1,5 +1,7 @@
 const Post = require('../../models/Post');
 const Community = require('../../models/Community');
+const User = require('../../models/User');
+const City = require('../../models/City');
 
 // @desc    Get City Feed — all posts across the platform, grouped/filterable by author's city
 // @route   GET /api/v1/admin/social/city-feed
@@ -7,7 +9,7 @@ const Community = require('../../models/Community');
 // @access  Private/Admin
 exports.getCityFeedPosts = async (req, res) => {
   try {
-    const { city, status, search, page = 1, limit = 20 } = req.query;
+    const { city, communityId, subCommunity, status, search, page = 1, limit = 20 } = req.query;
 
     const filter = {};
     if (status === 'deleted') {
@@ -18,6 +20,37 @@ exports.getCityFeedPosts = async (req, res) => {
       filter.isDeleted = { $ne: true };
     }
     filter.feedType = { $ne: 'community' };
+
+    const hasCommunityFilter = communityId && communityId !== 'all' && communityId !== 'undefined';
+    const hasSubCommunityFilter = subCommunity && subCommunity !== 'all';
+    const hasCityFilter = city && city.trim() && city !== 'all';
+    if (hasCommunityFilter || hasSubCommunityFilter || hasCityFilter) {
+      const authorFilter = {};
+      if (hasCommunityFilter) authorFilter.communityId = communityId.trim();
+      if (hasSubCommunityFilter) {
+        const escapedSubCommunity = String(subCommunity).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        authorFilter.subCommunity = new RegExp(`^${escapedSubCommunity}$`, 'i');
+      }
+      if (hasCityFilter) {
+        const escapedCity = String(city).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        authorFilter.city = new RegExp(`^${escapedCity}$`, 'i');
+      }
+
+      const authorIds = await User.distinct('_id', authorFilter);
+      const scopeConditions = [
+        { authorId: { $in: authorIds } },
+        { userId: { $in: authorIds } }
+      ];
+      if (hasCommunityFilter && !hasSubCommunityFilter && !hasCityFilter) {
+        scopeConditions.push({ communityId: communityId.trim() });
+      }
+      if (hasCityFilter && !hasCommunityFilter && !hasSubCommunityFilter) {
+        const escapedCity = String(city).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const cityIds = await City.distinct('_id', { name: new RegExp(`^${escapedCity}$`, 'i'), isActive: { $ne: false } });
+        if (cityIds.length) scopeConditions.push({ cityId: { $in: cityIds } });
+      }
+      filter.$and = [...(filter.$and || []), { $or: scopeConditions }];
+    }
 
     if (search && search.trim()) {
       filter.content = new RegExp(search.trim(), 'i');
@@ -48,12 +81,6 @@ exports.getCityFeedPosts = async (req, res) => {
       };
     });
 
-    if (city && city.trim() && city !== 'all') {
-      posts = posts.filter(
-        (p) => p.resolvedCity.toLowerCase() === city.trim().toLowerCase()
-      );
-    }
-
     const total = await Post.countDocuments(filter);
 
     res.status(200).json({
@@ -77,7 +104,7 @@ exports.getCityFeedPosts = async (req, res) => {
 // @access  Private/Admin
 exports.getCommunityFeedPosts = async (req, res) => {
   try {
-    const { communityId, status, search, page = 1, limit = 20 } = req.query;
+    const { communityId, subCommunity, city, status, search, page = 1, limit = 20 } = req.query;
 
     const filter = {};
     if (status === 'deleted') {
@@ -91,6 +118,31 @@ exports.getCommunityFeedPosts = async (req, res) => {
 
     if (communityId && communityId.trim() && communityId !== 'undefined' && communityId !== 'all') {
       filter.communityId = communityId.trim();
+    }
+    if ((subCommunity && subCommunity !== 'all') || (city && city !== 'all')) {
+      const authorFilter = {};
+      if (communityId && communityId !== 'all' && communityId !== 'undefined') {
+        authorFilter.communityId = communityId.trim();
+      }
+      if (subCommunity && subCommunity !== 'all') {
+        const escapedSubCommunity = String(subCommunity).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        authorFilter.subCommunity = new RegExp(`^${escapedSubCommunity}$`, 'i');
+      }
+      if (city && city !== 'all') {
+        const escapedCity = String(city).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        authorFilter.city = new RegExp(`^${escapedCity}$`, 'i');
+      }
+      const authorIds = await User.distinct('_id', authorFilter);
+      const authorScopeConditions = [
+        { authorId: { $in: authorIds } },
+        { userId: { $in: authorIds } }
+      ];
+      if (city && city !== 'all' && !(subCommunity && subCommunity !== 'all')) {
+        const cityRegex = new RegExp(`^${String(city).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+        const cityIds = await City.distinct('_id', { name: cityRegex, isActive: { $ne: false } });
+        if (cityIds.length) authorScopeConditions.push({ cityId: { $in: cityIds } });
+      }
+      filter.$and = [...(filter.$and || []), { $or: authorScopeConditions }];
     }
     if (search && search.trim()) {
       filter.content = new RegExp(search.trim(), 'i');
@@ -143,11 +195,47 @@ exports.getCommunitiesForFilter = async (req, res) => {
     const communities = await Community.find({
       $or: [{ isActive: true }, { isActive: { $exists: false } }]
     })
-      .select('name slug city')
+      .select('name slug city cityIds subCommunities')
+      .populate('cityIds', 'name state isActive')
+      .populate('subCommunities.cityIds', 'name state isActive')
       .sort({ name: 1 })
       .lean();
 
-    res.status(200).json({ status: 'success', success: true, data: communities });
+    const communityIds = communities.map(community => community._id);
+    const cityGroups = await User.aggregate([
+      { $match: { communityId: { $in: communityIds }, city: { $exists: true, $nin: ['', null] } } },
+      { $group: { _id: { communityId: '$communityId', subCommunity: '$subCommunity' }, cities: { $addToSet: '$city' } } }
+    ]);
+    const cityGroupsByCommunity = new Map();
+    cityGroups.forEach(group => {
+      const communityKey = String(group._id.communityId);
+      if (!cityGroupsByCommunity.has(communityKey)) cityGroupsByCommunity.set(communityKey, []);
+      cityGroupsByCommunity.get(communityKey).push({ subCommunity: group._id.subCommunity || '', cities: group.cities || [] });
+    });
+
+    const enrichedCommunities = communities.map(community => {
+      const groups = cityGroupsByCommunity.get(String(community._id)) || [];
+      const configuredCommunityCities = (community.cityIds || []).map(city => city?.name).filter(Boolean);
+      const communityMemberCities = groups.flatMap(group => group.cities);
+      const cityOptions = [...new Map([...configuredCommunityCities, ...(community.city ? [community.city] : []), ...communityMemberCities]
+        .map(name => [String(name).toLowerCase(), { name }])).values()];
+      return {
+        ...community,
+        cityOptions,
+        subCommunities: (community.subCommunities || []).map(sub => {
+          const subGroup = groups.find(group => String(group.subCommunity).toLowerCase() === String(sub.name).toLowerCase());
+          const configuredSubCities = (sub.cityIds || []).map(city => city?.name).filter(Boolean);
+          const subCities = subGroup?.cities || [];
+          return {
+            ...sub,
+            cityOptions: [...new Map([...configuredSubCities, ...subCities]
+              .map(name => [String(name).toLowerCase(), { name }])).values()]
+          };
+        })
+      };
+    });
+
+    res.status(200).json({ status: 'success', success: true, data: enrichedCommunities });
   } catch (error) {
     console.error('getCommunitiesForFilter error:', error);
     res.status(500).json({ status: 'error', message: 'Failed to fetch communities' });

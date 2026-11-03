@@ -24,9 +24,21 @@ const userSubscriptionSchema = new mongoose.Schema(
     featuresSnapshot:{ type: mongoose.Schema.Types.Mixed, required: true }, // features object copy
 
     // ─── Payment Info ─────────────────────────────────────────────────────────
-    paymentId:       { type: String },           // Razorpay / Stripe transaction ID
+    paymentId:       { type: String, unique: true, sparse: true }, // Razorpay / Stripe transaction ID
+    razorpayOrderId: { type: String, unique: true, sparse: true },
     paymentGateway:  { type: String },           // 'razorpay' | 'stripe' | 'manual'
-    paymentStatus:   { type: String, enum: ['pending', 'success', 'failed'], default: 'pending' },
+    paymentStatus:   { type: String, enum: ['pending', 'success', 'failed', 'cancelled', 'refunded'], default: 'pending' },
+    listPrice:       { type: Number, default: 0, min: 0 },
+    discountAmount:  { type: Number, default: 0, min: 0 },
+    discountCode:    { type: String, default: '' },
+    referralCode:    { type: String, default: '' },
+    couponCodeId:    { type: mongoose.Schema.Types.ObjectId, ref: 'DiscountCode', default: null },
+    couponReserved:  { type: Boolean, default: false },
+    pointsRedeemed:  { type: Number, default: 0, min: 0 },
+    reservationReleasedAt: { type: Date, default: null },
+    rewardsCredited: { type: Boolean, default: false },
+    checkoutExpiresAt: { type: Date, default: null },
+    planRewardPoints: { type: Number, default: 0, min: 0 },
 
     // ─── Subscription Lifecycle ───────────────────────────────────────────────
     startDate:   { type: Date, required: true },
@@ -34,7 +46,7 @@ const userSubscriptionSchema = new mongoose.Schema(
     gracePeriodDays: { type: Number, default: 3 },  // Extra days before hard downgrade
     status: {
       type: String,
-      enum: ['active', 'expired', 'cancelled', 'grace'],
+      enum: ['pending', 'active', 'expired', 'cancelled', 'grace'],
       default: 'active',
       index: true
     },

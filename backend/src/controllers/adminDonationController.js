@@ -34,7 +34,7 @@ const resolveTargeting = (body) => {
 // GET /admin/donations — List all donation campaigns (Admin global view with optional status, category, communityId filters)
 exports.getAllDonations = async (req, res) => {
   try {
-    const { includeDeleted, status, category, communityId } = req.query;
+    const { includeDeleted, status, category, communityId, subCommunity } = req.query;
 
     let baseFilter = {};
     if (includeDeleted !== 'true') {
@@ -68,8 +68,20 @@ exports.getAllDonations = async (req, res) => {
       }
     }
 
+    if (subCommunity && communityId && mongoose.Types.ObjectId.isValid(communityId)) {
+      const selectedCommunityId = new mongoose.Types.ObjectId(communityId);
+      baseFilter.$and = [
+        ...(baseFilter.$and || []),
+        { $or: [
+          { targetedSubCommunities: { $elemMatch: { communityId: selectedCommunityId, name: subCommunity } } },
+          { targetedSubCommunities: { $not: { $elemMatch: { communityId: selectedCommunityId } } } }
+        ] }
+      ];
+    }
+
     const donationDocs = await Donation.find(baseFilter)
       .populate('targetedCommunities', 'name code')
+      .populate('targetedSubCommunities.communityId', 'name code')
       .populate('communityId', 'name code')
       .sort({ createdAt: -1 })
       .lean();
@@ -92,6 +104,7 @@ exports.getAllDonations = async (req, res) => {
       city: d.city || '',
       communityId: d.communityId || null,
       targetedCommunities: d.targetedCommunities || [],
+      targetedSubCommunities: d.targetedSubCommunities || [],
       isGlobalCampaign: d.isGlobalCampaign || d.visibility === 'All Members',
       visibility: d.visibility || (d.isGlobalCampaign ? 'All Members' : 'Selected Communities'),
       coverImage: d.coverImage || '',
@@ -106,6 +119,68 @@ exports.getAllDonations = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// GET /admin/donations/:id — Full campaign details and contribution history for admins
+exports.getDonationDetails = async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'Invalid donation ID' });
+    }
+
+    const campaign = await Donation.findOne({ _id: req.params.id, isDeleted: { $ne: true } })
+      .populate('communityId', 'name code accountDetails')
+      .populate('targetedCommunities', 'name code')
+      .populate('targetedSubCommunities.communityId', 'name code')
+      .populate('createdBy', 'name email phone avatar role accountType city accountDetails');
+    if (!campaign) return res.status(404).json({ success: false, message: 'Donation campaign not found' });
+
+    const contributionDocs = await Donation.find({
+      campaign: campaign._id,
+      status: { $in: ['Active', 'Approved', 'Success'] },
+      isDeleted: { $ne: true }
+    })
+      .populate('user', 'name email phone avatar communityId subCommunity')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const contributions = contributionDocs.map(item => ({
+      id: item._id,
+      donorName: item.user?.name || item.donorName || 'Anonymous',
+      email: item.user?.email || '',
+      phone: item.user?.phone || item.donorPhone || '',
+      avatar: item.user?.avatar || null,
+      community: item.user?.communityId || null,
+      subCommunity: item.user?.subCommunity || '',
+      amount: item.amount || 0,
+      date: item.createdAt || item.paidAt || item.date || null,
+      paymentMode: item.paymentMode || item.paymentMethod || 'Online',
+      paymentStatus: item.status,
+      transactionId: item.paymentId || item.txnId || item.orderId || '',
+      receiptNo: item.receiptNo || '',
+      isManual: item.isManual === true
+    }));
+
+    const data = campaign.toObject();
+    data.source = 'donation';
+    data.bannerImage = data.coverImage || '';
+    data.contributions = contributions;
+    data.recentDonations = contributions.length > 0
+      ? contributions.map(({ donorName, avatar, amount, date, paymentMode }) => ({ donorName, avatar, amount, date, paymentMode }))
+      : (data.recentDonations || []);
+    data.donorCount = Math.max(data.donorCount || 0, contributions.length);
+    data.raisedAmount = Math.max(data.raisedAmount || 0, contributions.reduce((sum, item) => sum + item.amount, 0));
+    data.availableBalance = data.raisedAmount - (data.expenseAmount || 0);
+    data.effectiveAccountDetails = (data.accountDetails?.accountNumber || data.accountDetails?.upiId)
+      ? data.accountDetails
+      : (data.createdBy?.accountDetails?.accountNumber || data.createdBy?.accountDetails?.upiId)
+        ? data.createdBy.accountDetails
+        : (data.communityId?.accountDetails || {});
+
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -151,6 +226,9 @@ exports.createDonation = async (req, res) => {
       status: status || 'Active',
       isGlobalCampaign,
       targetedCommunities,
+      targetedSubCommunities: Array.isArray(req.body.targetedSubCommunities) ? req.body.targetedSubCommunities
+        .filter(item => item?.communityId && mongoose.Types.ObjectId.isValid(item.communityId) && String(item.name || '').trim())
+        .map(item => ({ communityId: new mongoose.Types.ObjectId(item.communityId), name: String(item.name).trim() })) : [],
       visibility,
       raisedAmount: 0,
       donorCount: 0,
@@ -174,6 +252,7 @@ exports.createDonation = async (req, res) => {
 
     const populatedDonation = await Donation.findById(donation._id)
       .populate('targetedCommunities', 'name code')
+      .populate('targetedSubCommunities.communityId', 'name code')
       .populate('communityId', 'name code');
 
     const resultData = populatedDonation.toObject();
@@ -199,6 +278,9 @@ exports.updateDonation = async (req, res) => {
       ...req.body,
       isGlobalCampaign,
       targetedCommunities,
+      targetedSubCommunities: Array.isArray(req.body.targetedSubCommunities) ? req.body.targetedSubCommunities
+        .filter(item => item?.communityId && mongoose.Types.ObjectId.isValid(item.communityId) && String(item.name || '').trim())
+        .map(item => ({ communityId: new mongoose.Types.ObjectId(item.communityId), name: String(item.name).trim() })) : [],
       visibility
     };
 
@@ -219,7 +301,7 @@ exports.updateDonation = async (req, res) => {
       { _id: req.params.id, isDeleted: { $ne: true } },
       { $set: updatePayload },
       { new: true, runValidators: true }
-    ).populate('targetedCommunities', 'name code').populate('communityId', 'name code');
+    ).populate('targetedCommunities', 'name code').populate('targetedSubCommunities.communityId', 'name code').populate('communityId', 'name code');
 
     if (!doc) {
       return res.status(404).json({ success: false, message: 'Donation record not found' });

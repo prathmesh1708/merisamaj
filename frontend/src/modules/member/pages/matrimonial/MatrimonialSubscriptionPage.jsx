@@ -62,8 +62,23 @@ const MatrimonialSubscriptionPage = () => {
   const [processing, setProcessing]     = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [toast, setToast]               = useState('');
+  const [checkoutCode, setCheckoutCode] = useState('');
+  const [checkoutPoints, setCheckoutPoints] = useState(0);
+  const [checkoutQuote, setCheckoutQuote] = useState(null);
+  const [quoteMessage, setQuoteMessage] = useState('');
+  const [quoting, setQuoting] = useState(false);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); };
+  const refreshCheckoutQuote = async (code = checkoutCode, points = checkoutPoints) => {
+    if (!selectedPlan) return;
+    setQuoting(true); setQuoteMessage('');
+    try {
+      const response = await matrimonialSubscriptionService.quotePurchase({ planId: selectedPlan._id, code, pointsToRedeem: points });
+      setCheckoutQuote(response.data.data.quote);
+      setQuoteMessage(code ? `Code applied: ₹${response.data.data.quote.codeDiscount} off` : 'Price updated.');
+    } catch (err) { setCheckoutQuote(null); setQuoteMessage(err.response?.data?.message || 'Could not validate checkout.'); }
+    finally { setQuoting(false); }
+  };
 
   // ─── Load plans & subscription ───────────────────────────────────────────────
   const loadData = useCallback(async () => {
@@ -107,8 +122,9 @@ const MatrimonialSubscriptionPage = () => {
     setCheckoutStep('processing');
 
     try {
-      const initiateRes = await matrimonialSubscriptionService.initiatePurchase({ planId: selectedPlan._id });
+      const initiateRes = await matrimonialSubscriptionService.initiatePurchase({ planId: selectedPlan._id, code: checkoutCode, pointsToRedeem: Number(checkoutPoints) || 0 });
       const order = initiateRes.data.data;
+      if (order.quote) setCheckoutQuote(order.quote);
       const sdkLoaded = await loadRazorpayScript();
 
       if (sdkLoaded && window.Razorpay && order.razorpayOrderId) {
@@ -135,7 +151,7 @@ const MatrimonialSubscriptionPage = () => {
               setCheckoutStep('select-method');
             }
           },
-          modal: { ondismiss: () => setCheckoutStep('select-method') },
+          modal: { ondismiss: () => { matrimonialSubscriptionService.cancelPurchase({ razorpayOrderId: order.razorpayOrderId }).catch(() => {}); setCheckoutStep('select-method'); } },
           prefill: {},
           theme: { color: selectedPlan.themeColor || '#f43f5e' }
         };
@@ -145,6 +161,7 @@ const MatrimonialSubscriptionPage = () => {
       }
 
       // Razorpay could not be opened: never activate without a real payment.
+      if (order?.razorpayOrderId) matrimonialSubscriptionService.cancelPurchase({ razorpayOrderId: order.razorpayOrderId }).catch(() => {});
       showToast(sdkLoaded ? 'Could not start the payment. Please try again.' : 'Payment window failed to load. Check your internet connection.');
       setCheckoutStep('select-method');
     } catch (err) {
@@ -370,6 +387,7 @@ const MatrimonialSubscriptionPage = () => {
                               </div>
                             </div>
                             <ul className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-1 gap-1.5">
+                              {plan.price > 0 && <li className="flex items-center justify-between gap-2 text-[12px] text-violet-700"><span className="font-semibold">Reward points after verified payment</span><span className="font-extrabold">{plan.rewardPoints || 0}</span></li>}
                               {FEATURE_ROWS.map(feature => {
                                 const val = featureValue(plan, feature.key);
                                 const on = feature.type === 'value' ? !!val : !!val;
@@ -399,7 +417,7 @@ const MatrimonialSubscriptionPage = () => {
                                 {plan.price > 0 ? (
                                   <button
                                     type="button"
-                                    onClick={(e) => { e.stopPropagation(); setPaymentMethod(paymentMethod || 'upi'); setShowCheckout(true); setCheckoutStep('select-method'); }}
+                                    onClick={(e) => { e.stopPropagation(); setPaymentMethod(paymentMethod || 'upi'); setShowCheckout(true); setCheckoutStep('select-method'); refreshCheckoutQuote(); }}
                                     className="w-full py-3.5 text-white rounded-xl text-[14px] font-extrabold shadow-md active:scale-95 transition-transform"
                                     style={{ backgroundColor: plan.themeColor || '#f43f5e' }}
                                   >
@@ -525,7 +543,7 @@ const MatrimonialSubscriptionPage = () => {
                           </div>
                         </div>
                         {selectedPlan.price > 0 ? (
-                          <button onClick={() => { setPaymentMethod(paymentMethod || 'upi'); setShowCheckout(true); setCheckoutStep('select-method'); }}
+                          <button onClick={() => { setPaymentMethod(paymentMethod || 'upi'); setShowCheckout(true); setCheckoutStep('select-method'); refreshCheckoutQuote(); }}
                             className="w-full py-3.5 text-white rounded-xl text-[13.5px] font-extrabold shadow-md active:scale-95 transition-transform flex items-center justify-center gap-2"
                             style={{ backgroundColor: selectedPlan.themeColor || '#f43f5e' }}>
                             {isActive ? 'Confirm Upgrade' : 'Upgrade Now'}
@@ -554,6 +572,12 @@ const MatrimonialSubscriptionPage = () => {
 
             {checkoutStep === 'select-method' && (
               <div className="space-y-4">
+                <div className="rounded-xl border border-slate-200 p-3 space-y-2">
+                  <div className="flex gap-2"><input aria-label="Referral or discount code" value={checkoutCode} onChange={e => { setCheckoutCode(e.target.value.toUpperCase()); setCheckoutQuote(null); setQuoteMessage(''); }} placeholder="Referral / discount code" className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm"/><button onClick={() => refreshCheckoutQuote()} disabled={quoting} className="rounded-lg bg-violet-600 px-3 text-sm font-bold text-white">{quoting ? 'Checking…' : 'Apply'}</button></div>
+                  <div className="flex items-center gap-2"><label className="text-xs text-slate-600">Redeem points</label><input type="number" min="0" value={checkoutPoints} onChange={e => { setCheckoutPoints(e.target.value); setCheckoutQuote(null); setQuoteMessage(''); }} className="w-28 rounded-lg border border-slate-200 px-2 py-1.5 text-sm"/><button onClick={() => refreshCheckoutQuote(checkoutCode, checkoutPoints)} disabled={quoting} className="text-xs font-bold text-violet-700">Apply points</button></div>
+                  {quoteMessage && <p className="text-xs text-slate-600" role="status">{quoteMessage}</p>}
+                  {checkoutQuote && <div className="space-y-1 border-t pt-2 text-sm"><div className="flex justify-between"><span>Original price</span><b>₹{checkoutQuote.listPrice}</b></div><div className="flex justify-between"><span>Code discount</span><b>−₹{checkoutQuote.codeDiscount}</b></div><div className="flex justify-between"><span>Points discount ({checkoutQuote.pointsRedeemed} points)</span><b>−₹{checkoutQuote.pointsDiscount}</b></div><div className="flex justify-between border-t pt-1 font-black"><span>Payable</span><b>₹{checkoutQuote.finalAmount}</b></div><p className="text-xs text-slate-500">Available points: {checkoutQuote.pointsAvailable}</p></div>}
+                </div>
                 <div className="text-center">
                   <h3 className="text-[15px] font-black text-slate-800">Secure Checkout</h3>
                   <p className="text-[11px] text-slate-500 font-bold mt-0.5">Pay via UPI, Cards or Net Banking</p>
@@ -609,7 +633,7 @@ const MatrimonialSubscriptionPage = () => {
                     className={`flex-1 py-3.5 text-white rounded-xl text-[13px] font-black shadow-sm flex items-center justify-center gap-2 ${paymentMethod ? 'bg-rose-500' : 'bg-rose-300 cursor-not-allowed'}`}
                     style={{ backgroundColor: paymentMethod ? (selectedPlan?.themeColor || '#f43f5e') : undefined }}>
                     {processing && <Loader2 size={14} className="animate-spin" />}
-                    {paymentMethod ? `Pay ₹${selectedPlan?.price}` : 'Select a method'}
+                    {paymentMethod ? `Pay ₹${checkoutQuote?.finalAmount ?? selectedPlan?.price}` : 'Select a method'}
                   </button>
                 </div>
               </div>

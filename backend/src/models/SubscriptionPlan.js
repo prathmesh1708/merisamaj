@@ -8,6 +8,7 @@ const subscriptionPlanSchema = new mongoose.Schema(
     description:   { type: String },
     price:         { type: Number, required: true },           // In INR (0 for Free)
     durationInDays:{ type: Number, required: true },           // 0 for perpetual Free plan
+    rewardPoints:  { type: Number, default: 0, min: 0 },
     displayOrder:  { type: Number, default: 0 },               // For UI ordering
     isActive:      { type: Boolean, default: true },
     isFeatured:    { type: Boolean, default: false },          // Highlighted in UI

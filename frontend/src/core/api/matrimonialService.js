@@ -39,7 +39,9 @@ export const matrimonialSubscriptionService = {
   getMySubscription:  ()     => axiosPrivate.get(`${BASE}/subscription/me`),
   getHistory:         ()     => axiosPrivate.get(`${BASE}/subscription/history`),
   getOverview:        ()     => axiosPrivate.get(`${BASE}/subscription/overview`),
+  quotePurchase:      (data) => axiosPrivate.post(`${BASE}/subscription/purchase/quote`, data),
   initiatePurchase:   (data) => axiosPrivate.post(`${BASE}/subscription/purchase`, data),
+  cancelPurchase:     (data) => axiosPrivate.post(`${BASE}/subscription/purchase/cancel`, data),
   verifyAndActivate:  (data) => axiosPrivate.post(`${BASE}/subscription/verify`, data),
   cancelSubscription: (data) => axiosPrivate.post(`${BASE}/subscription/cancel`, data),
 };
@@ -134,6 +136,8 @@ export const appSubscriptionService = {
   listPlans:          ()     => axiosPrivate.get('/member/app-subscription/plans'),
   getOverview:        ()     => axiosPrivate.get('/member/app-subscription/overview'),
   initiatePurchase:   (data) => axiosPrivate.post('/member/app-subscription/purchase', data),
+  quotePurchase:      (data) => axiosPrivate.post('/member/app-subscription/purchase/quote', data),
+  cancelPurchase:     (data) => axiosPrivate.post('/member/app-subscription/purchase/cancel', data),
   verifyAndActivate:  (data) => axiosPrivate.post('/member/app-subscription/verify', data),
   cancelSubscription: (data) => axiosPrivate.post('/member/app-subscription/cancel', data),
 };

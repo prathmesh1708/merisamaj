@@ -34,6 +34,11 @@ const AppMembershipPage = () => {
   const [overview, setOverview]   = useState({ current: null, history: [] });
   const [loading, setLoading]     = useState(true);
   const [buyingId, setBuyingId]   = useState(null);
+  const [checkoutPlan, setCheckoutPlan] = useState(null);
+  const [checkoutCode, setCheckoutCode] = useState('');
+  const [checkoutPoints, setCheckoutPoints] = useState(0);
+  const [checkoutQuote, setCheckoutQuote] = useState(null);
+  const [checkoutError, setCheckoutError] = useState('');
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [toast, setToast]         = useState('');
 
@@ -68,13 +73,30 @@ const AppMembershipPage = () => {
   useEffect(() => { loadData(); }, [loadData]);
 
   const handleBuy = async (plan) => {
+    setCheckoutPlan(plan); setCheckoutCode(''); setCheckoutPoints(0); setCheckoutQuote(null); setCheckoutError('');
+  };
+
+  const applyCheckoutQuote = async () => {
+    if (!checkoutPlan) return;
+    try {
+      const res = await appSubscriptionService.quotePurchase({ planId: checkoutPlan._id, code: checkoutCode, pointsToRedeem: checkoutPoints });
+      setCheckoutQuote(res.data.data.quote); setCheckoutError('Price updated.');
+    } catch (err) { setCheckoutQuote(null); setCheckoutError(err.response?.data?.message || 'Could not validate code or points.'); }
+  };
+
+  const handleConfirmBuy = async () => {
+    const plan = checkoutPlan;
+    if (!plan) return;
     setBuyingId(plan._id);
     try {
-      const order = (await appSubscriptionService.initiatePurchase({ planId: plan._id })).data.data;
+      const order = (await appSubscriptionService.initiatePurchase({ planId: plan._id, code: checkoutCode, pointsToRedeem: Number(checkoutPoints) || 0 })).data.data;
+      if (order.quote) setCheckoutQuote(order.quote);
       const sdkLoaded = await loadRazorpayScript();
       if (!sdkLoaded || !window.Razorpay || !order.razorpayOrderId) {
         // Never activate without a real payment
         showToast(sdkLoaded ? 'Could not start the payment. Please try again.' : 'Payment window failed to load. Check your internet connection.');
+        if (order?.razorpayOrderId) appSubscriptionService.cancelPurchase({ razorpayOrderId: order.razorpayOrderId }).catch(() => {});
+        setCheckoutPlan(null);
         setBuyingId(null);
         return;
       }
@@ -95,6 +117,7 @@ const AppMembershipPage = () => {
               planId: plan._id
             });
             showToast(`${plan.name} is active 🎉`);
+            setCheckoutPlan(null);
             await Promise.all([loadData(), refreshMe()]);
           } catch (err) {
             showToast(err.response?.data?.message || 'Payment could not be verified.');
@@ -102,12 +125,13 @@ const AppMembershipPage = () => {
             setBuyingId(null);
           }
         },
-        modal: { ondismiss: () => setBuyingId(null) },
+        modal: { ondismiss: () => { appSubscriptionService.cancelPurchase({ razorpayOrderId: order.razorpayOrderId }).catch(() => {}); setBuyingId(null); setCheckoutPlan(null); } },
         theme: { color: plan.themeColor || '#f43f5e' }
       }).open();
     } catch (err) {
       showToast(err.response?.data?.message || 'Payment failed. Please try again.');
       setBuyingId(null);
+      setCheckoutPlan(null);
     }
   };
 
@@ -200,6 +224,7 @@ const AppMembershipPage = () => {
                     {plan.originalPrice > plan.price && <span className="text-xs text-slate-400 line-through">₹{plan.originalPrice.toLocaleString('en-IN')}</span>}
                     <span className="text-[11px] text-slate-500">/ {plan.durationInDays} days</span>
                   </div>
+                  {plan.rewardPoints > 0 && <p className="mt-1 text-[11px] font-bold text-violet-700">Earn {plan.rewardPoints} points after payment is verified</p>}
                   <ul className="mt-2.5 space-y-1">
                     {perksOf(plan.appFeatures, plan.customFeatures).map(({ icon: Icon, text }, i) => (
                       <li key={i} className="flex items-start gap-1.5 text-[11.5px] text-slate-600 font-medium">
@@ -259,6 +284,7 @@ const AppMembershipPage = () => {
           </div>
         </div>
       )}
+      {checkoutPlan && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4"><div className="w-full max-w-md space-y-3 rounded-2xl bg-white p-5 shadow-xl"><div className="flex justify-between"><h3 className="font-black">Checkout · {checkoutPlan.name}</h3><button onClick={() => setCheckoutPlan(null)} aria-label="Close">×</button></div><div className="flex gap-2"><input value={checkoutCode} onChange={e => setCheckoutCode(e.target.value.toUpperCase())} placeholder="Referral / discount code" className="min-w-0 flex-1 rounded-lg border p-2 text-sm"/><button onClick={applyCheckoutQuote} className="rounded-lg bg-violet-600 px-3 text-sm font-bold text-white">Apply</button></div><div className="flex items-center gap-2"><label className="text-sm">Points to redeem</label><input type="number" min="0" value={checkoutPoints} onChange={e => setCheckoutPoints(e.target.value)} className="w-28 rounded-lg border p-2 text-sm"/><button onClick={applyCheckoutQuote} className="text-sm font-bold text-violet-700">Apply points</button></div>{checkoutError && <p className="text-xs text-slate-600">{checkoutError}</p>}{checkoutQuote && <div className="space-y-1 rounded-lg bg-slate-50 p-3 text-sm"><p>Original: ₹{checkoutQuote.listPrice}</p><p>Code discount: −₹{checkoutQuote.codeDiscount}</p><p>Points discount ({checkoutQuote.pointsRedeemed}): −₹{checkoutQuote.pointsDiscount}</p><p className="font-black">Payable: ₹{checkoutQuote.finalAmount}</p><p className="text-xs text-slate-500">Available points: {checkoutQuote.pointsAvailable}</p></div>}<button disabled={Boolean(buyingId)} onClick={handleConfirmBuy} className="w-full rounded-xl bg-violet-600 py-3 font-bold text-white disabled:opacity-50">{buyingId ? 'Opening payment…' : `Pay ₹${checkoutQuote?.finalAmount ?? checkoutPlan.price}`}</button></div></div>}
     </div>
   );
 };

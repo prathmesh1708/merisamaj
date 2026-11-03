@@ -7,7 +7,9 @@ router.get('/plans',         subCtrl.listPlans);
 router.get('/me',            subCtrl.getMySubscription);
 router.get('/history',       subCtrl.getSubscriptionHistory);
 router.get('/overview',      subCtrl.getSubscriptionOverview);
+router.post('/purchase/quote', subCtrl.quotePurchase);
 router.post('/purchase',     subCtrl.initiatePurchase);
+router.post('/purchase/cancel', subCtrl.cancelPendingPurchase);
 router.post('/verify',       subCtrl.verifyAndActivate);
 router.post('/cancel',       subCtrl.cancelSubscription);
 

@@ -51,7 +51,7 @@ const ReferralDashboardPage = () => {
     }
   }, [refreshReferralData]);
 
-  const activeReferralCode = referralCode || auth?.user?.referralCode || (auth?.user?.phone ? `SAMAJ-${auth.user.phone.slice(-4)}` : 'SAMAJ-REF');
+  const activeReferralCode = referralCode || auth?.user?.referralCode || '';
   const userFirstName = auth?.user?.name ? auth.user.name.split(' ')[0] : 'Member';
 
   const handleCopy = () => {

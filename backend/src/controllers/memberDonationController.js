@@ -6,6 +6,20 @@ const { applyScopeFilter } = require('../utils/queryScopeHelper');
 
 const escapeRegex = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+const applySubCommunityTarget = (req, filter) => {
+  const communityId = req.communityId || req.user?.communityId?._id || req.user?.communityId;
+  if (!communityId) return filter;
+  const subCommunity = String(req.user?.subCommunity || '').trim();
+  filter.$and = [
+    ...(filter.$and || []),
+    { $or: [
+      { targetedSubCommunities: { $not: { $elemMatch: { communityId } } } },
+      ...(subCommunity ? [{ targetedSubCommunities: { $elemMatch: { communityId, name: subCommunity } } }] : [])
+    ] }
+  ];
+  return filter;
+};
+
 // GET /member/donations — Server-side filtered to status: "Active", isDeleted: false, and scoped by Community/City
 exports.getActiveDonations = async (req, res) => {
   try {
@@ -30,7 +44,7 @@ exports.getActiveDonations = async (req, res) => {
     }
 
     // Apply Centralized 2-Level Multi-Tenancy Scope (Community mandatory + City optional)
-    filter = applyScopeFilter(req, filter);
+    filter = applySubCommunityTarget(req, applyScopeFilter(req, filter));
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.min(50, Math.max(1, parseInt(limit, 10) || 10));
@@ -92,7 +106,7 @@ exports.getActiveDonations = async (req, res) => {
 // GET /member/donations/:id — Get single donation details (Community Scoped)
 exports.getDonationById = async (req, res) => {
   try {
-    const filter = applyScopeFilter(req, { _id: req.params.id, isDeleted: false });
+    const filter = applySubCommunityTarget(req, applyScopeFilter(req, { _id: req.params.id, isDeleted: false }));
     const donation = await Donation.findOne(filter)
       .populate('createdBy', 'name role accountType city phone accountDetails')
       .populate('communityId', 'name accountDetails')
@@ -140,7 +154,7 @@ exports.donate = async (req, res) => {
     const { amount, donorName } = req.body;
     const donationId = req.params.id;
 
-    const filter = applyScopeFilter(req, { _id: donationId, status: { $in: ['Active', 'Published'] }, isDeleted: false });
+    const filter = applySubCommunityTarget(req, applyScopeFilter(req, { _id: donationId, status: { $in: ['Active', 'Published'] }, isDeleted: false }));
     const donation = await Donation.findOne(filter);
 
     if (!donation) {

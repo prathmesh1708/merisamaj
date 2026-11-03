@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Wallet, Landmark, User, CreditCard, ShieldCheck, Loader, Save, CheckCircle, AlertCircle, X } from 'lucide-react';
 import { axiosPrivate } from '../../../../../core/api/axiosPrivate';
 
-export const BankAccountSettings = () => {
+export const BankAccountSettings = ({ reloadSettings }) => {
   const [formData, setFormData] = useState({
     accountHolderName: '',
     bankName: '',
@@ -61,6 +61,7 @@ export const BankAccountSettings = () => {
 
       if (res.data?.status === 'success' || res.status === 200) {
         setToast({ message: 'Bank account details updated successfully!', type: 'success' });
+        await reloadSettings?.();
       } else {
         setToast({ message: 'Failed to update bank details', type: 'error' });
       }

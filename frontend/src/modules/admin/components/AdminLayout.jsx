@@ -107,7 +107,6 @@ export const AdminLayout = () => {
             { name: 'Moderation Queue', path: '/admin/matrimonial', search: '?tab=moderation' },
             { name: 'Reports & Complaints', path: '/admin/matrimonial', search: '?tab=reports' },
             { name: 'Match Analytics', path: '/admin/matrimonial', search: '?tab=analytics' },
-            { name: 'Success Stories', path: '/admin/marketing/success-stories' },
             { name: 'Settings', path: '/admin/matrimonial', search: '?tab=settings' }
           ]
         },
@@ -232,9 +231,12 @@ export const AdminLayout = () => {
         },
         { 
           name: 'User App Edits', 
-          path: '/admin/user-app-edits', 
           icon: LayoutTemplate,
-          permKey: 'canManageAppContent'
+          permKey: 'canManageAppContent',
+          children: [
+            { name: 'App Content & Appearance', path: '/admin/user-app-edits' },
+            { name: 'Success Stories', path: '/admin/user-app-edits', search: '?tab=stories&storyManager=matrimonial' }
+          ]
         },
         { 
           name: 'System Config', 

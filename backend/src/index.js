@@ -41,7 +41,20 @@ const { startNotificationScheduler } = require('./services/notificationScheduler
 const app = express();
 
 // Connect to Database
-connectDB();
+connectDB().then(() => {
+  const runRewardJobs = async () => {
+    if (mongoose.connection.readyState !== 1) return;
+    try {
+      const rewards = require('./services/referralService');
+      await rewards.reconcilePendingCredits();
+      await rewards.processDueRewardSchedules();
+      await require('./services/subscriptionReservationService').releaseExpiredReservations();
+    } catch (error) { console.error('[RewardScheduler]', error.message); }
+  };
+  runRewardJobs();
+  const rewardTimer = setInterval(runRewardJobs, 60 * 60 * 1000);
+  rewardTimer.unref?.();
+}).catch(error => console.error('[RewardScheduler] database unavailable:', error.message));
 
 // Initialize Event Reminder Scheduled Task
 initEventReminderRunner();

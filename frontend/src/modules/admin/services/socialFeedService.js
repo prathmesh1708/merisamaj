@@ -35,10 +35,12 @@ const mapPost = (post) => ({
 
 export const socialFeedService = {
   // City Feed — platform-wide posts, optionally filtered by author's city
-  fetchCityFeed: async ({ city = '', status = 'active', search = '', page = 1, limit = 20 } = {}) => {
+  fetchCityFeed: async ({ city = '', communityId = '', subCommunity = '', status = 'active', search = '', page = 1, limit = 20 } = {}) => {
     try {
       const params = new URLSearchParams();
       if (city) params.append('city', city);
+      if (communityId) params.append('communityId', communityId);
+      if (subCommunity) params.append('subCommunity', subCommunity);
       if (status) params.append('status', status);
       if (search) params.append('search', search);
       params.append('page', page);
@@ -57,10 +59,12 @@ export const socialFeedService = {
   },
 
   // Community Feed — platform-wide posts, optionally filtered by communityId
-  fetchCommunityFeed: async ({ communityId = '', status = 'active', search = '', page = 1, limit = 20 } = {}) => {
+  fetchCommunityFeed: async ({ communityId = '', subCommunity = '', city = '', status = 'active', search = '', page = 1, limit = 20 } = {}) => {
     try {
       const params = new URLSearchParams();
       if (communityId) params.append('communityId', communityId);
+      if (subCommunity) params.append('subCommunity', subCommunity);
+      if (city) params.append('city', city);
       if (status) params.append('status', status);
       if (search) params.append('search', search);
       params.append('page', page);
@@ -82,7 +86,15 @@ export const socialFeedService = {
   fetchCommunitiesForFilter: async () => {
     try {
       const response = await axiosPrivate.get(`${API_BASE}/communities`);
-      return (response.data.data || []).map((c) => ({ id: c._id, name: c.name, city: c.city, slug: c.slug }));
+      return (response.data.data || []).map((c) => ({
+        id: c._id,
+        name: c.name,
+        city: c.city,
+        slug: c.slug,
+        cityIds: c.cityIds || [],
+        cityOptions: c.cityOptions || [],
+        subCommunities: c.subCommunities || []
+      }));
     } catch (error) {
       throw new Error(error.response?.data?.message || 'Failed to fetch communities');
     }

@@ -9,8 +9,10 @@ import {
   Sparkle, Compass, Building2, Search, ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useSearchParams } from 'react-router-dom';
 import { appContentService } from '../../services/appContentService';
 import { getAllCommunities } from '../../services/communityService';
+import SuccessStoriesManagement from '../matrimonial/SuccessStoriesManagement';
 import { CityLandscape } from '../../../member/components/common/CityLandscape';
 import { isRealPhoto, getInitials } from '../../../../core/utils/photo';
 
@@ -95,7 +97,9 @@ const OVERLAY_TINT_OPTIONS = [
 ];
 
 export const UserAppEditsPage = () => {
-  const [activeTab, setActiveTab] = useState('banner'); // banner | features | stories | leadership | census | footer
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') === 'stories' ? 'stories' : 'banner'); // banner | features | stories | leadership | census | footer
+  const [storyManagementView, setStoryManagementView] = useState(() => searchParams.get('storyManager') === 'matrimonial' ? 'matrimonial' : 'home');
   const [communities, setCommunities] = useState([]);
   const [selectedCommunityId, setSelectedCommunityId] = useState('');
   const [selectedSubCommunity, setSelectedSubCommunity] = useState('');
@@ -1213,6 +1217,26 @@ export const UserAppEditsPage = () => {
           {/* ─── TAB 3: SUCCESS STORIES ─── */}
           {activeTab === 'stories' && (
             <div className="space-y-6">
+              <div className="flex flex-wrap gap-2 rounded-2xl bg-slate-100 p-1.5">
+                <button
+                  type="button"
+                  onClick={() => setStoryManagementView('home')}
+                  className={`rounded-xl px-4 py-2.5 text-sm font-bold transition-colors ${storyManagementView === 'home' ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-600 hover:bg-white/70'}`}
+                >
+                  Home Screen Stories
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStoryManagementView('matrimonial')}
+                  className={`rounded-xl px-4 py-2.5 text-sm font-bold transition-colors ${storyManagementView === 'matrimonial' ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-600 hover:bg-white/70'}`}
+                >
+                  Matrimonial Stories & Publishing
+                </button>
+              </div>
+              {storyManagementView === 'matrimonial' ? (
+                <SuccessStoriesManagement />
+              ) : (
+                <div className="space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm">
                 <div>
                   <h3 className="text-base font-black text-slate-900">Matrimonial Success Stories</h3>
@@ -1305,6 +1329,8 @@ export const UserAppEditsPage = () => {
                   </div>
                 ))}
               </div>
+                </div>
+              )}
             </div>
           )}
 

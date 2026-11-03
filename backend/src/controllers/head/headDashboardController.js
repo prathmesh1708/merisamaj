@@ -551,6 +551,99 @@ exports.updateCommunityAccountDetails = async (req, res) => {
   }
 };
 
+// Community settings editor configuration, scoped to the signed-in head's community.
+exports.getCommunitySettings = async (req, res) => {
+  try {
+    const communityId = req.communityId || req.user?.communityId?._id || req.user?.communityId;
+    if (!communityId) {
+      return res.status(400).json({ status: 'error', message: 'Community ID not associated with this head account' });
+    }
+
+    const community = await Community.findById(communityId)
+      .select('configuration name description city logoUrl bannerUrl accountDetails settings')
+      .lean();
+    if (!community) {
+      return res.status(404).json({ status: 'error', message: 'Community not found' });
+    }
+
+    return res.status(200).json({ status: 'success', data: community });
+  } catch (error) {
+    console.error('Get Community Settings Error:', error);
+    return res.status(500).json({ status: 'error', message: 'Failed to retrieve community settings' });
+  }
+};
+
+exports.updateCommunitySettings = async (req, res) => {
+  try {
+    const communityId = req.communityId || req.user?.communityId?._id || req.user?.communityId;
+    if (!communityId) {
+      return res.status(400).json({ status: 'error', message: 'Community ID not associated with this head account' });
+    }
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+      return res.status(400).json({ status: 'error', message: 'A settings object is required' });
+    }
+
+    const community = await Community.findById(communityId);
+    if (!community) {
+      return res.status(404).json({ status: 'error', message: 'Community not found' });
+    }
+
+    const { general = {}, branding = {}, bank = {}, modules = {} } = req.body;
+    if (general.name !== undefined) community.name = String(general.name).trim();
+    if (general.description !== undefined) community.description = String(general.description);
+    if (general.city !== undefined) community.city = String(general.city);
+    if (branding.logoUrl !== undefined) community.logoUrl = String(branding.logoUrl);
+    if (branding.bannerUrl !== undefined) community.bannerUrl = String(branding.bannerUrl);
+    if (bank && typeof bank === 'object') {
+      community.accountDetails = {
+        accountHolderName: String(bank.accountHolderName || ''),
+        bankName: String(bank.bankName || ''),
+        accountNumber: String(bank.accountNumber || ''),
+        ifscCode: String(bank.ifscCode || ''),
+        upiId: String(bank.upiId || '')
+      };
+    }
+    if (!community.settings) community.settings = {};
+    const moduleFlagMap = {
+      donation: 'donationEnabled',
+      matrimonial: 'matrimonialEnabled',
+      events: 'eventEnabled',
+      professionalDirectory: 'directoryEnabled',
+      directory: 'directoryEnabled',
+      dharmashala: 'dharmashalaEnabled',
+      obituary: 'obituaryEnabled',
+      socialFeed: 'socialFeedEnabled'
+    };
+    for (const [moduleKey, communitySettingKey] of Object.entries(moduleFlagMap)) {
+      if (typeof modules[moduleKey] === 'boolean') {
+        community.settings[communitySettingKey] = modules[moduleKey];
+      }
+    }
+
+    community.configuration = req.body;
+    community.markModified('configuration');
+    await community.save();
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'Community settings saved successfully',
+      data: {
+        configuration: community.configuration,
+        name: community.name,
+        description: community.description,
+        city: community.city,
+        logoUrl: community.logoUrl,
+        bannerUrl: community.bannerUrl,
+        accountDetails: community.accountDetails,
+        settings: community.settings
+      }
+    });
+  } catch (error) {
+    console.error('Update Community Settings Error:', error);
+    return res.status(500).json({ status: 'error', message: 'Failed to save community settings' });
+  }
+};
+
 /**
  * @desc    Bulk actions on community members (verify, reject, suspend, activate, revoke)
  * @route   POST /api/v1/head/dashboard/members/bulk-action

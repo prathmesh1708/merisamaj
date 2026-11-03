@@ -18,6 +18,9 @@ export const DonationManagement = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [communityFilter, setCommunityFilter] = useState('all');
+  const [subCommunityFilter, setSubCommunityFilter] = useState('all');
+  const selectedCommunity = communities.find(c => String(c._id || c.id) === communityFilter);
+  const subCommunities = selectedCommunity?.subCommunities || [];
 
   // Modals
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
@@ -46,6 +49,7 @@ export const DonationManagement = () => {
       if (statusFilter !== 'all') params.status = statusFilter;
       if (categoryFilter !== 'all') params.category = categoryFilter;
       if (communityFilter !== 'all') params.communityId = communityFilter;
+      if (subCommunityFilter !== 'all') params.subCommunity = subCommunityFilter;
 
       const res = await adminDonationApi.getAllDonations(params);
       if (res.success) {
@@ -56,7 +60,7 @@ export const DonationManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, categoryFilter, communityFilter]);
+  }, [statusFilter, categoryFilter, communityFilter, subCommunityFilter]);
 
   useEffect(() => {
     fetchDonations();
@@ -110,9 +114,15 @@ export const DonationManagement = () => {
     setIsFormModalOpen(true);
   };
 
-  const handleOpenView = (donation) => {
+  const handleOpenView = async (donation) => {
     setSelectedDonation(donation);
     setIsViewModalOpen(true);
+    try {
+      const res = await adminDonationApi.getDonationDetails(donation._id || donation.id);
+      if (res.success && res.data) setSelectedDonation(res.data);
+    } catch (err) {
+      console.warn('Failed to load full donation details:', err);
+    }
   };
 
   // Client-side search filter
@@ -177,7 +187,7 @@ export const DonationManagement = () => {
       <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
           {/* Search Box with explicit padding fix */}
-          <div className="md:col-span-3 relative">
+          <div className="md:col-span-2 relative">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none z-10" />
             <input
               type="text"
@@ -190,10 +200,10 @@ export const DonationManagement = () => {
           </div>
 
           {/* Community Filter */}
-          <div className="md:col-span-3">
+          <div className="md:col-span-2">
             <select
               value={communityFilter}
-              onChange={(e) => setCommunityFilter(e.target.value)}
+              onChange={(e) => { setCommunityFilter(e.target.value); setSubCommunityFilter('all'); }}
               className="w-full py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all cursor-pointer"
             >
               <option value="all">All Communities</option>
@@ -202,6 +212,20 @@ export const DonationManagement = () => {
                 <option key={c._id || c.id} value={c._id || c.id}>
                   {c.name}
                 </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="md:col-span-3">
+            <select
+              value={subCommunityFilter}
+              onChange={(e) => setSubCommunityFilter(e.target.value)}
+              disabled={!selectedCommunity || subCommunities.length === 0}
+              className="w-full py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all cursor-pointer disabled:opacity-50"
+            >
+              <option value="all">All Subcommunities</option>
+              {subCommunities.map((sub) => (
+                <option key={sub._id || sub.name} value={sub.name}>{sub.name}</option>
               ))}
             </select>
           </div>
@@ -220,7 +244,7 @@ export const DonationManagement = () => {
           </div>
 
           {/* Category Filter */}
-          <div className="md:col-span-3">
+          <div className="md:col-span-2">
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}

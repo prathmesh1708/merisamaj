@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Phone, ArrowRight, ArrowLeft, MapPin, Users, CheckCircle,
   User, Camera, Bell, Mail, Check, Clock, ShieldCheck, GraduationCap,
@@ -338,7 +338,7 @@ const CustomSelect = ({ value, onChange, options, placeholder = 'Select', disabl
 };
 
 // ─── VERIFICATION STEP COMPONENT ─────────────────────────────────────────────
-const VerificationStep = ({ isFaceVerified, setIsFaceVerified, isAadharVerified, setIsAadharVerified, setToastMessage, auth, setAuth }) => {
+const VerificationStep = ({ isFaceVerified, setIsFaceVerified, isAadharVerified, setIsAadharVerified, setToastMessage, auth, setAuth, focusVerification, onVerificationComplete }) => {
   // Aadhaar states
   const [aadhaarStage, setAadhaarStage] = useState('idle'); // idle | input | otp | success | failed
   const [aadhaarMobile, setAadhaarMobile] = useState('');
@@ -379,6 +379,7 @@ const VerificationStep = ({ isFaceVerified, setIsFaceVerified, isAadharVerified,
     try {
       await axiosPublic.post('/auth/aadhaar/verify-otp', { mobileNo: aadhaarMobile.replace(/\D/g, ''), otp: otpStr });
       setIsAadharVerified(true);
+      await onVerificationComplete?.('isAadharVerified');
       setAadhaarStage('success');
       setToastMessage('Aadhaar verified successfully! ✓');
       setTimeout(() => setToastMessage(''), 3000);
@@ -441,6 +442,7 @@ const VerificationStep = ({ isFaceVerified, setIsFaceVerified, isAadharVerified,
       if (i >= steps.length) {
         stopCamera();
         setIsFaceVerified(true);
+        onVerificationComplete?.('isFaceVerified');
         setFaceStage('success');
         setToastMessage('Face verified successfully! ✓');
         setTimeout(() => setToastMessage(''), 3000);
@@ -466,7 +468,7 @@ const VerificationStep = ({ isFaceVerified, setIsFaceVerified, isAadharVerified,
       </div>
 
       {/* ── Face Verification Card ───────────────────────────────────────── */}
-      <div className="bg-white rounded-3xl border border-purple-100/50 shadow-[0_4px_20px_rgb(0,0,0,0.03)] overflow-hidden">
+      {(!focusVerification || focusVerification === 'face') && <div className="bg-white rounded-3xl border border-purple-100/50 shadow-[0_4px_20px_rgb(0,0,0,0.03)] overflow-hidden">
         {/* Card Header */}
         <div className="p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -566,10 +568,10 @@ const VerificationStep = ({ isFaceVerified, setIsFaceVerified, isAadharVerified,
             </div>
           </div>
         )}
-      </div>
+      </div>}
 
       {/* ── Aadhaar Verification Card ─────────────────────────────────────── */}
-      <div className="bg-white rounded-3xl border border-purple-100/50 shadow-[0_4px_20px_rgb(0,0,0,0.03)] overflow-hidden">
+      {(!focusVerification || focusVerification === 'aadhaar') && <div className="bg-white rounded-3xl border border-purple-100/50 shadow-[0_4px_20px_rgb(0,0,0,0.03)] overflow-hidden">
         {/* Card Header */}
         <div className="p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -717,7 +719,7 @@ const VerificationStep = ({ isFaceVerified, setIsFaceVerified, isAadharVerified,
             </button>
           </div>
         )}
-      </div>
+      </div>}
 
       <style>{`
         @keyframes scanLine {
@@ -732,11 +734,17 @@ const VerificationStep = ({ isFaceVerified, setIsFaceVerified, isAadharVerified,
 
 const OnboardingScreen = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const focusVerification = ['aadhaar', 'face'].includes(searchParams.get('verification')) ? searchParams.get('verification') : null;
   const { loginUser, setLanguage, language } = useData();
   const { auth, setAuth } = useAuth();
 
   // Onboarding Wizard State
   const [step, setStep] = useState('onboarding-1'); 
+
+  useEffect(() => {
+    if (focusVerification) setStep('onboarding-8');
+  }, [focusVerification]);
 
   // Step-level inline validation errors
   const [stepErrors, setStepErrors] = useState({});
@@ -1017,6 +1025,9 @@ const OnboardingScreen = () => {
     const resumeStep = localStorage.getItem('merisamaj_onboarding_resume_step');
     if (resumeStep) {
       setStep(resumeStep);
+      // Consume the resume target so later auth/profile updates cannot send the
+      // user back to this old step after they have completed onboarding.
+      localStorage.removeItem('merisamaj_onboarding_resume_step');
     }
   }, [auth.user, apiCommunities]);
 
@@ -1255,7 +1266,15 @@ const OnboardingScreen = () => {
       formData.append('school', completeUserObj.school);
       formData.append('profession', completeUserObj.profession);
       formData.append('company', completeUserObj.company);
+      formData.append('annualIncome', completeUserObj.annualIncome || '');
+      formData.append('workCity', completeUserObj.workCity || '');
       formData.append('detailedAddress', completeUserObj.detailedAddress);
+      formData.append('familyMembers', JSON.stringify(completeUserObj.familyMembers));
+      formData.append('prefEducation', completeUserObj.prefEducation);
+      formData.append('prefAge', completeUserObj.prefAge);
+      formData.append('prefHeight', completeUserObj.prefHeight);
+      formData.append('prefOccupation', completeUserObj.prefOccupation);
+      formData.append('prefCity', completeUserObj.prefCity);
       if (avatarFile) formData.append('avatarFile', avatarFile);
 
       const response = await authService.updateProfile(formData);
@@ -1268,6 +1287,10 @@ const OnboardingScreen = () => {
     } catch (apiErr) {
       console.warn('Backend API update warning (proceeding cleanly with local saved state):', apiErr);
     }
+
+    // Clear any home-card resume target before updating auth state. The auth
+    // update re-runs the profile-prefill effect, which must not reset this step.
+    localStorage.removeItem('merisamaj_onboarding_resume_step');
 
     // 3. Move smoothly to Step 11 Finish Screen
     setStep('onboarding-11');
@@ -1299,6 +1322,30 @@ const OnboardingScreen = () => {
     if (typeof loginUser === 'function') loginUser(savedUser);
     if (typeof setAuth === 'function') setAuth(prev => ({ ...prev, user: savedUser, isAuthenticated: true }));
     navigate('/member/home');
+  };
+
+  const handleDirectVerificationComplete = async (field) => {
+    let savedUser = {};
+    try {
+      savedUser = JSON.parse(localStorage.getItem('merisamaj_registered_user') || 'null') ||
+        JSON.parse(localStorage.getItem('merisamaj_user') || 'null') || auth.user || {};
+    } catch (e) {
+      savedUser = auth.user || {};
+    }
+    const updatedUser = { ...savedUser, [field]: true };
+    safeSetLocalStorage('merisamaj_user', updatedUser);
+    safeSetLocalStorage('merisamaj_registered_user', updatedUser);
+    setAuth(prev => ({ ...prev, user: updatedUser, isAuthenticated: true }));
+
+    try {
+      const formData = new FormData();
+      formData.append(field, 'true');
+      await authService.updateProfile(formData);
+    } catch (err) {
+      console.warn('Verification status sync warning:', err);
+    }
+
+    setTimeout(handleGoToHome, 700);
   };
 
   const renderOnboardingHeader = (current) => {
@@ -1423,10 +1470,10 @@ const OnboardingScreen = () => {
     <div className="h-screen bg-surface flex flex-col overflow-hidden relative">
       <div className="absolute inset-0 aura-bg z-0 animate-aura-pulse" />
       {renderToast()}
-      {renderOnboardingHeader(onboardingStepNum)}
+      {!focusVerification && renderOnboardingHeader(onboardingStepNum)}
 
       <div className="flex-1 px-6 pt-4 pb-6 overflow-y-auto z-10 max-w-sm mx-auto w-full space-y-4">
-        {renderProgressCard(onboardingStepNum, compPct)}
+        {!focusVerification && renderProgressCard(onboardingStepNum, compPct)}
         
         <SlideIn key={onboardingStepNum}>
           {/* Step 1: Mobile verified */}
@@ -2103,6 +2150,8 @@ const OnboardingScreen = () => {
               setToastMessage={setToastMessage}
               auth={auth}
               setAuth={setAuth}
+              focusVerification={focusVerification}
+              onVerificationComplete={handleDirectVerificationComplete}
             />
           )}
 
@@ -2234,7 +2283,11 @@ const OnboardingScreen = () => {
 
       {/* Footer Navigation Buttons */}
       <div className="px-6 pb-8 pt-4 shrink-0 bg-white/50 backdrop-blur-md border-t border-purple-100/30 z-10 max-w-sm mx-auto w-full">
-        {onboardingStepNum === 11 ? (
+        {focusVerification ? (
+          <button type="button" onClick={handleGoToHome} className="w-full py-3.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-sm font-bold rounded-2xl flex items-center justify-center gap-2">
+            <ArrowLeft size={16} /> Back to Home
+          </button>
+        ) : onboardingStepNum === 11 ? (
           <div className="flex flex-col gap-2.5">
             <button 
               onClick={handleGoToHome}

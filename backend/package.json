@@ -14,7 +14,8 @@
     "seed:profile": "node src/scripts/seedProfileMockData.js",
     "test:head-scope": "node scripts/testHeadSocialScope.js",
     "test:push": "node scripts/testPushNotification.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "migrate:referral-codes": "node src/scripts/migrateReferralCodes.js",
+    "test": "node --test src/services/*.test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

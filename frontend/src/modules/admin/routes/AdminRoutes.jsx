@@ -28,7 +28,6 @@ import CityFeedManagement from '../pages/social/CityFeedManagement';
 import CommunityFeedManagement from '../pages/social/CommunityFeedManagement';
 import AdminPostDetailsPage from '../pages/social/PostDetailsPage';
 import { AdminGroupsPage } from '../pages/groups/AdminGroupsPage';
-import SuccessStoriesManagement from '../pages/matrimonial/SuccessStoriesManagement';
 import AdminDharmashalaManagement from '../pages/dharmashala/AdminDharmashalaManagement';
 import { AdminObituaryManagement } from '../pages/obituary/AdminObituaryManagement';
 import { AdminCensusManagement } from '../pages/census/AdminCensusManagement';
@@ -68,7 +67,7 @@ export const AdminRoutes = () => {
         <Route path="census" element={<AdminCensusManagement />} />
         <Route path="leadership" element={<AdminLeadershipManagement />} />
         <Route path="matrimonial" element={<PlatformMatrimonialManagement />} />
-        <Route path="marketing/success-stories" element={<SuccessStoriesManagement />} />
+        <Route path="marketing/success-stories" element={<Navigate to="/admin/user-app-edits?tab=stories&storyManager=matrimonial" replace />} />
         <Route path="events" element={<EventsDesk />} />
         <Route path="cities" element={<CityManagement />} />
         {/* Community Head Management */}

@@ -5,6 +5,8 @@ import {
   BadgeCheck, XCircle, Ban, AlertCircle, Smartphone, Building2
 } from 'lucide-react';
 import { adminReferralService } from '../../../../core/api/referralService';
+import DiscountCodesTab from './DiscountCodesTab';
+import RewardTransactionsTab from './RewardTransactionsTab';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const inr = (n) => `₹${(Math.round((Number(n) || 0) * 100) / 100).toLocaleString('en-IN')}`;
@@ -132,6 +134,20 @@ const OverviewTab = ({ stats, config, setConfig, onSave, saving }) => (
             <span className="block text-xs text-gray-500">The referrer is rewarded once per referred member, not for every renewal.</span>
           </span>
         </label>
+
+        <h3 className="text-sm font-black text-gray-900 flex items-center gap-2 pt-2"><Gift size={16} className="text-brand-primary" /> Reward schedule & subscription checkout</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <label className="space-y-1.5 block"><span className="text-[11px] font-bold text-gray-500 uppercase">Reward allocation</span><select value={config.rewardAllocation || 'one_time'} onChange={e => setConfig({ ...config, rewardAllocation: e.target.value })} className={fieldCls}><option value="one_time">One time</option><option value="daily">Daily over schedule</option></select></label>
+          {config.rewardAllocation === 'daily' && <label className="space-y-1.5 block"><span className="text-[11px] font-bold text-gray-500 uppercase">Daily reward duration (days)</span><input type="number" min="1" max="365" value={config.dailyRewardDays ?? 7} onChange={e => setConfig({ ...config, dailyRewardDays: e.target.value })} className={fieldCls}/></label>}
+          <label className="space-y-1.5 block"><span className="text-[11px] font-bold text-gray-500 uppercase">Referral discount type</span><select value={config.referralDiscountType || 'percentage'} onChange={e => setConfig({ ...config, referralDiscountType: e.target.value })} className={fieldCls}><option value="percentage">Percentage</option><option value="fixed">Fixed amount (₹)</option></select></label>
+          <label className="space-y-1.5 block"><span className="text-[11px] font-bold text-gray-500 uppercase">Referral discount value</span><input type="number" min="0" step="0.01" value={config.referralDiscountValue ?? 0} onChange={e => setConfig({ ...config, referralDiscountValue: e.target.value })} className={fieldCls}/></label>
+          <label className="space-y-1.5 block"><span className="text-[11px] font-bold text-gray-500 uppercase">Referral discount maximum (0 = no cap)</span><input type="number" min="0" step="0.01" value={config.referralDiscountMaxAmount ?? 0} onChange={e => setConfig({ ...config, referralDiscountMaxAmount: e.target.value })} className={fieldCls}/></label>
+          <label className="space-y-1.5 block"><span className="text-[11px] font-bold text-gray-500 uppercase">₹ per subscription point</span><input type="number" min="0" step="0.01" value={config.rupeesPerSubscriptionPoint ?? 0.1} onChange={e => setConfig({ ...config, rupeesPerSubscriptionPoint: e.target.value })} className={fieldCls}/></label>
+          <label className="space-y-1.5 block"><span className="text-[11px] font-bold text-gray-500 uppercase">Minimum points per purchase</span><input type="number" min="1" value={config.minSubscriptionRedeemPoints ?? 100} onChange={e => setConfig({ ...config, minSubscriptionRedeemPoints: e.target.value })} className={fieldCls}/></label>
+          <label className="space-y-1.5 block"><span className="text-[11px] font-bold text-gray-500 uppercase">Maximum points per purchase (0 = unlimited)</span><input type="number" min="0" value={config.maxSubscriptionRedeemPoints ?? 1000} onChange={e => setConfig({ ...config, maxSubscriptionRedeemPoints: e.target.value })} className={fieldCls}/></label>
+          <label className="flex items-center gap-2.5 p-3 rounded-xl bg-gray-50 border border-gray-100"><input type="checkbox" checked={config.referralDiscountEnabled === true} onChange={e => setConfig({ ...config, referralDiscountEnabled: e.target.checked })} className="accent-purple-600"/><span className="text-sm font-bold">Enable referral code discounts</span></label>
+          <label className="flex items-center gap-2.5 p-3 rounded-xl bg-gray-50 border border-gray-100"><input type="checkbox" checked={config.subscriptionPointsEnabled !== false} onChange={e => setConfig({ ...config, subscriptionPointsEnabled: e.target.checked })} className="accent-purple-600"/><span className="text-sm font-bold">Allow points at subscription checkout</span></label>
+        </div>
 
         <h3 className="text-sm font-black text-gray-900 flex items-center gap-2 pt-2">
           <IndianRupee size={16} className="text-emerald-600" /> Cash Redemption
@@ -798,6 +814,8 @@ const TABS = [
   { id: 'overview', label: 'Overview & Settings', icon: Sliders },
   { id: 'payouts', label: 'Payout Requests', icon: Wallet },
   { id: 'events', label: 'Event Log', icon: Calendar },
+  { id: 'discounts', label: 'Discount Codes', icon: Gift },
+  { id: 'transactions', label: 'Reward Transactions', icon: Wallet },
   { id: 'reports', label: 'Reports', icon: FileBarChart },
 ];
 
@@ -915,6 +933,8 @@ export const AdminReferralManagement = () => {
       {tab === 'overview' && <OverviewTab stats={stats} config={config} setConfig={setConfig} onSave={handleSave} saving={saving} />}
       {tab === 'payouts' && <PayoutsTab showToast={showToast} onChanged={fetchStatsAndConfig} />}
       {tab === 'events' && <EventsTab />}
+      {tab === 'discounts' && <DiscountCodesTab showToast={message => showToast(message)} />}
+      {tab === 'transactions' && <RewardTransactionsTab />}
       {tab === 'reports' && <ReportsTab />}
     </div>
   );

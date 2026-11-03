@@ -8,7 +8,8 @@ const Community = require('../models/Community');
 
 const checkModuleEnabled = (settingKey) => async (req, res, next) => {
   try {
-    const communityId = req.communityId || req.user?.communityId;
+    const communityRef = req.communityId || req.user?.communityId;
+    const communityId = communityRef?._id || communityRef;
     if (!communityId) return next(); // no community context — nothing to gate
 
     const community = await Community.findById(communityId).select('settings').lean();
@@ -16,7 +17,7 @@ const checkModuleEnabled = (settingKey) => async (req, res, next) => {
       return res.status(403).json({
         status: 'error',
         code: 'MODULE_DISABLED',
-        message: 'This feature is not included in your community\'s current plan.'
+        message: 'This feature is currently disabled for your community.'
       });
     }
     next();

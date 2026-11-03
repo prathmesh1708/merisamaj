@@ -25,7 +25,8 @@ export const DonationFormModal = ({
     coverImage: '',
     status: 'Active',
     targetScope: 'global', // 'global' | 'targeted'
-    targetedCommunities: []
+    targetedCommunities: [],
+    targetedSubCommunities: []
   });
 
   const [communities, setCommunities] = useState([]);
@@ -120,6 +121,9 @@ export const DonationFormModal = ({
       const initialTargeted = Array.isArray(donation.targetedCommunities)
         ? donation.targetedCommunities.map(c => (typeof c === 'object' ? c._id : c))
         : [];
+      const initialTargetedSubs = Array.isArray(donation.targetedSubCommunities)
+        ? donation.targetedSubCommunities.map(item => ({ communityId: String(item.communityId?._id || item.communityId), name: item.name }))
+        : [];
 
       const formatDateForInput = (d) => {
         if (!d) return '';
@@ -144,7 +148,8 @@ export const DonationFormModal = ({
         coverImage: donation.coverImage || donation.bannerImage || '',
         status: donation.status || 'Active',
         targetScope: isGlobal ? 'global' : 'targeted',
-        targetedCommunities: initialTargeted
+        targetedCommunities: initialTargeted,
+        targetedSubCommunities: initialTargetedSubs
       });
     } else {
       setFormData({
@@ -161,7 +166,8 @@ export const DonationFormModal = ({
         coverImage: '',
         status: 'Active',
         targetScope: 'global',
-        targetedCommunities: []
+        targetedCommunities: [],
+        targetedSubCommunities: []
       });
     }
   }, [donation, isOpen]);
@@ -175,7 +181,22 @@ export const DonationFormModal = ({
         ...prev,
         targetedCommunities: exists
           ? prev.targetedCommunities.filter(cId => cId !== id)
-          : [...prev.targetedCommunities, id]
+          : [...prev.targetedCommunities, id],
+        targetedSubCommunities: exists
+          ? prev.targetedSubCommunities.filter(item => item.communityId !== id)
+          : prev.targetedSubCommunities
+      };
+    });
+  };
+
+  const toggleSubCommunity = (communityId, name) => {
+    setFormData(prev => {
+      const exists = prev.targetedSubCommunities.some(item => item.communityId === communityId && item.name === name);
+      return {
+        ...prev,
+        targetedSubCommunities: exists
+          ? prev.targetedSubCommunities.filter(item => item.communityId !== communityId || item.name !== name)
+          : [...prev.targetedSubCommunities, { communityId, name }]
       };
     });
   };
@@ -183,14 +204,15 @@ export const DonationFormModal = ({
   const handleSelectAllCommunities = () => {
     setFormData(prev => ({
       ...prev,
-      targetedCommunities: communities.map(c => c._id)
+      targetedCommunities: communities.map(c => c._id),
+      targetedSubCommunities: []
     }));
   };
 
   const handleClearAllCommunities = () => {
     setFormData(prev => ({
       ...prev,
-      targetedCommunities: []
+      targetedCommunities: [], targetedSubCommunities: []
     }));
   };
 
@@ -230,7 +252,8 @@ export const DonationFormModal = ({
       status: formData.status,
       targetScope: formData.targetScope === 'global' ? 'All Communities / All Members' : 'Selected Communities',
       isGlobalCampaign: formData.targetScope === 'global',
-      targetedCommunities: formData.targetScope === 'global' ? [] : formData.targetedCommunities
+      targetedCommunities: formData.targetScope === 'global' ? [] : formData.targetedCommunities,
+      targetedSubCommunities: formData.targetScope === 'global' ? [] : formData.targetedSubCommunities
     };
 
     onSubmit(payload);
@@ -412,8 +435,8 @@ export const DonationFormModal = ({
                       {filteredCommunities.map((comm) => {
                         const isChecked = formData.targetedCommunities.includes(comm._id);
                         return (
+                          <React.Fragment key={comm._id}>
                           <div
-                            key={comm._id}
                             onClick={() => toggleCommunity(comm._id)}
                             className={`flex items-center gap-2.5 p-2.5 rounded-lg border transition-all cursor-pointer ${
                               isChecked
@@ -433,6 +456,22 @@ export const DonationFormModal = ({
                               )}
                             </div>
                           </div>
+                          {isChecked && (comm.subCommunities || []).filter(sub => sub.isActive !== false).length > 0 && (
+                            <div className="sm:col-span-2 ml-6 pl-3 border-l-2 border-indigo-100 space-y-1">
+                              <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 py-1">Optional subcommunity targets</div>
+                              {(comm.subCommunities || []).filter(sub => sub.isActive !== false).map(sub => {
+                                const checked = formData.targetedSubCommunities.some(item => item.communityId === comm._id && item.name === sub.name);
+                                return (
+                                  <label key={sub._id || sub.name} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-slate-700 hover:bg-white cursor-pointer" onClick={e => e.stopPropagation()}>
+                                    <input type="checkbox" checked={checked} onChange={() => toggleSubCommunity(comm._id, sub.name)} />
+                                    <span>{sub.name}</span>
+                                  </label>
+                                );
+                              })}
+                              <p className="text-[10px] text-slate-400">Selecting subcommunities limits this campaign to those groups within the community.</p>
+                            </div>
+                          )}
+                          </React.Fragment>
                         );
                       })}
                     </div>

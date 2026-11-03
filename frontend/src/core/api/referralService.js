@@ -4,6 +4,7 @@ import { axiosPublic } from './axiosConfig';
 export const memberReferralService = {
   getMyReferralInfo: () => axiosPrivate.get('/member/referral/info'),
   getMyReferralHistory: () => axiosPrivate.get('/member/referral/history'),
+  getMyRewardTransactions: (params) => axiosPrivate.get('/member/referral/reward-transactions', { params }),
   getMyReferredUsers: () => axiosPrivate.get('/member/referral/referred-users'),
   getLeaderboard: () => axiosPrivate.get('/member/referral/leaderboard'),
   // Public endpoint — works on the register screen before login
@@ -21,6 +22,11 @@ export const adminReferralService = {
   getReferralStats: () => axiosPrivate.get('/admin/referrals/stats'),
   getReferralConfig: () => axiosPrivate.get('/admin/referrals/config'),
   updateReferralConfig: (data) => axiosPrivate.put('/admin/referrals/config', data),
+  getDiscountCodes: () => axiosPrivate.get('/admin/referrals/discount-codes'),
+  createDiscountCode: (data) => axiosPrivate.post('/admin/referrals/discount-codes', data),
+  updateDiscountCode: (id, data) => axiosPrivate.put(`/admin/referrals/discount-codes/${id}`, data),
+  disableDiscountCode: (id) => axiosPrivate.delete(`/admin/referrals/discount-codes/${id}`),
+  getRewardTransactions: (params) => axiosPrivate.get('/admin/referrals/reward-transactions', { params }),
   getReports: (params) => axiosPrivate.get('/admin/referrals/reports', { params }),
 
   getRedemptions: (params) => axiosPrivate.get('/admin/referrals/redemptions', { params }),

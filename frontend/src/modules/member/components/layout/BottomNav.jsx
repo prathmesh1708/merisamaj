@@ -27,13 +27,16 @@ export const BottomNav = ({ isVisible = true }) => {
     return null;
   }
 
-  const matrimonialEnabled = true; // Matrimonial is available to every member
+  const communitySettings = activeUser?.communityId?.settings || {};
+  const matrimonialEnabled = communitySettings.matrimonialEnabled !== false;
+  const socialEnabled = communitySettings.socialFeedEnabled !== false;
+  const chatEnabled = communitySettings.chatEnabled !== false;
 
   const navItems = [
     { name: 'Home', path: '/member/home', icon: Home, activeColor: '#7C3AED' },
-    { name: 'Social', path: '/member/social', icon: Users, activeColor: '#2563EB' },
+    ...(socialEnabled ? [{ name: 'Social', path: '/member/social', icon: Users, activeColor: '#2563EB' }] : []),
     ...(matrimonialEnabled ? [{ name: 'Matrimony', path: '/member/matrimonial', icon: Heart, activeColor: '#E11D48' }] : []),
-    { name: 'Chat', path: '/member/chat', icon: MessageCircle, activeColor: '#059669' },
+    ...(chatEnabled ? [{ name: 'Chat', path: '/member/chat', icon: MessageCircle, activeColor: '#059669' }] : []),
     { name: 'Profile', path: '/member/profile', icon: User, activeColor: '#D97706' },
   ];
 

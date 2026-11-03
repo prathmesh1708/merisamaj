@@ -2,6 +2,8 @@ const User = require('../../models/User');
 const Referral = require('../../models/Referral');
 const RedemptionRequest = require('../../models/RedemptionRequest');
 const referralService = require('../../services/referralService');
+const RewardTransaction = require('../../models/RewardTransaction');
+const RewardSchedule = require('../../models/RewardSchedule');
 
 // Public link that opens registration with the code filled in
 const shareLinkFor = (req, code) => {
@@ -18,7 +20,7 @@ const OPEN_STATUSES = ['pending', 'approved'];
  */
 exports.getMyReferralInfo = async (req, res) => {
   try {
-    let user = await User.findById(req.user._id).select('referralCode pointsBalance pointsRedeemed name avatar createdAt').lean();
+    let user = await User.findById(req.user._id).select('referralCode pointsBalance pointsReserved totalPointsEarned pointsRedeemed name avatar createdAt').lean();
     if (!user) {
       return res.status(404).json({ success: false, status: 'error', message: 'User not found' });
     }
@@ -45,9 +47,8 @@ exports.getMyReferralInfo = async (req, res) => {
       MEMBERSHIP: { count: 0, points: 0 },
       DONATION: { count: 0, points: 0 }
     };
-    let totalPointsEarned = 0;
+    let totalPointsEarned = Number(user.totalPointsEarned) || 0;
     eventCounts.forEach(item => {
-      totalPointsEarned += item.points;
       if (eventBreakdown[item._id]) {
         eventBreakdown[item._id] = { count: item.count, points: item.points };
       }
@@ -72,14 +73,20 @@ exports.getMyReferralInfo = async (req, res) => {
       { $match: { user: req.user._id, status: { $in: OPEN_STATUSES } } },
       { $group: { _id: null, points: { $sum: '$points' } } }
     ]);
+    const pendingSchedules = await RewardSchedule.aggregate([
+      { $match: { userId: req.user._id, status: 'pending' } },
+      { $group: { _id: null, points: { $sum: { $subtract: ['$totalPoints', { $multiply: ['$issuedDays', { $floor: { $divide: ['$totalPoints', '$totalDays'] } }] }] } } } }
+    ]);
 
     res.status(200).json({
       success: true,
       status: 'success',
       data: {
         referralCode: user.referralCode,
-        pointsBalance: user.pointsBalance || 0,
+        pointsBalance: Math.max(0, (user.pointsBalance || 0) - (user.pointsReserved || 0)),
+        pointsReserved: user.pointsReserved || 0,
         totalPointsEarned,
+        pendingPoints: pendingSchedules[0]?.points || 0,
         pointsRedeemed: user.pointsRedeemed || 0,
         pendingRedemptionPoints: pendingAgg[0]?.points || 0,
         totalReferrals,
@@ -92,6 +99,21 @@ exports.getMyReferralInfo = async (req, res) => {
     console.error('Get My Referral Info Error:', error);
     res.status(500).json({ success: false, status: 'error', message: error.message });
   }
+};
+
+exports.getMyRewardTransactions = async (req, res) => {
+  try {
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+    const [transactions, total, schedules] = await Promise.all([
+      RewardTransaction.find({ userId: req.user._id }).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      RewardTransaction.countDocuments({ userId: req.user._id }),
+      RewardSchedule.find({ userId: req.user._id, status: 'pending' }).sort({ createdAt: -1 }).lean()
+    ]);
+    const scheduled = schedules.map(row => ({ _id: `schedule:${row._id}`, userId: row.userId, kind: 'credit', eventType: row.eventType, points: Math.max(0, row.totalPoints - Math.floor(row.totalPoints / row.totalDays) * row.issuedDays), status: 'pending', description: `Reward schedule (${row.issuedDays}/${row.totalDays} installments issued)`, createdAt: row.createdAt }));
+    const all = [...transactions, ...scheduled].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    res.json({ success: true, data: { transactions: all.slice((page - 1) * limit, page * limit), pagination: { page, limit, total: total + scheduled.length, pages: Math.ceil((total + scheduled.length) / limit) } } });
+  } catch (error) { res.status(500).json({ success: false, message: error.message }); }
 };
 
 /**
@@ -224,7 +246,7 @@ exports.validateReferralCode = async (req, res) => {
 exports.getRedeemInfo = async (req, res) => {
   try {
     const config = await referralService.getOrCreateConfig();
-    const user = await User.findById(req.user._id).select('pointsBalance pointsRedeemed name').lean();
+    const user = await User.findById(req.user._id).select('pointsBalance pointsReserved pointsRedeemed name').lean();
     const last = await RedemptionRequest.findOne({ user: req.user._id }).sort({ createdAt: -1 })
       .select('method accountHolderName upiId bankName accountNumber ifscCode').lean();
     const hasOpenRequest = await RedemptionRequest.exists({ user: req.user._id, status: { $in: OPEN_STATUSES } });
@@ -235,7 +257,7 @@ exports.getRedeemInfo = async (req, res) => {
         redemptionEnabled: config.redemptionEnabled !== false,
         rupeesPerPoint: config.rupeesPerPoint ?? 1,
         minRedeemPoints: config.minRedeemPoints ?? 500,
-        pointsBalance: user?.pointsBalance || 0,
+        pointsBalance: Math.max(0, (user?.pointsBalance || 0) - (user?.pointsReserved || 0)),
         pointsRedeemed: user?.pointsRedeemed || 0,
         hasOpenRequest: !!hasOpenRequest,
         lastPayoutDetails: last || { accountHolderName: user?.name || '' }
@@ -293,7 +315,7 @@ exports.createRedemption = async (req, res) => {
 
     // Take the points only if the balance still covers them (atomic — no double spend)
     const held = await User.findOneAndUpdate(
-      { _id: req.user._id, pointsBalance: { $gte: points } },
+      { _id: req.user._id, $expr: { $gte: [{ $subtract: ['$pointsBalance', { $ifNull: ['$pointsReserved', 0] }] }, points] } },
       { $inc: { pointsBalance: -points } },
       { new: true }
     );
@@ -316,8 +338,10 @@ exports.createRedemption = async (req, res) => {
         ifscCode: method === 'BANK' ? details.ifscCode : '',
         history: [{ status: 'pending', note: 'Requested by member', by: req.user._id }]
       });
+      await RewardTransaction.create({ userId: req.user._id, kind: 'debit', eventType: 'CASH_REDEMPTION', points, status: 'pending', idempotencyKey: `cash-redemption:${request._id}`, sourceReference: request._id, description: 'Points held for cash redemption request' });
     } catch (err) {
-      await User.updateOne({ _id: req.user._id }, { $inc: { pointsBalance: points } }); // give back
+      if (request?._id) await RedemptionRequest.deleteOne({ _id: request._id });
+      await User.updateOne({ _id: req.user._id }, { $inc: { pointsBalance: points } });
       throw err;
     }
 
@@ -358,6 +382,8 @@ exports.cancelRedemption = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Only a pending request can be cancelled.' });
     }
     await User.updateOne({ _id: req.user._id }, { $inc: { pointsBalance: request.points } });
+    await RewardTransaction.updateOne({ idempotencyKey: `cash-redemption:${request._id}` }, { $set: { status: 'cancelled' } });
+    await RewardTransaction.findOneAndUpdate({ idempotencyKey: `cash-redemption-reversal:${request._id}` }, { $setOnInsert: { userId: req.user._id, kind: 'reversal', eventType: 'CASH_REDEMPTION_CANCELLED', points: request.points, status: 'posted', idempotencyKey: `cash-redemption-reversal:${request._id}`, sourceReference: request._id, description: 'Points returned after redemption cancellation', postedAt: new Date() } }, { upsert: true });
     res.json({ success: true, message: 'Request cancelled. Points returned to your balance.', data: request });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
