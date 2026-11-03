@@ -5,6 +5,13 @@ const { notifyHeadAssigned } = require('../../services/notificationService');
 const { resolveAvatarUpload } = require('../../utils/avatarUploadHelper');
 const { invalidateEffectiveCache } = require('../../services/modulePermissionService');
 
+const COMMUNITY_MODULE_SETTING_KEYS = [
+  'socialFeedEnabled', 'eventEnabled', 'donationEnabled', 'invitationEnabled',
+  'directoryEnabled', 'matrimonialEnabled', 'successStoriesEnabled', 'obituaryEnabled',
+  'dharmashalaEnabled', 'chatEnabled', 'fundEnabled', 'votingEnabled', 'censusEnabled',
+  'leadershipEnabled', 'familyEnabled', 'referralEnabled', 'memberDirectoryEnabled'
+];
+
 // ─────────────────────────────────────────────
 // Normalize a create/update payload's subCommunities into the sub-document shape.
 // Accepts plain strings (from the tag-editor UI) or already-shaped {name, isActive}
@@ -38,7 +45,8 @@ const sanitizeSubCommunitiesInput = (subCommunities, existing = []) => {
       isActive: match ? match.isActive !== false : (typeof raw === 'object' && raw.isActive !== undefined ? Boolean(raw.isActive) : true),
       ...(match?.planId ? { planId: match.planId, planAssignedAt: match.planAssignedAt } : {}),
       ...(match?.cityIds ? { cityIds: match.cityIds } : {}),
-      ...(match?.inactiveCityIds ? { inactiveCityIds: match.inactiveCityIds } : {})
+      ...(match?.inactiveCityIds ? { inactiveCityIds: match.inactiveCityIds } : {}),
+      ...(match?.settings ? { settings: match.settings } : (raw?.settings ? { settings: raw.settings } : {}))
     });
   }
   return result;
@@ -764,6 +772,7 @@ exports.getSubCommunityStats = async (req, res) => {
         _id: sub._id,
         name: sub.name,
         isActive: sub.isActive !== false,
+        settings: sub.settings || {},
         createdAt: sub.createdAt || null,
         memberCount: found?.memberCount || 0,
         locationCount: found?.locationCount || 0,
@@ -814,6 +823,7 @@ exports.getSubCommunityStats = async (req, res) => {
           name: community.name,
           slug: community.slug,
           logoUrl: community.logoUrl,
+          settings: community.settings || {},
           isActive: community.isActive !== false && community.status !== 'Inactive',
           createdAt: community.createdAt,
           activeLocationsCount: activeLocationsCount || 1,
@@ -867,6 +877,40 @@ exports.toggleSubCommunityStatus = async (req, res) => {
 // @route   PATCH /api/v1/admin/communities/:id/sub-communities/:subId
 // @access  Admin
 // ─────────────────────────────────────────────
+exports.updateSubCommunityModules = async (req, res) => {
+  try {
+    const { settings } = req.body || {};
+    if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+      return res.status(400).json({ status: 'error', message: 'A module settings object is required.' });
+    }
+
+    const community = await Community.findById(req.params.id);
+    if (!community) return res.status(404).json({ status: 'error', message: 'Community not found.' });
+    const sub = community.subCommunities.id(req.params.subId);
+    if (!sub) return res.status(404).json({ status: 'error', message: 'Sub-community not found.' });
+
+    const nextSettings = { ...(sub.settings?.toObject?.() || sub.settings || {}) };
+    for (const [key, value] of Object.entries(settings)) {
+      if (!COMMUNITY_MODULE_SETTING_KEYS.includes(key)) continue;
+      if (value === null) delete nextSettings[key];
+      else if (typeof value === 'boolean') nextSettings[key] = value;
+      else return res.status(400).json({ status: 'error', message: `Invalid value for ${key}.` });
+    }
+
+    sub.settings = nextSettings;
+    community.markModified('subCommunities');
+    await community.save();
+    return res.json({
+      success: true,
+      message: `Module access updated for ${sub.name}.`,
+      data: { subCommunityId: sub._id, subCommunity: sub.name, settings: sub.settings, communitySettings: community.settings }
+    });
+  } catch (error) {
+    console.error('updateSubCommunityModules error:', error);
+    return res.status(500).json({ status: 'error', message: 'Failed to update sub-community modules.' });
+  }
+};
+
 exports.renameSubCommunity = async (req, res) => {
   try {
     const { name } = req.body;

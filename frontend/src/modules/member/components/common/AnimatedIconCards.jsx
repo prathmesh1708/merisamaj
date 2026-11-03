@@ -280,6 +280,7 @@ export const AnimatedIconCards = ({
   invitationCount = 0,
   donationCount = 0,
   shradhanjaliCount = 0,
+  moduleSettings = {},
   onNavigate
 }) => {
   const defaultCards = [
@@ -377,9 +378,18 @@ export const AnimatedIconCards = ({
     return 0;
   };
 
+  const isModuleEnabled = (card) => {
+    const route = String(card.targetRoute || card.path || '').toLowerCase();
+    const label = String(card.title || card.label || card.key || '').toLowerCase();
+    if (route.includes('invitation') || label.includes('invitation')) return moduleSettings.invitationEnabled !== false;
+    if (route.includes('donation') || label.includes('contribution') || label.includes('donation')) return moduleSettings.donationEnabled !== false;
+    if (route.includes('obituar') || route.includes('shradhanjali') || label.includes('obituar') || label.includes('shradhanjali')) return moduleSettings.obituaryEnabled !== false;
+    return true;
+  };
+
   return (
     <div className="px-3 mt-4 sm:mt-5 mb-1 relative z-10 flex gap-2.5 sm:gap-3.5">
-      {cards.filter(c => c.isActive !== false).map((card) => {
+      {cards.filter(c => c.isActive !== false && isModuleEnabled(c)).map((card) => {
         const badgeNum = getBadgeCount(card);
         const navPath = card.targetRoute || card.path;
 

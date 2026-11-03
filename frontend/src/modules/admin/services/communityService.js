@@ -118,6 +118,11 @@ export const toggleSubCommunityStatus = async (communityId, subId) => {
   return response.data;
 };
 
+export const updateSubCommunityModules = async (communityId, subId, settings) => {
+  const response = await axiosPrivate.patch(`${API_BASE}/${communityId}/sub-communities/${subId}/modules`, { settings });
+  return response.data;
+};
+
 // DELETE /admin/communities/:id/sub-communities/:subId → delete one
 export const deleteSubCommunity = async (communityId, subId) => {
   const response = await axiosPrivate.delete(`${API_BASE}/${communityId}/sub-communities/${subId}`);

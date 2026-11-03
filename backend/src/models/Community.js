@@ -12,7 +12,10 @@ const subCommunitySchema = new mongoose.Schema(
     cityIds: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'City' }], default: undefined },
     inactiveCityIds: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'City' }], default: undefined },
     planId: { type: mongoose.Schema.Types.ObjectId, ref: 'CommunityPlan', default: null },
-    planAssignedAt: { type: Date, default: null }
+    planAssignedAt: { type: Date, default: null },
+    // Per-module overrides for members of this sub-community. Missing keys inherit
+    // the parent community setting; false explicitly hides/blocks that module.
+    settings: { type: mongoose.Schema.Types.Mixed, default: {} }
   },
   { timestamps: true }
 );
@@ -121,6 +124,14 @@ const communitySchema = new mongoose.Schema(
       dharmashalaEnabled: { type: Boolean, default: true },
       obituaryEnabled:    { type: Boolean, default: true },
       socialFeedEnabled:  { type: Boolean, default: true },
+      fundEnabled:        { type: Boolean, default: true },
+      votingEnabled:      { type: Boolean, default: true },
+      censusEnabled:      { type: Boolean, default: true },
+      successStoriesEnabled: { type: Boolean, default: true },
+      leadershipEnabled:  { type: Boolean, default: true },
+      familyEnabled:      { type: Boolean, default: true },
+      referralEnabled:    { type: Boolean, default: true },
+      memberDirectoryEnabled: { type: Boolean, default: true },
 
       // ─── Chat & Group Settings ─────────────────────────────────────────────
       chatEnabled:                { type: Boolean, default: true },

@@ -104,6 +104,16 @@ export const MemberLayout = () => {
     { name: 'My Profile', path: '/member/profile', icon: User },
     { name: 'Settings', path: '/member/settings', icon: Settings },
   ];
+  const moduleSettings = activeUser?.communityModuleSettings || activeUser?.communityId?.settings || {};
+  const menuModuleByPath = {
+    '/member/social': 'socialFeedEnabled', '/member/matrimonial': 'matrimonialEnabled',
+    '/member/invitations': 'invitationEnabled', '/member/directory': 'memberDirectoryEnabled',
+    '/member/chat': 'chatEnabled', '/member/voting': 'votingEnabled',
+    '/member/donation': 'donationEnabled', '/member/shradhanjali': 'obituaryEnabled',
+    '/member/referral': 'referralEnabled', '/member/professional': 'directoryEnabled',
+    '/member/leadership': 'leadershipEnabled'
+  };
+  const visibleMenuItems = menuItems.filter(item => !menuModuleByPath[item.path] || moduleSettings[menuModuleByPath[item.path]] !== false);
 
   return (
     <div className="relative w-full h-[100dvh] bg-surface flex flex-col md:flex-row overflow-hidden">
@@ -208,7 +218,7 @@ export const MemberLayout = () => {
 
             {/* Scrollable Navigation Links */}
             <div className="flex-1 overflow-y-auto py-3 px-3 space-y-0.5">
-              {menuItems.map((item) => {
+              {visibleMenuItems.map((item) => {
                 const isActive = location.pathname.startsWith(item.path);
                 const Icon = item.icon;
                 return (

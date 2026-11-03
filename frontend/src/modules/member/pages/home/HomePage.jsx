@@ -436,16 +436,24 @@ const HomePage = () => {
     };
   }, [loadHomepageSettings]);
 
-  const moduleSettings = effectiveUser?.communityId?.settings || {};
+  const moduleSettings = effectiveUser?.communityModuleSettings || effectiveUser?.communityId?.settings || {};
   const directoryEnabled = moduleSettings.directoryEnabled !== false;
   const isFeatureEnabled = (path) => {
-    if (path === '/member/professional' || path === '/member/directory') return directoryEnabled;
+    if (path === '/member/professional') return directoryEnabled;
+    if (path === '/member/directory') return directoryEnabled && moduleSettings.memberDirectoryEnabled !== false;
     if (path === '/member/social' || path === '/member/groups') return moduleSettings.socialFeedEnabled !== false;
     if (path.startsWith('/member/events')) return moduleSettings.eventEnabled !== false;
     if (path.startsWith('/member/invitations')) return moduleSettings.invitationEnabled !== false;
     if (path.startsWith('/member/donation')) return moduleSettings.donationEnabled !== false;
     if (path.startsWith('/member/obituary')) return moduleSettings.obituaryEnabled !== false;
     if (path.startsWith('/member/dharmashala')) return moduleSettings.dharmashalaEnabled !== false;
+    if (path.startsWith('/member/fund')) return moduleSettings.fundEnabled !== false;
+    if (path.startsWith('/member/voting')) return moduleSettings.votingEnabled !== false;
+    if (path.startsWith('/member/census')) return moduleSettings.censusEnabled !== false;
+    if (path.startsWith('/member/leadership')) return moduleSettings.leadershipEnabled !== false;
+    if (path.startsWith('/member/family') || path.startsWith('/member/profile/family')) return moduleSettings.familyEnabled !== false;
+    if (path.startsWith('/member/referral')) return moduleSettings.referralEnabled !== false;
+    if (path.includes('/success-stories')) return moduleSettings.successStoriesEnabled !== false && moduleSettings.matrimonialEnabled !== false;
     if (path.startsWith('/member/matrimonial')) return moduleSettings.matrimonialEnabled !== false;
     if (path.startsWith('/member/chat')) return moduleSettings.chatEnabled !== false;
     return true;
@@ -738,6 +746,7 @@ const HomePage = () => {
         invitationCount={invitationCount}
         donationCount={donationCount}
         shradhanjaliCount={shradhanjaliCount}
+        moduleSettings={moduleSettings}
         onNavigate={(path) => {
           if (!path) return;
           if (path.includes('invitation') || path.includes('nimantran')) {

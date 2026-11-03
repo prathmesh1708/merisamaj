@@ -39,6 +39,25 @@ const generateTokens = (user) => {
   return { accessToken, refreshToken };
 };
 
+const COMMUNITY_MODULE_KEYS = [
+  'matrimonialEnabled', 'donationEnabled', 'invitationEnabled', 'eventEnabled', 'directoryEnabled',
+  'dharmashalaEnabled', 'obituaryEnabled', 'socialFeedEnabled', 'fundEnabled', 'votingEnabled',
+  'censusEnabled', 'successStoriesEnabled', 'leadershipEnabled', 'familyEnabled', 'referralEnabled',
+  'memberDirectoryEnabled', 'chatEnabled'
+];
+
+const getEffectiveCommunityModuleSettings = (user) => {
+  const community = user.communityId && typeof user.communityId === 'object' ? user.communityId : null;
+  if (!community) return {};
+  const parent = community.settings || {};
+  const subCommunityName = String(user.subCommunity || '').trim().toLowerCase();
+  const sub = community.subCommunities?.find(item => String(item.name || '').trim().toLowerCase() === subCommunityName);
+  return Object.fromEntries(COMMUNITY_MODULE_KEYS.map(key => [
+    key,
+    parent[key] !== false && sub?.settings?.[key] !== false
+  ]));
+};
+
 const getUserResponsePayload = (user) => {
   return {
     id: user._id,
@@ -60,6 +79,7 @@ const getUserResponsePayload = (user) => {
     maritalStatus: user.maritalStatus,
     gotra: user.gotra,
     communityId: user.communityId,
+    communityModuleSettings: getEffectiveCommunityModuleSettings(user),
     assignedCommunityId: user.assignedCommunityId,
     assignedCommunityIds: user.assignedCommunityIds,
     headPermissions: user.headPermissions,
@@ -181,7 +201,7 @@ const registerUser = async (req, res) => {
     const user = await User.create(userData);
 
     if (user) {
-      await user.populate('communityId', 'name slug isActive settings logoUrl bannerUrl description city');
+      await user.populate('communityId', 'name slug isActive settings subCommunities.name subCommunities.settings logoUrl bannerUrl description city');
 
       // ── Process Referral Points & Single Notification via Referral Service ──────────
       await referralService.processRegistrationReferral(user, referralCode);
@@ -243,8 +263,8 @@ const loginUser = async (req, res) => {
 
     // Find by resolved query
     const user = await User.findOne(searchQuery)
-    .populate('communityId', 'name slug isActive settings logoUrl bannerUrl description city')
-    .populate('assignedCommunityIds', 'name slug isActive settings logoUrl bannerUrl description city');
+    .populate('communityId', 'name slug isActive settings subCommunities.name subCommunities.settings logoUrl bannerUrl description city')
+    .populate('assignedCommunityIds', 'name slug isActive settings subCommunities.name subCommunities.settings logoUrl bannerUrl description city');
 
     if (!user) {
       return res.status(404).json({ message: 'User not found with this identifier' });
@@ -333,8 +353,8 @@ const getMe = async (req, res) => {
       console.warn('[MembershipSync] getMe:', syncErr.message);
     }
     const user = await User.findById(req.user._id)
-      .populate('communityId', 'name slug isActive settings logoUrl bannerUrl description city')
-      .populate('assignedCommunityIds', 'name slug isActive settings logoUrl bannerUrl description city');
+      .populate('communityId', 'name slug isActive settings subCommunities.name subCommunities.settings logoUrl bannerUrl description city')
+      .populate('assignedCommunityIds', 'name slug isActive settings subCommunities.name subCommunities.settings logoUrl bannerUrl description city');
 
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
@@ -397,8 +417,8 @@ const refreshAuth = async (req, res) => {
   try {
     const decoded = jwt.verify(refreshToken, config.jwtRefreshSecret);
     const user = await User.findById(decoded.id)
-      .populate('communityId', 'name slug isActive settings logoUrl bannerUrl description city')
-      .populate('assignedCommunityIds', 'name slug isActive settings logoUrl bannerUrl description city');
+      .populate('communityId', 'name slug isActive settings subCommunities.name subCommunities.settings logoUrl bannerUrl description city')
+      .populate('assignedCommunityIds', 'name slug isActive settings subCommunities.name subCommunities.settings logoUrl bannerUrl description city');
 
     if (!user) {
       return res.status(401).json({ message: 'User not found' });
@@ -468,8 +488,8 @@ const refreshHead = async (req, res) => {
   try {
     const decoded = jwt.verify(refreshToken, config.jwtRefreshSecret);
     const user = await User.findById(decoded.id)
-      .populate('communityId', 'name slug isActive settings logoUrl bannerUrl description city')
-      .populate('assignedCommunityIds', 'name slug isActive settings logoUrl bannerUrl description city');
+      .populate('communityId', 'name slug isActive settings subCommunities.name subCommunities.settings logoUrl bannerUrl description city')
+      .populate('assignedCommunityIds', 'name slug isActive settings subCommunities.name subCommunities.settings logoUrl bannerUrl description city');
 
     if (!user || !['head', 'admin', 'sub_head'].includes(user.role)) {
       return res.status(401).json({ message: 'Head user not found' });
@@ -781,8 +801,8 @@ const updateProfile = async (req, res) => {
       }
       const cacheService = require('../utils/cacheService');
       cacheService.del(`auth_user_${user._id}`);
-      await updatedUser.populate('communityId', 'name slug isActive settings logoUrl bannerUrl description city');
-      await updatedUser.populate('assignedCommunityIds', 'name slug isActive settings logoUrl bannerUrl description city');
+      await updatedUser.populate('communityId', 'name slug isActive settings subCommunities.name subCommunities.settings logoUrl bannerUrl description city');
+      await updatedUser.populate('assignedCommunityIds', 'name slug isActive settings subCommunities.name subCommunities.settings logoUrl bannerUrl description city');
 
       if (updatedUser.verificationStatus === 'pending' || updatedUser.accountStatus === 'pending verification') {
         notifyLocalHeadNewMember(updatedUser).catch(err => console.warn('[notifyLocalHeadNewMember error]:', err.message));

@@ -27,7 +27,7 @@ export const BottomNav = ({ isVisible = true }) => {
     return null;
   }
 
-  const communitySettings = activeUser?.communityId?.settings || {};
+  const communitySettings = activeUser?.communityModuleSettings || activeUser?.communityId?.settings || {};
   const matrimonialEnabled = communitySettings.matrimonialEnabled !== false;
   const socialEnabled = communitySettings.socialFeedEnabled !== false;
   const chatEnabled = communitySettings.chatEnabled !== false;

@@ -44,16 +44,16 @@ router.use('/social', checkModuleEnabled('socialFeedEnabled'), socialRoutes);
 router.use('/posts', checkModuleEnabled('socialFeedEnabled'), postRoutes);
 
 // Community Member Listing
-router.use('/members', memberListingRoutes);
+router.use('/members', checkModuleEnabled('memberDirectoryEnabled'), memberListingRoutes);
 
 // Voting
-router.use('/voting', votingRoutes);
+router.use('/voting', checkModuleEnabled('votingEnabled'), votingRoutes);
 
 // Events
 router.use('/events', checkModuleEnabled('eventEnabled'), eventRoutes);
 
 // Samaj Fund Module
-router.use('/fund', fundRoutes);
+router.use('/fund', checkModuleEnabled('fundEnabled'), fundRoutes);
 
 // Professional Directory (gated by the community's assigned plan)
 const professionalRoutes = require('./professionalRoutes');
@@ -84,6 +84,7 @@ router.use('/matrimonial/profile',       checkModuleEnabled('matrimonialEnabled'
 router.use('/matrimonial/subscription',  checkModuleEnabled('matrimonialEnabled'), matrimonialSubscriptionRoutes);
 router.use('/matrimonial/interests',     checkModuleEnabled('matrimonialEnabled'), matrimonialInterestRoutes);
 router.use('/matrimonial/chat',          checkModuleEnabled('matrimonialEnabled'), matrimonialChatRoutes);
+router.use('/matrimonial/success-stories', checkModuleEnabled('successStoriesEnabled'));
 router.use('/matrimonial',               checkModuleEnabled('matrimonialEnabled'), matrimonialAuxRoutes); // dashboard, shortlist, visitors, block, report
 
 // ─── Notifications (centralized for all modules) ─────────────────────────────
@@ -92,18 +93,18 @@ router.use('/notifications', notificationRoutes);
 
 // ─── Leadership Directory ────────────────────────────────────────────────────
 const leadershipRoutes = require('./leadershipRoutes');
-router.use('/leadership', leadershipRoutes);
+router.use('/leadership', checkModuleEnabled('leadershipEnabled'), leadershipRoutes);
 
 // ─── Community Census Module ──────────────────────────────────────────────────
 const censusRoutes = require('./censusRoutes');
-router.use('/census', censusRoutes);
+router.use('/census', checkModuleEnabled('censusEnabled'), censusRoutes);
 
 // ─── Family Tree (Family ID + Member IDs, invitations) ───────────────────────
-router.use('/family', require('./familyRoutes'));
+router.use('/family', checkModuleEnabled('familyEnabled'), require('./familyRoutes'));
 
 // ─── Referral & Rewards Module ──────────────────────────────────────────────
 const referralRoutes = require('./referralRoutes');
-router.use('/referral', referralRoutes);
+router.use('/referral', checkModuleEnabled('referralEnabled'), referralRoutes);
 
 // ─── Dynamic Home & User App Customization ──────────────────────────────────
 const memberAppContentRoutes = require('./memberAppContentRoutes');

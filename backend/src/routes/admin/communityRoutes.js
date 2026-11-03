@@ -15,6 +15,7 @@ const {
   addSubCommunity,
   renameSubCommunity,
   toggleSubCommunityStatus,
+  updateSubCommunityModules,
   deleteSubCommunity,
   getSubCommunityLocationBreakdown,
   assignLocalHeadToLocationGroup,
@@ -64,6 +65,7 @@ router.post('/:id/sub-communities', authorize('admin', 'head'), addSubCommunity)
 router.patch('/:id/sub-communities/:subId', authorize('admin', 'head'), renameSubCommunity);
 // PATCH  /api/v1/admin/communities/:id/sub-communities/:subId/toggle → activate/deactivate one
 router.patch('/:id/sub-communities/:subId/toggle', authorize('admin', 'head'), toggleSubCommunityStatus);
+router.patch('/:id/sub-communities/:subId/modules', authorize('admin'), updateSubCommunityModules);
 // DELETE /api/v1/admin/communities/:id/sub-communities/:subId     → delete one
 router.delete('/:id/sub-communities/:subId', authorize('admin'), deleteSubCommunity);
 

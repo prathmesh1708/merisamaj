@@ -14,6 +14,7 @@ import {
   assignHeadToCommunity,
   removeHeadFromCommunity,
   updateCommunitySettings,
+  updateSubCommunityModules,
   getSubCommunityStats,
   addSubCommunity,
   renameSubCommunity,
@@ -168,6 +169,14 @@ const DEFAULT_HEAD_PERMISSIONS = {
 // MODULE SETTINGS CONFIG — Admin-configurable feature flags
 // ─────────────────────────────────────────────
 const MODULE_FLAGS = [
+  { key: 'fundEnabled', label: 'Samaj Funds', icon: '💳' },
+  { key: 'votingEnabled', label: 'Voting & Elections', icon: '🗳️' },
+  { key: 'censusEnabled', label: 'Community Census', icon: '📊' },
+  { key: 'successStoriesEnabled', label: 'Success Stories', icon: '🌟' },
+  { key: 'leadershipEnabled', label: 'Leadership', icon: '👥' },
+  { key: 'familyEnabled', label: 'Family Tree', icon: '🌳' },
+  { key: 'referralEnabled', label: 'Referral & Rewards', icon: '🎁' },
+  { key: 'memberDirectoryEnabled', label: 'Member Directory', icon: '🪪' },
   { key: 'matrimonialEnabled', label: 'Matrimony', icon: '❤️' },
   { key: 'chatEnabled', label: 'Chat & Groups', icon: '💬' },
   { key: 'socialFeedEnabled',   label: 'Social Feed',    icon: '📰' },
@@ -1104,6 +1113,62 @@ const ModuleSettingsPanel = ({ community, onClose, onUpdated }) => {
             <button className="community-btn-primary" onClick={handleSave} disabled={loading}>
               {loading ? 'Saving...' : 'Save Settings'}
             </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const SubCommunityModuleSettingsPanel = ({ community, subCommunity, onClose, onUpdated }) => {
+  const [settings, setSettings] = useState(() => ({ ...(subCommunity.settings || {}) }));
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const parentSettings = community.settings || {};
+  const enabled = (key) => parentSettings[key] !== false && (typeof settings[key] === 'boolean' ? settings[key] : true);
+  const toggle = (key) => {
+    if (parentSettings[key] === false) return;
+    setSettings(current => ({ ...current, [key]: !enabled(key) }));
+  };
+  const save = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      await updateSubCommunityModules(community._id || community.id, subCommunity._id, settings);
+      await onUpdated();
+      onClose();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Could not save module settings. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+  const inheritDefaults = () => setSettings(Object.fromEntries(MODULE_FLAGS.map(({ key }) => [key, null])));
+  return (
+    <div className="community-modal-overlay" onClick={onClose}>
+      <div className="community-modal community-modal-wide" onClick={e => e.stopPropagation()}>
+        <div className="community-modal-header">
+          <div><h3>⚙️ {subCommunity.name} Modules</h3><p className="text-xs text-slate-500 mt-0.5">Choose what members of this sub-community can access.</p></div>
+          <button type="button" className="community-modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="community-modal-body">
+          <div className="community-module-grid">
+            {MODULE_FLAGS.map(({ key, label, icon }) => {
+              const isEnabled = enabled(key);
+              const locked = parentSettings[key] === false;
+              return <button type="button" key={key} className={`community-module-toggle ${isEnabled ? 'active' : 'inactive'}`} onClick={() => toggle(key)} aria-pressed={isEnabled} disabled={loading || locked} title={locked ? 'Disabled for the whole community' : ''}>
+                <span className="community-module-icon">{icon}</span><span className="community-module-label">{label}{locked ? ' · Community off' : ''}</span>
+                <div className={`community-toggle-switch ${isEnabled ? 'on' : 'off'}`}><div className="community-toggle-knob" /></div>
+              </button>;
+            })}
+          </div>
+        </div>
+        <div className="community-modal-actions">
+          {error && <span role="alert" style={{ fontSize: '.82rem', color: '#dc2626', fontWeight: 600 }}>{error}</span>}
+          <div style={{ display: 'flex', gap: 10, marginLeft: 'auto' }}>
+            <button type="button" className="community-btn-secondary" onClick={inheritDefaults} disabled={loading}>Use community defaults</button>
+            <button type="button" className="community-btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="button" className="community-btn-primary" onClick={save} disabled={loading}>{loading ? 'Saving...' : 'Save modules'}</button>
           </div>
         </div>
       </div>
@@ -3041,6 +3106,7 @@ const SubCommunityLocationView = ({
   const [newGroupName, setNewGroupName] = useState('');
   const [addingLocation, setAddingLocation] = useState(false);
   const [editingSub, setEditingSub] = useState(null); // { id, name }
+  const [moduleSubTarget, setModuleSubTarget] = useState(null);
   const [selectedSubCommunity, setSelectedSubCommunity] = useState(null); // Active Sub-Community for Image 2 view (e.g. Rathore)
 
   // Direct Leader Creation & Permissions State (4-Step Wizard matching CommunityHeadForm)
@@ -3730,6 +3796,7 @@ const SubCommunityLocationView = ({
 
                 {/* Action Buttons: View Locations, Edit, Deactivate, Delete */}
                 <div className="subcomm-card-action-bar">
+                  <button type="button" className="subcomm-act-btn" onClick={() => setModuleSubTarget(sub)}><span>⚙️</span> Modules</button>
                   <button
                     type="button"
                     className="subcomm-act-btn"
@@ -4870,6 +4937,7 @@ const SubCommunityLocationView = ({
           </div>
         </div>
       )}
+      {moduleSubTarget && <SubCommunityModuleSettingsPanel community={data.community} subCommunity={moduleSubTarget} onClose={() => setModuleSubTarget(null)} onUpdated={async () => { await fetchDetails(); if (onRefreshCommunities) await onRefreshCommunities(); }} />}
     </div>
   );
 };
@@ -5768,7 +5836,7 @@ const COMMUNITIES_PAGE_STYLES = `
   /* Sub-Community Card Actions */
   .subcomm-card-action-bar {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 8px;
   }
   .subcomm-act-btn {
