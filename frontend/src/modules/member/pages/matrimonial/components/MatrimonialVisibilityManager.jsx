@@ -116,7 +116,7 @@ export const MatrimonialVisibilityManager = ({
       scope: 'all', // 'all' | 'selected'
       selectedSubCommunities: []
     },
-    allSubCommunities: { enabled: false },
+    allSubCommunities: { enabled: false, scope: 'all', selectedSubCommunities: [] },
     aadharVerifiedOnly: true,
     communityVerifiedOnly: true,
     selectedLocations: {
@@ -1041,6 +1041,57 @@ export const MatrimonialVisibilityManager = ({
                   <button type="button" onClick={() => navigate('/member/matrimonial/subscription')} className="shrink-0 px-3 py-1.5 bg-rose-500 text-white rounded-full text-[11px] font-bold active:scale-95">Upgrade</button>
                 </div>
               )}
+              {!allSubCommunitiesLocked && settings.allSubCommunities.enabled && (
+                <div className="mt-3.5 pt-3 border-t border-slate-100 space-y-2.5 pl-11">
+                  <label className="flex items-center gap-2.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="allSamajSubCommunityScope"
+                      checked={settings.allSubCommunities.scope !== 'selected'}
+                      onChange={() => setSettings(s => ({
+                        ...s,
+                        allSubCommunities: { ...s.allSubCommunities, scope: 'all', selectedSubCommunities: [] }
+                      }))}
+                      className="w-4 h-4 text-rose-600 focus:ring-rose-500 border-slate-300"
+                    />
+                    <span className="text-[12px] font-semibold text-slate-700">
+                      All communities ({memberOf.subCommunities.length})
+                    </span>
+                  </label>
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="flex items-center gap-2.5 cursor-pointer min-w-0">
+                      <input
+                        type="radio"
+                        name="allSamajSubCommunityScope"
+                        checked={settings.allSubCommunities.scope === 'selected'}
+                        onChange={() => {
+                          setSettings(s => ({
+                            ...s,
+                            allSubCommunities: { ...s.allSubCommunities, scope: 'selected' }
+                          }));
+                          if (!(settings.allSubCommunities.selectedSubCommunities || []).length) setCurrentScreen('select-subcommunities');
+                        }}
+                        className="w-4 h-4 text-rose-600 focus:ring-rose-500 border-slate-300 shrink-0"
+                      />
+                      <span className="min-w-0">
+                        <span className="block text-[12px] font-semibold text-slate-700">Selected communities</span>
+                        {settings.allSubCommunities.scope === 'selected' && settings.allSubCommunities.selectedSubCommunities?.length > 0 && (
+                          <span className="block text-[10.5px] font-medium text-slate-400 truncate">
+                            {settings.allSubCommunities.selectedSubCommunities.join(', ')}
+                          </span>
+                        )}
+                      </span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setCurrentScreen('select-subcommunities')}
+                      className="text-[11.5px] font-bold text-rose-600 hover:text-rose-700 flex items-center gap-0.5 active:scale-95 shrink-0"
+                    >
+                      Selected{settings.allSubCommunities.selectedSubCommunities?.length ? ` (${settings.allSubCommunities.selectedSubCommunities.length})` : ''} <ChevronRight size={14} />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Free audience: the member's own sub-community */}
@@ -1240,9 +1291,9 @@ export const MatrimonialVisibilityManager = ({
   // ─────────────────────────────────────────────────────────────────────────────
   if (currentScreen === 'select-subcommunities') {
     const subs = memberOf.subCommunities || [];
-    const sel = settings.mySubCommunity.selectedSubCommunities || [];
-    const isAll = settings.mySubCommunity.scope !== 'selected';
-    const setSub = (patch) => setSettings(s => ({ ...s, mySubCommunity: { ...s.mySubCommunity, ...patch } }));
+    const sel = settings.allSubCommunities.selectedSubCommunities || [];
+    const isAll = settings.allSubCommunities.scope !== 'selected';
+    const setSub = (patch) => setSettings(s => ({ ...s, allSubCommunities: { ...s.allSubCommunities, ...patch } }));
     const toggleSub = (name) => {
       const next = sel.includes(name) ? sel.filter(n => n !== name) : [...sel, name];
       setSub({ scope: next.length ? 'selected' : 'all', selectedSubCommunities: next });
@@ -1309,7 +1360,7 @@ export const MatrimonialVisibilityManager = ({
             }}
             className="w-full py-3.5 bg-gradient-to-r from-rose-500 to-pink-600 text-white rounded-2xl font-black text-[14px] shadow-lg shadow-rose-500/20 active:scale-98 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {saving ? 'Saving...' : (isAll ? 'Save: all communities' : `Save: ${sel.length} selected`)}
+            {saving ? 'Saving...' : (isAll ? 'Save: all sub-communities' : `Save: ${sel.length} selected`)}
           </button>
         </div>
       </div>
