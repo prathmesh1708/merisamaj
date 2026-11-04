@@ -4,9 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "build:gh": "vite build --base=/MeriSamaj/",
+    "dev": "node init && vite",
+    "build": "node init && vite build",
+    "build:gh": "node init && vite build --base=/MeriSamaj/",
     "lint": "eslint .",
     "preview": "vite preview"
   },

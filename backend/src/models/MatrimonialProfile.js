@@ -59,7 +59,9 @@ const matrimonialProfileSchema = new mongoose.Schema(
         selectedSubCommunities: { type: [String], default: [] }
       },
       allSubCommunities: {
-        enabled: { type: Boolean, default: false }
+        enabled: { type: Boolean, default: false },
+        scope: { type: String, enum: ['all', 'selected'], default: 'all' },
+        selectedSubCommunities: { type: [String], default: [] }
       },
       aadharVerifiedOnly: { type: Boolean, default: true },
       communityVerifiedOnly: { type: Boolean, default: true },
