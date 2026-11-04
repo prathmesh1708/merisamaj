@@ -746,7 +746,7 @@ exports.getAvailableLocations = async (req, res) => {
       const canBrowseSiblings = !!viewerFeatures?.allSubCommunitiesAccess;
       if (ownSub) {
         const siblingIds = canBrowseSiblings
-          ? await eligibleSiblingProfileUserIds(ownIds.filter(id => String(id) !== String(req.user._id)))
+          ? await eligibleSiblingProfileUserIds(ownIds.filter(id => String(id) !== String(req.user._id)), req.user?.subCommunity)
           : [];
         const ownSubIds = await User.find({ _id: { $in: ownIds }, subCommunity: exact(ownSub) }).distinct('_id');
         ownIds = [...ownSubIds, ...siblingIds];
@@ -895,7 +895,7 @@ exports.getVisibilitySettings = async (req, res) => {
         enabled: true,
         scope: 'all'
       },
-      allSubCommunities: { enabled: false },
+      allSubCommunities: { enabled: false, scope: 'all', selectedSubCommunities: [] },
       aadharVerifiedOnly: true,
       communityVerifiedOnly: true,
       selectedLocations: {
@@ -913,7 +913,11 @@ exports.getVisibilitySettings = async (req, res) => {
 
     const settings = {
       ...defaultSettings,
-      ...(profile.visibilitySettings || {})
+      ...(profile.visibilitySettings || {}),
+      allSubCommunities: {
+        ...defaultSettings.allSubCommunities,
+        ...(profile.visibilitySettings?.allSubCommunities || {})
+      }
     };
     if (!canUseOtherCommunities) {
       settings.otherCommunities = { ...(settings.otherCommunities || {}), enabled: false };

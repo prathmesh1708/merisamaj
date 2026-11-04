@@ -34,7 +34,7 @@ const canSeeSiblingSubCommunities = async (viewer, reqCommunityId) => {
   return !!features?.allSubCommunitiesAccess;
 };
 
-const eligibleSiblingProfileUserIds = async (ids) => {
+const eligibleSiblingProfileUserIds = async (ids, targetSubCommunity = '') => {
   if (!ids.length) return [];
   const now = new Date();
   const activePlans = await UserSubscription.find({
@@ -42,17 +42,26 @@ const eligibleSiblingProfileUserIds = async (ids) => {
     'featuresSnapshot.allSubCommunitiesAccess': true
   }).distinct('userId');
   if (!activePlans.length) return [];
+  const targetSub = String(targetSubCommunity || '').trim();
+  const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const selectedScope = targetSub
+    ? [
+        { 'visibilitySettings.allSubCommunities.scope': { $ne: 'selected' } },
+        { 'visibilitySettings.allSubCommunities.selectedSubCommunities': new RegExp(`^${escapeRegex(targetSub)}$`, 'i') }
+      ]
+    : [{ 'visibilitySettings.allSubCommunities.scope': { $ne: 'selected' } }];
   return MatrimonialProfile.find({
     userId: { $in: activePlans }, isDeleted: false,
     visibility: { $in: ['all_members', 'public'] },
-    'visibilitySettings.allSubCommunities.enabled': true
+    'visibilitySettings.allSubCommunities.enabled': true,
+    $or: selectedScope
   }).distinct('userId');
 };
 
 const canAccessSiblingProfile = async (viewer, reqCommunityId, ownerId) => {
   const canBrowse = await canSeeSiblingSubCommunities(viewer, reqCommunityId);
   if (!canBrowse) return false;
-  return (await eligibleSiblingProfileUserIds([ownerId])).some(id => String(id) === String(ownerId));
+  return (await eligibleSiblingProfileUserIds([ownerId], viewer?.subCommunity)).some(id => String(id) === String(ownerId));
 };
 
 /**
@@ -71,7 +80,7 @@ const profileScopeCondition = async ({ user, reqCommunityId, canSeeOtherCommunit
     ownIds = await User.find({ _id: { $in: communityIds }, subCommunity: new RegExp('^' + escapedSub + '$', 'i') }).distinct('_id');
   }
   const otherCommunityIds = communityIds.filter(id => !ownIds.some(own => String(own) === String(id)));
-  const visibleSiblingIds = canSeeSiblings ? await eligibleSiblingProfileUserIds(otherCommunityIds) : [];
+  const visibleSiblingIds = canSeeSiblings ? await eligibleSiblingProfileUserIds(otherCommunityIds, mySub) : [];
   const shareable = { visibility: { $in: ['all_members', 'public'] } };
   const ownProfiles = {
     userId: { $in: ownIds },
