@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, AlertTriangle, AlertCircle, Check, Loader2 } from 'lucide-react';
 
 const CANCEL_REASON_PRESETS = [
-  { id: 'postponed', label: 'Postponed / स्थगित (New date soon)' },
-  { id: 'unavoidable', label: 'Unavoidable Circumstances / अपरिहार्य कारण' },
-  { id: 'venue_changed', label: 'Venue or Time Changed / स्थान/समय परिवर्तन' },
-  { id: 'family_reason', label: 'Family Emergency / पारिवारिक कारण' },
-  { id: 'cancelled_org', label: 'Event Cancelled / कार्यक्रम निरस्त' }
+  { id: 'postponed', label: 'Postponed / New date soon' },
+  { id: 'unavoidable', label: 'Unavoidable Circumstances' },
+  { id: 'venue_changed', label: 'Venue or Time Changed' },
+  { id: 'family_reason', label: 'Family Emergency' },
+  { id: 'cancelled_org', label: 'Event Cancelled' }
 ];
 
 export default function CancelInvitationModal({ isOpen, onClose, invitation, onConfirm }) {
@@ -65,7 +65,7 @@ export default function CancelInvitationModal({ isOpen, onClose, invitation, onC
             </div>
             <h3 className="text-lg sm:text-xl font-black tracking-tight leading-tight">Cancel Invitation</h3>
             <p className="text-[11px] sm:text-xs text-white/90 font-medium mt-0.5 leading-snug">
-              कार्यक्रम रद्द करें · All invited members will be notified with your reason.
+              All invited members will be notified with your reason.
             </p>
           </div>
 
@@ -85,7 +85,7 @@ export default function CancelInvitationModal({ isOpen, onClose, invitation, onC
             {/* Presets */}
             <div>
               <label className="block text-[11px] sm:text-xs font-black uppercase tracking-wider text-slate-600 mb-1.5">
-                Select Reason (कारण चुनें)
+                Select Reason
               </label>
               <div className="space-y-1.5">
                 {CANCEL_REASON_PRESETS.map((preset) => {
@@ -115,7 +115,7 @@ export default function CancelInvitationModal({ isOpen, onClose, invitation, onC
             {/* Custom Notes */}
             <div>
               <label className="block text-[11px] sm:text-xs font-black uppercase tracking-wider text-slate-600 mb-1.5">
-                Additional Note / Custom Reason (वैकल्पिक विवरण)
+                Additional Note / Custom Reason
               </label>
               <textarea
                 rows={2}
@@ -159,7 +159,7 @@ export default function CancelInvitationModal({ isOpen, onClose, invitation, onC
                   Cancelling...
                 </>
               ) : (
-                'Confirm Cancel (रद्द करें)'
+                'Confirm Cancel'
               )}
             </button>
           </div>

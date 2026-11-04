@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+﻿import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import { MapPin, X, Eye, PartyPopper, UserX, BarChart3, Edit3, Trash2, Ban, AlertOctagon } from 'lucide-react';
@@ -93,7 +93,7 @@ export default function EnvelopeInvitationCard({
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
-      // `relative isolate z-0`: the card's own layered pieces (× button, badges, seal) stay
+      // `relative isolate z-0`: the card's own layered pieces (Ã— button, badges, seal) stay
       // inside the card and can never draw over the page's sticky header while scrolling
       className="relative isolate z-0 bg-white rounded-[26px] border border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_10px_28px_rgba(124,58,237,0.08)] transition-shadow duration-300"
     >
@@ -119,7 +119,7 @@ export default function EnvelopeInvitationCard({
           {isCancelled && (
             <div className="absolute top-3 right-3 z-30 bg-rose-600/95 text-white text-[10px] font-black uppercase px-2.5 py-1 rounded-full shadow-lg border border-white/30 backdrop-blur-md flex items-center gap-1">
               <AlertOctagon size={12} strokeWidth={2.5} />
-              <span>Cancelled (रद्द)</span>
+              <span>Cancelled</span>
             </div>
           )}
 
@@ -148,7 +148,7 @@ export default function EnvelopeInvitationCard({
             </p>
           </motion.div>
 
-          {/* Front pocket — everything except the flap triangle */}
+          {/* Front pocket â€” everything except the flap triangle */}
           <div
             className="absolute inset-0 z-20 rounded-[26px] bg-gradient-to-b from-[#33116A] via-[#40167F] to-[#5B21B6]"
             style={{ clipPath: 'polygon(0 0, 50% 60%, 100% 0, 100% 100%, 0 100%)' }}
@@ -215,7 +215,7 @@ export default function EnvelopeInvitationCard({
             className="absolute bottom-4 left-0 w-full z-40 flex flex-col items-center gap-0.5 px-6"
           >
             <span className="text-[11px] font-extrabold text-purple-100 truncate max-w-full">
-              {invDate.toLocaleString('default', { month: 'short' })} {invDate.getDate()} · {displayHost}
+              {invDate.toLocaleString('default', { month: 'short' })} {invDate.getDate()} Â· {displayHost}
             </span>
             <span className="text-[9.5px] font-bold uppercase tracking-[0.2em] text-purple-300 group-hover:text-amber-200 transition-colors">
               Tap to open
@@ -239,7 +239,7 @@ export default function EnvelopeInvitationCard({
               {isCancelled ? (
                 <span className="absolute top-3.5 right-3.5 bg-rose-600/95 backdrop-blur-md text-white text-[10px] px-3 py-1 rounded-full font-black uppercase tracking-wider z-20 shadow-md border border-rose-300/40 flex items-center gap-1">
                   <AlertOctagon size={11} strokeWidth={2.5} />
-                  Cancelled (रद्द)
+                  Cancelled
                 </span>
               ) : inv.status === 'Pending' ? (
                 <span className="absolute top-3.5 right-3.5 bg-amber-500/90 backdrop-blur-md text-white text-[10px] px-3 py-1 rounded-full font-black uppercase tracking-wider z-20 shadow-md border border-amber-300/40">
@@ -251,7 +251,7 @@ export default function EnvelopeInvitationCard({
                 </span>
               ) : null}
 
-              {/* Close Button — Premium Glassmorphic */}
+              {/* Close Button â€” Premium Glassmorphic */}
               <button
                 onClick={handleClose}
                 title="Close and fold envelope"
@@ -346,7 +346,7 @@ export default function EnvelopeInvitationCard({
                   onClick={() => onOpenDetail(detailId)}
                   className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-md shadow-purple-500/20 font-bold text-[13px] py-2.5 sm:py-3 rounded-xl active:scale-95 transition-all press-scale flex items-center justify-center gap-1.5"
                 >
-                  View Details (विवरण देखें)
+                  View Details
                 </button>
               </div>
             </div>
@@ -379,7 +379,7 @@ export default function EnvelopeInvitationCard({
                 <div className="min-w-0">
                   <p className="text-[12px] sm:text-[13px] font-black text-slate-800 leading-none">{stats.totalAttendingCount}</p>
                   <p className="text-[8px] sm:text-[9px] font-bold uppercase tracking-wide text-slate-400 mt-0.5 truncate">
-                    Attending · {stats.familyCount} fam
+                    Attending Â· {stats.familyCount} fam
                   </p>
                 </div>
               </div>
@@ -398,7 +398,7 @@ export default function EnvelopeInvitationCard({
               className="w-full mt-2 sm:mt-2.5 bg-white border border-purple-200 text-purple-700 hover:bg-purple-50 font-black text-[11px] sm:text-[11.5px] py-2 sm:py-2.5 rounded-xl transition-all press-scale flex items-center justify-center gap-1.5 shadow-2xs"
             >
               <BarChart3 size={13} strokeWidth={2.6} />
-              View Full List &amp; Responses (व्यू लिस्ट)
+              View Full List &amp; Responses
             </button>
 
             {/* Creator Quick Management Actions */}
@@ -433,7 +433,7 @@ export default function EnvelopeInvitationCard({
         </div>
       )}
 
-      {/* Lightbox Fullscreen Image Modal — rendered on <body> so it covers the whole screen
+      {/* Lightbox Fullscreen Image Modal â€” rendered on <body> so it covers the whole screen
           (the card is its own layer and would otherwise keep it under the header) */}
       {createPortal(<AnimatePresence>
         {fullscreenImg && (

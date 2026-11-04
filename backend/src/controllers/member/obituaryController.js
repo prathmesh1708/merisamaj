@@ -223,6 +223,7 @@ exports.getObituaries = async (req, res) => {
 
     let queryExec = Obituary.find(query)
       .populate('creatorId', 'name email avatar initials phone')
+      .populate('comments.user', 'avatar')
       .populate('communityId', 'name slug')
       .sort({ createdAt: -1 });
 
@@ -246,6 +247,7 @@ exports.getObituaryById = async (req, res) => {
   try {
     const obituary = await Obituary.findById(req.params.id)
       .populate('creatorId', 'name email avatar initials phone')
+      .populate('comments.user', 'avatar')
       .lean();
 
     if (!obituary) {
@@ -570,6 +572,7 @@ exports.addComment = async (req, res) => {
       user: req.user._id,
       name,
       initials,
+      avatar: req.user.avatar || '',
       text: text.trim(),
       likes: [],
       timestamp: new Date()

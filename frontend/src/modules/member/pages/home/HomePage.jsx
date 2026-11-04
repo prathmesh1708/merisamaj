@@ -137,7 +137,7 @@ const getFeatureModuleKey = (action) => {
 
 const VerificationPrompt = ({ user, navigate }) => {
   const pendingChecks = [
-    !user?.isAadharVerified && { title: 'Aadhaar Verification', description: 'Verify your identity with UIDAI', badge: 'UIDAI Enabled', Icon: Fingerprint, kind: 'aadhaar' },
+    user?.communityModuleSettings?.aadharVerificationEnabled !== false && !user?.isAadharVerified && { title: 'Aadhaar Verification', description: 'Verify your identity with UIDAI', badge: 'UIDAI Enabled', Icon: Fingerprint, kind: 'aadhaar' },
     !user?.isFaceVerified && { title: 'Face Verification', description: 'Verify your identity using live face capture', badge: 'AI Powered & Secure', Icon: ScanFace, kind: 'face' },
   ].filter(Boolean);
   if (!pendingChecks.length) return null;

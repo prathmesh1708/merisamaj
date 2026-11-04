@@ -1,6 +1,28 @@
-const Invitation = require('../../models/Invitation');
+﻿const Invitation = require('../../models/Invitation');
+const User = require('../../models/User');
+const mongoose = require('mongoose');
 const { notifyInvitationReceived, createNotification } = require('../../services/notificationService');
 const { applyScopeFilter } = require('../../utils/queryScopeHelper');
+
+const normalizeMemberIds = (ids) => (Array.isArray(ids) ? ids : [])
+  .map(id => id?._id || id)
+  .filter(Boolean)
+  .map(id => id.toString());
+
+const membersBelongToCommunity = async (memberIds, communityId) => {
+  const ids = [...new Set(normalizeMemberIds(memberIds))];
+  if (!ids.length) return { valid: true, ids };
+  if (!communityId || ids.some(id => !mongoose.Types.ObjectId.isValid(id))) {
+    return { valid: false, ids: [] };
+  }
+
+  const matchingCount = await User.countDocuments({
+    _id: { $in: ids },
+    accountStatus: { $ne: 'deleted' },
+    $or: [{ communityId }, { assignedCommunityIds: communityId }]
+  });
+  return { valid: matchingCount === ids.length, ids };
+};
 
 /**
  * Fields the creator's analytics view needs for every member it lists
@@ -57,6 +79,13 @@ exports.createInvitation = async (req, res) => {
       console.error('Error parsing member/group IDs:', e);
     }
 
+    const communityId = req.communityId || req.user?.communityId?._id || req.user?.communityId;
+    const recipientCheck = await membersBelongToCommunity(parsedMemberIds, communityId);
+    if (!recipientCheck.valid) {
+      return res.status(400).json({ message: 'All invited members must belong to your community.' });
+    }
+    parsedMemberIds = recipientCheck.ids;
+
     let parsedCustomFields = {};
     try {
       if (customFields) {
@@ -78,7 +107,7 @@ exports.createInvitation = async (req, res) => {
       message,
       images,
       creatorId: req.user._id,
-      communityId: req.communityId || req.user.communityId,
+      communityId,
       invitedMemberIds: parsedMemberIds,
       invitedGroupIds: parsedGroupIds,
       groomName,
@@ -91,12 +120,12 @@ exports.createInvitation = async (req, res) => {
 
     const createdInvitation = await invitation.save();
 
-    // ── Notifications: Run in background fire-and-forget without blocking response ──
+    // â”€â”€ Notifications: Run in background fire-and-forget without blocking response â”€â”€
     if (parsedMemberIds && parsedMemberIds.length > 0) {
       setImmediate(async () => {
         try {
           if (typeof notifyInvitationReceived === 'function') {
-            await notifyInvitationReceived(parsedMemberIds, hostName || req.user?.name || 'A member', title, createdInvitation._id, req.communityId);
+            await notifyInvitationReceived(parsedMemberIds, hostName || req.user?.name || 'A member', title, createdInvitation._id, communityId);
           }
           // Push is sent by createNotification() inside notifyInvitationReceived
         } catch (notifErr) {
@@ -175,7 +204,7 @@ const parseRsvpSettings = (raw, current = {}) => {
   const cur = current && current.toObject ? current.toObject() : (current || {});
   const out = {
     enabled: v.enabled !== undefined ? !!v.enabled : (cur.enabled !== undefined ? cur.enabled : true),
-    title: (v.title !== undefined ? String(v.title) : cur.title || '').trim().slice(0, 80) || 'RSVP (आपकी उपस्थिति)',
+    title: (v.title !== undefined ? String(v.title) : cur.title || '').trim().slice(0, 80) || 'RSVP',
     message: (v.message !== undefined ? String(v.message) : cur.message || '').trim().slice(0, 200),
     options: {}
   };
@@ -245,9 +274,9 @@ exports.updateRSVP = async (req, res) => {
         communityId: invitation.communityId || req.communityId,
         module: 'invitations',
         type: 'invitation_rsvp_response',
-        title: 'New RSVP Response 💌',
+        title: 'New RSVP Response ðŸ’Œ',
         message: `${req.user?.name || 'A member'} responded "${status}" to your invitation "${invitation.title}".`,
-        icon: '💌',
+        icon: 'ðŸ’Œ',
         priority: 'normal',
         actionUrl: `/member/invitations/${invitation._id}`,
         referenceId: invitation._id,
@@ -402,6 +431,14 @@ exports.updateInvitation = async (req, res) => {
       console.error('Error parsing member/group IDs:', e);
     }
 
+    if (invitedMemberIds !== undefined) {
+      const recipientCheck = await membersBelongToCommunity(parsedMemberIds, invitation.communityId);
+      if (!recipientCheck.valid) {
+        return res.status(400).json({ message: 'All invited members must belong to the invitation community.' });
+      }
+      parsedMemberIds = recipientCheck.ids;
+    }
+
     let parsedCustomFields = invitation.customFields || {};
     try {
       if (customFields) {
@@ -450,9 +487,9 @@ exports.updateInvitation = async (req, res) => {
                 communityId: invitation.communityId || req.communityId,
                 module: 'invitations',
                 type: 'invitation_updated',
-                title: 'Invitation Updated ✏️',
+                title: 'Invitation Updated âœï¸',
                 message: `Details for "${invitation.title}" have been updated by ${invitation.hostName || req.user?.name || 'the host'}.`,
-                icon: '✏️',
+                icon: 'âœï¸',
                 priority: 'normal',
                 actionUrl: `/member/invitations/${invitation._id}`,
                 referenceId: invitation._id,
@@ -515,9 +552,9 @@ exports.cancelInvitation = async (req, res) => {
               communityId: invitation.communityId || req.communityId,
               module: 'invitations',
               type: 'invitation_cancelled',
-              title: 'Event Cancelled ❌',
+              title: 'Event Cancelled âŒ',
               message: `"${invitation.title}" has been cancelled. Reason: ${cancellationReason}`,
-              icon: '❌',
+              icon: 'âŒ',
               priority: 'high',
               actionUrl: `/member/invitations/${invitation._id}`,
               referenceId: invitation._id,

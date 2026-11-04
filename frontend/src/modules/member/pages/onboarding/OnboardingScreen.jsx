@@ -338,7 +338,7 @@ const CustomSelect = ({ value, onChange, options, placeholder = 'Select', disabl
 };
 
 // ─── VERIFICATION STEP COMPONENT ─────────────────────────────────────────────
-const VerificationStep = ({ isFaceVerified, setIsFaceVerified, isAadharVerified, setIsAadharVerified, setToastMessage, auth, setAuth, focusVerification, onVerificationComplete }) => {
+const VerificationStep = ({ isFaceVerified, setIsFaceVerified, isAadharVerified, setIsAadharVerified, setToastMessage, auth, setAuth, focusVerification, onVerificationComplete, aadharEnabled = true }) => {
   // Aadhaar states
   const [aadhaarStage, setAadhaarStage] = useState('idle'); // idle | input | otp | success | failed
   const [aadhaarMobile, setAadhaarMobile] = useState('');
@@ -571,7 +571,7 @@ const VerificationStep = ({ isFaceVerified, setIsFaceVerified, isAadharVerified,
       </div>}
 
       {/* ── Aadhaar Verification Card ─────────────────────────────────────── */}
-      {(!focusVerification || focusVerification === 'aadhaar') && <div className="bg-white rounded-3xl border border-purple-100/50 shadow-[0_4px_20px_rgb(0,0,0,0.03)] overflow-hidden">
+      {aadharEnabled && (!focusVerification || focusVerification === 'aadhaar') && <div className="bg-white rounded-3xl border border-purple-100/50 shadow-[0_4px_20px_rgb(0,0,0,0.03)] overflow-hidden">
         {/* Card Header */}
         <div className="p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -2152,6 +2152,7 @@ const OnboardingScreen = () => {
               setAuth={setAuth}
               focusVerification={focusVerification}
               onVerificationComplete={handleDirectVerificationComplete}
+              aadharEnabled={auth.user?.communityModuleSettings?.aadharVerificationEnabled !== false}
             />
           )}
 

@@ -183,6 +183,11 @@ exports.createSubHead = async (req, res) => {
       accountType,
       parentHeadId: req.user._id,
       communityId: resolvedCommunityId,
+      // Preserve the parent head's sub-community so admin views can place the
+      // newly created sub-head under the correct community section.
+      ...(subHeadType === 'community' && req.user?.subCommunity
+        ? { subCommunity: req.user.subCommunity }
+        : {}),
       assignedCommunityIds: req.user?.assignedCommunityIds?.length ? req.user.assignedCommunityIds : (resolvedCommunityId ? [resolvedCommunityId] : []),
       city: resolvedCity,
       state: resolvedState,

@@ -13,6 +13,10 @@ const obituaryCommentSchema = new mongoose.Schema({
   initials: {
     type: String
   },
+  avatar: {
+    type: String,
+    default: ''
+  },
   text: {
     type: String,
     required: true

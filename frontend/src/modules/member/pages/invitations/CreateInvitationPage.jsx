@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ChevronLeft, Upload, MapPin, Search, Check, X, CheckCircle2, UserCheck, Users, AlertCircle, Loader2 } from 'lucide-react';
 import { useData } from '../../context/DataProvider';
@@ -8,24 +8,28 @@ import invitationService from '../../../../core/api/invitationService';
 
 const DEFAULT_RSVP = {
   enabled: true,
-  title: 'RSVP (आपकी उपस्थिति)',
+  title: 'RSVP',
   message: 'Please confirm your attendance with the host',
   options: {
-    attending: { enabled: true, label: 'I am Attending (उपस्थित रहूंगा)' },
-    attending_family: { enabled: true, label: 'With Family (सपरिवार)' },
-    not_attending: { enabled: true, label: 'Declined (असमर्थ)' }
+    attending: { enabled: true, label: 'I am Attending' },
+    attending_family: { enabled: true, label: 'With Family' },
+    not_attending: { enabled: true, label: 'Declined' }
   },
   extraOptions: []
 };
+const englishDefaultLabel = (value, english) => (
+  value?.startsWith(english + ' (') && /[^\x00-\x7F]/.test(value) ? english : value
+);
 // Saved settings merged over the defaults (older invitations have none).
 const mergeRsvp = (r) => ({
   ...DEFAULT_RSVP,
   ...(r || {}),
+  title: englishDefaultLabel(r?.title, DEFAULT_RSVP.title) || DEFAULT_RSVP.title,
   extraOptions: Array.isArray(r?.extraOptions) ? r.extraOptions : [],
   options: Object.fromEntries(Object.keys(DEFAULT_RSVP.options).map(k => [k, {
     ...DEFAULT_RSVP.options[k],
     ...((r && r.options && r.options[k]) || {}),
-    label: (r && r.options && r.options[k] && r.options[k].label) || DEFAULT_RSVP.options[k].label
+    label: englishDefaultLabel(r?.options?.[k]?.label, DEFAULT_RSVP.options[k].label) || DEFAULT_RSVP.options[k].label
   }]))
 });
 
@@ -85,7 +89,7 @@ export default function CreateInvitationPage() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEditMode = Boolean(id);
-  const { createInvitation, updateInvitation, invitations, members, currentUser, addNotification, groups, addInvitesToInvitation, invitationFormConfig } = useData();
+  const { createInvitation, updateInvitation, invitations, members, membersLoading, currentUser, addNotification, groups, addInvitesToInvitation, invitationFormConfig } = useData();
   
   const [formData, setFormData] = useState({
     title: '',
@@ -291,7 +295,7 @@ export default function CreateInvitationPage() {
     try {
       if (isEditMode) {
         await updateInvitation(id, data);
-        setToastMessage("Invitation updated successfully! (निमंत्रण अपडेट हो गया)");
+        setToastMessage("Invitation updated successfully!");
         setTimeout(() => {
           navigate(`/member/invitations/${id}`);
         }, 800);
@@ -337,44 +341,23 @@ export default function CreateInvitationPage() {
     setInvitedGroupIds(updatedIds);
   };
 
-  // Resolve Community Surname to build mock presidents list
-  const getCommunitySurname = (community) => {
-    if (!community) return 'Agrawal';
-    if (community.includes('Mali')) return 'Mali';
-    if (community.includes('Gupta')) return 'Gupta';
-    if (community.includes('Sharma')) return 'Sharma';
-    if (community.includes('Jain')) return 'Jain';
-    if (community.includes('Patel')) return 'Patel';
-    if (community.includes('Verma')) return 'Verma';
-    return 'Agrawal';
-  };
-  const activeSurname = currentUser ? getCommunitySurname(currentUser.community) : 'Agrawal';
-
-  // Presidents list definitions
-  const mainPresident = {
-    id: 'pres_main',
-    name: `Shri Mohan Lal ${activeSurname}`,
-    role: 'Main Samaj President (मुख्य समाज अध्यक्ष)',
-    city: 'Indore',
-    initials: 'ML',
+  // Show leadership recipients only when they are real accounts in the
+  // already community-scoped member response.
+  const presidents = members.filter(member =>
+    member._id && /head|president/i.test(`${member.role || ''} ${member.designation || ''}`)
+  ).map(member => ({
+    ...member,
+    role: member.designation || member.role || 'Community President',
     isPresident: true
-  };
-
-  const cityPresidents = [
-    { id: 'pres_indore', name: `Shri Mohan Lal ${activeSurname}`, role: 'Indore President (इंदौर अध्यक्ष)', city: 'Indore', initials: 'ML', isPresident: true },
-    { id: 'pres_jaipur', name: `Smt. Kamla ${activeSurname}`, role: 'Jaipur President (जयपुर अध्यक्ष)', city: 'Jaipur', initials: 'KA', isPresident: true },
-    { id: 'pres_bhopal', name: `Shri Kailash ${activeSurname}`, role: 'Bhopal President (भोपाल अध्यक्ष)', city: 'Bhopal', initials: 'KA', isPresident: true },
-    { id: 'pres_ujjain', name: `Shri Ghanshyam ${activeSurname}`, role: 'Ujjain President (उज्जैन अध्यक्ष)', city: 'Ujjain', initials: 'GA', isPresident: true },
-    { id: 'pres_gwalior', name: `Shri Omprakash ${activeSurname}`, role: 'Gwalior President (ग्वालियर अध्यक्ष)', city: 'Gwalior', initials: 'OA', isPresident: true },
-  ];
-
-  const presidents = [mainPresident, ...cityPresidents];
-
+  }));
   // Friends & Chats list: members who are followed or verified
-  const friends = members.filter(m => currentUser.followingList?.includes(m.id) || m.isVerified);
+  const friends = members.filter(m => m._id && (currentUser.followingList?.includes(m.id) || m.isVerified));
 
   // Filter lists based on tab, search, and city
+  // Invitation recipients must be actual database users. The global context
+  // keeps demo members for other screens, but those IDs are not inviteable.
   const filteredMembers = members.filter(member => {
+    if (!member._id) return false;
     if (member.id === currentUser?.id) return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -496,7 +479,7 @@ export default function CreateInvitationPage() {
           <ChevronLeft size={24} />
         </button>
         <h1 className="text-[17px] font-bold text-slate-800">
-          {isEditMode ? 'Edit Invitation (निमंत्रण संपादित करें)' : isCreated ? 'Invitation Created' : 'Create New Invitation'}
+          {isEditMode ? 'Edit Invitation' : isCreated ? 'Invitation Created' : 'Create New Invitation'}
         </h1>
       </div>
 
@@ -529,7 +512,7 @@ export default function CreateInvitationPage() {
                   </div>
                   <p className="text-indigo-900 text-[13px] font-bold">Upload Event Photos (Multiple)</p>
                   <p className="text-[11px] text-slate-400 mt-1">Tap to select photos of card, venue, or program</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">Up to 5 photos · JPG, PNG or WEBP · max 5MB each</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">Up to 5 photos Â· JPG, PNG or WEBP Â· max 5MB each</p>
                 </label>
 
                 {/* Existing Images Previews (in Edit Mode) */}
@@ -779,7 +762,7 @@ export default function CreateInvitationPage() {
                   <span>{isEditMode ? 'Saving Changes...' : 'Creating Invitation...'}</span>
                 </>
               ) : (
-                <span>{isEditMode ? 'Save & Update Invitation (बदलाव सहेजें)' : 'Create Invitation (निमंत्रण बनाएं)'}</span>
+                <span>{isEditMode ? 'Save & Update Invitation' : 'Create Invitation'}</span>
               )}
             </button>
           </form>
@@ -817,8 +800,8 @@ export default function CreateInvitationPage() {
                 )}
               </div>
               <div className="p-4 bg-slate-50 border-t border-slate-100 text-[12px] font-semibold text-slate-600 flex flex-col gap-1">
-                <p className="truncate">📍 {createdInv.location}</p>
-                <p>📞 {createdInv.contact}</p>
+                <p className="truncate">ðŸ“ {createdInv.location}</p>
+                <p>ðŸ“ž {createdInv.contact}</p>
               </div>
             </div>
 
@@ -874,8 +857,8 @@ export default function CreateInvitationPage() {
                       onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                       className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] font-bold text-slate-700 flex items-center gap-1.5 hover:bg-slate-100 hover:border-slate-300 transition-colors h-full press-scale whitespace-nowrap"
                     >
-                      <span>📍 {selectedCity === 'All' ? 'All Cities' : selectedCity}</span>
-                      <span className="text-[9px] text-slate-400">▼</span>
+                      <span>ðŸ“ {selectedCity === 'All' ? 'All Cities' : selectedCity}</span>
+                      <span className="text-[9px] text-slate-400">▾</span>
                     </button>
                     
                     {isDropdownOpen && (
@@ -1004,7 +987,7 @@ export default function CreateInvitationPage() {
                         <div>
                           <h4 className="text-[13px] font-bold text-slate-800">{member.name}</h4>
                           <p className="text-[11px] text-slate-500 font-semibold">
-                            {member.profession || 'Member'} • {member.city || 'No city'}
+                            {member.profession || 'Member'} · {member.city || 'No city'}
                           </p>
                         </div>
                       </div>
@@ -1028,7 +1011,7 @@ export default function CreateInvitationPage() {
                     <div key={president.id} className="flex items-center justify-between p-3 bg-indigo-50/20 border border-indigo-100/40 rounded-xl hover:border-indigo-200 hover:bg-white transition-all animate-fade-in">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-amber-500 text-white font-extrabold flex items-center justify-center text-[12px] border border-amber-600 shadow-sm uppercase shrink-0">
-                          👑
+                          ðŸ‘‘
                         </div>
                         <div>
                           <h4 className="text-[13px] font-bold text-slate-800 flex items-center gap-1.5">
@@ -1036,7 +1019,7 @@ export default function CreateInvitationPage() {
                             <span className="bg-amber-100 text-amber-800 text-[9px] font-bold px-1.5 py-0.5 rounded">President</span>
                           </h4>
                           <p className="text-[11px] text-slate-500 font-semibold">
-                            {president.role} • City: {president.city}
+                            {president.role} · City: {president.city}
                           </p>
                         </div>
                       </div>
@@ -1060,12 +1043,12 @@ export default function CreateInvitationPage() {
                     <div key={group.id} className="flex items-center justify-between p-3 bg-purple-50/20 border border-purple-100/40 rounded-xl hover:border-purple-200 hover:bg-white transition-all animate-fade-in">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 font-extrabold flex items-center justify-center text-[12px] border border-purple-250 uppercase shrink-0">
-                          👥
+                          ðŸ‘¥
                         </div>
                         <div>
                           <h4 className="text-[13px] font-bold text-slate-800">{group.name}</h4>
                           <p className="text-[11px] text-slate-500 font-semibold">
-                            {group.category || 'General'} • {group.members || 0} Members
+                            {group.category || 'General'} · {group.members || 0} Members
                           </p>
                         </div>
                       </div>
@@ -1094,7 +1077,7 @@ export default function CreateInvitationPage() {
                         <div>
                           <h4 className="text-[13px] font-bold text-slate-800">{friend.name}</h4>
                           <p className="text-[11px] text-slate-500 font-semibold">
-                            {friend.profession || 'Friend'} • {friend.city || 'No city'}
+                            {friend.profession || 'Friend'} · {friend.city || 'No city'}
                           </p>
                         </div>
                       </div>
@@ -1112,8 +1095,11 @@ export default function CreateInvitationPage() {
                 })}
 
                 {/* EMPTY FALLBACKS */}
-                {activeDirectoryTab === 'members' && filteredMembers.length === 0 && (
-                  <div className="text-center py-10 text-slate-400 text-[12px] font-semibold">No members found in {selectedCity === 'All' ? 'any city' : selectedCity}.</div>
+                {activeDirectoryTab === 'members' && membersLoading && (
+                  <div className="text-center py-10 text-slate-400 text-[12px] font-semibold">Loading community members…</div>
+                )}
+                {activeDirectoryTab === 'members' && !membersLoading && filteredMembers.length === 0 && (
+                  <div className="text-center py-10 text-slate-400 text-[12px] font-semibold">No community members found in {selectedCity === 'All' ? 'any city' : selectedCity}.</div>
                 )}
                 {activeDirectoryTab === 'presidents' && filteredPresidents.length === 0 && (
                   <div className="text-center py-10 text-slate-400 text-[12px] font-semibold">No presidents found in {selectedCity === 'All' ? 'any city' : selectedCity}.</div>
@@ -1129,11 +1115,12 @@ export default function CreateInvitationPage() {
 
             {/* Actions */}
             <button 
-              onClick={() => {
-                // Save invited members and groups to context
-                if (createdInv) {
-                  addInvitesToInvitation(createdInv._id || createdInv.id, invitedMemberIds, invitedGroupIds);
-                }
+              onClick={async () => {
+                try {
+                  // Persist recipients before reporting the invitation as done.
+                  if (createdInv) {
+                    await addInvitesToInvitation(createdInv._id || createdInv.id, invitedMemberIds, invitedGroupIds);
+                  }
                 
                 // Dispatch all notifications at once
                 invitedMemberIds.forEach(memberId => {
@@ -1141,8 +1128,8 @@ export default function CreateInvitationPage() {
                   if (member) {
                     addNotification({
                       type: 'invitation',
-                      title: 'नया आमंत्रण (New Invitation)',
-                      message: `आपको "${createdInv?.title || 'कार्यक्रम'}" के लिए आमंत्रित किया गया है।`,
+                      title: 'New Invitation',
+                      message: `You are invited to "${createdInv?.title || 'this event'}".`,
                     });
                   }
                 });
@@ -1152,13 +1139,17 @@ export default function CreateInvitationPage() {
                   if (group) {
                     addNotification({
                       type: 'invitation',
-                      title: 'ग्रुप को आमंत्रण (Group Invited)',
-                      message: `आपके "${group.name}" ग्रुप को "${createdInv?.title || 'कार्यक्रम'}" के लिए आमंत्रित किया गया है।`,
+                      title: 'Group Invited',
+                      message: `You are invited to the "${group.name}" group for "${createdInv?.title || 'this event'}".`,
                     });
                   }
                 });
 
-                navigate('/member/invitations');
+                  navigate('/member/invitations');
+                } catch (error) {
+                  setToastMessage(error?.response?.data?.message || error.message || 'Could not send invitations. Please try again.');
+                  setTimeout(() => setToastMessage(''), 4000);
+                }
               }}
               className="w-full bg-slate-800 text-white font-black text-[15px] py-4 rounded-xl shadow-lg hover:bg-slate-900 active:scale-95 transition-all"
             >

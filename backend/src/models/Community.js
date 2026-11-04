@@ -117,6 +117,8 @@ const communitySchema = new mongoose.Schema(
      */
     settings: {
       matrimonialEnabled: { type: Boolean, default: true },
+      // Controls whether members in this community can use Aadhaar verification.
+      aadharVerificationEnabled: { type: Boolean, default: true },
       donationEnabled:    { type: Boolean, default: true },
       invitationEnabled:  { type: Boolean, default: true },
       eventEnabled:       { type: Boolean, default: true },

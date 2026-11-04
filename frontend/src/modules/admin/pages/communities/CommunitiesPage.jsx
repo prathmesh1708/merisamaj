@@ -1046,6 +1046,9 @@ const ModuleSettingsPanel = ({ community, onClose, onUpdated }) => {
     key,
     typeof community.settings?.[key] === 'boolean' ? community.settings[key] : true,
   ])));
+  const [aadharVerificationEnabled, setAadharVerificationEnabled] = useState(
+    community.settings?.aadharVerificationEnabled !== false
+  );
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
@@ -1059,7 +1062,7 @@ const ModuleSettingsPanel = ({ community, onClose, onUpdated }) => {
   const handleSave = async () => {
     setLoading(true);
     try {
-      await updateCommunitySettings(community._id, settings);
+      await updateCommunitySettings(community._id, { ...settings, aadharVerificationEnabled });
       setSaved(true);
       setError('');
       await onUpdated();
@@ -1103,6 +1106,26 @@ const ModuleSettingsPanel = ({ community, onClose, onUpdated }) => {
                 </div>
               </button>
             ))}
+          </div>
+          <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
+            <p className="community-settings-subtitle" style={{ marginBottom: 10 }}>
+              Identity verification for members of this community.
+            </p>
+            <button
+              type="button"
+              className={`community-module-toggle ${aadharVerificationEnabled ? 'active' : 'inactive'}`}
+              onClick={() => { setAadharVerificationEnabled(value => !value); setSaved(false); setError(''); }}
+              aria-pressed={aadharVerificationEnabled}
+              disabled={loading}
+            >
+              <span className="community-module-icon">🪪</span>
+              <span className="community-module-label">
+                Aadhaar Verification {aadharVerificationEnabled ? 'Enabled' : 'Disabled'}
+              </span>
+              <div className={`community-toggle-switch ${aadharVerificationEnabled ? 'on' : 'off'}`}>
+                <div className="community-toggle-knob" />
+              </div>
+            </button>
           </div>
         </div>
         <div className="community-modal-actions">

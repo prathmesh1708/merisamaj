@@ -80,7 +80,12 @@ const buildRestrictedProfile = (profile, { canViewPhotos = true } = {}) => {
     photoLockedByPlan: !isPrivate && !canViewPhotos,
     photos,
     photoCount: activePhotos(profile).length,
-    personal: isPrivate ? { fullName: profile.personal?.fullName } : {},
+    // Manglik status is an explicit matchmaking detail; make it available on cards
+    // even when the rest of the profile is privacy-restricted.
+    personal: {
+      ...(isPrivate ? { fullName: profile.personal?.fullName } : {})
+    },
+    horoscope: { manglik: profile.horoscope?.manglik || "Don't Know" },
     age: ageOf(profile), // DOB itself is never sent
     education: {
       highestQualification: profile.education?.highestQualification,

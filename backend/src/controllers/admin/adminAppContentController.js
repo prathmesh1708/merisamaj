@@ -253,20 +253,34 @@ const getDefaultPromotionalBanners = () => [
 ];
 
 const getOrCreateAppContent = async (communityId, subCommunity = '') => {
-  const ContentModel = subCommunity ? SubCommunityAppContent : AppContent;
-  let targetCommunityId = communityId;
-  if (!targetCommunityId) {
-    const firstComm = await Community.findOne({ status: 'Active' });
-    targetCommunityId = firstComm ? firstComm._id : new mongoose.Types.ObjectId('000000000000000000000001');
+  const targetCommunityId = communityId?._id || communityId;
+  if (!targetCommunityId || !mongoose.Types.ObjectId.isValid(targetCommunityId)) {
+    throw new Error('Select a valid community before editing app content.');
   }
 
-  let doc = await ContentModel.findOne(subCommunity
-    ? { communityId: targetCommunityId, subCommunity }
+  const community = await Community.findById(targetCommunityId).select('subCommunities').lean();
+  if (!community) throw new Error('The selected community was not found.');
+
+  let normalizedSubCommunity = '';
+  if (typeof subCommunity === 'string' && subCommunity.trim()) {
+    const requestedName = subCommunity.trim().toLocaleLowerCase();
+    const matchedSubCommunity = (community.subCommunities || []).find(sub =>
+      sub.isActive !== false && String(sub.name || '').trim().toLocaleLowerCase() === requestedName
+    );
+    if (!matchedSubCommunity) {
+      throw new Error('The selected sub-community does not belong to this community.');
+    }
+    normalizedSubCommunity = matchedSubCommunity.name;
+  }
+
+  const ContentModel = normalizedSubCommunity ? SubCommunityAppContent : AppContent;
+  let doc = await ContentModel.findOne(normalizedSubCommunity
+    ? { communityId: targetCommunityId, subCommunity: normalizedSubCommunity }
     : { communityId: targetCommunityId });
   if (!doc) {
     doc = await ContentModel.create({
       communityId: targetCommunityId,
-      ...(subCommunity ? { subCommunity } : {}),
+      ...(normalizedSubCommunity ? { subCommunity: normalizedSubCommunity } : {}),
       promotionalBanners: getDefaultPromotionalBanners(),
       heroBanner: {
         backgroundImage: 'https://images.unsplash.com/photo-1590050752117-238cb0fb12b1?auto=format&fit=crop&w=1200&q=80',
@@ -300,7 +314,7 @@ const getOrCreateAppContent = async (communityId, subCommunity = '') => {
         enabled: true
       }
     });
-    if (subCommunity) {
+    if (normalizedSubCommunity) {
       const communityDefaults = await AppContent.findOne({ communityId: targetCommunityId }).lean();
       if (communityDefaults) {
         [

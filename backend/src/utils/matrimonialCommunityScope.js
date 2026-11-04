@@ -73,21 +73,42 @@ const profileScopeCondition = async ({ user, reqCommunityId, canSeeOtherCommunit
   const otherCommunityIds = communityIds.filter(id => !ownIds.some(own => String(own) === String(id)));
   const visibleSiblingIds = canSeeSiblings ? await eligibleSiblingProfileUserIds(otherCommunityIds) : [];
   const shareable = { visibility: { $in: ['all_members', 'public'] } };
+  const ownProfiles = {
+    userId: { $in: ownIds },
+    'visibilitySettings.myCommunity.enabled': { $ne: false },
+    ...(mySub ? { 'visibilitySettings.mySubCommunity.enabled': { $ne: false } } : {})
+  };
 
-  if (scope === 'my') return { condition: { userId: { $in: ownIds } }, blocked: false };
+  let viewerCommunityName = '';
+  if (communityId) {
+    const community = await require('../models/Community').findById(communityId).select('name').lean();
+    viewerCommunityName = String(community?.name || '').trim();
+  }
+  const communityNames = viewerCommunityName
+    ? [viewerCommunityName, /samaj/i.test(viewerCommunityName) ? viewerCommunityName : `${viewerCommunityName} Samaj`]
+    : [];
+  const otherCommunityExposure = [
+    { 'visibilitySettings.otherCommunities.enabled': { $ne: false } },
+    { $or: [
+      { 'visibilitySettings.otherCommunities.scope': { $ne: 'selected' } },
+      ...(communityNames.length ? [{ 'visibilitySettings.otherCommunities.selectedCommunities': { $in: communityNames } }] : [])
+    ] }
+  ];
+
+  if (scope === 'my') return { condition: ownProfiles, blocked: false };
   if (scope === 'other') {
     if (!canSeeOtherCommunities && !canSeeSiblings) return { condition: { _id: null }, blocked: true };
     return { condition: { $or: [
       ...(canSeeSiblings ? [{ userId: { $in: visibleSiblingIds } }] : []),
-      ...(canSeeOtherCommunities ? [{ userId: { $nin: communityIds }, ...shareable }] : [])
+      ...(canSeeOtherCommunities ? [{ userId: { $nin: communityIds }, ...shareable, $and: otherCommunityExposure }] : [])
     ] }, blocked: false };
   }
-  if (!canSeeOtherCommunities && !canSeeSiblings) return { condition: { userId: { $in: ownIds } }, blocked: false };
+  if (!canSeeOtherCommunities && !canSeeSiblings) return { condition: ownProfiles, blocked: false };
   return {
     condition: { $or: [
-      { userId: { $in: ownIds } },
+      ownProfiles,
       ...(canSeeSiblings ? [{ userId: { $in: visibleSiblingIds } }] : []),
-      ...(canSeeOtherCommunities ? [{ userId: { $nin: communityIds }, ...shareable }] : [])
+      ...(canSeeOtherCommunities ? [{ userId: { $nin: communityIds }, ...shareable, $and: otherCommunityExposure }] : [])
     ] },
     blocked: false
   };

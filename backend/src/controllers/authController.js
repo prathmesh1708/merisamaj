@@ -40,7 +40,7 @@ const generateTokens = (user) => {
 };
 
 const COMMUNITY_MODULE_KEYS = [
-  'matrimonialEnabled', 'donationEnabled', 'invitationEnabled', 'eventEnabled', 'directoryEnabled',
+  'matrimonialEnabled', 'aadharVerificationEnabled', 'donationEnabled', 'invitationEnabled', 'eventEnabled', 'directoryEnabled',
   'dharmashalaEnabled', 'obituaryEnabled', 'socialFeedEnabled', 'fundEnabled', 'votingEnabled',
   'censusEnabled', 'successStoriesEnabled', 'leadershipEnabled', 'familyEnabled', 'referralEnabled',
   'memberDirectoryEnabled', 'chatEnabled'
@@ -523,6 +523,23 @@ const updateProfile = async (req, res) => {
     const user = await User.findById(req.user._id);
 
     if (user) {
+      // Aadhaar verification is controlled by the member's community. Do not allow
+      // clients to mark themselves verified while that community has disabled it.
+      if (req.body.isAadharVerified === true || req.body.isAadharVerified === 'true') {
+        const Community = require('../models/Community');
+        const communityId = user.communityId || user.assignedCommunityIds?.[0];
+        const community = communityId
+          ? await Community.findById(communityId).select('settings.aadharVerificationEnabled').lean()
+          : null;
+        if (community?.settings?.aadharVerificationEnabled === false) {
+          return res.status(403).json({
+            status: 'error',
+            code: 'AADHAAR_VERIFICATION_DISABLED',
+            message: 'Aadhaar verification is currently disabled for your community.'
+          });
+        }
+      }
+
       // Basic Fields
       user.name = req.body.name !== undefined ? req.body.name : user.name;
       user.bio = req.body.bio !== undefined ? req.body.bio : user.bio;

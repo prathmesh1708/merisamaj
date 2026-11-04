@@ -233,6 +233,31 @@ exports.getUserProfile = async (req, res) => {
     const isCrossSubCommunity = !isCrossCommunity && viewerSub && viewerSub !== ownerSub;
     const isAllMembers = profile.visibility === 'all_members' || profile.visibility === 'public';
 
+    if (!profileOwnerUserId.equals(viewerId) && isCrossCommunity) {
+      const outgoing = profile.visibilitySettings?.otherCommunities || {};
+      if (outgoing.enabled === false) {
+        return res.status(403).json({ status: 'error', code: 'PROFILE_VISIBILITY_RESTRICTED', message: 'This member has limited profile visibility.' });
+      }
+      if (outgoing.scope === 'selected') {
+        const Community = require('../../models/Community');
+        const viewerCommunityId = req.communityId || req.user?.communityId?._id || req.user?.communityId;
+        const viewerCommunity = viewerCommunityId
+          ? await Community.findById(viewerCommunityId).select('name').lean()
+          : null;
+        const names = [viewerCommunity?.name, viewerCommunity?.name && `${viewerCommunity.name} Samaj`].filter(Boolean).map(n => n.toLowerCase());
+        const selected = (outgoing.selectedCommunities || []).map(n => String(n).trim().toLowerCase());
+        if (!names.some(n => selected.includes(n))) {
+          return res.status(403).json({ status: 'error', code: 'PROFILE_VISIBILITY_RESTRICTED', message: 'This member has not selected your community for profile visibility.' });
+        }
+      }
+    }
+    if (!profileOwnerUserId.equals(viewerId) && !isCrossCommunity && !isCrossSubCommunity && (
+      profile.visibilitySettings?.myCommunity?.enabled === false ||
+      (viewerSub && profile.visibilitySettings?.mySubCommunity?.enabled === false)
+    )) {
+      return res.status(403).json({ status: 'error', code: 'PROFILE_VISIBILITY_RESTRICTED', message: 'This member has limited profile visibility.' });
+    }
+
     // Another community's profile needs the viewer's plan feature (an accepted/pending
     // interest between the two still allows it, so existing conversations keep working).
     // Opening one profile from another sub-community: plan feature (either sub-community
@@ -838,7 +863,7 @@ exports.getVisibilitySettings = async (req, res) => {
 
     // Profiles in each sub community of my community (same opposite-gender profiles)
     const subCounts = {};
-    if (communityId && memberOf.subCommunities.length) {
+    if (communityId) {
       const owners = await User.find({
         _id: { $in: activeOwners },
         $or: [{ communityId }, { assignedCommunityIds: communityId }]
@@ -848,6 +873,11 @@ exports.getVisibilitySettings = async (req, res) => {
         subCounts[name] = owners.filter(o => key(o.subCommunity) === key(name)).length;
       }
       memberOf.subCommunityTotal = owners.length;
+      memberOf.communityProfileCount = owners.length;
+      const ownSubKey = String(memberOf.subCommunityName || '').trim().toLowerCase();
+      memberOf.mySubCommunityCount = ownSubKey
+        ? owners.filter(o => key(o.subCommunity) === ownSubKey).length
+        : owners.length;
     }
     memberOf.subCommunityCounts = subCounts;
 

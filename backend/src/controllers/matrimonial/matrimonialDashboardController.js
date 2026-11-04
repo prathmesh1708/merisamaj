@@ -98,8 +98,8 @@ exports.getDashboard = async (req, res) => {
     // ─── Recommendations (categorized) ────────────────────────────────────────
     // Filters on details members can't see (marital status, diet, city, sub-community)
     // run here, so those values never have to be sent to the app.
-    const { maritalStatus, diet, nearby, subCommunity } = req.query;
-    const recommendations = await getRecommendations(userId, myProfile, subscription, { maritalStatus, diet, nearby, subCommunity });
+    const { maritalStatus, diet, nearby, subCommunity, manglikStatus } = req.query;
+    const recommendations = await getRecommendations(userId, myProfile, subscription, { maritalStatus, diet, nearby, subCommunity, manglikStatus });
     dashboard.recommendations = recommendations;
 
     res.json({ status: 'success', data: { dashboard } });
@@ -180,6 +180,9 @@ const getRecommendations = async (userId, myProfile, subscription, filters = {})
   const exact = (v) => new RegExp('^' + escapeRegex(String(v).trim()) + '$', 'i');
   if (filters.maritalStatus && filters.maritalStatus !== 'All') baseQuery['personal.maritalStatus'] = exact(filters.maritalStatus);
   if (filters.diet && filters.diet !== 'All') baseQuery['lifestyle.diet'] = exact(filters.diet);
+  if (filters.manglikStatus === 'manglik') {
+    baseQuery['horoscope.manglik'] = /^(yes|manglik|anshik)$/i;
+  }
   const myCity = myProfile?.location?.city || userDoc?.city;
   if (String(filters.nearby) === '1' && myCity) baseQuery['location.city'] = exact(myCity);
   if (filters.subCommunity) {

@@ -149,6 +149,7 @@ export const UserAppEditsPage = () => {
   const [communitySearchQuery, setCommunitySearchQuery] = useState('');
   const communityDropdownRef = useRef(null);
   const heroImageInputRef = useRef(null);
+  const appContentRequestRef = useRef(0);
 
   // Click outside to close community dropdown
   useEffect(() => {
@@ -164,6 +165,18 @@ export const UserAppEditsPage = () => {
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3500);
+  };
+
+  const resetScopedEditor = () => {
+    appContentRequestRef.current += 1;
+    setLoading(true);
+    setAppContent(null);
+    setFeatureModal({ isOpen: false, isEditing: false, data: null });
+    setStoryModal({ isOpen: false, isEditing: false, data: null });
+    setHeadModal({ isOpen: false, data: null });
+    setCommitteeModal({ isOpen: false, isEditing: false, data: null });
+    setPromoBannerModal({ isOpen: false, isEditing: false, data: null });
+    setDeleteConfirm({ isOpen: false, type: '', id: '', title: '' });
   };
 
   // Filtered communities based on search query
@@ -207,11 +220,19 @@ export const UserAppEditsPage = () => {
   }, []);
 
   // Fetch App Content for selected community
-  const fetchAppContent = async (commId) => {
+  const fetchAppContent = async (commId, subCommunity = selectedSubCommunity) => {
+    const requestId = ++appContentRequestRef.current;
     setLoading(true);
+    setAppContent(null);
     try {
-      const res = await appContentService.getAppContent(commId, selectedSubCommunity);
+      const res = await appContentService.getAppContent(commId, subCommunity);
+      if (requestId !== appContentRequestRef.current) return;
       if (res.success && res.data) {
+        const responseCommunityId = res.data.communityId?._id || res.data.communityId;
+        if (String(responseCommunityId) !== String(commId) ||
+            String(res.data.subCommunity || '').trim().toLowerCase() !== String(subCommunity || '').trim().toLowerCase()) {
+          throw new Error('The loaded settings do not match the selected community and sub-community. Please reload.');
+        }
         setAppContent(res.data);
         if (res.data.heroBanner) {
           setHeroForm({
@@ -244,15 +265,17 @@ export const UserAppEditsPage = () => {
       }
     } catch (err) {
       console.error('Error fetching app content:', err);
-      showToast(err.response?.data?.message || 'Failed to load app content', 'error');
+      if (requestId === appContentRequestRef.current) {
+        showToast(err.response?.data?.message || 'Failed to load app content', 'error');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === appContentRequestRef.current) setLoading(false);
     }
   };
 
   useEffect(() => {
     if (selectedCommunityId) {
-      fetchAppContent(selectedCommunityId);
+      fetchAppContent(selectedCommunityId, selectedSubCommunity);
     }
   }, [selectedCommunityId, selectedSubCommunity]);
 
@@ -263,7 +286,7 @@ export const UserAppEditsPage = () => {
       const res = await appContentService.updateHeroBanner(heroForm, selectedCommunityId, selectedSubCommunity);
       if (res.success) {
         showToast('Header banner updated successfully!');
-        fetchAppContent(selectedCommunityId);
+        fetchAppContent(selectedCommunityId, selectedSubCommunity);
       }
     } catch (err) {
       console.error('Error saving hero banner:', err);
@@ -302,7 +325,7 @@ export const UserAppEditsPage = () => {
       const res = await appContentService.updateCensusBanner(censusForm, selectedCommunityId, selectedSubCommunity);
       if (res.success) {
         showToast('Community Census Banner updated successfully!');
-        fetchAppContent(selectedCommunityId);
+        fetchAppContent(selectedCommunityId, selectedSubCommunity);
       }
     } catch (err) {
       console.error('Error saving census banner:', err);
@@ -339,7 +362,7 @@ export const UserAppEditsPage = () => {
       const res = await appContentService.updateFooterArtwork(footerForm, selectedCommunityId, selectedSubCommunity);
       if (res.success) {
         showToast('End of Feed & Footer Artwork updated successfully!');
-        fetchAppContent(selectedCommunityId);
+        fetchAppContent(selectedCommunityId, selectedSubCommunity);
       }
     } catch (err) {
       console.error('Error saving footer artwork:', err);
@@ -382,7 +405,7 @@ export const UserAppEditsPage = () => {
         showToast('New exclusive feature added successfully!');
       }
       setFeatureModal({ isOpen: false, isEditing: false, data: null });
-      fetchAppContent(selectedCommunityId);
+      fetchAppContent(selectedCommunityId, selectedSubCommunity);
     } catch (err) {
       console.error('Error saving feature:', err);
       showToast(err.response?.data?.message || 'Failed to save feature', 'error');
@@ -396,7 +419,7 @@ export const UserAppEditsPage = () => {
       await appContentService.deleteFeature(id, selectedCommunityId, selectedSubCommunity);
       showToast('Feature deleted successfully');
       setDeleteConfirm({ isOpen: false, type: '', id: '', title: '' });
-      fetchAppContent(selectedCommunityId);
+      fetchAppContent(selectedCommunityId, selectedSubCommunity);
     } catch (err) {
       showToast('Failed to delete feature', 'error');
     }
@@ -414,7 +437,7 @@ export const UserAppEditsPage = () => {
         showToast('New success story created successfully!');
       }
       setStoryModal({ isOpen: false, isEditing: false, data: null });
-      fetchAppContent(selectedCommunityId);
+      fetchAppContent(selectedCommunityId, selectedSubCommunity);
     } catch (err) {
       console.error('Error saving story:', err);
       showToast(err.response?.data?.message || 'Failed to save success story', 'error');
@@ -428,7 +451,7 @@ export const UserAppEditsPage = () => {
       await appContentService.deleteSuccessStory(id, selectedCommunityId, selectedSubCommunity);
       showToast('Success story deleted successfully');
       setDeleteConfirm({ isOpen: false, type: '', id: '', title: '' });
-      fetchAppContent(selectedCommunityId);
+      fetchAppContent(selectedCommunityId, selectedSubCommunity);
     } catch (err) {
       showToast('Failed to delete story', 'error');
     }
@@ -441,7 +464,7 @@ export const UserAppEditsPage = () => {
       await appContentService.updateCommunityHead(formData, selectedCommunityId, selectedSubCommunity);
       showToast('Community Head profile updated successfully!');
       setHeadModal({ isOpen: false, data: null });
-      fetchAppContent(selectedCommunityId);
+      fetchAppContent(selectedCommunityId, selectedSubCommunity);
     } catch (err) {
       console.error('Error saving community head:', err);
       showToast(err.response?.data?.message || 'Failed to update community head', 'error');
@@ -462,7 +485,7 @@ export const UserAppEditsPage = () => {
         showToast('New committee member added successfully!');
       }
       setCommitteeModal({ isOpen: false, isEditing: false, data: null });
-      fetchAppContent(selectedCommunityId);
+      fetchAppContent(selectedCommunityId, selectedSubCommunity);
     } catch (err) {
       console.error('Error saving committee member:', err);
       showToast(err.response?.data?.message || 'Failed to save committee member', 'error');
@@ -476,7 +499,7 @@ export const UserAppEditsPage = () => {
       await appContentService.deleteCommitteeMember(id, selectedCommunityId, selectedSubCommunity);
       showToast('Committee member removed successfully');
       setDeleteConfirm({ isOpen: false, type: '', id: '', title: '' });
-      fetchAppContent(selectedCommunityId);
+      fetchAppContent(selectedCommunityId, selectedSubCommunity);
     } catch (err) {
       showToast('Failed to remove committee member', 'error');
     }
@@ -494,7 +517,7 @@ export const UserAppEditsPage = () => {
         showToast('New sliding banner created successfully!');
       }
       setPromoBannerModal({ isOpen: false, isEditing: false, data: null });
-      fetchAppContent(selectedCommunityId);
+      fetchAppContent(selectedCommunityId, selectedSubCommunity);
     } catch (err) {
       console.error('Error saving promotional banner:', err);
       showToast(err.response?.data?.message || 'Failed to save sliding banner', 'error');
@@ -508,7 +531,7 @@ export const UserAppEditsPage = () => {
       await appContentService.deletePromotionalBanner(id, selectedCommunityId, selectedSubCommunity);
       showToast('Sliding banner deleted successfully');
       setDeleteConfirm({ isOpen: false, type: '', id: '', title: '' });
-      fetchAppContent(selectedCommunityId);
+      fetchAppContent(selectedCommunityId, selectedSubCommunity);
     } catch (err) {
       showToast('Failed to delete sliding banner', 'error');
     }
@@ -518,7 +541,7 @@ export const UserAppEditsPage = () => {
     try {
       await appContentService.updatePromotionalBanner(banner.id, { enabled: !banner.enabled }, selectedCommunityId, selectedSubCommunity);
       showToast(`Banner ${!banner.enabled ? 'activated' : 'deactivated'}`);
-      fetchAppContent(selectedCommunityId);
+      fetchAppContent(selectedCommunityId, selectedSubCommunity);
     } catch (err) {
       showToast('Failed to toggle banner', 'error');
     }
@@ -638,6 +661,7 @@ export const UserAppEditsPage = () => {
                             key={c._id || c.id}
                             type="button"
                             onClick={() => {
+                              resetScopedEditor();
                               setSelectedCommunityId(c._id || c.id);
                               setSelectedSubCommunity('');
                               setIsCommunityDropdownOpen(false);
@@ -686,7 +710,10 @@ export const UserAppEditsPage = () => {
               </div>
               <select
                 value={selectedSubCommunity}
-                onChange={e => setSelectedSubCommunity(e.target.value)}
+                onChange={e => {
+                  resetScopedEditor();
+                  setSelectedSubCommunity(e.target.value);
+                }}
                 className="!bg-[#211145] !text-white text-xs font-bold px-3.5 py-2 rounded-xl border border-purple-400/40 outline-none min-w-[200px] cursor-pointer"
               >
                 <option value="" className="bg-white text-slate-900">Community-wide settings</option>

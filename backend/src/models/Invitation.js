@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+﻿const mongoose = require('mongoose');
 
 const rsvpSchema = new mongoose.Schema({
   memberId: {
@@ -18,7 +18,7 @@ const rsvpSchema = new mongoose.Schema({
 }, { _id: false });
 
 /**
- * openedBy — one entry per member who has opened this invitation.
+ * openedBy â€” one entry per member who has opened this invitation.
  * openedAt is the first open, lastOpenedAt/openCount track repeats.
  * The creator opening their own invitation is never recorded here.
  */
@@ -44,7 +44,7 @@ const openedBySchema = new mongoose.Schema({
 
 const invitationSchema = new mongoose.Schema({
   /**
-   * communityId — Community isolation key.
+   * communityId â€” Community isolation key.
    * Always set server-side from req.user.communityId.
    * Client cannot override this field.
    */
@@ -128,12 +128,12 @@ const invitationSchema = new mongoose.Schema({
   // The three answer keys stay fixed so attendance counts keep working.
   rsvpSettings: {
     enabled: { type: Boolean, default: true },
-    title:   { type: String, default: 'RSVP (आपकी उपस्थिति)' },
+    title:   { type: String, default: 'RSVP' },
     message: { type: String, default: 'Please confirm your attendance with the host' },
     options: {
-      attending:        { enabled: { type: Boolean, default: true }, label: { type: String, default: 'I am Attending (उपस्थित रहूंगा)' } },
-      attending_family: { enabled: { type: Boolean, default: true }, label: { type: String, default: 'With Family (सपरिवार)' } },
-      not_attending:    { enabled: { type: Boolean, default: true }, label: { type: String, default: 'Declined (असमर्थ)' } }
+      attending:        { enabled: { type: Boolean, default: true }, label: { type: String, default: 'I am Attending' } },
+      attending_family: { enabled: { type: Boolean, default: true }, label: { type: String, default: 'With Family' } },
+      not_attending:    { enabled: { type: Boolean, default: true }, label: { type: String, default: 'Declined' } }
     },
     // Extra answers the creator added, e.g. "Will join for lunch only"
     extraOptions: [{

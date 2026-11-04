@@ -72,6 +72,7 @@ export const MatrimonialVisibilityManager = ({
     annualIncome: '',
     community: user?.community || '',
     gotra: '',
+    manglikStatus: 'No',
     diet: '',
     city: user?.city || '',
     state: '',
@@ -154,7 +155,7 @@ export const MatrimonialVisibilityManager = ({
   }, [currentScreen]);
 
   // The member's real community / sub-community names for the visibility cards
-  const [memberOf, setMemberOf] = useState({ communityName: '', subCommunityName: '', canUseOtherCommunities: false, canUseAllSubCommunities: false, subCommunities: [] });
+  const [memberOf, setMemberOf] = useState({ communityName: '', subCommunityName: '', canUseOtherCommunities: false, canUseAllSubCommunities: false, subCommunities: [], mySubCommunityCount: 0, communityProfileCount: 0 });
   const otherLocked = memberOf.canUseOtherCommunities === false;
   const allSubCommunitiesLocked = memberOf.canUseAllSubCommunities !== true;
   // How many members are Aadhaar / community verified (shown on those two switches)
@@ -219,6 +220,7 @@ export const MatrimonialVisibilityManager = ({
             annualIncome: p.education?.annualIncome || '',
             community: p.personal?.community || user?.community || '',
             gotra: p.personal?.gotra || user?.gotra || '',
+            manglikStatus: p.horoscope?.manglik || 'No',
             diet: p.lifestyle?.diet || '',
             city: p.location?.city || user?.city || '',
             state: p.location?.state || '',
@@ -253,6 +255,7 @@ export const MatrimonialVisibilityManager = ({
             maritalStatus: prev.maritalStatus || user?.maritalStatus || '',
             community: prev.community || user?.community || '',
             gotra: prev.gotra || user?.gotra || '',
+            manglikStatus: prev.manglikStatus || 'No',
             education: prev.education || user?.qualification || '',
             profession: prev.profession || user?.profession || '',
             annualIncome: prev.annualIncome || user?.annualIncome || '',
@@ -280,6 +283,7 @@ export const MatrimonialVisibilityManager = ({
       maritalStatus: prev.maritalStatus || user?.maritalStatus || '',
       community: prev.community || user?.community || '',
       gotra: prev.gotra || user?.gotra || '',
+            manglikStatus: prev.manglikStatus || 'No',
       education: prev.education || user?.qualification || '',
       profession: prev.profession || user?.profession || '',
       annualIncome: prev.annualIncome || user?.annualIncome || '',
@@ -407,8 +411,10 @@ export const MatrimonialVisibilityManager = ({
     try {
       await matrimonialProfileService.updateVisibilitySettings(settings);
       showToast('Visibility settings saved successfully! 🔒');
+      return true;
     } catch (err) {
-      showToast('Settings saved locally! ✨');
+      showToast(err.response?.data?.message || 'Could not save visibility settings. Please try again.');
+      return false;
     } finally {
       setSaving(false);
     }
@@ -428,6 +434,7 @@ export const MatrimonialVisibilityManager = ({
         community: editForm.community || undefined,
         gotra: editForm.gotra || undefined
       },
+      horoscope: { manglik: editForm.manglikStatus || "Don't Know" },
       education: {
         highestQualification: editForm.education || undefined,
         profession: editForm.profession || undefined,
@@ -1006,18 +1013,18 @@ export const MatrimonialVisibilityManager = ({
               )}
             </div>
 
-            {/* Free own-sub-community visibility is controlled by My Community above. */}
+            {/* The member's own sub-community stays available without the cross-sub-community plan. */}
             <div className={`bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs ${allSubCommunitiesLocked ? 'opacity-90' : ''}`}>
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-3">
                   <div className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5"><Users size={16} /></div>
                   <div>
                     <h4 className="text-[13px] font-bold text-slate-800 flex items-center gap-1.5">
-                      All Sub-Community Members
+                      {memberOf.communityName ? `All ${samaj(memberOf.communityName)} Members` : 'All Community Members'}
                       {allSubCommunitiesLocked && <Lock size={12} className="text-slate-400" />}
                     </h4>
                     <p className="text-[11px] text-slate-400 font-medium leading-tight mt-0.5">
-                      View profiles of members from all sub-communities within your main community and make your profile visible to them.
+                      View profiles from all sub-communities in {memberOf.communityName || 'your community'} and make your profile visible to them.
                     </p>
                   </div>
                 </div>
@@ -1030,23 +1037,23 @@ export const MatrimonialVisibilityManager = ({
               </div>
               {allSubCommunitiesLocked && (
                 <div className="mt-3 pt-2.5 border-t border-slate-100 pl-11 flex items-center justify-between gap-2">
-                  <span className="text-[11.5px] font-semibold text-slate-500">Included with selected subscription plans.</span>
+                  <span className="text-[11.5px] font-semibold text-slate-500">Available with a plan that includes {memberOf.communityName ? samaj(memberOf.communityName) : 'your community'}.</span>
                   <button type="button" onClick={() => navigate('/member/matrimonial/subscription')} className="shrink-0 px-3 py-1.5 bg-rose-500 text-white rounded-full text-[11px] font-bold active:scale-95">Upgrade</button>
                 </div>
               )}
             </div>
 
-            {/* Setting 2: My Community Members */}
+            {/* Free audience: the member's own sub-community */}
             <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 mt-0.5">
+                  <div className="w-8 h-8 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 mt-0.5">
                     <Users size={16} />
                   </div>
                   <div>
-                    <h4 className="text-[13px] font-bold text-slate-800">{memberOf.communityName ? `All ${samaj(memberOf.communityName)} Members` : 'My Community Members'}</h4>
-                    <p className="text-[11px] text-slate-400 font-medium leading-tight mt-0.5">
-                      Your own sub-community is always included for free{memberOf.communityName ? ` within ${memberOf.communityName}` : ''}.
+                    <h4 className="text-[13px] font-bold text-slate-800">{memberOf.subCommunityName || (memberOf.communityName ? samaj(memberOf.communityName) : 'My Community')}</h4>
+                    <p className="text-[11.5px] font-bold text-rose-600 mt-1.5">
+                      {memberOf.mySubCommunityCount || 0} profiles available
                     </p>
                   </div>
                 </div>
@@ -1054,10 +1061,13 @@ export const MatrimonialVisibilityManager = ({
                 <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
                   <input
                     type="checkbox"
-                    checked={settings.myCommunity.enabled}
+                    checked={memberOf.subCommunityName
+                      ? settings.myCommunity.enabled && settings.mySubCommunity.enabled
+                      : settings.myCommunity.enabled}
                     onChange={() => setSettings(s => {
-                      // The sub-community choice lives inside this card, so it follows this switch
-                      const enabled = !s.myCommunity.enabled;
+                      const enabled = memberOf.subCommunityName
+                        ? !(s.myCommunity.enabled && s.mySubCommunity.enabled)
+                        : !s.myCommunity.enabled;
                       return {
                         ...s,
                         myCommunity: { ...s.myCommunity, enabled },
@@ -1069,64 +1079,6 @@ export const MatrimonialVisibilityManager = ({
                   <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
                 </label>
               </div>
-
-              {/* Which parts of my community can see me: selected ones, or all sub communities */}
-              {settings.myCommunity.enabled && ((memberOf.subCommunities || []).length === 0 ? (
-                <p className="mt-3 pt-2.5 border-t border-slate-100 pl-11 text-[12px] font-semibold text-slate-400">
-                  No sub communities in your community yet
-                </p>
-              ) : (() => {
-                const subSel = settings.mySubCommunity.selectedSubCommunities || [];
-                const isSelected = settings.mySubCommunity.scope === 'selected';
-                const setSubScope = (scope) => setSettings(s => ({ ...s, mySubCommunity: { ...s.mySubCommunity, scope } }));
-                return (
-                  <div className="mt-3 pt-3 border-t border-slate-100 space-y-2.5 pl-11">
-                    {/* Radio 1: All communities */}
-                    <label className="flex items-center gap-2.5 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="mySubScope"
-                        checked={!isSelected}
-                        onChange={() => setSubScope('all')}
-                        className="w-4 h-4 text-rose-600 focus:ring-rose-500 border-slate-300"
-                      />
-                      <span className="text-[12px] font-semibold text-slate-700">
-                        All communities ({memberOf.subCommunities.length})
-                      </span>
-                    </label>
-
-                    {/* Radio 2: Selected communities (of my community) */}
-                    <div className="flex items-center justify-between gap-2">
-                      <label className="flex items-center gap-2.5 cursor-pointer min-w-0">
-                        <input
-                          type="radio"
-                          name="mySubScope"
-                          checked={isSelected}
-                          onChange={() => {
-                            setSubScope('selected');
-                            if (subSel.length === 0) setCurrentScreen('select-subcommunities');
-                          }}
-                          className="w-4 h-4 text-rose-600 focus:ring-rose-500 border-slate-300 shrink-0"
-                        />
-                        <span className="min-w-0">
-                          <span className="block text-[12px] font-semibold text-slate-700">Selected communities</span>
-                          {isSelected && subSel.length > 0 && (
-                            <span className="block text-[10.5px] font-medium text-slate-400 truncate">{subSel.map(samaj).join(', ')}</span>
-                          )}
-                        </span>
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => setCurrentScreen('select-subcommunities')}
-                        className="text-[11.5px] font-bold text-rose-600 hover:text-rose-700 flex items-center gap-0.5 active:scale-95 shrink-0"
-                      >
-                        Selected{isSelected && subSel.length > 0 ? ` (${subSel.length})` : ''} <ChevronRight size={14} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })())}
-
             </div>
 
             {/* Setting 4: Aadhar Verified Members */}
@@ -1350,10 +1302,14 @@ export const MatrimonialVisibilityManager = ({
 
           <button
             type="button"
-            onClick={async () => { await handleSaveVisibilitySettings(); setCurrentScreen('visibility'); }}
-            className="w-full py-3.5 bg-gradient-to-r from-rose-500 to-pink-600 text-white rounded-2xl font-black text-[14px] shadow-lg shadow-rose-500/20 active:scale-98 transition-all"
+            disabled={saving}
+            onClick={async () => {
+              const saved = await handleSaveVisibilitySettings();
+              if (saved) setCurrentScreen('visibility');
+            }}
+            className="w-full py-3.5 bg-gradient-to-r from-rose-500 to-pink-600 text-white rounded-2xl font-black text-[14px] shadow-lg shadow-rose-500/20 active:scale-98 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {isAll ? 'Save: all communities' : `Save: ${sel.length} selected`}
+            {saving ? 'Saving...' : (isAll ? 'Save: all communities' : `Save: ${sel.length} selected`)}
           </button>
         </div>
       </div>
@@ -1717,6 +1673,20 @@ export const MatrimonialVisibilityManager = ({
                 onChange={e => setEditForm({ ...editForm, state: e.target.value })}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-rose-500"
               />
+            </div>
+            <div>
+              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Manglik Status</label>
+              <select
+                value={editForm.manglikStatus}
+                onChange={e => setEditForm({ ...editForm, manglikStatus: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-rose-500"
+              >
+                <option value="Yes">Manglik</option>
+                <option value="No">Non-Manglik</option>
+                <option value="Anshik">Partially Manglik (Anshik)</option>
+                <option value="Don't Know">Don't Know</option>
+              </select>
+              <p className="text-[10px] text-slate-400 mt-1">You can change this whenever you need.</p>
             </div>
           </div>
 

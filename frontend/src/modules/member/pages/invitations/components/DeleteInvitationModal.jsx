@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trash2, X, AlertTriangle, Loader2 } from 'lucide-react';
 
@@ -47,7 +47,7 @@ export default function DeleteInvitationModal({ isOpen, onClose, invitation, onC
             </div>
             <h3 className="text-lg sm:text-xl font-black tracking-tight leading-tight">Delete Invitation?</h3>
             <p className="text-[11px] sm:text-xs text-white/90 font-medium mt-0.5 leading-snug">
-              स्थायी रूप से हटाएं (Delete Permanently)
+              Delete Permanently
             </p>
           </div>
 

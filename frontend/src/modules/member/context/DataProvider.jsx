@@ -46,6 +46,7 @@ const mapSingleObituaryFromBackend = (ob, currentUserId) => {
     id: c._id || c.id,
     name: c.name || 'Anonymous',
     initials: c.initials || (c.name || '?').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase(),
+    avatar: c.avatar || c.user?.avatar || '',
     text: c.text,
     timestamp: c.timestamp ? new Date(c.timestamp).toLocaleDateString() : 'Just now',
     likes: Array.isArray(c.likes) ? c.likes.length : 0,
@@ -439,7 +440,9 @@ const adaptNotifications = (notificationsList, community) => {
 const adaptMembers = (membersList, community) => {
   const surname = getCommunitySurname(community);
   return membersList.map(m => {
-    const newName = m.name ? m.name.replaceAll('Agrawal', surname) : '';
+    // Surname substitution is only for the local demo records. Never rewrite
+    // the name returned for a real account from the backend.
+    const newName = m.name && !m._id ? m.name.replaceAll('Agrawal', surname) : (m.name || '');
     const newInitials = m.initials || (newName ? newName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : '?');
     const newFamily = m.familyMembers?.map(fm => {
       const newFmName = fm.name ? fm.name.replaceAll('Agrawal', surname) : '';
@@ -661,6 +664,7 @@ export const DataProvider = ({ children }) => {
   }, [auth.isAuthenticated, auth.user, headAuth.isAuthenticated, headAuth.headUser]);
 
   const [members, setMembers] = useState(() => loadState('members', initialMembers));
+  const [membersLoading, setMembersLoading] = useState(() => Boolean(auth.isAuthenticated || headAuth.isAuthenticated));
 
   // Invitation Form Configuration State
   const [invitationFormConfig, setInvitationFormConfig] = useState(() => {
@@ -677,6 +681,8 @@ export const DataProvider = ({ children }) => {
   };
 
   const loadMembers = async () => {
+    setMembersLoading(true);
+    setMembers([]);
     try {
       const response = await axiosPrivate.get('/member/members', { params: { limit: 200 } });
       if (response.data && Array.isArray(response.data.data)) {
@@ -691,6 +697,11 @@ export const DataProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('Failed to load real members for invitations:', error);
+      // Never leave stale demo or another community's cached members visible
+      // in the invitation directory when the server request fails.
+      setMembers([]);
+    } finally {
+      setMembersLoading(false);
     }
   };
 
@@ -2209,6 +2220,7 @@ export const DataProvider = ({ children }) => {
         id: c._id || c.id,
         name: c.name || 'Anonymous',
         initials: c.initials || (c.name || '?').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase(),
+        avatar: c.avatar || c.user?.avatar || '',
         text: c.text,
         timestamp: c.timestamp ? new Date(c.timestamp).toLocaleDateString() : 'Just now',
         likes: Array.isArray(c.likes) ? c.likes.length : 0,
@@ -2236,6 +2248,7 @@ export const DataProvider = ({ children }) => {
         id: c._id || c.id,
         name: c.name || 'Anonymous',
         initials: c.initials || (c.name || '?').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase(),
+        avatar: c.avatar || c.user?.avatar || '',
         text: c.text,
         timestamp: c.timestamp ? new Date(c.timestamp).toLocaleDateString() : 'Just now',
         likes: Array.isArray(c.likes) ? c.likes.length : 0,
@@ -2646,7 +2659,7 @@ export const DataProvider = ({ children }) => {
   const addInvitesToInvitation = async (invitationId, memberIds = [], groupIds = []) => {
     try {
       const existingInv = invitations.find(inv => inv._id === invitationId || inv.id === invitationId);
-      if (!existingInv) return;
+      if (!existingInv) throw new Error('Invitation not found. Please refresh and try again.');
 
       const updatedMemberIds = Array.from(new Set([...(existingInv.invitedMemberIds || []), ...memberIds]));
       const updatedGroupIds = Array.from(new Set([...(existingInv.invitedGroupIds || []), ...groupIds]));
@@ -2659,6 +2672,7 @@ export const DataProvider = ({ children }) => {
       setInvitations(prev => prev.map(inv => (inv.id === invitationId || inv._id === invitationId) ? updatedInv : inv));
     } catch (error) {
       console.error('Failed to add invites to invitation', error);
+      throw error;
     }
   };
 
@@ -3223,6 +3237,7 @@ export const DataProvider = ({ children }) => {
     updateProfile,
     syncFamilyMembers,
     members: adaptedMembersList,
+    membersLoading,
     loadMembers,
     admins: adaptedAdminsList,
     posts: adaptedPostsList,

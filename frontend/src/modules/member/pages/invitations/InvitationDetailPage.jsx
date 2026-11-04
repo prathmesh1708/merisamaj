@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   ChevronLeft, Share2, MapPin, Calendar, Clock, Heart, Users, Check, X, 
@@ -15,24 +15,28 @@ import invitationService from '../../../../core/api/invitationService';
 
 const DEFAULT_RSVP = {
   enabled: true,
-  title: 'RSVP (आपकी उपस्थिति)',
+  title: 'RSVP',
   message: 'Please confirm your attendance with the host',
   options: {
-    attending: { enabled: true, label: 'I am Attending (उपस्थित रहूंगा)' },
-    attending_family: { enabled: true, label: 'With Family (सपरिवार)' },
-    not_attending: { enabled: true, label: 'Declined (असमर्थ)' }
+    attending: { enabled: true, label: 'I am Attending' },
+    attending_family: { enabled: true, label: 'With Family' },
+    not_attending: { enabled: true, label: 'Declined' }
   },
   extraOptions: []
 };
+const englishDefaultLabel = (value, english) => (
+  value?.startsWith(english + ' (') && /[^\x00-\x7F]/.test(value) ? english : value
+);
 // Saved settings merged over the defaults (older invitations have none).
 const mergeRsvp = (r) => ({
   ...DEFAULT_RSVP,
   ...(r || {}),
+  title: englishDefaultLabel(r?.title, DEFAULT_RSVP.title) || DEFAULT_RSVP.title,
   extraOptions: Array.isArray(r?.extraOptions) ? r.extraOptions : [],
   options: Object.fromEntries(Object.keys(DEFAULT_RSVP.options).map(k => [k, {
     ...DEFAULT_RSVP.options[k],
     ...((r && r.options && r.options[k]) || {}),
-    label: (r && r.options && r.options[k] && r.options[k].label) || DEFAULT_RSVP.options[k].label
+    label: englishDefaultLabel(r?.options?.[k]?.label, DEFAULT_RSVP.options[k].label) || DEFAULT_RSVP.options[k].label
   }]))
 });
 
@@ -200,7 +204,7 @@ export default function InvitationDetailPage() {
         const res = await invitationService.updateRSVP(inv._id || inv.id, status);
         if (res) setInv(res);
       }
-      showToast('RSVP response recorded successfully! 🎉', 'success');
+      showToast('RSVP response recorded successfully! ðŸŽ‰', 'success');
     } catch (err) {
       console.error('Failed to submit RSVP:', err);
       showToast('Failed to submit RSVP. Please try again.', 'error');
@@ -274,7 +278,7 @@ export default function InvitationDetailPage() {
     } else {
       try {
         await navigator.clipboard.writeText(`${text} ${url}`);
-        showToast('Invitation link copied to clipboard! 📋', 'success');
+        showToast('Invitation link copied to clipboard! ðŸ“‹', 'success');
       } catch (e) {
         showToast('Link copied: ' + url, 'info');
       }
@@ -343,19 +347,19 @@ export default function InvitationDetailPage() {
   // Collect all available program and ceremony times
   const scheduleItems = [];
   if (inv.timeProgram) {
-    scheduleItems.push({ label: 'Program / Ceremony Time', hindiLabel: 'मुख्य कार्यक्रम समय', value: inv.timeProgram, icon: Clock, color: 'text-indigo-600 bg-indigo-50' });
+    scheduleItems.push({ label: 'Program / Ceremony Time', value: inv.timeProgram, icon: Clock, color: 'text-indigo-600 bg-indigo-50' });
   }
   if (inv.timeFood) {
-    scheduleItems.push({ label: 'Feast / Bhoj / Mahaprasad', hindiLabel: 'भोजन / महाप्रसाद समय', value: inv.timeFood, icon: Utensils, color: 'text-emerald-600 bg-emerald-50' });
+    scheduleItems.push({ label: 'Feast / Bhoj / Mahaprasad', value: inv.timeFood, icon: Utensils, color: 'text-emerald-600 bg-emerald-50' });
   }
   if (inv.timeBaraat) {
-    scheduleItems.push({ label: 'Baraat / Shobha Yatra', hindiLabel: 'बारात / शोभा यात्रा समय', value: inv.timeBaraat, icon: Music, color: 'text-purple-600 bg-purple-50' });
+    scheduleItems.push({ label: 'Baraat / Shobha Yatra', value: inv.timeBaraat, icon: Music, color: 'text-purple-600 bg-purple-50' });
   }
   if (inv.timePhere) {
-    scheduleItems.push({ label: 'Phere / Lagna Vidhi', hindiLabel: 'फेरे / पाणिग्रहण संस्कार', value: inv.timePhere, icon: Heart, color: 'text-rose-600 bg-rose-50' });
+    scheduleItems.push({ label: 'Phere / Lagna Vidhi', value: inv.timePhere, icon: Heart, color: 'text-rose-600 bg-rose-50' });
   }
   if (inv.timeOther) {
-    scheduleItems.push({ label: 'Other Event Schedule', hindiLabel: 'अन्य विशेष समय', value: inv.timeOther, icon: Clock, color: 'text-amber-600 bg-amber-50' });
+    scheduleItems.push({ label: 'Other Event Schedule', value: inv.timeOther, icon: Clock, color: 'text-amber-600 bg-amber-50' });
   }
 
   // Directory tabs for active event
@@ -385,12 +389,12 @@ export default function InvitationDetailPage() {
   const activeSurname = currentUser ? getCommunitySurname(currentUser.community) : 'Agrawal';
 
   const presidents = [
-    { id: 'pres_main', name: `Shri Mohan Lal ${activeSurname}`, role: 'Main Samaj President (मुख्य अध्यक्ष)', city: 'Indore', initials: 'ML', isPresident: true },
-    { id: 'pres_indore', name: `Shri Mohan Lal ${activeSurname}`, role: 'Indore President (इंदौर अध्यक्ष)', city: 'Indore', initials: 'ML', isPresident: true },
-    { id: 'pres_jaipur', name: `Smt. Kamla ${activeSurname}`, role: 'Jaipur President (जयपुर अध्यक्ष)', city: 'Jaipur', initials: 'KA', isPresident: true },
-    { id: 'pres_bhopal', name: `Shri Kailash ${activeSurname}`, role: 'Bhopal President (भोपाल अध्यक्ष)', city: 'Bhopal', initials: 'KA', isPresident: true },
-    { id: 'pres_ujjain', name: `Shri Ghanshyam ${activeSurname}`, role: 'Ujjain President (उज्जैन अध्यक्ष)', city: 'Ujjain', initials: 'GA', isPresident: true },
-    { id: 'pres_gwalior', name: `Shri Omprakash ${activeSurname}`, role: 'Gwalior President (ग्वालियर अध्यक्ष)', city: 'Gwalior', initials: 'OA', isPresident: true },
+    { id: 'pres_main', name: `Shri Mohan Lal ${activeSurname}`, role: 'Main Samaj President', city: 'Indore', initials: 'ML', isPresident: true },
+    { id: 'pres_indore', name: `Shri Mohan Lal ${activeSurname}`, role: 'Indore President', city: 'Indore', initials: 'ML', isPresident: true },
+    { id: 'pres_jaipur', name: `Smt. Kamla ${activeSurname}`, role: 'Jaipur President', city: 'Jaipur', initials: 'KA', isPresident: true },
+    { id: 'pres_bhopal', name: `Shri Kailash ${activeSurname}`, role: 'Bhopal President', city: 'Bhopal', initials: 'KA', isPresident: true },
+    { id: 'pres_ujjain', name: `Shri Ghanshyam ${activeSurname}`, role: 'Ujjain President', city: 'Ujjain', initials: 'GA', isPresident: true },
+    { id: 'pres_gwalior', name: `Shri Omprakash ${activeSurname}`, role: 'Gwalior President', city: 'Gwalior', initials: 'OA', isPresident: true },
   ];
   const friends = members.filter(m => currentUser?.followingList?.includes(m.id || m._id) || m.isVerified);
 
@@ -477,7 +481,7 @@ export default function InvitationDetailPage() {
       if (addInvitesToInvitation) {
         await addInvitesToInvitation(inv._id || inv.id, invitedMemberIds, invitedGroupIds);
       }
-      showToast('New invitations sent successfully! 💌', 'success');
+      showToast('New invitations sent successfully! ðŸ’Œ', 'success');
     } catch (err) {
       showToast('Failed to send invitations', 'error');
     }
@@ -503,7 +507,7 @@ export default function InvitationDetailPage() {
           </button>
           <div>
             <h1 className="text-[16px] font-black text-slate-800 tracking-tight leading-none">Invitation Details</h1>
-            <p className="text-[10px] font-bold text-purple-600 uppercase tracking-wider mt-0.5">निमंत्रण विवरण</p>
+            <p className="text-[10px] font-bold text-purple-600 uppercase tracking-wider mt-0.5">Invitation Details</p>
           </div>
         </div>
 
@@ -525,7 +529,7 @@ export default function InvitationDetailPage() {
         {canManage && (
           <div className="bg-gradient-to-r from-[#1F0A47] via-[#2A0E5C] to-[#3B1578] text-white p-4 rounded-3xl shadow-md border border-purple-800/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-left">
             <div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-amber-300">Host Controls (आयोजक विकल्प)</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-amber-300">Host Controls</span>
               <h3 className="text-sm font-black text-white mt-0.5">Manage This Invitation</h3>
             </div>
             <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -533,21 +537,21 @@ export default function InvitationDetailPage() {
                 onClick={() => navigate(`/member/invitations/edit/${inv._id || inv.id}`)}
                 className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 backdrop-blur-md text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all press-scale border border-white/20"
               >
-                <Edit3 size={13} /> Edit (बदलाव करें)
+                <Edit3 size={13} /> Edit
               </button>
               {!isCancelled && (
                 <button
                   onClick={() => setIsCancelModalOpen(true)}
                   className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl bg-amber-500/80 hover:bg-amber-500 backdrop-blur-md text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all press-scale border border-amber-400/30"
                 >
-                  <Ban size={13} /> Cancel Event (रद्द करें)
+                  <Ban size={13} /> Cancel Event
                 </button>
               )}
               <button
                 onClick={() => setIsDeleteModalOpen(true)}
                 className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl bg-rose-600/80 hover:bg-rose-600 backdrop-blur-md text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all press-scale border border-rose-400/30"
               >
-                <Trash2 size={13} /> Delete (हटाएं)
+                <Trash2 size={13} /> Delete
               </button>
             </div>
           </div>
@@ -561,13 +565,13 @@ export default function InvitationDetailPage() {
                 <AlertOctagon size={20} strokeWidth={2.5} />
               </div>
               <div>
-                <h3 className="text-base font-black text-rose-800">EVENT CANCELLED (कार्यक्रम रद्द किया गया)</h3>
+                <h3 className="text-base font-black text-rose-800">EVENT CANCELLED</h3>
                 <p className="text-[11px] text-rose-600 font-semibold">This invitation has been officially cancelled by the host.</p>
               </div>
             </div>
             {inv.cancellationReason && (
               <div className="bg-white/90 border border-rose-200 rounded-2xl p-3.5 mt-1">
-                <p className="text-[10px] font-black uppercase tracking-wider text-rose-500">Cancellation Reason (रद्द करने का कारण)</p>
+                <p className="text-[10px] font-black uppercase tracking-wider text-rose-500">Cancellation Reason</p>
                 <p className="text-xs font-bold text-slate-800 mt-0.5">{inv.cancellationReason}</p>
               </div>
             )}
@@ -631,14 +635,14 @@ export default function InvitationDetailPage() {
                 )}
 
                 <span className="absolute top-3.5 right-3.5 z-20 bg-black/60 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded-full border border-white/20">
-                  Tap to Zoom 🔍
+                  Tap to Zoom ðŸ”
                 </span>
               </div>
 
               {/* Title & Host Ribbon below Image */}
               <div className="w-full bg-gradient-to-r from-[#1F0A47] to-[#3B1578] text-white p-4 text-center border-t border-purple-900/50">
                 <span className="text-[10px] font-extrabold text-amber-300 uppercase tracking-widest block mb-1">
-                  Ceremonial Invitation · शुभ निमंत्रण
+                  Ceremonial Invitation
                 </span>
                 <h2 className="text-xl sm:text-2xl font-black text-white leading-tight drop-shadow-sm">
                   {displayTitle}
@@ -658,7 +662,7 @@ export default function InvitationDetailPage() {
               </div>
 
               <span className="text-[10.5px] font-black uppercase tracking-[0.25em] text-amber-300 mb-2">
-                - Cordially Invited (सादर आमंत्रित) -
+                - Cordially Invited -
               </span>
 
               {inv.groomName && inv.brideName ? (
@@ -685,13 +689,13 @@ export default function InvitationDetailPage() {
           <div className="bg-white p-4 sm:p-5 border-t border-slate-100 text-center">
             <h4 className="font-extrabold text-slate-700 text-[12.5px] mb-3 uppercase tracking-wider flex items-center justify-center gap-1.5">
               <Sparkles size={14} className="text-purple-600" />
-              {isCancelled ? 'Event Status (स्थिति)' : timeLeft.isPast ? 'Event Concluded (सम्पन्न)' : 'Time Remaining (शेष समय)'}
+              {isCancelled ? 'Event Status' : timeLeft.isPast ? 'Event Concluded' : 'Time Remaining'}
             </h4>
 
             {isCancelled ? (
               <div className="bg-rose-50 border border-rose-200 text-rose-700 py-3 px-4 rounded-2xl text-center font-black text-sm flex items-center justify-center gap-2">
                 <AlertOctagon size={18} className="text-rose-600 shrink-0" />
-                <span>EVENT CANCELLED (रद्द किया गया)</span>
+                <span>EVENT CANCELLED</span>
               </div>
             ) : timeLeft.isPast ? (
               <div className="bg-slate-100 border border-slate-200 text-slate-700 py-3 px-4 rounded-2xl text-center font-bold text-xs">
@@ -722,7 +726,7 @@ export default function InvitationDetailPage() {
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div>
               <h3 className="font-extrabold text-slate-900 text-[16px]">Main Event Details</h3>
-              <p className="text-[11px] text-slate-500 font-semibold">कार्यक्रम की सम्पूर्ण जानकारी</p>
+              <p className="text-[11px] text-slate-500 font-semibold">Complete event information</p>
             </div>
             <a 
               href={getGoogleCalendarUrl()} 
@@ -737,7 +741,7 @@ export default function InvitationDetailPage() {
           <div className="space-y-4">
             {/* Event Title */}
             <div className="p-3.5 bg-slate-50/80 rounded-2xl border border-slate-100">
-              <p className="text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wider">Event Title (कार्यक्रम का नाम)</p>
+              <p className="text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wider">Event Title</p>
               <p className="font-black text-slate-900 text-[15px] mt-0.5">{displayTitle}</p>
             </div>
 
@@ -747,7 +751,7 @@ export default function InvitationDetailPage() {
                 <Calendar size={18} />
               </div>
               <div>
-                <p className="text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wider">Date (दिनांक)</p>
+                <p className="text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wider">Date</p>
                 <p className="font-black text-slate-900 text-[14px] mt-0.5">{formattedEventDate}</p>
               </div>
             </div>
@@ -756,7 +760,7 @@ export default function InvitationDetailPage() {
             {scheduleItems.length > 0 && (
               <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-100 space-y-2.5">
                 <p className="text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Clock size={13} className="text-purple-600" /> Event Schedule & Timings (समय सारणी)
+                  <Clock size={13} className="text-purple-600" /> Event Schedule & Timings
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
                   {scheduleItems.map((item, idx) => {
@@ -784,7 +788,7 @@ export default function InvitationDetailPage() {
                   <MapPin size={18} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wider">Venue / Address (स्थान व पता)</p>
+                  <p className="text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wider">Venue / Address</p>
                   <p className="font-black text-slate-900 text-[14px] mt-0.5 leading-snug">{inv.location || 'Indore, MP'}</p>
                 </div>
               </div>
@@ -795,7 +799,7 @@ export default function InvitationDetailPage() {
                 rel="noreferrer"
                 className="w-full py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors border border-blue-200/70 press-scale"
               >
-                <MapPin size={14} /> View Location on Google Maps (गूगल मैप पर देखें)
+                <MapPin size={14} /> View Location on Google Maps
               </a>
             </div>
 
@@ -806,7 +810,7 @@ export default function InvitationDetailPage() {
                   {(displayHost || 'H').charAt(0).toUpperCase()}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[10px] font-extrabold text-purple-600 uppercase tracking-wider">Organized By (आयोजक)</p>
+                  <p className="text-[10px] font-extrabold text-purple-600 uppercase tracking-wider">Organized By</p>
                   <h4 className="text-[13.5px] font-black text-slate-900 truncate">{displayHost}</h4>
                   {inv.contact && (
                     <p className="text-[11.5px] font-bold text-slate-600">Ph: {inv.contact}</p>
@@ -840,7 +844,7 @@ export default function InvitationDetailPage() {
             {inv.message && (
               <div className="p-4 bg-amber-50/60 rounded-2xl border border-amber-200/70 relative overflow-hidden">
                 <span className="text-[10px] font-black text-amber-800 uppercase tracking-widest block mb-1">
-                  Invitation Message (निमंत्रण संदेश)
+                  Invitation Message
                 </span>
                 <p className="text-xs font-bold text-slate-800 leading-relaxed italic">
                   "{inv.message}"
@@ -851,7 +855,7 @@ export default function InvitationDetailPage() {
             {/* Custom / Additional Fields */}
             {inv.customFields && Object.keys(inv.customFields).length > 0 && (
               <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-100 space-y-2">
-                <p className="text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wider">Additional Information (अतिरिक्त विवरण)</p>
+                <p className="text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wider">Additional Information</p>
                 <div className="space-y-1.5 pt-1">
                   {Object.entries(inv.customFields).map(([key, val]) => {
                     if (!val) return null;
@@ -990,7 +994,7 @@ export default function InvitationDetailPage() {
                         <Avatar initials={member.initials} size="md" imageUrl={member.avatar} />
                         <div>
                           <h4 className="text-[13px] font-bold text-slate-800">{member.name}</h4>
-                          <p className="text-[11px] text-slate-500 font-semibold">{member.profession || 'Member'} • {member.city || 'Indore'}</p>
+                          <p className="text-[11px] text-slate-500 font-semibold">{member.profession || 'Member'} · {member.city || 'Indore'}</p>
                         </div>
                       </div>
                       {member.phone && (
@@ -1018,7 +1022,7 @@ export default function InvitationDetailPage() {
                         <Avatar initials={member.initials} size="md" imageUrl={member.avatar} />
                         <div>
                           <h4 className="text-[13px] font-bold text-slate-800">{member.name}</h4>
-                          <p className="text-[11px] text-slate-500 font-semibold">{member.profession || 'Member'} • {member.city || 'Indore'}</p>
+                          <p className="text-[11px] text-slate-500 font-semibold">{member.profession || 'Member'} · {member.city || 'Indore'}</p>
                         </div>
                       </div>
                       {member.phone && (
@@ -1046,7 +1050,7 @@ export default function InvitationDetailPage() {
                         <Avatar initials={member.initials} size="md" imageUrl={member.avatar} />
                         <div>
                           <h4 className="text-[13px] font-bold text-slate-800">{member.name}</h4>
-                          <p className="text-[11px] text-slate-500 font-semibold">{member.profession || 'Member'} • {member.city || 'Indore'}</p>
+                          <p className="text-[11px] text-slate-500 font-semibold">{member.profession || 'Member'} · {member.city || 'Indore'}</p>
                         </div>
                       </div>
                       {member.phone && (
@@ -1085,7 +1089,7 @@ export default function InvitationDetailPage() {
             ) : isCancelled ? (
               <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 text-center space-y-1.5">
                 <AlertOctagon size={24} className="text-rose-600 mx-auto" />
-                <p className="text-xs font-black text-rose-800">Event Cancelled by Organizer (कार्यक्रम रद्द)</p>
+                <p className="text-xs font-black text-rose-800">Event Cancelled by Organizer</p>
                 <p className="text-[11.5px] text-rose-600 font-medium">RSVP responses are closed for this event.</p>
               </div>
             ) : (
@@ -1224,8 +1228,8 @@ export default function InvitationDetailPage() {
                     onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                     className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-[12px] font-bold text-slate-700 flex items-center gap-1.5 hover:bg-slate-100 transition-colors h-full press-scale whitespace-nowrap"
                   >
-                    <span>📍 {selectedCity === 'All' ? 'All Cities' : selectedCity}</span>
-                    <span className="text-[9px] text-slate-400">▼</span>
+                    <span>ðŸ“ {selectedCity === 'All' ? 'All Cities' : selectedCity}</span>
+                    <span className="text-[9px] text-slate-400">▾</span>
                   </button>
                   
                   {isDropdownOpen && (
@@ -1280,7 +1284,7 @@ export default function InvitationDetailPage() {
                         <h4 className="text-[13px] font-bold text-slate-800 group-hover:text-purple-600 transition-colors">
                           {member.name}
                         </h4>
-                        <p className="text-[11px] text-slate-500 font-semibold">{member.profession || 'Member'} • {member.city || 'Indore'}</p>
+                        <p className="text-[11px] text-slate-500 font-semibold">{member.profession || 'Member'} · {member.city || 'Indore'}</p>
                       </div>
                     </div>
                     <button 
@@ -1316,7 +1320,7 @@ export default function InvitationDetailPage() {
                           initials={president.initials || 'PR'} 
                           size="md" 
                         />
-                        <span className="absolute -top-1 -right-1 text-[10px]">👑</span>
+                        <span className="absolute -top-1 -right-1 text-[10px]">ðŸ‘‘</span>
                       </div>
                       <div>
                         <h4 className="text-[13px] font-bold text-slate-800 group-hover:text-purple-600 transition-colors">
@@ -1351,7 +1355,7 @@ export default function InvitationDetailPage() {
                   <div key={groupId} className="flex items-center justify-between p-3 bg-purple-50/30 border border-purple-100/50 rounded-xl hover:bg-white transition-all">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-700 font-black flex items-center justify-center text-xs">
-                        👥
+                        ðŸ‘¥
                       </div>
                       <div>
                         <h4 className="text-[13px] font-bold text-slate-800">{group.name}</h4>
@@ -1395,7 +1399,7 @@ export default function InvitationDetailPage() {
                         <h4 className="text-[13px] font-bold text-slate-800 group-hover:text-purple-600 transition-colors">
                           {friend.name}
                         </h4>
-                        <p className="text-[11px] text-slate-500 font-semibold">{friend.profession || 'Friend'} • {friend.city || 'Indore'}</p>
+                        <p className="text-[11px] text-slate-500 font-semibold">{friend.profession || 'Friend'} · {friend.city || 'Indore'}</p>
                       </div>
                     </div>
                     <button 
@@ -1423,7 +1427,7 @@ export default function InvitationDetailPage() {
               onClick={handleSaveInvitations}
               className="w-full bg-slate-900 hover:bg-black text-white font-extrabold text-[13px] py-3.5 rounded-2xl shadow-md transition-all press-scale flex items-center justify-center gap-1.5"
             >
-              <Check size={16} strokeWidth={3} /> Send Invitations (निमंत्रण भेजें)
+              <Check size={16} strokeWidth={3} /> Send Invitations
             </button>
           </div>
         )}
@@ -1465,7 +1469,7 @@ export default function InvitationDetailPage() {
                   imageUrl={selectedProfileMember.avatar || selectedProfileMember.photo || selectedProfileMember.profileImage} 
                 />
                 {selectedProfileMember.isPresident && (
-                  <span className="absolute -top-1 -right-1 text-lg">👑</span>
+                  <span className="absolute -top-1 -right-1 text-lg">ðŸ‘‘</span>
                 )}
               </div>
 

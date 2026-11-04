@@ -67,7 +67,8 @@ const TributeMessages = ({ obituaryId, comments = [] }) => {
               {/* Avatar */}
               <Avatar
                 initials={comment.initials || (comment.name || '?').substring(0, 2).toUpperCase()}
-                size="sm"
+                src={comment.avatar}
+                size="lg"
               />
               {/* Content */}
               <div className="flex-1 min-w-0">

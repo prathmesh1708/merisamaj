@@ -45,15 +45,27 @@ exports.getCommunityMembers = async (req, res) => {
       limit = 10
     } = req.query;
 
-    const baseFilter = { accountStatus: { $ne: 'deleted' } };
-    const filter = applyScopeFilter(req, baseFilter);
+    // This endpoint powers the member invitation directory. Keep it scoped to
+    // the caller's active community, including for admin roles, so the client
+    // cannot accidentally display members from another samaj.
+    const communityId = req.communityId || req.user?.communityId?._id || req.user?.communityId;
+    if (!communityId) {
+      return res.status(403).json({ status: 'error', message: 'Your account is not linked to a community.' });
+    }
+
+    const filter = {
+      accountStatus: { $ne: 'deleted' },
+      $and: [
+        { $or: [{ communityId }, { assignedCommunityIds: communityId }] }
+      ]
+    };
 
     // Optional search by name
     if (search) {
-      filter.$or = [
+      filter.$and.push({ $or: [
         { name: { $regex: search, $options: 'i' } },
         { phone: { $regex: search, $options: 'i' } },
-      ];
+      ] });
     }
 
     if (city) filter.city = { $regex: city, $options: 'i' };
@@ -103,7 +115,7 @@ exports.getCommunityMembers = async (req, res) => {
 
     const [members, total] = await Promise.all([
       User.find(filter)
-        .select('name avatar city profession phone email gender gotra community communityId assignedCommunityIds accountStatus verificationStatus isAadharVerified area familyMembers role maritalStatus isPrivate createdAt')
+        .select('name avatar city profession phone email gender gotra community communityId assignedCommunityIds accountStatus verificationStatus isAadharVerified area familyMembers role designation accountType maritalStatus isPrivate createdAt')
         .sort({ name: 1 })
         .skip(skip)
         .limit(Number(limit))

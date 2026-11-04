@@ -448,6 +448,7 @@ const MatrimonialHomePage = () => {
         city: profile.location?.city || '',
         community: profile.personal?.community || '',
         gotra: profile.personal?.gotra || '',
+        manglikStatus: profile.horoscope?.manglik || "Don't Know",
         profession: profile.education?.profession || profile.education?.occupation || '',
         income: profile.education?.annualIncome || '',
         education: profile.education?.highestQualification || '',
@@ -487,6 +488,7 @@ const MatrimonialHomePage = () => {
       }
       if (activeFilterPill === 'verified' && !profile.headVerified && !profile.aadhaarVerified) return false;
       if (activeFilterPill === 'joined'   && !profile.isNew)          return false;
+      if (activeFilterPill === 'manglik'  && !['yes', 'manglik', 'anshik'].includes(String(profile.manglikStatus || '').trim().toLowerCase())) return false;
       // Nearby, sub-community, marital status and diet are applied by the server
       // (those details aren't sent for profiles you aren't connected with).
 
@@ -525,6 +527,7 @@ const MatrimonialHomePage = () => {
     maritalStatus: selectedMaritalStatus !== 'All' ? selectedMaritalStatus : undefined,
     diet: selectedDiet !== 'All' ? selectedDiet : undefined,
     nearby: activeFilterPill === 'nearby' ? '1' : undefined,
+    manglikStatus: activeFilterPill === 'manglik' ? 'manglik' : undefined,
     subCommunity: selectedCommunityScope === 'specific' && selectedSpecificCommunity ? selectedSpecificCommunity : undefined
   });
   const lastServerFilterKey = useRef(JSON.stringify({}));
@@ -789,6 +792,7 @@ const MatrimonialHomePage = () => {
                   : []),
                 { label: 'Verified', key: 'verified' },
                 { label: 'Just Joined', key: 'joined' },
+                { label: 'Manglik', key: 'manglik' },
                 { label: 'Nearby', key: 'nearby' }
               ].filter(({ key }) => key !== 'other_community' || dashboard?.subscription?.canSeeOtherCommunities !== false).map(({ label, key }) => (
                 <button

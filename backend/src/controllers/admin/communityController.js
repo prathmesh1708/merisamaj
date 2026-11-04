@@ -724,8 +724,16 @@ exports.getSubCommunityStats = async (req, res) => {
         { role: 'sub_head', accountType: 'community_sub_head' }
       ]
     })
-      .select('name phone email avatar accountStatus plainPassword headPermissions subCommunity group groupVisibleOnHome role accountType')
+      .select('name phone email avatar accountStatus plainPassword headPermissions subCommunity group groupVisibleOnHome role accountType parentHeadId')
       .lean();
+
+    // Older head-created sub-heads may not have a subCommunity value stored.
+    // Their parent head still identifies the correct sub-community.
+    const communityHeadsById = new Map(
+      groupableLeaders
+        .filter(u => u.role === 'head')
+        .map(u => [String(u._id), u])
+    );
 
     const groupSortValue = (label) => {
       const match = /(\d+)/.exec(label || '');
@@ -744,7 +752,13 @@ exports.getSubCommunityStats = async (req, res) => {
       // tag matching so heads land under the right one.
       const leadersForSub = subCommunities.length <= 1
         ? groupableLeaders
-        : groupableLeaders.filter(u => String(u.subCommunity || '').trim().toLowerCase() === key);
+        : groupableLeaders.filter(u => {
+          const ownSubCommunity = String(u.subCommunity || '').trim().toLowerCase();
+          if (ownSubCommunity) return ownSubCommunity === key;
+          if (u.role !== 'sub_head' || !u.parentHeadId) return false;
+          const parentHead = communityHeadsById.get(String(u.parentHeadId));
+          return String(parentHead?.subCommunity || '').trim().toLowerCase() === key;
+        });
       const groupLabels = Array.from(new Set(leadersForSub.map(u => u.group || 'Group 1')))
         .sort((a, b) => groupSortValue(a) - groupSortValue(b));
 
