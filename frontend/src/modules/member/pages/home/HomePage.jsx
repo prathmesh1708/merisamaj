@@ -11,13 +11,6 @@ import { t } from '../../utils/translations';
 import { StoryViewer } from '../../components/common/StoryViewer';
 import { CityLandscape } from '../../components/common/CityLandscape';
 import { mockAdmins as mockAdminsRaw } from '../../data/mockUsers';
-// Static success stories for home page — matrimonial module shows community matches
-const mockSuccessStories = [
-  { id: 'ss1', groomName: 'Rajesh & Priya Agrawal', location: 'Indore', marriageDate: 'Feb 2026', avatar: 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=800&q=80', quote: 'Found our match on ApniSamaj within 3 months!' },
-  { id: 'ss2', groomName: 'Vikram & Sunita Sharma', location: 'Bhopal', marriageDate: 'Apr 2026', avatar: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=800&q=80', quote: 'Community filter made finding the right match easy.' },
-  { id: 'ss3', groomName: 'Amit & Kavita Gupta', location: 'Delhi', marriageDate: 'Jun 2026', avatar: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?auto=format&fit=crop&w=800&q=80', quote: 'Our families connected through ApniSamaj. Grateful!' },
-];
-
 import ReferAndEarnBanner from './ReferAndEarnBanner';
 import DynamicPromoSlider from './DynamicPromoSlider';
 import donationService from '../../../../core/api/donationService';
@@ -506,27 +499,7 @@ const HomePage = () => {
     return bInCity - aInCity;
   });
 
-  const getCommunitySurnameLocal = (community) => {
-    if (!community) return 'Agrawal';
-    if (community.includes('Mali')) return 'Mali';
-    if (community.includes('Gupta')) return 'Gupta';
-    if (community.includes('Sharma')) return 'Sharma';
-    if (community.includes('Jain')) return 'Jain';
-    if (community.includes('Patel')) return 'Patel';
-    if (community.includes('Verma')) return 'Verma';
-    return 'Agrawal';
-  };
-
-  const realSuccessStories = [...publishedMatrimonialStories, ...liveSuccessStories];
-  const displaySuccessStories = realSuccessStories.length > 0
-    ? realSuccessStories
-    : mockSuccessStories.map(story => {
-        const surname = getCommunitySurnameLocal(userCommunity);
-        return {
-          ...story,
-          groomName: story.groomName.replaceAll('Agrawal', surname).replaceAll('Jain', surname).replaceAll('Mali', surname).replaceAll('Gupta', surname).replaceAll('Sharma', surname).replaceAll('Patel', surname).replaceAll('Verma', surname)
-        };
-      });
+  const displaySuccessStories = [...publishedMatrimonialStories, ...liveSuccessStories];
 
   const getSamajImage = (community) => {
     const c = (community || '').toLowerCase();
@@ -762,6 +735,7 @@ const HomePage = () => {
 
 
       {/* ─── TOP 5 DONORS SECTION ─── */}
+      {displayTopDonors.length > 0 && (
       <div className="px-3 mt-6 relative z-10 animate-fade-in-up">
         {/* Header */}
         <div className="flex items-center justify-between mb-3 px-1">
@@ -919,6 +893,7 @@ const HomePage = () => {
         )}
       </div>
 
+      )}
       {/* ─── DYNAMIC PROMOTIONAL & ANNOUNCEMENT SLIDING BANNERS ─── */}
       <DynamicPromoSlider customBanners={homepageContentSettings?.promotionalBanners} />
 
@@ -1286,7 +1261,8 @@ const HomePage = () => {
         </>
       )}
 
-      {/* ─── MATRIMONY SUCCESS STORIES (Always Visible) ─── */}
+      {/* Show success stories only when real stories are available. */}
+      {displaySuccessStories.length > 0 && (
       <div className="px-0 relative z-10">
         <div className="px-3 flex items-center justify-between mb-4">
           <h3 className="text-[17px] font-bold text-text-primary tracking-tight">Success Stories</h3>
@@ -1356,6 +1332,7 @@ const HomePage = () => {
         </div>
       </div>
 
+      )}
       {/* ─── SECTION DIVIDER ─── */}
       <div className="mx-3 mt-6 mb-6 h-[1px] bg-gradient-to-r from-transparent via-purple-200/40 to-transparent" />
 

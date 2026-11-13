@@ -3,64 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, ArrowRight, Sparkles, ExternalLink } from 'lucide-react';
 
-const DEFAULT_PROMO_BANNERS = [
-  {
-    id: 'promo_event_1',
-    tag: '🎉 Grand Event',
-    tagColor: 'from-amber-500 to-orange-500 text-white',
-    title: 'All India Samaj Mahasammelan 2026',
-    subtitle: 'Join 5,000+ members in Indore. Cultural performances, youth conclave & grand bhandara.',
-    buttonText: 'View Event Details',
-    link: '/member/events',
-    image: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&w=1200&q=80',
-    accentColor: '#F59E0B'
-  },
-  {
-    id: 'promo_matrimony_2',
-    tag: '💍 Matrimony Special',
-    tagColor: 'from-rose-500 to-pink-500 text-white',
-    title: 'Find Your Perfect Life Partner',
-    subtitle: 'Explore 1,500+ verified community bio-data profiles with complete family background.',
-    buttonText: 'Browse Profiles',
-    link: '/member/matrimonial',
-    image: 'https://images.unsplash.com/photo-1583939003579-730e3918a45a?auto=format&fit=crop&w=1200&q=80',
-    accentColor: '#E11D48'
-  },
-  {
-    id: 'promo_jobs_3',
-    tag: '💼 Career & Jobs',
-    tagColor: 'from-blue-600 to-indigo-600 text-white',
-    title: 'Samaj Youth Career & Hiring Expo',
-    subtitle: 'Connect directly with top community entrepreneurs, business owners & hiring managers.',
-    buttonText: 'Explore Opportunities',
-    link: '/member/professional',
-    image: 'https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=1200&q=80',
-    accentColor: '#2563EB'
-  },
-  {
-    id: 'promo_donation_4',
-    tag: '🙏 Dharmik Seva',
-    tagColor: 'from-emerald-600 to-teal-600 text-white',
-    title: 'Support Community Seva & Gaushala',
-    subtitle: 'Contribute to daily fodder, medical care & temple renovation with 100% verified transparency.',
-    buttonText: 'Contribute Now',
-    link: '/member/donation',
-    image: 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=1200&q=80',
-    accentColor: '#059669'
-  },
-  {
-    id: 'promo_shradhanjali_5',
-    tag: '🕊️ Smriti & Shradhanjali',
-    tagColor: 'from-purple-600 to-violet-700 text-white',
-    title: 'Honor & Remember Loved Ones',
-    subtitle: 'Send digital floral tributes, heartfelt condolences & prayer meeting notifications with family.',
-    buttonText: 'View Memorials',
-    link: '/member/shradhanjali',
-    image: 'https://images.unsplash.com/photo-1518495973542-4542c06a5843?auto=format&fit=crop&w=1200&q=80',
-    accentColor: '#7C3AED'
-  }
-];
-
 const variants = {
   enter: (direction) => ({
     x: direction > 0 ? '100%' : '-100%',
@@ -90,9 +32,10 @@ const variants = {
 
 export const DynamicPromoSlider = ({ customBanners = null }) => {
   const navigate = useNavigate();
-  const banners = (Array.isArray(customBanners) && customBanners.length > 0)
-    ? customBanners
-    : DEFAULT_PROMO_BANNERS;
+  // No configured banners means no slider; never substitute sample content.
+  const banners = Array.isArray(customBanners)
+    ? customBanners.filter(banner => typeof banner?.image === 'string' && banner.image.trim())
+    : [];
 
   const [[page, direction], setPage] = useState([0, 0]);
   const [isPaused, setIsPaused] = useState(false);
@@ -186,10 +129,6 @@ export const DynamicPromoSlider = ({ customBanners = null }) => {
               src={currentBanner.image}
               alt={currentBanner.title}
               className="w-full h-full object-cover object-center"
-              onError={(e) => {
-                e.target.onerror = null;
-                e.target.src = 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&w=1200&q=80';
-              }}
             />
 
             {/* Gradient Dark Overlay */}

@@ -23,9 +23,9 @@ const successStorySchema = new mongoose.Schema({
   shortDescription: { type: String, default: '', trim: true },
   coverImage: { 
     type: String, 
-    default: 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=800&q=80' 
+    default: ''
   },
-  weddingDate: { type: String, default: '2024' },
+  weddingDate: { type: String, default: '' },
   groomName: { type: String, default: '' },
   brideName: { type: String, default: '' },
   featured: { type: Boolean, default: false },
@@ -74,7 +74,7 @@ const promotionalBannerSchema = new mongoose.Schema({
   link: { type: String, default: '/member/events', trim: true },
   image: { 
     type: String, 
-    default: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&w=1200&q=80', 
+    default: '',
     trim: true 
   },
   accentColor: { type: String, default: '#7C3AED' },
@@ -97,7 +97,7 @@ const appContentSchema = new mongoose.Schema({
   heroBanner: {
     backgroundImage: {
       type: String,
-      default: 'https://images.unsplash.com/photo-1590050752117-238cb0fb12b1?auto=format&fit=crop&w=1200&q=80'
+      default: ''
     },
     title: { type: String, default: '' },
     subtitle: { type: String, default: '' },
@@ -147,7 +147,7 @@ const appContentSchema = new mongoose.Schema({
   censusBanner: {
     backgroundImage: {
       type: String,
-      default: 'https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?auto=format&fit=crop&w=1200&q=80'
+      default: ''
     },
     overlayOpacity: {
       type: Number,
