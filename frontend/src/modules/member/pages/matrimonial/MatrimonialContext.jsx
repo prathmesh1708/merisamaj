@@ -64,7 +64,13 @@ export const MatrimonialProvider = () => {
 
   // Persist view mode
   useEffect(() => {
-    localStorage.setItem('merisamaj_matri_viewMode', JSON.stringify(viewMode));
+    // Storage can be full (for example from cached family data). This preference
+    // is optional, so a quota error must never crash the Matrimonial provider.
+    try {
+      localStorage.setItem('merisamaj_matri_viewMode', JSON.stringify(viewMode));
+    } catch (err) {
+      console.warn('[MatrimonialContext] Could not persist view mode:', err?.name || err);
+    }
   }, [viewMode]);
 
   // ─── Fetch My Profile ─────────────────────────────────────────────────────
