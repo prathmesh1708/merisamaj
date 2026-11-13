@@ -168,6 +168,13 @@ const DEFAULT_HEAD_PERMISSIONS = {
 // ─────────────────────────────────────────────
 // MODULE SETTINGS CONFIG — Admin-configurable feature flags
 // ─────────────────────────────────────────────
+// Member home page sections the admin can show/hide per community
+const HOME_SECTION_FLAGS = [
+  { key: 'homeTodayUpdatesEnabled',   label: "Home: Today's Updates",  icon: '🔔' },
+  { key: 'homeUpcomingEventsEnabled', label: 'Home: Upcoming Events',  icon: '📅' },
+  { key: 'homeCommunityFeedEnabled',  label: 'Home: Community Feed',   icon: '🗞️' },
+];
+
 const MODULE_FLAGS = [
   { key: 'fundEnabled', label: 'Samaj Funds', icon: '💳' },
   { key: 'votingEnabled', label: 'Voting & Elections', icon: '🗳️' },
@@ -186,6 +193,7 @@ const MODULE_FLAGS = [
   { key: 'directoryEnabled',    label: 'Directory',       icon: '📂' },
   { key: 'obituaryEnabled',     label: 'Obituary',        icon: '🕯️' },
   { key: 'dharmashalaEnabled',  label: 'Dharmashala',     icon: '🏛️' },
+  ...HOME_SECTION_FLAGS,
 ];
 
 // ─────────────────────────────────────────────
@@ -244,7 +252,8 @@ const CreateCommunityModal = ({ onClose, onCreated }) => {
     logoUrl: '',
     bannerUrl: '',
     status: 'Active',
-    headId: ''
+    headId: '',
+    settings: Object.fromEntries(HOME_SECTION_FLAGS.map(({ key }) => [key, true]))
   });
   const [newSubCommunity, setNewSubCommunity] = useState('');
   const [loading, setLoading] = useState(false);
@@ -591,6 +600,32 @@ const CreateCommunityModal = ({ onClose, onCreated }) => {
               ) : (
                 <small className="community-hint">No sub-communities added yet. Type a name above and press Enter or click "+ Add".</small>
               )}
+            </div>
+
+            {/* Member Home Page Sections */}
+            <div className="community-form-group" style={{ marginTop: '16px', padding: '14px', background: '#f8fafc', borderRadius: '12px', border: '1.5px solid #e2e8f0' }}>
+              <label style={{ margin: 0, fontWeight: 700, color: '#1e293b' }}>Member Home Page Sections</label>
+              <p className="text-xs text-slate-500 mt-0.5" style={{ marginBottom: '10px' }}>Choose which sections members of this community see on their home page. You can change this later in Module Settings.</p>
+              <div className="community-module-grid">
+                {HOME_SECTION_FLAGS.map(({ key, label, icon }) => {
+                  const on = form.settings[key] !== false;
+                  return (
+                    <button
+                      type="button"
+                      key={key}
+                      className={`community-module-toggle ${on ? 'active' : 'inactive'}`}
+                      onClick={() => setForm(f => ({ ...f, settings: { ...f.settings, [key]: !on } }))}
+                      aria-pressed={on}
+                    >
+                      <span className="community-module-icon">{icon}</span>
+                      <span className="community-module-label">{label}</span>
+                      <div className={`community-toggle-switch ${on ? 'on' : 'off'}`}>
+                        <div className="community-toggle-knob" />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 

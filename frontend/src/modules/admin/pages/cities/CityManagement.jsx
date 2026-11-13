@@ -237,7 +237,8 @@ export const CityManagement = () => {
       </section>
 
       {/* Profile Drawer */}
-      <CityProfileDrawer 
+      <CityProfileDrawer
+        key={selectedCity?.id}
         isOpen={isDrawerOpen} 
         onClose={() => setIsDrawerOpen(false)} 
         city={selectedCity} 

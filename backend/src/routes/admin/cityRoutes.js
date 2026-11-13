@@ -5,7 +5,8 @@ const {
   createCity,
   updateCity,
   toggleCityStatus,
-  getCityStatistics
+  getCityStatistics,
+  getCityDetails
 } = require('../../controllers/admin/cityController');
 
 const router = express.Router();
@@ -23,6 +24,9 @@ router.route('/:id')
 
 router.route('/:id/status')
   .patch(toggleCityStatus);
+
+router.route('/:id/details')
+  .get(getCityDetails);
 
 router.route('/:id/statistics')
   .get(getCityStatistics);

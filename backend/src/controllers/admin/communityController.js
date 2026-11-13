@@ -9,7 +9,8 @@ const COMMUNITY_MODULE_SETTING_KEYS = [
   'socialFeedEnabled', 'eventEnabled', 'donationEnabled', 'invitationEnabled',
   'directoryEnabled', 'matrimonialEnabled', 'successStoriesEnabled', 'obituaryEnabled',
   'dharmashalaEnabled', 'chatEnabled', 'fundEnabled', 'votingEnabled', 'censusEnabled',
-  'leadershipEnabled', 'familyEnabled', 'referralEnabled', 'memberDirectoryEnabled'
+  'leadershipEnabled', 'familyEnabled', 'referralEnabled', 'memberDirectoryEnabled',
+  'homeTodayUpdatesEnabled', 'homeUpcomingEventsEnabled', 'homeCommunityFeedEnabled'
 ];
 
 // ─────────────────────────────────────────────
