@@ -1,5 +1,6 @@
 const Highlight = require('../../models/Highlight');
 const Story = require('../../models/Story');
+const { uploadDataUri } = require('../../utils/uploadDataUri');
 
 // @desc    Get user highlights (or specific member's highlights)
 // @route   GET /api/v1/member/social/highlights
@@ -72,7 +73,13 @@ exports.createHighlight = async (req, res) => {
       return res.status(400).json({ success: false, message: 'No valid stories selected' });
     }
 
-    const defaultCover = coverImage || validStories[0].media;
+    let defaultCover = coverImage || validStories[0].media;
+    try {
+      defaultCover = await uploadDataUri(defaultCover, 'merisamaj/highlights', 'auto');
+    } catch (uploadErr) {
+      console.error('Highlight cover upload failed:', uploadErr.message);
+      return res.status(502).json({ success: false, message: 'Could not upload highlight cover. Please try again.' });
+    }
 
     const highlight = await Highlight.create({
       authorId: req.user._id,
