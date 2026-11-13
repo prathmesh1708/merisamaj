@@ -2,6 +2,9 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, ArrowRight, Sparkles, ExternalLink } from 'lucide-react';
+import { optimizeImage } from '../../../../core/utils/optimizeImage';
+
+const BANNER_WIDTH = 900;
 
 const variants = {
   enter: (direction) => ({
@@ -55,6 +58,22 @@ export const DynamicPromoSlider = ({ customBanners = null }) => {
       setPage([page + diff, diff > 0 ? 1 : -1]);
     }
   };
+
+  // Only the visible slide is mounted, so warm the browser cache with the other
+  // slides' images once the page is idle — otherwise each slide change starts a
+  // fresh download and the banner shows up blank.
+  const bannerImagesKey = banners.map(b => b.image).join('|');
+  useEffect(() => {
+    if (banners.length <= 1) return;
+    const preload = () => banners.slice(1).forEach(b => { const img = new Image(); img.decoding = 'async'; img.src = optimizeImage(b.image, BANNER_WIDTH); });
+    if ('requestIdleCallback' in window) {
+      const id = window.requestIdleCallback(preload, { timeout: 3000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const t = setTimeout(preload, 1500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bannerImagesKey]);
 
   // Auto-play timer
   useEffect(() => {
@@ -126,7 +145,8 @@ export const DynamicPromoSlider = ({ customBanners = null }) => {
           >
             {/* Background Image */}
             <img
-              src={currentBanner.image}
+              src={optimizeImage(currentBanner.image, BANNER_WIDTH)}
+              decoding="async"
               alt={currentBanner.title}
               className="w-full h-full object-cover object-center"
             />

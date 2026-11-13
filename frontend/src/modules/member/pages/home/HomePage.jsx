@@ -21,6 +21,7 @@ import { useAuth } from '../../../../core/auth/useAuth';
 import { useNotifications } from '../../context/NotificationContext';
 import { isMemberApproved, showApprovalRequiredNotice } from '../../utils/approvalUtils';
 import { isRealPhoto, getInitials } from '../../../../core/utils/photo';
+import { optimizeImage } from '../../../../core/utils/optimizeImage';
 
 
 
@@ -575,7 +576,8 @@ const HomePage = () => {
           <div className="relative shrink-0">
             {currentUser?.avatar ? (
               <img 
-                src={currentUser.avatar} 
+                src={optimizeImage(currentUser.avatar, 160)} 
+                decoding="async"
                 alt={currentUser.name} 
                 className="w-14 h-14 rounded-2xl object-cover border-2 border-purple-100 shadow-xs group-hover:scale-105 transition-transform duration-200"
               />
@@ -644,7 +646,9 @@ const HomePage = () => {
       <div className="relative w-full overflow-hidden bg-slate-900 shadow-sm" style={{ minHeight: '180px', maxHeight: '300px' }}>
         {/* Background Image — 100% natural, crisp, untouched as uploaded */}
         <img
-          src={heroBannerSrc}
+          src={optimizeImage(heroBannerSrc, 1200)}
+          fetchPriority="high"
+          decoding="async"
           alt={userCommunity}
           onError={() => setFailedHeroBannerSrc(heroBannerSrc)}
           className="w-full h-full object-cover object-center"
@@ -845,7 +849,7 @@ const HomePage = () => {
                     <div className="relative shrink-0">
                       <div className="w-[42px] h-[42px] rounded-xl overflow-hidden border border-purple-100/80 group-hover/donor:border-[#FF2162]/50 p-[1.5px] bg-white transition-colors shadow-2xs">
                         {donor.avatar ? (
-                          <img src={donor.avatar} alt={donor.name} className="w-full h-full object-cover rounded-[9px] group-hover/donor:scale-105 transition-transform duration-300" />
+                          <img src={optimizeImage(donor.avatar, 120)} loading="lazy" decoding="async" alt={donor.name} className="w-full h-full object-cover rounded-[9px] group-hover/donor:scale-105 transition-transform duration-300" />
                         ) : (
                           <div className="w-full h-full rounded-[9px] bg-purple-50 text-brand-primary flex items-center justify-center text-[11px] font-black uppercase">
                             {donor.initials}
@@ -997,7 +1001,7 @@ const HomePage = () => {
             className="w-full rounded-[28px] shadow-xl shadow-purple-500/15 border border-purple-400/20 text-white relative overflow-hidden cursor-pointer press-scale"
             style={{
               background: liveCensusBanner?.backgroundImage
-                ? `url("${liveCensusBanner.backgroundImage}") center/cover no-repeat`
+                ? `url("${optimizeImage(liveCensusBanner.backgroundImage, 1000)}") center/cover no-repeat`
                 : 'linear-gradient(135deg, #4C1D95 0%, #6D28D9 50%, #7C3AED 100%)'
             }}
           >
@@ -1204,7 +1208,8 @@ const HomePage = () => {
               >
                 {/* Background Image & Overlay */}
                 <img 
-                  src={action.bgImage} 
+                  src={optimizeImage(action.bgImage, 400)} 
+                  loading="lazy" decoding="async" 
                   alt={action.label} 
                   className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
                 />
@@ -1287,7 +1292,7 @@ const HomePage = () => {
               onClick={() => navigate(displaySuccessStories[0]._id ? `/member/matrimonial/success-stories/${displaySuccessStories[0]._id}` : '/member/matrimonial')}
               className="w-full h-[220px] rounded-[24px] relative overflow-hidden shadow-lg shadow-purple-500/15 cursor-pointer active:scale-[0.98] transition-transform border border-purple-100/20"
             >
-              <img src={displaySuccessStories[0].coverImage || displaySuccessStories[0].avatar} alt={displaySuccessStories[0].title || displaySuccessStories[0].groomName} className="absolute inset-0 w-full h-full object-cover" />
+              <img src={optimizeImage(displaySuccessStories[0].coverImage || displaySuccessStories[0].avatar, 800)} loading="lazy" decoding="async" alt={displaySuccessStories[0].title || displaySuccessStories[0].groomName} className="absolute inset-0 w-full h-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
               <div className="absolute inset-0 p-5 flex flex-col justify-end">
                 <div className="flex items-center gap-2 mb-2">
@@ -1311,7 +1316,7 @@ const HomePage = () => {
               onClick={() => navigate(story._id ? `/member/matrimonial/success-stories/${story._id}` : '/member/matrimonial')}
               className="snap-center shrink-0 w-[275px] h-[340px] rounded-[28px] relative overflow-hidden shadow-lg shadow-purple-500/10 active:scale-[0.98] transition-transform cursor-pointer border border-white/10"
             >
-              <img src={story.coverImage || story.avatar} alt={story.title || story.groomName} className="absolute inset-0 w-full h-full object-cover" />
+              <img src={optimizeImage(story.coverImage || story.avatar, 600)} loading="lazy" decoding="async" alt={story.title || story.groomName} className="absolute inset-0 w-full h-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-transparent" />
               
               <div className="absolute inset-0 p-5 flex flex-col justify-end">
@@ -1425,7 +1430,8 @@ const HomePage = () => {
                         </div>
                         {isRealPhoto(head.avatar) && (
                           <img
-                            src={head.avatar}
+                            src={optimizeImage(head.avatar, 400)}
+                            loading="lazy" decoding="async" 
                             className="absolute right-0 top-0 bottom-0 w-[45%] h-full object-cover object-[center_20%] pointer-events-none z-0"
                             alt={head.name}
                             onError={(e) => { e.currentTarget.style.display = 'none'; }}
@@ -1501,7 +1507,7 @@ const HomePage = () => {
                                 className="shrink-0 w-[calc((100vw-56px)/3.1)] max-w-[130px] bg-white rounded-3xl flex flex-col items-center cursor-pointer transition-all duration-300 pb-2.5 shadow-[0_4px_16px_rgba(0,0,0,0.03)] border border-purple-50 hover:border-purple-200 overflow-hidden"
                               >
                                 <div className="w-full aspect-[4/3.8] overflow-hidden bg-gray-50 shrink-0 mb-1.5 pointer-events-none rounded-t-3xl">
-                                  <img src={avatar} className="w-full h-full object-cover" alt={member.name} />
+                                  <img src={optimizeImage(avatar, 160)} loading="lazy" decoding="async" className="w-full h-full object-cover" alt={member.name} />
                                 </div>
 
                                 <span className={`text-white text-[7.5px] font-black px-1.5 py-0.5 rounded-md shadow-sm leading-none mb-1.5 shrink-0 ${badgeColor}`}>
@@ -1584,7 +1590,8 @@ const HomePage = () => {
                     <div className="h-[100px] relative flex items-center justify-center overflow-hidden bg-gray-900 rounded-t-[24px]">
                       {event.image ? (
                         <img 
-                          src={event.image} 
+                          src={optimizeImage(event.image, 600)} 
+                          loading="lazy" decoding="async" 
                           alt={event.title} 
                           className="absolute inset-0 w-full h-full object-cover opacity-90 transition-transform duration-300 hover:scale-105"
                         />
@@ -1710,7 +1717,8 @@ const HomePage = () => {
               {/* Background Artwork: Custom Image (100% natural) or SVG CityLandscape */}
               {liveFooterArtwork?.artworkType === 'image' && liveFooterArtwork?.backgroundImage ? (
                 <img 
-                  src={liveFooterArtwork.backgroundImage} 
+                  src={optimizeImage(liveFooterArtwork.backgroundImage, 1200)} 
+                  loading="lazy" decoding="async" 
                   alt="Footer Background" 
                   onLoad={e => {
                     const { naturalWidth, naturalHeight } = e.currentTarget;
@@ -1774,7 +1782,7 @@ const HomePage = () => {
               <X size={18} />
             </button>
             {adminBroadcastPopup.imageUrl ? (
-              <img src={adminBroadcastPopup.imageUrl} alt="Announcement" className="h-44 sm:h-52 w-full object-cover" />
+              <img src={optimizeImage(adminBroadcastPopup.imageUrl, 800)} decoding="async" alt="Announcement" className="h-44 sm:h-52 w-full object-cover" />
             ) : (
               <div className="flex h-36 items-center justify-center bg-gradient-to-br from-violet-700 via-purple-600 to-fuchsia-500">
                 <div className="flex h-20 w-20 items-center justify-center rounded-full border-4 border-white/35 bg-white/15 text-white shadow-lg backdrop-blur-sm">
