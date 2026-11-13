@@ -43,7 +43,8 @@ const COMMUNITY_MODULE_KEYS = [
   'matrimonialEnabled', 'aadharVerificationEnabled', 'donationEnabled', 'invitationEnabled', 'eventEnabled', 'directoryEnabled',
   'dharmashalaEnabled', 'obituaryEnabled', 'socialFeedEnabled', 'fundEnabled', 'votingEnabled',
   'censusEnabled', 'successStoriesEnabled', 'leadershipEnabled', 'familyEnabled', 'referralEnabled',
-  'memberDirectoryEnabled', 'chatEnabled'
+  'memberDirectoryEnabled', 'chatEnabled',
+  'homeTodayUpdatesEnabled', 'homeUpcomingEventsEnabled', 'homeCommunityFeedEnabled'
 ];
 
 const getEffectiveCommunityModuleSettings = (user) => {

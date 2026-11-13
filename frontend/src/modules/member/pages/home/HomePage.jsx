@@ -205,6 +205,10 @@ const HomePage = () => {
   const [homeVisibleGroups, setHomeVisibleGroups] = useState([]); // every Community/Local Head group admin set to show on Home
   const [leadershipLoading, setLeadershipLoading] = useState(true);
   const [liveCensusBanner, setLiveCensusBanner] = useState(null);
+  // Hero image from /member/app-content: undefined = loading, null = request failed,
+  // string ('' = no banner). Once loaded it is the only source of truth, so a banner
+  // removed by the Head never lingers from localStorage or the cached login user.
+  const [serverHeroImage, setServerHeroImage] = useState(undefined);
   const [liveFooterArtwork, setLiveFooterArtwork] = useState(null);
   const [footerImageAspectRatio, setFooterImageAspectRatio] = useState(null);
 
@@ -315,7 +319,8 @@ const HomePage = () => {
       .then(res => {
         if (isMounted && res.data?.success && res.data?.data) {
           const appData = res.data.data;
-          if (appData.heroBanner || appData.promotionalBanners || appData.exclusiveFeatures) {
+          setServerHeroImage(appData.heroBanner?.backgroundImage || '');
+          if (appData.heroBanner ||appData.promotionalBanners || appData.exclusiveFeatures) {
             setHomepageContentSettings(prev => ({
               ...(prev || {}),
               hero: appData.heroBanner || prev?.hero,
@@ -340,7 +345,7 @@ const HomePage = () => {
           }
         }
       })
-      .catch(() => {})
+      .catch(() => { if (isMounted) setServerHeroImage(null); })
       .finally(() => {
         if (isMounted) setLeadershipLoading(false);
       });
@@ -431,6 +436,10 @@ const HomePage = () => {
 
   const moduleSettings = effectiveUser?.communityModuleSettings || effectiveUser?.communityId?.settings || {};
   const directoryEnabled = moduleSettings.directoryEnabled !== false;
+  // Home sections the admin can switch on/off per community
+  const showTodayUpdates = moduleSettings.homeTodayUpdatesEnabled !== false;
+  const showUpcomingEvents = moduleSettings.homeUpcomingEventsEnabled !== false && moduleSettings.eventEnabled !== false;
+  const showCommunityFeed = moduleSettings.homeCommunityFeedEnabled !== false && moduleSettings.socialFeedEnabled !== false;
   const isFeatureEnabled = (path) => {
     if (path === '/member/professional') return directoryEnabled;
     if (path === '/member/directory') return directoryEnabled && moduleSettings.memberDirectoryEnabled !== false;
@@ -501,20 +510,6 @@ const HomePage = () => {
 
   const displaySuccessStories = [...publishedMatrimonialStories, ...liveSuccessStories];
 
-  const getSamajImage = (community) => {
-    const c = (community || '').toLowerCase();
-    const base = window.location.pathname.includes('/MeriSamaj') ? '/MeriSamaj/' : '/';
-    if (c.includes('agrawal')) return `${base}assets/images/rajwada.png`;
-    if (c.includes('mali')) return `${base}assets/images/mali.png`;
-    if (c.includes('gupta')) return `${base}assets/images/gupta.png`;
-    if (c.includes('sharma')) return `${base}assets/images/sharma.png`;
-    if (c.includes('jain')) return `${base}assets/images/jain.png`;
-    if (c.includes('patel')) return `${base}assets/images/patel.png`;
-    if (c.includes('verma')) return `${base}assets/images/verma.png`;
-    if (c.includes('namdev')) return `${base}assets/images/sharma.png`;
-    return `${base}assets/images/rajwada.png`; // fallback
-  };
-
   const resolveBannerUrl = (url) => {
     if (!url) return '';
     if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:image/') || url.startsWith('blob:')) {
@@ -533,6 +528,8 @@ const HomePage = () => {
   // Community.bannerUrl is a community-wide fallback used only when nothing
   // more specific has been customized.
   const rawHeroBannerSrc =
+    typeof serverHeroImage === 'string' ? serverHeroImage :
+    serverHeroImage === undefined ? '' :
     (homepageContentSettings?.hero?.backgroundImage && !homepageContentSettings.hero.backgroundImage.includes('photo-1590050752117-238cb0fb12b1')
       ? homepageContentSettings.hero.backgroundImage
       : null) ||
@@ -540,9 +537,12 @@ const HomePage = () => {
     effectiveUser?.communityBanner ||
     currentUser?.communityId?.bannerUrl ||
     currentUser?.communityBanner ||
-    getSamajImage(userCommunity);
+    '';
 
   const heroBannerSrc = resolveBannerUrl(rawHeroBannerSrc);
+  const [failedHeroBannerSrc, setFailedHeroBannerSrc] = useState(null);
+  const showHeroBanner = Boolean(heroBannerSrc) && failedHeroBannerSrc !== heroBannerSrc;
+  const heroLocation = effectiveUser?.city || currentUser?.city || '';
 
   const handleDonorClick = (donor) => {
     let targetUserId = donor.userId;
@@ -631,17 +631,22 @@ const HomePage = () => {
       </div>
 
       {/* ─── SAMAJ HERO BANNER ─── */}
+      {!showHeroBanner ? (
+        <div className="w-full bg-white border-b border-slate-100 px-4 py-8 flex flex-col items-center justify-center text-center">
+          {userCommunity && (
+            <h2 className="text-[22px] font-black text-purple-700 tracking-tight leading-tight">{userCommunity}</h2>
+          )}
+          {heroLocation && (
+            <p className="text-[14px] font-bold text-purple-600 mt-1">📍 {heroLocation}</p>
+          )}
+        </div>
+      ) : (
       <div className="relative w-full overflow-hidden bg-slate-900 shadow-sm" style={{ minHeight: '180px', maxHeight: '300px' }}>
         {/* Background Image — 100% natural, crisp, untouched as uploaded */}
-        <img 
-          src={heroBannerSrc} 
+        <img
+          src={heroBannerSrc}
           alt={userCommunity}
-          onError={(e) => {
-            const fallback = getSamajImage(userCommunity);
-            if (e.target.src !== fallback) {
-              e.target.src = fallback;
-            }
-          }}
+          onError={() => setFailedHeroBannerSrc(heroBannerSrc)}
           className="w-full h-full object-cover object-center"
           style={{ minHeight: '180px', maxHeight: '300px' }}
         />
@@ -668,8 +673,7 @@ const HomePage = () => {
           </div>
         )}
       </div>
-
-
+      )}
 
       {/* Spacer */}
       <div className="h-4" />
@@ -898,6 +902,7 @@ const HomePage = () => {
       <DynamicPromoSlider customBanners={homepageContentSettings?.promotionalBanners} />
 
       {/* ─── TODAY'S UPDATES SECTION ─── */}
+      {showTodayUpdates && (
       <div className="mt-5 relative z-10">
         {/* Header */}
         <div className="px-3 flex items-center justify-between mb-3">
@@ -982,6 +987,7 @@ const HomePage = () => {
           </div>
         </div>
       </div>
+      )}
 
       {/* ─── CENSUS DASHBOARD BANNER ─── */}
       {liveCensusBanner?.enabled !== false && (
@@ -1547,6 +1553,7 @@ const HomePage = () => {
           <div className="mx-3 mt-8 mb-6 h-[1px] bg-gradient-to-r from-transparent via-purple-200/40 to-transparent" />
 
           {/* ─── UPCOMING EVENTS ─── */}
+          {showUpcomingEvents && (<>
           <div className="px-0">
             <div className="px-3 flex items-center justify-between mb-4">
               <div>
@@ -1639,8 +1646,10 @@ const HomePage = () => {
 
           {/* ─── SECTION DIVIDER ─── */}
           <div className="mx-3 mt-8 mb-6 h-[1px] bg-gradient-to-r from-transparent via-purple-200/40 to-transparent" />
+          </>)}
 
           {/* ─── COMMUNITY FEED PREVIEW ─── */}
+          {showCommunityFeed && (<>
           <div className="px-3">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-[17px] font-bold text-text-primary tracking-tight">Community Feed</h3>
@@ -1682,6 +1691,7 @@ const HomePage = () => {
 
           {/* ─── SECTION DIVIDER ─── */}
           <div className="mx-3 mt-8 mb-6 h-[1px] bg-gradient-to-r from-transparent via-purple-200/40 to-transparent" />
+          </>)}
 
           {/* ─── REFER & EARN BANNER ─── */}
           <div className="px-3 mb-8">

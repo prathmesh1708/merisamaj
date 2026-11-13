@@ -135,6 +135,11 @@ const communitySchema = new mongoose.Schema(
       referralEnabled:    { type: Boolean, default: true },
       memberDirectoryEnabled: { type: Boolean, default: true },
 
+      // ─── Member Home Page Sections ─────────────────────────────────────────
+      homeTodayUpdatesEnabled:   { type: Boolean, default: true },
+      homeUpcomingEventsEnabled: { type: Boolean, default: true },
+      homeCommunityFeedEnabled:  { type: Boolean, default: true },
+
       // ─── Chat & Group Settings ─────────────────────────────────────────────
       chatEnabled:                { type: Boolean, default: true },
       announcementChannelEnabled: { type: Boolean, default: true },

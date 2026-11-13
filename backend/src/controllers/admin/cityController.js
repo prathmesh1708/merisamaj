@@ -190,3 +190,103 @@ exports.getCityStatistics = async (req, res) => {
     res.status(500).json({ status: 'error', message: 'Failed to fetch city statistics' });
   }
 };
+
+// @desc    Communities and members of a city (for the admin "View" drawer)
+// @route   GET /api/v1/admin/cities/:id/details
+// @access  Private/Admin
+exports.getCityDetails = async (req, res) => {
+  try {
+    const city = await City.findById(req.params.id).lean();
+    if (!city) {
+      return res.status(404).json({ status: 'fail', message: 'City not found' });
+    }
+
+    const escaped = city.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const cityRegex = new RegExp(`^\\s*${escaped}\\s*$`, 'i');
+
+    const [communities, members] = await Promise.all([
+      Community.find({ cityIds: city._id })
+        .select('name logoUrl isActive inactiveCityIds headId')
+        .populate('headId', 'name phone')
+        .sort({ name: 1 })
+        .lean(),
+      User.find({ role: 'user', city: cityRegex })
+        .select('name phone avatar accountStatus verificationStatus communityId subCommunity createdAt')
+        .populate('communityId', 'name')
+        .sort({ name: 1 })
+        .limit(1000)
+        .lean()
+    ]);
+
+    // Members per community within this city
+    const countByCommunity = {};
+    members.forEach((m) => {
+      const cid = m.communityId?._id?.toString();
+      if (!cid) return;
+      if (!countByCommunity[cid]) countByCommunity[cid] = { total: 0, active: 0 };
+      countByCommunity[cid].total += 1;
+      if (m.accountStatus === 'active') countByCommunity[cid].active += 1;
+    });
+
+    // Communities that have members living here but don't list this city in cityIds
+    const mappedIds = new Set(communities.map((c) => c._id.toString()));
+    const unmappedIds = Object.keys(countByCommunity).filter((id) => !mappedIds.has(id));
+    const unmapped = unmappedIds.length
+      ? await Community.find({ _id: { $in: unmappedIds } })
+        .select('name logoUrl isActive inactiveCityIds headId')
+        .populate('headId', 'name phone')
+        .lean()
+      : [];
+
+    const toItem = (c, mapped) => {
+      const disabledHere = (c.inactiveCityIds || []).some((id) => id.toString() === city._id.toString());
+      const counts = countByCommunity[c._id.toString()] || { total: 0, active: 0 };
+      return {
+        _id: c._id,
+        name: c.name,
+        logoUrl: c.logoUrl,
+        head: c.headId ? { name: c.headId.name, phone: c.headId.phone } : null,
+        isActive: !!c.isActive && !disabledHere,
+        mapped,
+        membersCount: counts.total,
+        activeMembersCount: counts.active
+      };
+    };
+
+    const communityList = [
+      ...communities.map((c) => toItem(c, true)),
+      ...unmapped.map((c) => toItem(c, false))
+    ].sort((a, b) => b.membersCount - a.membersCount || a.name.localeCompare(b.name));
+
+    const memberList = members.map((m) => ({
+      _id: m._id,
+      name: m.name,
+      phone: m.phone,
+      avatar: m.avatar,
+      accountStatus: m.accountStatus,
+      verificationStatus: m.verificationStatus,
+      communityId: m.communityId?._id || null,
+      community: m.communityId?.name || null,
+      subCommunity: m.subCommunity || null,
+      joinedAt: m.createdAt,
+      isActive: m.accountStatus === 'active'
+    }));
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        communities: communityList,
+        members: memberList,
+        summary: {
+          totalCommunities: communityList.length,
+          activeCommunities: communityList.filter((c) => c.isActive).length,
+          totalMembers: memberList.length,
+          activeMembers: memberList.filter((m) => m.isActive).length
+        }
+      }
+    });
+  } catch (error) {
+    console.error('City Details Error:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to fetch city details' });
+  }
+};

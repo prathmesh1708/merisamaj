@@ -60,6 +60,15 @@ export const cityService = {
     }
   },
 
+  fetchCityDetails: async (id) => {
+    try {
+      const response = await axiosPrivate.get(`${API_BASE}/${id}/details`);
+      return response.data.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.message || 'Failed to fetch city details');
+    }
+  },
+
   deleteCity: async (id) => {
     // Soft disable instead of delete
     try {

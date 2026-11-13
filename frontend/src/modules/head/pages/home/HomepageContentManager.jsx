@@ -125,13 +125,41 @@ export const HomepageContentManager = () => {
     }
   };
 
+  const removeLocationBanner = async () => {
+    // An unsaved pick is just discarded locally; nothing to delete on the server.
+    if (locBannerFile) {
+      setLocBannerFile(null);
+      setLocBannerPreview(null);
+      if (locBannerFileRef.current) locBannerFileRef.current.value = '';
+      return;
+    }
+    if (!window.confirm('Remove the home banner for your location?')) return;
+    setLocBannerSaving(true);
+    try {
+      const fd = new FormData();
+      fd.append('removeImage', 'true');
+      await axiosPrivate.put('/head/app-content/location-hero', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      setLocBanner(prev => ({ ...prev, backgroundImage: '' }));
+      showToast(`Home banner for ${headUser?.city || 'your location'} removed`);
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Failed to remove location banner');
+    } finally {
+      setLocBannerSaving(false);
+    }
+  };
+
 
   const handleSave = async () => {
     try {
       // 1. Sync bannerUrl to MongoDB via backend API
+      // Always sync, including '' — otherwise a removed banner stays on Community.bannerUrl.
       const bannerUrl = homepageContent.hero?.backgroundImage || '';
-      if (bannerUrl) {
-        await axiosPrivate.put('/head/dashboard/community/banner', { bannerUrl });
+      await axiosPrivate.put('/head/dashboard/community/banner', { bannerUrl });
+      // The member app reads AppContent.heroBanner first, so it must be cleared/updated too.
+      if (!bannerUrl.startsWith('data:')) {
+        await axiosPrivate.put('/head/app-content/hero', { backgroundImage: bannerUrl });
       }
 
       // homepageContent (including any base64 image preview) is already
@@ -455,6 +483,16 @@ export const HomepageContentManager = () => {
                       onChange={(e) => handleLocBannerFile(e.target.files?.[0])}
                     />
                   </div>
+                  {(locBannerPreview || locBanner.backgroundImage) && (
+                    <button
+                      type="button"
+                      onClick={removeLocationBanner}
+                      disabled={locBannerSaving}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-100 rounded-lg text-xs font-bold transition-all disabled:opacity-40"
+                    >
+                      <Trash2 size={13} /> Remove Banner
+                    </button>
+                  )}
                 </div>
 
                 <div className="space-y-1">
@@ -495,9 +533,16 @@ export const HomepageContentManager = () => {
                 <h3 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 flex items-center gap-1.5">
                   <Eye size={14} className="text-slate-400" /> Member App Live Preview
                 </h3>
+                {!(locBannerPreview || locBanner.backgroundImage) ? (
+                  <div className="w-full rounded-2xl border border-slate-100 shadow-sm bg-white py-10 flex flex-col items-center justify-center text-center">
+                    <h2 className="text-[20px] font-black text-purple-700">{headUser?.community || 'Community'}</h2>
+                    <p className="text-[13px] font-bold text-purple-600 mt-1">📍 {headUser?.city || 'Your Location'}</p>
+                    <p className="text-[10px] text-slate-400 mt-3">No banner — members see this instead</p>
+                  </div>
+                ) : (
                 <div className="relative w-full rounded-2xl overflow-hidden border border-slate-100 shadow-sm" style={{ minHeight: '220px' }}>
                   <img
-                    src={locBannerPreview || locBanner.backgroundImage || 'https://images.unsplash.com/photo-1595844730298-b9f149588260?auto=format&fit=crop&w=800&q=80'}
+                    src={locBannerPreview || locBanner.backgroundImage}
                     alt="location banner"
                     className="absolute inset-0 w-full h-full object-cover"
                   />
@@ -512,6 +557,7 @@ export const HomepageContentManager = () => {
                     </div>
                   </div>
                 </div>
+                )}
               </div>
             </div>
           )
@@ -641,9 +687,16 @@ export const HomepageContentManager = () => {
                 <Eye size={14} className="text-slate-400" /> Member App Banner Live Preview
               </h3>
               
+              {!homepageContent.hero.backgroundImage ? (
+                <div className="w-full rounded-2xl border border-slate-100 shadow-sm bg-white py-10 flex flex-col items-center justify-center text-center">
+                  <h2 className="text-[20px] font-black text-purple-700">{headUser?.community || 'Community'}</h2>
+                  {headUser?.city && <p className="text-[13px] font-bold text-purple-600 mt-1">📍 {headUser.city}</p>}
+                  <p className="text-[10px] text-slate-400 mt-3">No banner — members see this instead</p>
+                </div>
+              ) : (
               <div className="relative w-full rounded-2xl overflow-hidden border border-slate-100 shadow-sm" style={{ minHeight: '220px' }}>
-                <img 
-                  src={homepageContent.hero.backgroundImage || 'https://images.unsplash.com/photo-1595844730298-b9f149588260?auto=format&fit=crop&w=800&q=80'} 
+                <img
+                  src={homepageContent.hero.backgroundImage}
                   alt="samaj landmark"
                   className="absolute inset-0 w-full h-full object-cover"
                 />
@@ -671,6 +724,7 @@ export const HomepageContentManager = () => {
                   </div>
                 </div>
               </div>
+              )}
             </div>
           </div>
         )}

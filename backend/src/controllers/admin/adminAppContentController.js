@@ -272,6 +272,7 @@ exports.updateLocationHeroBanner = async (req, res) => {
 
     const uploadedImageUrl = await resolveAvatarUpload(req, `location_hero_${targetCommunityId}_${city}`);
     if (uploadedImageUrl) entry.backgroundImage = uploadedImageUrl;
+    else if (req.body?.removeImage === 'true' || req.body?.removeImage === true) entry.backgroundImage = '';
 
     const { title, subtitle, buttonText, buttonLink, enabled } = req.body;
     if (title !== undefined) entry.title = title;
