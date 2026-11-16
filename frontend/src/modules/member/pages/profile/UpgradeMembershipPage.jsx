@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Check, HelpCircle, Info, CreditCard, ShieldCheck, CheckCircle2, QrCode, Landmark, Sparkles, X, Heart, Gift, Loader2 } from 'lucide-react';
 import { useData } from '../../context/DataProvider';
 import { useReferral } from '../referral/ReferralContext';
+import { matrimonialSubscriptionService } from '../../../../core/api/matrimonialService';
 
 const UpgradeMembershipPage = () => {
   const navigate = useNavigate();
@@ -33,6 +34,21 @@ const UpgradeMembershipPage = () => {
   const [selectedBank, setSelectedBank] = useState('SBI');
   const [isBankDropdownOpen, setIsBankDropdownOpen] = useState(false);
   const [showPremierSuccess, setShowPremierSuccess] = useState(false);
+  const [premierRequesting, setPremierRequesting] = useState(false);
+  const [premierRequestError, setPremierRequestError] = useState('');
+
+  const submitPremierRequest = async () => {
+    setPremierRequesting(true);
+    setPremierRequestError('');
+    try {
+      await matrimonialSubscriptionService.requestPremierCallback();
+      setShowPremierSuccess(true);
+    } catch (err) {
+      setPremierRequestError(err.response?.data?.message || 'Could not send your request. Please try again.');
+    } finally {
+      setPremierRequesting(false);
+    }
+  };
 
   // Referral / Points State in Checkout
   const [checkoutReferralCode, setCheckoutReferralCode] = useState('');
@@ -270,13 +286,13 @@ const UpgradeMembershipPage = () => {
             </div>
 
             <button 
-              onClick={() => {
-                setShowPremierSuccess(true);
-              }}
-              className="w-full py-3.5 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl text-xs font-extrabold press-scale shadow-lg shadow-rose-200"
+              onClick={submitPremierRequest}
+              disabled={premierRequesting}
+              className="w-full py-3.5 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl text-xs font-extrabold press-scale shadow-lg shadow-rose-200 disabled:opacity-60"
             >
-              Request Premier Callback
+              {premierRequesting ? 'Sending request…' : 'Request Premier Callback'}
             </button>
+            {premierRequestError && <p className="text-center text-xs font-semibold text-red-600 mt-2">{premierRequestError}</p>}
           </div>
         ) : (
           /* ─── SELF-SERVICE SECTION ─── */
@@ -1021,7 +1037,7 @@ const UpgradeMembershipPage = () => {
               </button>
             </div>
             <p className="text-[11px] text-text-secondary font-medium leading-relaxed">
-              Thank you! A ApniSamaj Premier Relationship Manager will call you within 24 hours to discuss options and guide you on offline verification.
+              Your request has been sent to the admin team. They will contact you to discuss Premier Matchmaking.
             </p>
             <button
               onClick={() => setShowPremierSuccess(false)}

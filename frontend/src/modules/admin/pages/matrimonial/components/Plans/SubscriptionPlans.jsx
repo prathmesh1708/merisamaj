@@ -465,12 +465,12 @@ export const SubscriptionPlans = ({ data }) => {
                 Popular
               </div>
             )}
-            <div className="flex items-start justify-between">
-              <div>
-                <h4 className="font-black text-slate-900 text-sm">{plan.name}</h4>
+            <div className="flex min-w-0 items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <h4 className="font-black text-slate-900 text-sm [overflow-wrap:anywhere]">{plan.name}</h4>
                 <p className="text-[10px] text-gray-500 mt-0.5">{plan.price === 0 && tab !== 'app' ? 'Free plan · applies to everyone' : `${plan.durationInDays} days`}</p>
               </div>
-              <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${plan.isActive ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
+              <span className={`shrink-0 px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${plan.isActive ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
                 {plan.isActive ? 'Active' : 'Inactive'}
               </span>
             </div>
@@ -483,7 +483,7 @@ export const SubscriptionPlans = ({ data }) => {
             </div>
 
             {tab === 'app' ? (
-              <div className="space-y-1.5 text-[11px] text-slate-500">
+              <div className="min-w-0 space-y-1.5 text-[11px] text-slate-500 [&>p]:[overflow-wrap:anywhere]">
                 {plan.appFeatures?.proBadge !== false && <p>• ✓ PRO badge on profile & posts</p>}
                 {plan.appFeatures?.pinPostsPerMonth === -1 && <p>• Unlimited pinned posts</p>}
                 {plan.appFeatures?.pinPostsPerMonth > 0 && <p>• {plan.appFeatures.pinPostsPerMonth} pinned posts/month</p>}
@@ -493,7 +493,7 @@ export const SubscriptionPlans = ({ data }) => {
                 {(plan.customFeatures || []).map((label, i) => <p key={i}>• {label}</p>)}
               </div>
             ) : (
-            <div className="space-y-1.5 text-[11px] text-slate-500">
+            <div className="min-w-0 space-y-1.5 text-[11px] text-slate-500 [&>p]:[overflow-wrap:anywhere]">
               <p>• {plan.features?.profileViewsPerDay === -1 ? 'Unlimited' : plan.features?.profileViewsPerDay} profile views/day</p>
               <p>• {plan.features?.interestLimit === -1 ? 'Unlimited' : plan.features?.interestLimit} interests/month</p>
               <p>• {plan.features?.messageLimit === -1 ? 'Unlimited' : plan.features?.messageLimit} messages/month</p>

@@ -2,6 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const adminMatCtrl = require('../../controllers/admin/adminMatrimonialController');
 const adminSuccessStoryCtrl = require('../../controllers/admin/adminSuccessStoryController');
+const premierCallbackCtrl = require('../../controllers/matrimonial/premierCallbackController');
 
 // ─── Stats & Analytics ────────────────────────────────────────────────────────
 router.get('/stats',      adminMatCtrl.getStats);
@@ -21,6 +22,8 @@ router.put('/reports/:id',     adminMatCtrl.actionReport);
 
 // ─── Subscription Plans ───────────────────────────────────────────────────────
 router.get('/subscriptions',   adminMatCtrl.listSubscriptions);
+router.get('/premier-callbacks', premierCallbackCtrl.listRequests);
+router.put('/premier-callbacks/:id', premierCallbackCtrl.updateRequest);
 router.get('/plans',           adminMatCtrl.listPlans);
 router.post('/plans',          adminMatCtrl.createPlan);
 router.post('/plans/grant',    adminMatCtrl.grantSubscription);  // Static must come before /:id

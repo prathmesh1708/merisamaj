@@ -12,7 +12,8 @@ const UserSubscription = require('../models/UserSubscription');
  *   - Without the plan feature `crossCommunityVisibility`: only members of the
  *     viewer's own community.
  *   - With it: own community, plus other communities' members whose profile
- *     visibility is "all_members" / "public" (their own privacy choice still applies).
+ *     visibility is "all_members" / "public". Community-specific exposure
+ *     switches do not override this subscriber entitlement.
  *   - Other sub-communities of the viewer's own community: allowed by the member's
  *     active matrimonial subscription with allSubCommunitiesAccess.
  */
@@ -109,7 +110,11 @@ const profileScopeCondition = async ({ user, reqCommunityId, canSeeOtherCommunit
     if (!canSeeOtherCommunities && !canSeeSiblings) return { condition: { _id: null }, blocked: true };
     return { condition: { $or: [
       ...(canSeeSiblings ? [{ userId: { $in: visibleSiblingIds } }] : []),
-      ...(canSeeOtherCommunities ? [{ userId: { $nin: communityIds }, ...shareable, $and: otherCommunityExposure }] : [])
+      // A subscriber whose plan includes crossCommunityVisibility is entitled to
+      // browse other communities. The profile's community-specific exposure
+      // switches control non-subscribers; they must not silently cancel a plan
+      // entitlement. Keep the profile's normal visibility level in force.
+      ...(canSeeOtherCommunities ? [{ userId: { $nin: communityIds }, ...shareable }] : [])
     ] }, blocked: false };
   }
   if (!canSeeOtherCommunities && !canSeeSiblings) return { condition: ownProfiles, blocked: false };
@@ -117,7 +122,7 @@ const profileScopeCondition = async ({ user, reqCommunityId, canSeeOtherCommunit
     condition: { $or: [
       ownProfiles,
       ...(canSeeSiblings ? [{ userId: { $in: visibleSiblingIds } }] : []),
-      ...(canSeeOtherCommunities ? [{ userId: { $nin: communityIds }, ...shareable, $and: otherCommunityExposure }] : [])
+      ...(canSeeOtherCommunities ? [{ userId: { $nin: communityIds }, ...shareable }] : [])
     ] },
     blocked: false
   };

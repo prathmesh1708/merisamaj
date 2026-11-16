@@ -16,6 +16,7 @@ const memberChatRoutes = require('./memberChatRoutes');
 const groupRoutes      = require('./groupRoutes');
 
 const { checkModuleEnabled } = require('../../middleware/moduleAccessMiddleware');
+const premierCallbackCtrl = require('../../controllers/matrimonial/premierCallbackController');
 
 
 // Test Route
@@ -25,6 +26,9 @@ router.get('/test', (req, res) => {
     message: 'Member routes working fine!'
   });
 });
+
+// Premier callbacks are available from both matrimonial and general membership pages.
+router.post('/premier-callback', premierCallbackCtrl.submitRequest);
 
 // Invitation routes
 router.use('/invitations', checkModuleEnabled('invitationEnabled'), invitationRoutes);

@@ -48,6 +48,8 @@ const MatrimonialSubscriptionPage = () => {
   // Modals / Checkout State
   const [infoModalContent, setInfoModalContent] = useState(null);
   const [showPremierSuccess, setShowPremierSuccess] = useState(false);
+  const [premierRequesting, setPremierRequesting] = useState(false);
+  const [premierRequestError, setPremierRequestError] = useState('');
   
   const [showCheckout, setShowCheckout] = useState(false);
   const [checkoutStep, setCheckoutStep] = useState('select-method');
@@ -69,6 +71,18 @@ const MatrimonialSubscriptionPage = () => {
   const [quoting, setQuoting] = useState(false);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); };
+  const submitPremierRequest = async () => {
+    setPremierRequesting(true);
+    setPremierRequestError('');
+    try {
+      await matrimonialSubscriptionService.requestPremierCallback();
+      setShowPremierSuccess(true);
+    } catch (err) {
+      setPremierRequestError(err.response?.data?.message || 'Could not send your request. Please try again.');
+    } finally {
+      setPremierRequesting(false);
+    }
+  };
   const refreshCheckoutQuote = async (code = checkoutCode, points = checkoutPoints) => {
     if (!selectedPlan) return;
     setQuoting(true); setQuoteMessage('');
@@ -328,10 +342,11 @@ const MatrimonialSubscriptionPage = () => {
                     </div>
                   ))}
                 </div>
-                <button onClick={() => setShowPremierSuccess(true)}
-                  className="w-full py-3.5 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl text-xs font-extrabold shadow-lg shadow-rose-200 active:scale-95 transition-transform">
-                  Request Premier Callback
+                <button onClick={submitPremierRequest} disabled={premierRequesting}
+                  className="w-full py-3.5 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl text-xs font-extrabold shadow-lg shadow-rose-200 active:scale-95 transition-transform disabled:opacity-60">
+                  {premierRequesting ? 'Sending request…' : 'Request Premier Callback'}
                 </button>
+                {premierRequestError && <p className="text-center text-xs font-semibold text-red-600">{premierRequestError}</p>}
               </div>
             ) : (
               /* ─── SELF-SERVICE MATRIX ─── */
@@ -392,8 +407,8 @@ const MatrimonialSubscriptionPage = () => {
                                 const val = featureValue(plan, feature.key);
                                 const on = feature.type === 'value' ? !!val : !!val;
                                 return (
-                                  <li key={feature.key} className={`flex items-center justify-between gap-2 text-[12px] ${on ? 'text-slate-700' : 'text-slate-400'}`}>
-                                    <span className="font-semibold">{feature.label}</span>
+                                  <li key={feature.key} className={`flex min-w-0 items-start justify-between gap-2 text-[12px] ${on ? 'text-slate-700' : 'text-slate-400'}`}>
+                                    <span className="min-w-0 flex-1 font-semibold [overflow-wrap:anywhere]">{feature.label}</span>
                                     {feature.type === 'value' ? (
                                       <span className="font-extrabold text-slate-800 shrink-0">{val === -1 ? 'Unlimited' : (val || '—')}</span>
                                     ) : val ? (
@@ -405,8 +420,8 @@ const MatrimonialSubscriptionPage = () => {
                                 );
                               })}
                               {(plan.customFeatures || []).map((label, i) => (
-                                <li key={`custom-${i}`} className="flex items-center justify-between gap-2 text-[12px] text-slate-700">
-                                  <span className="font-semibold">{label}</span>
+                                <li key={`custom-${i}`} className="flex min-w-0 items-start justify-between gap-2 text-[12px] text-slate-700">
+                                  <span className="min-w-0 flex-1 font-semibold [overflow-wrap:anywhere]">{label}</span>
                                   <Check size={15} className="text-emerald-600 stroke-[3px] shrink-0" />
                                 </li>
                               ))}
@@ -441,7 +456,7 @@ const MatrimonialSubscriptionPage = () => {
                         
                         {/* ─── MATRIX HEADER ─── */}
                         <div className="grid pb-2 border-b border-slate-100 text-center items-end"
-                             style={{ gridTemplateColumns: `1fr repeat(${plans.length}, 1fr)` }}>
+                             style={{ gridTemplateColumns: `minmax(0, 1fr) repeat(${plans.length}, minmax(0, 1fr))` }}>
                           <div className="text-left pl-4 pb-1 text-[10px] font-bold text-slate-400 uppercase">Benefit</div>
                           
                           {plans.map(plan => (
@@ -470,11 +485,11 @@ const MatrimonialSubscriptionPage = () => {
                         <div className="divide-y divide-slate-100 bg-white">
                           {FEATURE_ROWS.map((feature, fIdx) => (
                             <div key={fIdx} className="grid py-3.5 items-center text-center text-xs font-semibold"
-                                 style={{ gridTemplateColumns: `1fr repeat(${plans.length}, 1fr)` }}>
+                                 style={{ gridTemplateColumns: `minmax(0, 1fr) repeat(${plans.length}, minmax(0, 1fr))` }}>
                               
                               {/* Label */}
-                              <div className="flex items-center gap-1 text-left pl-4 pr-1">
-                                <span className="text-[11px] leading-tight font-bold text-slate-700">{feature.label}</span>
+                              <div className="flex min-w-0 items-center gap-1 text-left pl-4 pr-1">
+                                <span className="min-w-0 text-[11px] leading-tight font-bold text-slate-700 [overflow-wrap:anywhere]">{feature.label}</span>
                                 <button onClick={() => setInfoModalContent({ title: feature.label, desc: feature.tooltip })}
                                   className="text-slate-300 hover:text-slate-500 p-0.5 shrink-0">
                                   <HelpCircle size={11} />
@@ -503,9 +518,9 @@ const MatrimonialSubscriptionPage = () => {
                           {/* Admin-added extra features: one row per distinct label across all plans */}
                           {[...new Set(plans.flatMap(p => p.customFeatures || []))].map(label => (
                             <div key={`custom-${label}`} className="grid py-3.5 items-center text-center text-xs font-semibold"
-                                 style={{ gridTemplateColumns: `1fr repeat(${plans.length}, 1fr)` }}>
-                              <div className="text-left pl-4 pr-1">
-                                <span className="text-[11px] leading-tight font-bold text-slate-700">{label}</span>
+                                 style={{ gridTemplateColumns: `minmax(0, 1fr) repeat(${plans.length}, minmax(0, 1fr))` }}>
+                              <div className="min-w-0 text-left pl-4 pr-1">
+                                <span className="text-[11px] leading-tight font-bold text-slate-700 [overflow-wrap:anywhere]">{label}</span>
                               </div>
                               {plans.map(plan => (
                                 <div key={plan._id} className={`py-1 ${selectedPlan?._id === plan._id ? 'bg-rose-50/50' : ''}`}>

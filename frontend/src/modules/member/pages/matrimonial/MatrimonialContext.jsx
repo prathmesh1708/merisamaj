@@ -211,12 +211,14 @@ export const MatrimonialProvider = () => {
     try {
       const res = await matrimonialInterestService.acceptInterest(interestId);
       await fetchInterests();
+      await fetchDashboard(); // Refresh pending activity counts
       await fetchMyProfile(); // Refresh maritalLifecycle
+      window.dispatchEvent(new Event('app:refresh_unread_counts'));
       return { success: true, data: res.data.data };
     } catch (err) {
       return { success: false, error: err.response?.data?.message || 'Failed to accept interest' };
     }
-  }, [fetchInterests, fetchMyProfile]);
+  }, [fetchInterests, fetchDashboard, fetchMyProfile]);
 
   const rejectInterest = useCallback(async (interestId) => {
     try {

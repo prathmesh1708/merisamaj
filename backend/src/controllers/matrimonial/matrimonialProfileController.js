@@ -233,7 +233,9 @@ exports.getUserProfile = async (req, res) => {
     const isCrossSubCommunity = !isCrossCommunity && viewerSub && viewerSub !== ownerSub;
     const isAllMembers = profile.visibility === 'all_members' || profile.visibility === 'public';
 
-    if (!profileOwnerUserId.equals(viewerId) && isCrossCommunity) {
+    // A plan with crossCommunityVisibility grants the viewer cross-community
+    // access; profile-owner community exposure switches must not negate it.
+    if (!profileOwnerUserId.equals(viewerId) && isCrossCommunity && !features.crossCommunityVisibility) {
       const outgoing = profile.visibilitySettings?.otherCommunities || {};
       if (outgoing.enabled === false) {
         return res.status(403).json({ status: 'error', code: 'PROFILE_VISIBILITY_RESTRICTED', message: 'This member has limited profile visibility.' });

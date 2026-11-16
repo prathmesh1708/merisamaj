@@ -35,6 +35,7 @@ export const matrimonialProfileService = {
 
 // ─── Subscription ─────────────────────────────────────────────────────────────
 export const matrimonialSubscriptionService = {
+  requestPremierCallback: () => axiosPrivate.post('/member/premier-callback'),
   listPlans:          ()     => axiosPrivate.get(`${BASE}/subscription/plans`),
   getMySubscription:  ()     => axiosPrivate.get(`${BASE}/subscription/me`),
   getHistory:         ()     => axiosPrivate.get(`${BASE}/subscription/history`),

@@ -36,8 +36,10 @@ exports.getDashboard = async (req, res) => {
         {
           $group: {
             _id: null,
-            sent:     { $sum: { $cond: [{ $eq: ['$senderId', userId] }, 1, 0] } },
-            received: { $sum: { $cond: [{ $eq: ['$receiverId', userId] }, 1, 0] } },
+            // The dashboard badges represent actionable pending requests.
+            // Accepted requests are shown separately in the Accepted tab.
+            sent:     { $sum: { $cond: [{ $and: [{ $eq: ['$senderId', userId] }, { $eq: ['$status', 'pending'] }] }, 1, 0] } },
+            received: { $sum: { $cond: [{ $and: [{ $eq: ['$receiverId', userId] }, { $eq: ['$status', 'pending'] }] }, 1, 0] } },
             accepted: { $sum: { $cond: [{ $eq: ['$status', 'accepted'] }, 1, 0] } },
             pending:  { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] } },
             rejected: { $sum: { $cond: [{ $eq: ['$status', 'rejected'] }, 1, 0] } }

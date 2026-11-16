@@ -29,6 +29,8 @@ export const matrimonialService = {
   // Subscription Plans
   getPlans:           ()           => axiosPrivate.get(`${BASE}/plans`).then(r => r.data.data),
   getSubscriptions:   (params)     => axiosPrivate.get(`${BASE}/subscriptions`, { params }).then(r => r.data.data),
+  getPremierCallbacks:()            => axiosPrivate.get(`${BASE}/premier-callbacks`).then(r => r.data.data),
+  updatePremierCallback:(id, body)   => axiosPrivate.put(`${BASE}/premier-callbacks/${id}`, body).then(r => r.data.data),
   createPlan:         (body)       => axiosPrivate.post(`${BASE}/plans`, body).then(r => r.data),
   updatePlan:         (id, body)   => axiosPrivate.put(`${BASE}/plans/${id}`, body).then(r => r.data),
   deletePlan:         (id)         => axiosPrivate.delete(`${BASE}/plans/${id}`).then(r => r.data),

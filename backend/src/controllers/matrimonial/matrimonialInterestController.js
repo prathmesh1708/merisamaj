@@ -3,6 +3,7 @@
  * Manages the full interest request lifecycle.
  */
 const InterestRequest = require('../../models/InterestRequest');
+const UserNotification = require('../../models/UserNotification');
 
 const { countInterestsThisMonth, countSuperInterestsThisMonth } = require('../../services/matrimonialUsageService');
 const MatrimonialProfile = require('../../models/MatrimonialProfile');
@@ -209,6 +210,20 @@ exports.acceptInterest = async (req, res) => {
     interest.acceptedAt     = new Date();
     interest.conversationId = conversation._id;
     await interest.save();
+
+    // The incoming-interest alert is no longer actionable after acceptance.
+    // Clear its unread badge; the sender receives a separate accepted alert below.
+    await UserNotification.updateMany(
+      {
+        userId: receiverId,
+        module: 'matrimonial',
+        type: 'matrimonial_interest_received',
+        referenceType: 'InterestRequest',
+        referenceId: interest._id,
+        isRead: false
+      },
+      { $set: { isRead: true, readAt: new Date() } }
+    );
 
     // ─── Mark both profiles as Connected ─────────────────────────────────────
     await MatrimonialProfile.updateMany(
