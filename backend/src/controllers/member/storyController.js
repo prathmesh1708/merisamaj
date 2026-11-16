@@ -4,6 +4,7 @@ const StoryLike = require('../../models/StoryLike');
 const Follower = require('../../models/Follower');
 const City = require('../../models/City');
 const { getHiddenAuthorIds } = require('../../services/socialVisibilityService');
+const { uploadDataUri, isVideoDataUri } = require('../../utils/uploadDataUri');
 
 const getCityId = async (cityName) => {
   if (!cityName) return null;
@@ -93,12 +94,24 @@ exports.createStory = async (req, res) => {
 
     const cityId = await getCityId(req.user.city);
 
+    // The file's own MIME type wins — videos were arriving labelled as 'image'
+    const resolvedMediaType = isVideoDataUri(media) ? 'video' : (mediaType || 'image');
+
+    // Host the file on Cloudinary — base64 kept in Mongo bloats every stories response
+    let mediaUrl;
+    try {
+      mediaUrl = await uploadDataUri(media, 'merisamaj/stories', resolvedMediaType);
+    } catch (uploadErr) {
+      console.error('Story media upload failed:', uploadErr.message);
+      return res.status(502).json({ success: false, message: 'Could not upload story media. Please try again.' });
+    }
+
     const story = await Story.create({
       userId: req.user._id,
       communityId: req.user.communityId,
       cityId,
-      media,
-      mediaType: mediaType || 'image',
+      media: mediaUrl,
+      mediaType: resolvedMediaType,
       text,
       textPosition: textPosition || { x: 50, y: 50 },
       textStyle: textStyle || {
