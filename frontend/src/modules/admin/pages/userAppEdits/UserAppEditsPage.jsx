@@ -853,6 +853,13 @@ export const UserAppEditsPage = () => {
                         Choose image from device
                       </button>
                       <p className="text-[10px] text-slate-500 mt-1.5">JPG, PNG, or WebP up to 5MB. Recommended: 1200 × 600 px landscape.</p>
+                      <input
+                        type="url"
+                        value={heroForm.backgroundImage.startsWith('data:') ? '' : heroForm.backgroundImage}
+                        onChange={(e) => setHeroForm({ ...heroForm, backgroundImage: e.target.value })}
+                        placeholder="Or paste a public image URL"
+                        className="mt-2 w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-800 outline-none focus:border-purple-500"
+                      />
                     </div>
                   </div>
                 </div>
@@ -2121,10 +2128,25 @@ export const UserAppEditsPage = () => {
 
 const FeatureFormModal = ({ isOpen, isEditing, initialData, onClose, onSave, saving }) => {
   const [form, setForm] = useState(initialData || {});
+  const imageInputRef = useRef(null);
+  const [imageError, setImageError] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
     onSave(form);
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) return setImageError('Please choose an image file.');
+    if (file.size > 5 * 1024 * 1024) return setImageError('Image size should be under 5MB.');
+    setImageError('');
+    const reader = new FileReader();
+    reader.onload = (event) => setForm((prev) => ({ ...prev, bgImage: event.target.result }));
+    reader.onerror = () => setImageError('Could not read this image. Please try another file.');
+    reader.readAsDataURL(file);
   };
 
   return (
@@ -2187,14 +2209,21 @@ const FeatureFormModal = ({ isOpen, isEditing, initialData, onClose, onSave, sav
           </div>
 
           <div>
-            <label className="block text-[11px] font-black uppercase text-slate-500 mb-1">Background Image URL</label>
+            <label className="block text-[11px] font-black uppercase text-slate-500 mb-1">Background Image</label>
             <input
               type="text"
               value={form.bgImage || ''}
               onChange={(e) => setForm({ ...form, bgImage: e.target.value })}
-              placeholder="https://images.unsplash.com/photo-..."
+              placeholder="Paste an image URL or upload below"
               className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 outline-none focus:border-purple-500"
             />
+            <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+            <button type="button" onClick={() => imageInputRef.current?.click()} className="mt-2 inline-flex items-center gap-2 rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 text-xs font-bold text-purple-700 hover:bg-purple-100">
+              <Upload size={14} /> Upload image from device
+            </button>
+            <p className="mt-1 text-[10px] text-slate-500">Upload an image up to 5MB or paste a publicly accessible image URL.</p>
+            {imageError && <p className="mt-1 text-[11px] font-semibold text-rose-600">{imageError}</p>}
+            {form.bgImage && <img src={form.bgImage} alt="Feature background preview" className="mt-2 h-24 w-full rounded-xl border border-slate-200 object-cover" />}
           </div>
 
           <div className="flex items-center gap-3 pt-2">
@@ -2234,10 +2263,25 @@ const FeatureFormModal = ({ isOpen, isEditing, initialData, onClose, onSave, sav
 
 const StoryFormModal = ({ isOpen, isEditing, initialData, onClose, onSave, saving }) => {
   const [form, setForm] = useState(initialData || {});
+  const imageInputRef = useRef(null);
+  const [imageError, setImageError] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
     onSave(form);
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) return setImageError('Please choose an image file.');
+    if (file.size > 5 * 1024 * 1024) return setImageError('Image size should be under 5MB.');
+    setImageError('');
+    const reader = new FileReader();
+    reader.onload = (event) => setForm((prev) => ({ ...prev, coverImage: event.target.result }));
+    reader.onerror = () => setImageError('Could not read this image. Please try another file.');
+    reader.readAsDataURL(file);
   };
 
   return (
@@ -2297,14 +2341,21 @@ const StoryFormModal = ({ isOpen, isEditing, initialData, onClose, onSave, savin
           </div>
 
           <div>
-            <label className="block text-[11px] font-black uppercase text-slate-500 mb-1">Cover Image URL</label>
+            <label className="block text-[11px] font-black uppercase text-slate-500 mb-1">Cover Image</label>
             <input
               type="text"
               value={form.coverImage || ''}
               onChange={(e) => setForm({ ...form, coverImage: e.target.value })}
-              placeholder="https://images.unsplash.com/photo-..."
+              placeholder="Paste an image URL or upload below"
               className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 outline-none focus:border-purple-500"
             />
+            <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+            <button type="button" onClick={() => imageInputRef.current?.click()} className="mt-2 inline-flex items-center gap-2 rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 text-xs font-bold text-purple-700 hover:bg-purple-100">
+              <Upload size={14} /> Upload image from device
+            </button>
+            <p className="mt-1 text-[10px] text-slate-500">Upload an image up to 5MB or paste a publicly accessible image URL.</p>
+            {imageError && <p className="mt-1 text-[11px] font-semibold text-rose-600">{imageError}</p>}
+            {form.coverImage && <img src={form.coverImage} alt="Success story cover preview" className="mt-2 h-24 w-full rounded-xl border border-slate-200 object-cover" />}
           </div>
 
           <div className="flex items-center gap-5 pt-2">
@@ -2597,6 +2648,8 @@ const PromoBannerModal = ({ isOpen, isEditing, initialData, onClose, onSave, sav
     displayOrder: 1,
     enabled: true
   });
+  const imageInputRef = useRef(null);
+  const [imageError, setImageError] = useState('');
 
   const TAG_COLOR_OPTIONS = [
     { label: 'Amber Orange', value: 'from-amber-500 to-orange-500 text-white' },
@@ -2619,6 +2672,25 @@ const PromoBannerModal = ({ isOpen, isEditing, initialData, onClose, onSave, sav
   const handleSubmit = (e) => {
     e.preventDefault();
     onSave(form);
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setImageError('Please choose an image file.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setImageError('Image size should be under 5MB.');
+      return;
+    }
+    setImageError('');
+    const reader = new FileReader();
+    reader.onload = (event) => setForm((prev) => ({ ...prev, image: event.target.result }));
+    reader.onerror = () => setImageError('Could not read this image. Please try another file.');
+    reader.readAsDataURL(file);
   };
 
   return (
@@ -2730,14 +2802,24 @@ const PromoBannerModal = ({ isOpen, isEditing, initialData, onClose, onSave, sav
           </div>
 
           <div>
-            <label className="block text-[11px] font-black uppercase text-slate-500 mb-1">Background Image URL</label>
+            <label className="block text-[11px] font-black uppercase text-slate-500 mb-1">Background Image</label>
             <input
               type="text"
               value={form.image || ''}
               onChange={(e) => setForm({ ...form, image: e.target.value })}
-              placeholder="https://images.unsplash.com/photo-..."
+              placeholder="Paste an image URL, or upload an image below"
               className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 outline-none focus:border-purple-500"
             />
+            <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+            <button
+              type="button"
+              onClick={() => imageInputRef.current?.click()}
+              className="mt-2 inline-flex items-center gap-2 rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 text-xs font-bold text-purple-700 hover:bg-purple-100"
+            >
+              <Upload size={14} /> Upload image from device
+            </button>
+            <p className="mt-1 text-[10px] text-slate-500">Upload an image (up to 5MB) or paste a publicly accessible image URL.</p>
+            {imageError && <p className="mt-1 text-[11px] font-semibold text-rose-600">{imageError}</p>}
             {/* Image Preview */}
             {form.image && (
               <div className="mt-2 h-24 rounded-xl overflow-hidden border border-slate-200 bg-slate-900 relative">
