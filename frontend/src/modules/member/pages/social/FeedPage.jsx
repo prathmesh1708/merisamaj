@@ -1184,12 +1184,12 @@ const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDelete
               <div className="flex w-full items-center justify-between">
                 <span className="w-8" />
                 <h4 className="text-sm font-bold text-slate-900">Comments <span className="ml-1 text-slate-400">{formatEngagementCount(post.comments || 0)}</span></h4>
-                <button type="button" onClick={() => setShowComments(false)} aria-label="Close comments" className="flex h-8 w-8 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"><span className="text-lg leading-none">×</span></button>
+                <button type="button" onClick={() => setShowComments(false)} aria-label="Close comments" className="flex h-8 w-8 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"><span className="text-lg leading-none">?</span></button>
               </div>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
               {loadingComments ? (
-                <p className="py-8 text-center text-sm text-slate-400">Loading comments…</p>
+                <p className="py-8 text-center text-sm text-slate-400">Loading comments?</p>
               ) : (
                 <div className="space-y-4">
                   {(post.commentsList || []).map((comment) => (
@@ -1207,7 +1207,7 @@ const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDelete
             </div>
             <form onSubmit={submitComment} className="flex shrink-0 items-center gap-2 border-t border-slate-100 bg-white px-4 py-3 pb-[max(12px,env(safe-area-inset-bottom))]">
               <Avatar initials={currentUser?.name?.[0] || 'M'} size="sm" color="bg-indigo-50 text-indigo-700" />
-              <input value={commentText} onChange={(event) => setCommentText(event.target.value)} placeholder="Add a comment…" aria-label="Add a comment" className="min-w-0 flex-1 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-indigo-300" />
+              <input value={commentText} onChange={(event) => setCommentText(event.target.value)} placeholder="Add a comment?" aria-label="Add a comment" className="min-w-0 flex-1 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-indigo-300" />
               <button type="submit" disabled={!commentText.trim()} className="rounded-full px-3 py-2 text-sm font-bold text-indigo-600 disabled:opacity-40">Post</button>
             </form>
           </section>
