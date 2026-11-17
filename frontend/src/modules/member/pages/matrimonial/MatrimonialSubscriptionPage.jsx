@@ -4,35 +4,13 @@ import {
   ArrowLeft, Check, CreditCard, ShieldCheck, CheckCircle2,
   QrCode, Landmark, Sparkles, X, Heart, RefreshCw,
   Star, ShieldAlert, Loader2, Crown, Download,
-  ChevronRight, Info, HelpCircle
 } from 'lucide-react';
 import { matrimonialSubscriptionService } from '../../../../core/api/matrimonialService';
 import { loadRazorpayScript } from '../../../../core/utils/razorpayLoader';
 import { MySubscriptionPanel } from './components/MySubscriptionPanel';
+import PlanFeaturesModal from '../../components/common/PlanFeaturesModal';
 
 // ─── Feature Keys for Matrix ──────────────────────────────────────────────────
-const FEATURE_ROWS = [
-  { label: 'Profile Views / Day', key: 'profileViewsPerDay', type: 'value', tooltip: 'Number of member profiles you can view daily (-1 for unlimited).' },
-  { label: 'Interests / Month', key: 'interestLimit', type: 'value', tooltip: 'Number of interests you can send monthly (-1 for unlimited).' },
-  { label: 'Chat Access', key: 'chat', type: 'boolean', tooltip: 'Enables real-time messaging with your accepted matches.' },
-  { label: 'Advanced Filters', key: 'advancedFilters', type: 'boolean', tooltip: 'Search with more detailed filters.' },
-  { label: 'Visitor History', key: 'visitorHistory', type: 'boolean', tooltip: 'See who viewed your profile.' },
-  { label: 'Contact Details Access', key: 'contactDetailsAccess', type: 'boolean', tooltip: 'View phone/email after a match accepts.' },
-  { label: 'Other-Community Profiles', key: 'crossCommunityVisibility', type: 'boolean', tooltip: 'See and be matched with profiles outside your own community.' },
-  { label: 'Community Filter', key: 'communityFilter', type: 'boolean', tooltip: 'Filter matches by community and sub-community.' },
-  { label: 'Super Interests / Month', key: 'superInterestsPerMonth', type: 'value', tooltip: 'Highlighted interests that appear first for the person you send them to (-1 for unlimited).' },
-  { label: 'All Sub-Communities Access', key: 'allSubCommunitiesAccess', type: 'boolean', tooltip: 'View profiles of members from all sub-communities within your main community and make your profile visible to them.' },
-  { label: 'View Profile Photos', key: 'viewProfilePhotos', type: 'boolean', tooltip: 'See clear photos of public profiles. Private profiles show their photo once your interest is accepted.' },
-];
-
-// Plans saved before "View Profile Photos" existed: on for paid plans, off for Free (as the server applies it)
-const featureValue = (plan, key) => (key === 'viewProfilePhotos'
-  ? plan.features?.viewProfilePhotos ?? plan.price > 0
-  : key === 'allSubCommunitiesAccess'
-    ? plan.price > 0 && plan.features?.[key] === true
-    : plan.features?.[key]);
-
-// ─── Main Component ───────────────────────────────────────────────────────────
 const MatrimonialSubscriptionPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -46,7 +24,6 @@ const MatrimonialSubscriptionPage = () => {
   const [isUpgrading, setIsUpgrading]   = useState(false);
   
   // Modals / Checkout State
-  const [infoModalContent, setInfoModalContent] = useState(null);
   const [showPremierSuccess, setShowPremierSuccess] = useState(false);
   const [premierRequesting, setPremierRequesting] = useState(false);
   const [premierRequestError, setPremierRequestError] = useState('');
@@ -69,6 +46,17 @@ const MatrimonialSubscriptionPage = () => {
   const [checkoutQuote, setCheckoutQuote] = useState(null);
   const [quoteMessage, setQuoteMessage] = useState('');
   const [quoting, setQuoting] = useState(false);
+  const [featureModal, setFeatureModal] = useState(null);
+
+  const openPlanFeatures = async (plan) => {
+    setFeatureModal({ planName: plan.name, features: [], loading: true, error: '' });
+    try {
+      const response = await matrimonialSubscriptionService.getPlanFeatures(plan._id);
+      setFeatureModal({ planName: response.data?.data?.planName || plan.name, features: response.data?.data?.features || [], loading: false, error: '' });
+    } catch (err) {
+      setFeatureModal({ planName: plan.name, features: [], loading: false, error: err.response?.data?.message || 'Could not load this plan’s features.' });
+    }
+  };
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); };
   const submitPremierRequest = async () => {
@@ -125,9 +113,9 @@ const MatrimonialSubscriptionPage = () => {
   useEffect(() => { loadData(); }, [loadData]);
 
   useEffect(() => {
-    document.body.style.overflow = showCheckout || showCancelModal || infoModalContent ? 'hidden' : '';
+    document.body.style.overflow = showCheckout || showCancelModal || featureModal ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
-  }, [showCheckout, showCancelModal, infoModalContent]);
+  }, [showCheckout, showCancelModal, featureModal]);
 
   // ─── Payment flow ─────────────────────────────────────────────────────────
   const handleConfirmPayment = async () => {
@@ -359,7 +347,7 @@ const MatrimonialSubscriptionPage = () => {
                 ) : (
                   <div className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden min-w-0">
                     {/* ─── PHONE: plan cards (tap to select) ─── */}
-                    <div id="mobile-plan-list" className="sm:hidden p-3 space-y-3 scroll-mt-4">
+                    <div id="mobile-plan-list" className="grid grid-cols-1 gap-3 p-3 scroll-mt-4 sm:grid-cols-2">
                       {[...plans]
                         .sort((a, b) => (b._id === selectedPlan?._id) - (a._id === selectedPlan?._id))
                         .map(plan => {
@@ -401,31 +389,8 @@ const MatrimonialSubscriptionPage = () => {
                                 )}
                               </div>
                             </div>
-                            <ul className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-1 gap-1.5">
-                              {plan.price > 0 && <li className="flex items-center justify-between gap-2 text-[12px] text-violet-700"><span className="font-semibold">Reward points after verified payment</span><span className="font-extrabold">{plan.rewardPoints || 0}</span></li>}
-                              {FEATURE_ROWS.map(feature => {
-                                const val = featureValue(plan, feature.key);
-                                const on = feature.type === 'value' ? !!val : !!val;
-                                return (
-                                  <li key={feature.key} className={`flex min-w-0 items-start justify-between gap-2 text-[12px] ${on ? 'text-slate-700' : 'text-slate-400'}`}>
-                                    <span className="min-w-0 flex-1 font-semibold [overflow-wrap:anywhere]">{feature.label}</span>
-                                    {feature.type === 'value' ? (
-                                      <span className="font-extrabold text-slate-800 shrink-0">{val === -1 ? 'Unlimited' : (val || '—')}</span>
-                                    ) : val ? (
-                                      <Check size={15} className="text-emerald-600 stroke-[3px] shrink-0" />
-                                    ) : (
-                                      <X size={14} className="text-slate-300 shrink-0" />
-                                    )}
-                                  </li>
-                                );
-                              })}
-                              {(plan.customFeatures || []).map((label, i) => (
-                                <li key={`custom-${i}`} className="flex min-w-0 items-start justify-between gap-2 text-[12px] text-slate-700">
-                                  <span className="min-w-0 flex-1 font-semibold [overflow-wrap:anywhere]">{label}</span>
-                                  <Check size={15} className="text-emerald-600 stroke-[3px] shrink-0" />
-                                </li>
-                              ))}
-                            </ul>
+                            {plan.price > 0 && <p className="mt-3 text-[11px] font-semibold text-violet-700">Reward points after verified payment: {plan.rewardPoints || 0}</p>}
+                            <button type="button" onClick={(e) => { e.stopPropagation(); openPlanFeatures(plan); }} className="mt-3 w-full rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50">View Plan Features</button>
 
                             {isSel && (
                               <div className="mt-4">
@@ -450,126 +415,6 @@ const MatrimonialSubscriptionPage = () => {
                       })}
                     </div>
 
-                    {/* ─── WIDER SCREENS: comparison table ─── */}
-                    <div className="hidden sm:block overflow-x-auto no-scrollbar pt-4">
-                      <div style={{ minWidth: `${Math.max(500, 150 + plans.length * 110)}px` }}>
-                        
-                        {/* ─── MATRIX HEADER ─── */}
-                        <div className="grid pb-2 border-b border-slate-100 text-center items-end"
-                             style={{ gridTemplateColumns: `minmax(0, 1fr) repeat(${plans.length}, minmax(0, 1fr))` }}>
-                          <div className="text-left pl-4 pb-1 text-[10px] font-bold text-slate-400 uppercase">Benefit</div>
-                          
-                          {plans.map(plan => (
-                            <div key={plan._id} onClick={() => setSelectedPlan(plan)}
-                              className={`flex flex-col items-center pb-2 cursor-pointer transition-all relative ${
-                                selectedPlan?._id === plan._id ? 'bg-rose-50/50 rounded-t-xl' : ''
-                              }`}
-                            >
-                              {(plan.badge || plan.isFeatured) && (
-                                <span className="absolute -top-3.5 bg-emerald-500 text-white text-[7px] font-black uppercase px-1.5 py-0.5 rounded-md tracking-wider shadow-sm"
-                                      style={{ backgroundColor: plan.themeColor || '#10b981' }}>
-                                  {plan.badge || 'Popular'}
-                                </span>
-                              )}
-                              <span className="text-xs font-extrabold text-slate-800 block mb-1 px-1 line-clamp-1" title={plan.name}>{plan.name}</span>
-                              <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all ${
-                                selectedPlan?._id === plan._id ? 'border-rose-600 bg-rose-600/10' : 'border-slate-300'
-                              }`}>
-                                {selectedPlan?._id === plan._id && <div className="w-2.5 h-2.5 rounded-full bg-rose-600" />}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* ─── MATRIX BODY ─── */}
-                        <div className="divide-y divide-slate-100 bg-white">
-                          {FEATURE_ROWS.map((feature, fIdx) => (
-                            <div key={fIdx} className="grid py-3.5 items-center text-center text-xs font-semibold"
-                                 style={{ gridTemplateColumns: `minmax(0, 1fr) repeat(${plans.length}, minmax(0, 1fr))` }}>
-                              
-                              {/* Label */}
-                              <div className="flex min-w-0 items-center gap-1 text-left pl-4 pr-1">
-                                <span className="min-w-0 text-[11px] leading-tight font-bold text-slate-700 [overflow-wrap:anywhere]">{feature.label}</span>
-                                <button onClick={() => setInfoModalContent({ title: feature.label, desc: feature.tooltip })}
-                                  className="text-slate-300 hover:text-slate-500 p-0.5 shrink-0">
-                                  <HelpCircle size={11} />
-                                </button>
-                              </div>
-
-                              {/* Values per plan */}
-                              {plans.map(plan => {
-                                const val = featureValue(plan, feature.key);
-                                const isSelected = selectedPlan?._id === plan._id;
-                                return (
-                                  <div key={plan._id} className={`py-1 ${isSelected ? 'bg-rose-50/50' : ''}`}>
-                                    {feature.type === 'value' ? (
-                                      <span className="font-extrabold text-slate-800">{val === -1 ? '∞' : (val || '—')}</span>
-                                    ) : val ? (
-                                      <Check size={14} className="mx-auto text-emerald-600 stroke-[3px]" />
-                                    ) : (
-                                      <span className="text-slate-300 font-bold">—</span>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          ))}
-
-                          {/* Admin-added extra features: one row per distinct label across all plans */}
-                          {[...new Set(plans.flatMap(p => p.customFeatures || []))].map(label => (
-                            <div key={`custom-${label}`} className="grid py-3.5 items-center text-center text-xs font-semibold"
-                                 style={{ gridTemplateColumns: `minmax(0, 1fr) repeat(${plans.length}, minmax(0, 1fr))` }}>
-                              <div className="min-w-0 text-left pl-4 pr-1">
-                                <span className="text-[11px] leading-tight font-bold text-slate-700 [overflow-wrap:anywhere]">{label}</span>
-                              </div>
-                              {plans.map(plan => (
-                                <div key={plan._id} className={`py-1 ${selectedPlan?._id === plan._id ? 'bg-rose-50/50' : ''}`}>
-                                  {(plan.customFeatures || []).includes(label) ? (
-                                    <Check size={14} className="mx-auto text-emerald-600 stroke-[3px]" />
-                                  ) : (
-                                    <span className="text-slate-300 font-bold">—</span>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* ─── MATRIX FOOTER (Checkout Button) ─── */}
-                    {selectedPlan && (
-                      <div className="hidden sm:block p-4 bg-rose-50/30 border-t border-rose-100">
-                        <div className="flex justify-between items-center mb-3 px-1">
-                          <div className="flex flex-col">
-                            <span className="text-xl font-black text-rose-600">₹{selectedPlan.price}</span>
-                            {selectedPlan.originalPrice > selectedPlan.price && (
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-xs text-slate-400 font-bold line-through">₹{selectedPlan.originalPrice}</span>
-                                <span className="text-[9px] font-black text-emerald-600 bg-emerald-100 px-1.5 rounded-full">
-                                  {Math.round(((selectedPlan.originalPrice - selectedPlan.price) / selectedPlan.originalPrice) * 100)}% OFF
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                          <div className="text-right">
-                            <span className="text-[10px] font-black uppercase text-slate-400 block">{selectedPlan.durationInDays} days</span>
-                            <span className="text-[9px] text-slate-500 font-semibold">{selectedPlan.name} Plan</span>
-                          </div>
-                        </div>
-                        {selectedPlan.price > 0 ? (
-                          <button onClick={() => { setPaymentMethod(paymentMethod || 'upi'); setShowCheckout(true); setCheckoutStep('select-method'); refreshCheckoutQuote(); }}
-                            className="w-full py-3.5 text-white rounded-xl text-[13.5px] font-extrabold shadow-md active:scale-95 transition-transform flex items-center justify-center gap-2"
-                            style={{ backgroundColor: selectedPlan.themeColor || '#f43f5e' }}>
-                            {isActive ? 'Confirm Upgrade' : 'Upgrade Now'}
-                          </button>
-                        ) : (
-                          <div className="w-full py-3.5 rounded-xl text-[13px] font-extrabold text-center bg-slate-100 text-slate-500">
-                            {isActive ? 'Included free with every account' : 'This is your current free plan'}
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
@@ -680,20 +525,7 @@ const MatrimonialSubscriptionPage = () => {
         </div>
       )}
 
-      {/* ─── INFO MODAL ─── */}
-      {infoModalContent && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-5">
-          <div className="absolute inset-0 bg-black/60" onClick={() => setInfoModalContent(null)} />
-          <div className="bg-white rounded-3xl p-6 z-10 shadow-2xl max-w-xs w-full text-center space-y-3 relative animate-scale-up">
-            <button onClick={() => setInfoModalContent(null)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><X size={16} /></button>
-            <div className="w-10 h-10 bg-indigo-50 rounded-full flex items-center justify-center mx-auto text-indigo-500 mb-2">
-              <Info size={20} />
-            </div>
-            <h3 className="text-[14px] font-black text-slate-900">{infoModalContent.title}</h3>
-            <p className="text-[11px] text-slate-500 font-semibold leading-relaxed">{infoModalContent.desc}</p>
-          </div>
-        </div>
-      )}
+      {featureModal && <PlanFeaturesModal {...featureModal} onClose={() => setFeatureModal(null)} />}
 
       {/* ─── PREMIER SUCCESS MODAL ─── */}
       {showPremierSuccess && (

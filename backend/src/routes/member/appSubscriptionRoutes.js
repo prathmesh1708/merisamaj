@@ -7,6 +7,7 @@ const subCtrl = require('../../controllers/matrimonial/matrimonialSubscriptionCo
 router.use((req, res, next) => { req.planType = 'app'; next(); });
 
 router.get('/plans',     subCtrl.listPlans);
+router.get('/plans/:planId/features', subCtrl.getPlanFeatures);
 router.get('/me',        subCtrl.getMySubscription);
 router.get('/overview',  subCtrl.getAppOverview);
 router.get('/permissions', subCtrl.getAppPermissions);

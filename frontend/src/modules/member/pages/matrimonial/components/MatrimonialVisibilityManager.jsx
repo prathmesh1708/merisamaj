@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { matrimonialProfileService, matrimonialSubscriptionService } from '../../../../../core/api/matrimonialService';
 import { useData } from '../../../context/DataProvider';
+import PlanFeaturesModal from '../../../components/common/PlanFeaturesModal';
 
 const toDateInputValue = (value) => {
   if (!value) return '';
@@ -143,6 +144,17 @@ export const MatrimonialVisibilityManager = ({
   const [realPlans, setRealPlans] = useState([]);
   const [realPlansLoading, setRealPlansLoading] = useState(false);
   const [myPlanName, setMyPlanName] = useState('');
+  const [planFeatureModal, setPlanFeatureModal] = useState(null);
+
+  const openPlanFeatures = async (plan) => {
+    setPlanFeatureModal({ planName: plan.name, features: [], loading: true, error: '' });
+    try {
+      const response = await matrimonialSubscriptionService.getPlanFeatures(plan._id);
+      setPlanFeatureModal({ planName: response.data?.data?.planName || plan.name, features: response.data?.data?.features || [], loading: false, error: '' });
+    } catch (err) {
+      setPlanFeatureModal({ planName: plan.name, features: [], loading: false, error: err.response?.data?.message || 'Could not load this plan’s features.' });
+    }
+  };
   useEffect(() => {
     if (currentScreen !== 'subscription') return;
     setRealPlansLoading(true);
@@ -2282,19 +2294,8 @@ export const MatrimonialVisibilityManager = ({
             <div className="py-12 text-center text-xs font-bold text-slate-400 bg-white rounded-3xl border border-slate-200">No plans available right now.</div>
           )}
           {realPlans.map(plan => {
-            const f = plan.features || {};
             const isCurrent = myPlanName && myPlanName === plan.name;
             const highlight = plan.isFeatured || !!plan.badge;
-            const perks = [
-              `${f.profileViewsPerDay === -1 ? 'Unlimited' : (f.profileViewsPerDay ?? 0)} profile views per day`,
-              `${f.interestLimit === -1 ? 'Unlimited' : (f.interestLimit ?? 0)} interests per month`,
-              f.chat && 'Chat with accepted matches',
-              f.advancedFilters && 'Advanced search filters',
-              f.visitorHistory && 'See who visited your profile',
-              f.contactDetailsAccess && 'View contact details after acceptance',
-              f.crossCommunityVisibility && 'See profiles from other communities',
-              f.communityFilter && 'Filter matches by community & sub-community'
-            ].filter(Boolean);
             return (
               <div key={plan._id}
                 className={`bg-white rounded-3xl p-5 relative overflow-hidden ${highlight ? 'border-2 shadow-md' : 'border border-slate-200 shadow-xs'}`}
@@ -2317,9 +2318,7 @@ export const MatrimonialVisibilityManager = ({
                     <span className="ml-2 text-xs text-slate-400 font-bold line-through">₹{Number(plan.originalPrice).toLocaleString('en-IN')}</span>
                   )}
                 </p>
-                <ul className="space-y-2 text-xs font-semibold text-slate-600 mb-4">
-                  {perks.map(p => <li key={p} className="flex items-center gap-2"><Check size={14} className="text-emerald-500 shrink-0" /> {p}</li>)}
-                </ul>
+                <button type="button" onClick={() => openPlanFeatures(plan)} className="mb-3 w-full rounded-xl border border-slate-200 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50">View Plan Features</button>
                 {isCurrent ? (
                   <div className="w-full py-2.5 rounded-xl text-xs font-black text-center bg-emerald-50 text-emerald-700 border border-emerald-200">Your current plan</div>
                 ) : plan.price > 0 ? (
@@ -2338,6 +2337,7 @@ export const MatrimonialVisibilityManager = ({
             );
           })}
         </div>
+        {planFeatureModal && <PlanFeaturesModal {...planFeatureModal} onClose={() => setPlanFeatureModal(null)} />}
       </div>
     );
   }

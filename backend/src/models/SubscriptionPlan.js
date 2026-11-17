@@ -12,6 +12,7 @@ const subscriptionPlanSchema = new mongoose.Schema(
     displayOrder:  { type: Number, default: 0 },               // For UI ordering
     isActive:      { type: Boolean, default: true },
     isFeatured:    { type: Boolean, default: false },          // Highlighted in UI
+    showExcludedFeatures: { type: Boolean, default: false },   // Show unavailable features in member plan details
     originalPrice: { 
       type: Number, 
       default: null,

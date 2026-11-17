@@ -432,6 +432,15 @@ exports.searchProfiles = async (req, res) => {
       verifiedOnly, withPhoto
     } = req.query;
 
+    if (typeof community === 'string' && community.trim() && req.userFeatures && !req.userFeatures.communityFilter) {
+      return res.status(403).json({
+        status: 'error',
+        code: 'PREMIUM_REQUIRED',
+        feature: 'communityFilter',
+        message: 'Filtering matches by community is not included in your plan.'
+      });
+    }
+
     // ─── Min Completion (env-driven) ─────────────────────────────────────────
     const completionRequired = await getMinCompletion();
 

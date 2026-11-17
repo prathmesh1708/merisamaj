@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useDraggableScroll } from '../../../../hooks/useDraggableScroll';
-import { Bell, Search, Calendar, Heart, Users, BookOpen, Briefcase, Vote, ChevronRight, MapPin, Shield, Crown, ImagePlus, ArrowRight, Plus, Sparkles, GraduationCap, HeartHandshake, Flame, User, Smile, Phone, MessageCircle, Clock, CalendarDays, Mail, Home, Wallet, Megaphone, X, Fingerprint, ScanFace } from 'lucide-react';
+import { Bell, Search, Calendar, Heart, Users, BookOpen, Briefcase, Vote, ChevronRight, MapPin, Shield, Crown, ArrowRight, Plus, Sparkles, GraduationCap, HeartHandshake, Flame, User, Smile, Phone, MessageCircle, Clock, CalendarDays, Mail, Home, Wallet, Megaphone, X, Fingerprint, ScanFace } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { Avatar } from '../../components/common/Avatar';
 import { Badge } from '../../components/common/Badge';
@@ -1749,13 +1749,6 @@ const HomePage = () => {
             </div>
           )}
 
-          {/* ─── MEDIA FAB ─── */}
-          <button
-            onClick={() => navigate('/member/social/create')}
-            className="fixed bottom-[100px] right-5 w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-primary to-brand-glow text-white flex items-center justify-center shadow-[0_8px_30px_rgba(124,58,237,0.35)] press-scale z-40 hover:scale-105 transition-transform animate-glow-pulse"
-          >
-            <ImagePlus size={23} />
-          </button>
         </>
       )}
 

@@ -37,6 +37,7 @@ export const matrimonialProfileService = {
 export const matrimonialSubscriptionService = {
   requestPremierCallback: () => axiosPrivate.post('/member/premier-callback'),
   listPlans:          ()     => axiosPrivate.get(`${BASE}/subscription/plans`),
+  getPlanFeatures:    (id)   => axiosPrivate.get(`${BASE}/subscription/plans/${id}/features`),
   getMySubscription:  ()     => axiosPrivate.get(`${BASE}/subscription/me`),
   getHistory:         ()     => axiosPrivate.get(`${BASE}/subscription/history`),
   getOverview:        ()     => axiosPrivate.get(`${BASE}/subscription/overview`),
@@ -135,6 +136,7 @@ export const successStoryService = {
 // ─── App membership plans (Social & more — not matrimony; open to every member) ─
 export const appSubscriptionService = {
   listPlans:          ()     => axiosPrivate.get('/member/app-subscription/plans'),
+  getPlanFeatures:    (id)   => axiosPrivate.get(`/member/app-subscription/plans/${id}/features`),
   getOverview:        ()     => axiosPrivate.get('/member/app-subscription/overview'),
   initiatePurchase:   (data) => axiosPrivate.post('/member/app-subscription/purchase', data),
   quotePurchase:      (data) => axiosPrivate.post('/member/app-subscription/purchase/quote', data),

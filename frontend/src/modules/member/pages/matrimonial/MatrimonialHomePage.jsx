@@ -16,6 +16,7 @@ import ReopenProfileSheet from './components/ReopenProfileSheet';
 import PlanLockScreen from './components/PlanLockScreen';
 import { MatrimonialVisibilityManager } from './components/MatrimonialVisibilityManager';
 import InterestsPage from './InterestsPage';
+import { useMatrimonialChat } from '../../../../hooks/useMatrimonialChat';
 
 const membershipRanks = {
   'Normal': 1,
@@ -33,6 +34,7 @@ const viewerRank = (membership, isSubscribed) =>
 const MatrimonialHomePage = () => {
   const navigate = useNavigate();
   const { currentUser, updateProfile, markModuleAsVisited } = useData();
+  const { onlineUsers = [] } = useMatrimonialChat(currentUser?._id || currentUser?.id);
   const {
     dashboard, dashboardLoading, fetchDashboard,
     myProfile, fetchMyProfile, isLocked,
@@ -55,6 +57,17 @@ const MatrimonialHomePage = () => {
   const receivedCount = dashboard?.interests?.received ?? receivedInterests.length;
   const acceptedCount = dashboard?.interests?.accepted ?? acceptedInterests.length;
   const sentCount     = dashboard?.interests?.sent     ?? sentInterests.length;
+  const onlineMatchInterests = useMemo(() => {
+    const onlineIds = new Set(onlineUsers.map((id) => String(id)));
+    const myId = String(currentUser?._id || currentUser?.id || '');
+    return acceptedInterests.filter((interest) => {
+      const senderId = String(interest.senderId?._id || interest.senderId || '');
+      const receiverId = String(interest.receiverId?._id || interest.receiverId || '');
+      const otherUser = senderId === myId ? interest.receiverId : interest.senderId;
+      const otherUserId = String(otherUser?._id || otherUser || '');
+      return otherUserId && onlineIds.has(otherUserId) && (senderId === myId || receiverId === myId);
+    });
+  }, [acceptedInterests, onlineUsers, currentUser?._id, currentUser?.id]);
 
   // ─── Activity Tab Data from real API ────────────────────────────────────
   const [activityInterestTab, setActivityInterestTab] = useState('Received');
@@ -1886,7 +1899,7 @@ const MatrimonialHomePage = () => {
               <div className="flex justify-between items-center mb-1">
                 <div className="flex items-center gap-2">
                   <h3 className="text-[15px] font-black text-slate-800">Your Matches</h3>
-                  <span className="text-[12px] font-bold text-slate-400">{acceptedInterests.length}</span>
+                  <span className="text-[12px] font-bold text-slate-400">{onlineMatchInterests.length}</span>
                 </div>
               </div>
               <p className="text-[11px] text-slate-400 font-semibold mb-4 leading-none">
@@ -1895,8 +1908,8 @@ const MatrimonialHomePage = () => {
 
               {/* Horizontal Scroll list */}
               <div className="flex gap-4 overflow-x-auto scrollbar-hide py-2" data-swipe-block="true">
-                {acceptedInterests.map((interest) => {
-                  const otherUser = interest.senderId?._id === currentUser?._id 
+                {onlineMatchInterests.map((interest) => {
+                  const otherUser = String(interest.senderId?._id || interest.senderId) === String(currentUser?._id || currentUser?.id)
                     ? interest.receiverId 
                     : interest.senderId;
                   if (!otherUser) return null;
@@ -1920,8 +1933,8 @@ const MatrimonialHomePage = () => {
                     </div>
                   );
                 })}
-                {acceptedInterests.length === 0 && (
-                  <p className="text-[12px] text-slate-400">No accepted matches yet.</p>
+                {onlineMatchInterests.length === 0 && (
+                  <p className="text-[12px] text-slate-400">No matches online right now.</p>
                 )}
               </div>
             </div>

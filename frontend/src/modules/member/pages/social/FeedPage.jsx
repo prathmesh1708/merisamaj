@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageCircle, MoreHorizontal, PlusCircle, Image as ImageIcon, Send, Search, Bell, Radio, Clock, Camera, Video, Calendar, Eye, Heart, Bookmark, Award, Sparkles, Smile, Phone, MapPin, Check, Gift, X, SlidersHorizontal, User, Settings, LogOut, Megaphone, HeartHandshake, AlertCircle, ChevronLeft, ChevronRight, Play, Volume2, VolumeX } from 'lucide-react';
+import { MessageCircle, MoreHorizontal, PlusCircle, Image as ImageIcon, Send, Search, Bell, Radio, Clock, Camera, Video, Calendar, Eye, Heart, Bookmark, Award, Sparkles, Smile, Phone, MapPin, Check, Gift, X, SlidersHorizontal, User, Settings, LogOut, Megaphone, HeartHandshake, AlertCircle, ChevronLeft, ChevronRight, Play, Volume2, VolumeX, Repeat2 } from 'lucide-react';
 
 const InstagramIcon = (props) => (
   <svg
@@ -735,11 +735,24 @@ const MultiImageGrid = ({ images, onClick }) => {
   );
 };
 
+const formatEngagementCount = (value = 0) => {
+  const count = Number(value) || 0;
+  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
+  if (count >= 1_000) return `${(count / 1_000).toFixed(1).replace(/\.0$/, '')}K`;
+  return count.toLocaleString();
+};
+
 const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDeleted }) => {
   const navigate = useNavigate();
-  const { togglePostLike, togglePostSave, members, admins, currentUser } = useData();
+  const { togglePostLike, togglePostSave, members, admins, currentUser, fetchPostComments, addPostComment, recordPostView } = useData();
   const styles = getCategoryStyles(post.category, lang);
   const [doubleHeart, setDoubleHeart] = useState(false);
+  const [showComments, setShowComments] = useState(false);
+  const [commentText, setCommentText] = useState('');
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [showFullCaption, setShowFullCaption] = useState(false);
+  const postElementRef = React.useRef(null);
+  const viewRecordedRef = React.useRef(false);
 
   // Action Menu & Edit / Delete States
   const [showMenu, setShowMenu] = useState(false);
@@ -754,6 +767,42 @@ const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDelete
   const isHead = currentUser?.role === 'head' && (currentUser?.communityId === post.communityId || currentUser?.community === post.community);
   const canDelete = isAuthor || isHead || isAdmin;
   const canEdit = isAuthor;
+
+  useEffect(() => {
+    const element = postElementRef.current;
+    if (!element || viewRecordedRef.current || !recordPostView) return undefined;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && entry.intersectionRatio >= 0.15 && !viewRecordedRef.current) {
+        viewRecordedRef.current = true;
+        recordPostView(post.id || post._id);
+        observer.disconnect();
+      }
+    }, { threshold: [0.15] });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [post.id, post._id, recordPostView]);
+
+  const toggleComments = async () => {
+    const willOpen = !showComments;
+    setShowComments(willOpen);
+    if (willOpen && !post.commentsList) {
+      setLoadingComments(true);
+      await fetchPostComments(post.id || post._id);
+      setLoadingComments(false);
+    }
+  };
+
+  const submitComment = async (event) => {
+    event.preventDefault();
+    const text = commentText.trim();
+    if (!text) return;
+    setCommentText('');
+    try {
+      await addPostComment(post.id || post._id, text);
+    } catch {
+      setCommentText(text);
+    }
+  };
 
   const handleSaveEdit = async () => {
     if (!editContent.trim()) return;
@@ -818,7 +867,8 @@ const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDelete
   const getSingleImageUrl = (img) => imagePlaceholders[img] || img;
 
   return (
-    <div 
+    <div
+      ref={postElementRef}
       className="bg-white border-b border-slate-150/60 transition-all duration-300 relative overflow-hidden"
       style={{ animationDelay: `${index * 80}ms` }}
     >
@@ -967,7 +1017,7 @@ const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDelete
           <h3 className="text-[16px] font-extrabold text-slate-900 mb-1.5 leading-snug tracking-tight">{post.title}</h3>
         )}
         <p className="text-[13.5px] text-slate-600 leading-relaxed font-medium">
-          {post.content && post.content.length > 260 ? (
+              {post.content && post.content.length > 260 && !showFullCaption ? (
             <span>
               {post.content.slice(0, 260).trim().replace(/[\r\n]+/g, ' ')}
               <span className="text-slate-400 font-bold ml-1">... </span>
@@ -975,7 +1025,7 @@ const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDelete
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  navigate(`/member/social/${post.id || post._id}`);
+                  setShowFullCaption(true);
                 }}
                 className="inline text-blue-600 hover:text-blue-700 font-extrabold text-[13px] ml-1 cursor-pointer hover:underline"
               >
@@ -1026,11 +1076,11 @@ const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDelete
       <div onClick={handleDoubleTap} className="relative select-none">
         {post.images && post.images.length > 0 ? (
           <div className="px-0">
-            <MultiImageGrid images={post.images} onClick={() => navigate(`/member/social/${post.id}`)} />
+            <MultiImageGrid images={post.images} />
           </div>
         ) : post.image ? (
-          <div className="mb-3 bg-slate-950/5 flex items-center justify-center cursor-pointer overflow-hidden relative" onClick={() => navigate(`/member/social/${post.id}`)}>
-            <RenderMedia url={post.image} onClick={() => navigate(`/member/social/${post.id}`)} isSingle={true} />
+          <div className="mb-3 bg-slate-950/5 flex items-center justify-center overflow-hidden relative">
+            <RenderMedia url={post.image} isSingle={true} />
           </div>
         ) : (() => {
           const match = post.content?.match(/(https?:\/\/[^\s]+)/g);
@@ -1039,7 +1089,7 @@ const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDelete
               if (extractYouTubeVideoId(u)) {
                 return (
                   <div className="mb-3 bg-slate-950/5 flex items-center justify-center overflow-hidden relative">
-                    <RenderMedia url={u} onClick={() => navigate(`/member/social/${post.id}`)} isSingle={true} />
+                    <RenderMedia url={u} isSingle={true} />
                   </div>
                 );
               }
@@ -1064,31 +1114,42 @@ const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDelete
       </div>
 
       {/* Action Icons Row (Instagram style) */}
-      <div className="px-2 pt-1 flex items-center justify-between">
+      <div className="px-4 pt-2 pb-1 flex items-center justify-between">
         <div className="flex items-center">
           <motion.button 
             whileTap={{ scale: 0.85 }}
             onClick={(e) => { e.stopPropagation(); togglePostLike(post.id); }}
-            className={`p-2 transition-colors ${post.isLiked ? 'text-red-500' : 'text-slate-800 hover:text-slate-500'}`}
+            className={`flex items-center gap-1.5 pr-3 text-[14px] font-medium transition-colors ${post.isLiked ? 'text-red-500' : 'text-slate-900 hover:text-slate-500'}`}
             aria-label={localT[lang].like}
           >
-            <Heart size={24} strokeWidth={2} className={post.isLiked ? 'fill-red-500 text-red-500' : ''} />
+            <Heart size={27} strokeWidth={2} className={post.isLiked ? 'fill-red-500 text-red-500' : ''} />
+            <span>{formatEngagementCount(post.likes || 0)}</span>
           </motion.button>
           <motion.button 
             whileTap={{ scale: 0.85 }}
-            onClick={(e) => { e.stopPropagation(); navigate(`/member/social/${post.id}`); }}
-            className="p-2 text-slate-800 hover:text-slate-500 transition-colors"
+            onClick={(e) => { e.stopPropagation(); toggleComments(); }}
+            className="flex items-center gap-1.5 px-2 text-[14px] font-medium text-slate-900 hover:text-slate-500 transition-colors"
             aria-label={localT[lang].comment}
           >
-            <MessageCircle size={24} strokeWidth={2} className="-scale-x-100" />
+            <MessageCircle size={27} strokeWidth={2} className="-scale-x-100" />
+            <span>{formatEngagementCount(post.comments || 0)}</span>
           </motion.button>
           <motion.button 
             whileTap={{ scale: 0.85 }}
             onClick={(e) => { e.stopPropagation(); onShareClick(post); }}
-            className="p-2 text-slate-800 hover:text-slate-500 transition-colors"
+            className="flex items-center gap-1.5 px-2 text-[14px] font-medium text-slate-900 hover:text-slate-500 transition-colors"
+            aria-label="Repost"
+          >
+            <Repeat2 size={27} strokeWidth={2} />
+            <span>{formatEngagementCount(post.shares || 0)}</span>
+          </motion.button>
+          <motion.button
+            whileTap={{ scale: 0.85 }}
+            onClick={(e) => { e.stopPropagation(); onShareClick(post); }}
+            className="p-2 text-slate-900 hover:text-slate-500 transition-colors"
             aria-label={localT[lang].share}
           >
-            <Send size={23} strokeWidth={2} />
+            <Send size={27} strokeWidth={2} />
           </motion.button>
         </div>
         <motion.button 
@@ -1101,33 +1162,41 @@ const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDelete
         </motion.button>
       </div>
 
-      {/* Likes, Views & Comments summary */}
-      {(() => {
-        const likeCount = post.likes || 0;
-        const commentCount = post.commentsList ? post.commentsList.length : (post.comments || 0);
-        const views = post.views || 0;
-        return (
-          <div className="px-4 pb-3 space-y-0.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[13.5px] font-bold text-slate-900">
-                {likeCount.toLocaleString()} {likeCount === 1 ? 'like' : localT[lang].likes}
-              </span>
-              <span className="flex items-center gap-1 text-[11.5px] font-semibold text-slate-400">
-                <Eye size={13} />
-                {views >= 1000 ? (views / 1000).toFixed(1) + 'K' : views} {localT[lang].views}
-              </span>
-            </div>
-            {commentCount > 0 && (
-              <button
-                onClick={(e) => { e.stopPropagation(); navigate(`/member/social/${post.id}`); }}
-                className="block text-[13px] font-medium text-slate-400 hover:text-slate-500"
-              >
-                {commentCount === 1 ? 'View 1 comment' : `View all ${commentCount} ${localT[lang].comments}`}
-              </button>
-            )}
+      <div className="px-4 pb-3 text-[12px] font-semibold text-slate-400">
+        <Eye size={13} className="inline mr-1" />{formatEngagementCount(post.views || 0)} {localT[lang].views}
+      </div>
+
+      {showComments && (
+        <section className="border-t border-slate-100 bg-slate-50 px-4 py-3" aria-label="Post comments">
+          <div className="mb-3 flex items-center justify-between">
+            <h4 className="text-sm font-bold text-slate-800">Comments <span className="text-slate-400">{formatEngagementCount(post.comments || 0)}</span></h4>
+            <button type="button" onClick={() => setShowComments(false)} className="text-xs font-semibold text-slate-500">Close</button>
           </div>
-        );
-      })()}
+          {loadingComments ? (
+            <p className="py-3 text-sm text-slate-400">Loading comments…</p>
+          ) : (
+            <div className="max-h-64 space-y-3 overflow-y-auto">
+              {(post.commentsList || []).map((comment) => (
+                <div key={comment.id || comment._id} className="flex gap-2.5">
+                  <Avatar initials={comment.author?.initials || 'M'} size="sm" color="bg-indigo-50 text-indigo-700" />
+                  <div className="min-w-0 flex-1 rounded-2xl bg-white px-3 py-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-xs font-bold text-slate-800">{comment.author?.name || 'Member'}</span>
+                      <span className="shrink-0 text-[10px] text-slate-400">{comment.time || 'Recently'}</span>
+                    </div>
+                    <p className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-700">{comment.text}</p>
+                  </div>
+                </div>
+              ))}
+              {!post.commentsList?.length && <p className="py-3 text-sm text-slate-400">No comments yet.</p>}
+            </div>
+          )}
+          <form onSubmit={submitComment} className="mt-3 flex items-center gap-2">
+            <input value={commentText} onChange={(event) => setCommentText(event.target.value)} placeholder="Add a comment…" className="min-w-0 flex-1 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-indigo-300" />
+            <button type="submit" disabled={!commentText.trim()} className="rounded-full bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-40">Post</button>
+          </form>
+        </section>
+      )}
     </div>
   );
 };

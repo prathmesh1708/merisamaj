@@ -6,6 +6,7 @@ const EMPTY_PLAN = {
   name: '', price: 0, originalPrice: 0, durationInDays: 30, rewardPoints: 0, displayOrder: 10,
   description: '', isActive: true, isFeatured: false,
   badge: '', themeColor: '#f43f5e',
+  showExcludedFeatures: false,
   features: {
     profileViewsPerDay: 10,
     interestLimit: 5,
@@ -168,6 +169,10 @@ const PlanModal = ({ plan, planType, onClose, onSaved }) => {
             <textarea value={form.description} rows={2} onChange={e => set('description', e.target.value)}
               className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-rose-500/50 resize-none" />
           </div>
+          <label className="col-span-2 flex items-start gap-3 rounded-xl border border-slate-200 p-3 cursor-pointer">
+            <input type="checkbox" checked={Boolean(form.showExcludedFeatures)} onChange={e => set('showExcludedFeatures', e.target.checked)} className="mt-0.5 accent-rose-600" />
+            <span><span className="block text-xs font-bold text-slate-700">Show unavailable features to members</span><span className="block mt-0.5 text-[10px] text-slate-500">Off by default. When enabled, excluded features appear with a grey cross in this plan’s details.</span></span>
+          </label>
         </div>
 
         {isApp && (

@@ -1518,7 +1518,7 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
       </div>
 
       {/* ── INPUT AREA (WhatsApp Layout) ── */}
-      <div className="bg-white/90 backdrop-blur-xl border-t border-purple-100/40 px-3 pt-2 flex flex-col gap-1.5 z-20 shrink-0 select-none shadow-[0_-2px_12px_rgba(124,58,237,0.03)]" style={{ paddingBottom: 'calc(var(--spacing-safe-bottom) + 8px)' }} onClick={e => e.stopPropagation()}>
+      <div className="bg-white/90 backdrop-blur-xl border-t border-purple-100/40 px-3 pt-2 flex flex-col gap-1.5 z-20 shrink-0 select-none shadow-[0_-2px_12px_rgba(124,58,237,0.03)]" style={{ paddingBottom: 'calc(var(--spacing-safe-bottom) + 8px)', paddingRight: 'max(0.75rem, env(safe-area-inset-right))' }} onClick={e => e.stopPropagation()}>
 
         {/* Editing message preview banner */}
         {editingMessage && (
@@ -1606,9 +1606,9 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
             onCancel={() => setIsRecordingVoice(false)}
           />
         ) : (
-          <div className="flex items-center gap-2">
+          <div className="flex w-full min-w-0 items-center gap-2">
             {/* Input Capsule with Emoji, Paperclip, Textarea & Camera */}
-            <div className="flex-1 bg-slate-100/90 border border-slate-200/80 rounded-2xl min-h-[46px] flex items-center py-1 px-2.5 focus-within:bg-white focus-within:border-purple-500/50 transition-all shadow-2xs">
+            <div className="flex-1 min-w-0 bg-slate-100/90 border border-slate-200/80 rounded-2xl min-h-[46px] flex items-center py-1 px-2.5 focus-within:bg-white focus-within:border-purple-500/50 transition-all shadow-2xs">
               {/* Emoji button */}
               <button
                 type="button"
@@ -1633,7 +1633,7 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
                 rows={1}
                 autoComplete="off"
                 autoCorrect="on"
-                className="flex-1 bg-transparent py-2 px-2 text-[14px] font-medium focus:outline-none text-slate-800 placeholder-slate-400 resize-none max-h-20"
+                className="flex-1 min-w-0 bg-transparent py-2 px-2 text-[14px] font-medium focus:outline-none text-slate-800 placeholder-slate-400 resize-none max-h-20"
               />
 
               {/* Attachment Paperclip button */}

@@ -216,7 +216,7 @@ const CreatePostPage = () => {
   const publishStartedRef = useRef(false);
 
   const handlePublish = async () => {
-    const mediaUrls = attachments.map(att => att.url);
+    const mediaUrls = attachments.map(att => ({ url: att.url, type: att.type }));
 
     if (activeTab === 'post') {
       if (!caption.trim() && mediaUrls.length === 0) return;
@@ -231,7 +231,7 @@ const CreatePostPage = () => {
         audience: 'all',
         likes: [],
         comments: [],
-        images: mediaUrls, // arrays of images/videos/links are stored here
+        images: mediaUrls, // preserve media type so the server uploads videos as videos
         feedType,
         isPinned,
       };

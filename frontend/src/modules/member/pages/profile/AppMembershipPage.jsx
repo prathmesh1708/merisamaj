@@ -1,26 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, Crown, Loader2, BadgeCheck, Pin, X, CalendarDays, ImagePlus, Clapperboard, Briefcase } from 'lucide-react';
+import { ArrowLeft, Crown, Loader2, X, CalendarDays } from 'lucide-react';
 import { appSubscriptionService } from '../../../../core/api/matrimonialService';
 import { loadRazorpayScript } from '../../../../core/utils/razorpayLoader';
 import { authService } from '../../../../core/auth/authService';
 import { useAuth } from '../../../../core/auth/useAuth';
+import PlanFeaturesModal from '../../components/common/PlanFeaturesModal';
 
 const formatDate = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
-
-// Perks of an App plan, in the words members see
-const perksOf = (features = {}, customFeatures = []) => {
-  const perks = [];
-  if (features.proBadge !== false) perks.push({ icon: BadgeCheck, text: '✓ PRO badge on your profile & posts' });
-  if (features.pinPostsPerMonth === -1) perks.push({ icon: Pin, text: 'Pin unlimited posts to the top of the feed' });
-  else if (features.pinPostsPerMonth > 0) perks.push({ icon: Pin, text: `Pin ${features.pinPostsPerMonth} post${features.pinPostsPerMonth === 1 ? '' : 's'} a month to the top of the feed (24 h)` });
-  // Missing = allowed (plans saved before these switches existed)
-  if (features.socialPosts !== false) perks.push({ icon: ImagePlus, text: 'Create social posts' });
-  if (features.socialStories !== false) perks.push({ icon: Clapperboard, text: 'Share social stories' });
-  if (features.professionalListing !== false) perks.push({ icon: Briefcase, text: 'Add your professional info, business & services' });
-  (customFeatures || []).forEach(text => perks.push({ icon: Check, text }));
-  return perks;
-};
 
 const STATE_LABEL = {
   active: 'Active', grace: 'Active', cancelled: 'Cancelled', expired: 'Expired',
@@ -41,6 +28,7 @@ const AppMembershipPage = () => {
   const [checkoutError, setCheckoutError] = useState('');
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [toast, setToast]         = useState('');
+  const [featureModal, setFeatureModal] = useState(null);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); };
 
@@ -74,6 +62,16 @@ const AppMembershipPage = () => {
 
   const handleBuy = async (plan) => {
     setCheckoutPlan(plan); setCheckoutCode(''); setCheckoutPoints(0); setCheckoutQuote(null); setCheckoutError('');
+  };
+
+  const openPlanFeatures = async (plan) => {
+    setFeatureModal({ planName: plan.name, features: [], loading: true, error: '' });
+    try {
+      const response = await appSubscriptionService.getPlanFeatures(plan._id);
+      setFeatureModal({ planName: response.data?.data?.planName || plan.name, features: response.data?.data?.features || [], loading: false, error: '' });
+    } catch (err) {
+      setFeatureModal({ planName: plan.name, features: [], loading: false, error: err.response?.data?.message || 'Could not load this plan’s features.' });
+    }
   };
 
   const applyCheckoutQuote = async () => {
@@ -181,11 +179,6 @@ const AppMembershipPage = () => {
               <div className="h-1.5 bg-white/25 rounded-full mt-2 overflow-hidden">
                 <div className="h-full bg-white rounded-full" style={{ width: `${Math.min(100, Math.round((current.daysLeft / current.totalDays) * 100))}%` }} />
               </div>
-              <ul className="mt-3 space-y-1">
-                {perksOf(current.features, current.features?.customFeatures).map(({ icon: Icon, text }, i) => (
-                  <li key={i} className="flex items-start gap-1.5 text-[11.5px] font-semibold"><Icon size={13} className="mt-0.5 shrink-0" /> {text}</li>
-                ))}
-              </ul>
               {current.features?.pinPostsPerMonth > 0 && (
                 <p className="text-[10.5px] text-white/85 mt-2">Pins used this month: {current.pinsUsedThisMonth} of {current.features.pinPostsPerMonth}</p>
               )}
@@ -225,13 +218,7 @@ const AppMembershipPage = () => {
                     <span className="text-[11px] text-slate-500">/ {plan.durationInDays} days</span>
                   </div>
                   {plan.rewardPoints > 0 && <p className="mt-1 text-[11px] font-bold text-violet-700">Earn {plan.rewardPoints} points after payment is verified</p>}
-                  <ul className="mt-2.5 space-y-1">
-                    {perksOf(plan.appFeatures, plan.customFeatures).map(({ icon: Icon, text }, i) => (
-                      <li key={i} className="flex items-start gap-1.5 text-[11.5px] text-slate-600 font-medium">
-                        <Icon size={13} className="mt-0.5 shrink-0" style={{ color }} /> {text}
-                      </li>
-                    ))}
-                  </ul>
+                  <button type="button" onClick={() => openPlanFeatures(plan)} className="mt-3 w-full rounded-xl border border-slate-200 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50">View Plan Features</button>
                   <button
                     onClick={() => handleBuy(plan)}
                     disabled={Boolean(buyingId) || Boolean(current)}
@@ -285,6 +272,7 @@ const AppMembershipPage = () => {
         </div>
       )}
       {checkoutPlan && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4"><div className="w-full max-w-md space-y-3 rounded-2xl bg-white p-5 shadow-xl"><div className="flex justify-between"><h3 className="font-black">Checkout · {checkoutPlan.name}</h3><button onClick={() => setCheckoutPlan(null)} aria-label="Close">×</button></div><div className="flex gap-2"><input value={checkoutCode} onChange={e => setCheckoutCode(e.target.value.toUpperCase())} placeholder="Referral / discount code" className="min-w-0 flex-1 rounded-lg border p-2 text-sm"/><button onClick={applyCheckoutQuote} className="rounded-lg bg-violet-600 px-3 text-sm font-bold text-white">Apply</button></div><div className="flex items-center gap-2"><label className="text-sm">Points to redeem</label><input type="number" min="0" value={checkoutPoints} onChange={e => setCheckoutPoints(e.target.value)} className="w-28 rounded-lg border p-2 text-sm"/><button onClick={applyCheckoutQuote} className="text-sm font-bold text-violet-700">Apply points</button></div>{checkoutError && <p className="text-xs text-slate-600">{checkoutError}</p>}{checkoutQuote && <div className="space-y-1 rounded-lg bg-slate-50 p-3 text-sm"><p>Original: ₹{checkoutQuote.listPrice}</p><p>Code discount: −₹{checkoutQuote.codeDiscount}</p><p>Points discount ({checkoutQuote.pointsRedeemed}): −₹{checkoutQuote.pointsDiscount}</p><p className="font-black">Payable: ₹{checkoutQuote.finalAmount}</p><p className="text-xs text-slate-500">Available points: {checkoutQuote.pointsAvailable}</p></div>}<button disabled={Boolean(buyingId)} onClick={handleConfirmBuy} className="w-full rounded-xl bg-violet-600 py-3 font-bold text-white disabled:opacity-50">{buyingId ? 'Opening payment…' : `Pay ₹${checkoutQuote?.finalAmount ?? checkoutPlan.price}`}</button></div></div>}
+      {featureModal && <PlanFeaturesModal {...featureModal} onClose={() => setFeatureModal(null)} />}
     </div>
   );
 };

@@ -1333,6 +1333,7 @@ export const DataProvider = ({ children }) => {
           images: p.media?.map(m => m.url) || [],
           likes: p.likesCount || 0,
           comments: p.commentsCount || 0,
+          shares: p.sharesCount || 0,
           views: p.viewsCount || 0
         }));
 
@@ -1406,7 +1407,7 @@ export const DataProvider = ({ children }) => {
 
   const createPost = async (postContent, images = [], options = {}) => {
     try {
-      const media = images.map(url => ({ url }));
+      const media = images.map(item => typeof item === 'string' ? { url: item } : item);
       const res = await socialService.createPost({
         content: postContent,
         category: options.category || 'Notice',
@@ -1434,6 +1435,7 @@ export const DataProvider = ({ children }) => {
         images: p.media?.map(m => m.url) || images || [],
         likes: p.likesCount || 0,
         comments: p.commentsCount || 0,
+        shares: p.sharesCount || 0,
         views: p.viewsCount || 0
       });
 

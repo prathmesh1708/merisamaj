@@ -44,6 +44,17 @@ exports.listPlans = async (req, res) => {
   }
 };
 
+exports.getPlanFeatures = async (req, res) => {
+  try {
+    const plan = await SubscriptionPlan.findOne({ _id: req.params.planId, isActive: true });
+    if (!plan || !planMatches(plan, req)) return res.status(404).json({ status: 'error', message: 'Plan not found.' });
+    const { buildPlanFeatures } = require('../../services/subscriptionPlanFeatures');
+    res.json({ status: 'success', data: { planId: plan._id, planName: plan.name, features: buildPlanFeatures(plan) } });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
 // ─── What the member may create (posts, stories, professional listing) ──────────
 // @route GET /api/v1/member/app-subscription/permissions
 exports.getAppPermissions = async (req, res) => {
