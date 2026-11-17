@@ -13,6 +13,7 @@ import { useData } from '../../context/DataProvider';
 import { usePostUploads, previewFor } from '../../context/PostUploadContext';
 import { useAppPermissions } from '../../hooks/useAppPermissions';
 import { PlanLockedNotice } from '../../components/common/PlanLockedNotice';
+import socialService from '../../../../core/api/socialService';
 
 const Instagram = (props) => (
   <svg
@@ -166,8 +167,7 @@ const CreatePostPage = () => {
     e.target.value = '';
   };
 
-  // Stories keep the video inside the story record (MongoDB caps a record at 16 MB);
-  // posts upload it to cloud storage but still travel in one request.
+  // Stories keep their video in the story flow; post media uploads directly to Cloudinary.
   const MAX_VIDEO_MB = { story: 12, post: 35 };
 
   // Handle uploaded files (images, videos, gifs)
@@ -216,10 +216,8 @@ const CreatePostPage = () => {
   const publishStartedRef = useRef(false);
 
   const handlePublish = async () => {
-    const mediaUrls = attachments.map(att => ({ url: att.url, type: att.type }));
-
     if (activeTab === 'post') {
-      if (!caption.trim() && mediaUrls.length === 0) return;
+      if (!caption.trim() && attachments.length === 0) return;
       // A quick double tap must not start the same upload twice
       if (publishStartedRef.current) return;
       publishStartedRef.current = true;
@@ -231,17 +229,41 @@ const CreatePostPage = () => {
         audience: 'all',
         likes: [],
         comments: [],
-        images: mediaUrls, // preserve media type so the server uploads videos as videos
         feedType,
         isPinned,
       };
 
       // Upload continues in the background (Instagram style); failures show Retry in the feed banner
       const content = caption.trim() || "Shared media";
+      const uploadedMedia = new Array(attachments.length);
+      const totalBytes = attachments.reduce((sum, item) => sum + (item.file?.size || 0), 0);
       startUpload({
         kind: 'post',
         preview: attachments[0] ? previewFor(attachments[0].url, attachments[0].type) : null,
-        run: (onUploadProgress) => createPost(content, mediaUrls, { ...payloadOptions, onUploadProgress }),
+        run: async (onUploadProgress) => {
+          let completedBytes = uploadedMedia.reduce((sum, item, index) => sum + (item ? (attachments[index].file?.size || 0) : 0), 0);
+          for (let index = 0; index < attachments.length; index += 1) {
+            if (uploadedMedia[index]) continue;
+            const attachment = attachments[index];
+            if (!attachment.file) {
+              uploadedMedia[index] = { url: attachment.url, type: attachment.type };
+              continue;
+            }
+            const fileSize = attachment.file.size || 0;
+            uploadedMedia[index] = await socialService.uploadPostMedia(
+              attachment.file,
+              attachment.type,
+              (event) => onUploadProgress({
+                loaded: completedBytes + Math.min(event.loaded || 0, fileSize),
+                total: totalBytes || 1
+              })
+            );
+            completedBytes += fileSize;
+            onUploadProgress({ loaded: completedBytes, total: totalBytes || 1 });
+          }
+          if (!totalBytes) onUploadProgress({ loaded: 1, total: 1 });
+          return createPost(content, uploadedMedia, payloadOptions);
+        },
         onDone: (result) => { if (result?.pinMessage) alert(result.pinMessage); }
       });
       navigate(-1);

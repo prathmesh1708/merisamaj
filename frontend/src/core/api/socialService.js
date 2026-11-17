@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { axiosPrivate } from './axiosPrivate';
 
 const API_URL = '/member/social';
@@ -20,6 +21,34 @@ const getPostById = async (id) => {
 const createPost = async (postData, config = {}) => {
   const response = await axiosPrivate.post(`${API_URL}/posts`, postData, config);
   return response.data;
+};
+
+const uploadPostMedia = async (file, type, onUploadProgress) => {
+  const signed = await axiosPrivate.post(`${API_URL}/uploads/signature`);
+  const { cloudName, apiKey, timestamp, folder, signature } = signed.data?.data || {};
+  if (!cloudName || !apiKey || !timestamp || !signature) throw new Error('The server could not prepare this media upload.');
+
+  const resourceType = type === 'video' ? 'video' : 'image';
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('api_key', apiKey);
+  formData.append('timestamp', String(timestamp));
+  formData.append('folder', folder);
+  formData.append('signature', signature);
+
+  try {
+    const response = await axios.post(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, formData, { onUploadProgress });
+    return {
+      url: response.data.secure_url,
+      type: resourceType,
+      provider: 'upload',
+      width: response.data.width,
+      height: response.data.height,
+      duration: response.data.duration
+    };
+  } catch (error) {
+    throw new Error(error.response?.data?.error?.message || error.response?.data?.message || error.message || 'Media upload failed.');
+  }
 };
 
 const toggleLike = async (id) => {
@@ -250,6 +279,7 @@ const socialService = {
   getPosts,
   getPostById,
   createPost,
+  uploadPostMedia,
   updatePost,
   deletePost,
   toggleLike,

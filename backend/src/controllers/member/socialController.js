@@ -513,6 +513,23 @@ exports.createPost = async (req, res) => {
   }
 };
 
+exports.createPostMediaUploadSignature = async (req, res) => {
+  try {
+    const { cloudName, apiKey, apiSecret } = config.cloudinary;
+    if (!cloudName || !apiKey || !apiSecret) {
+      return res.status(503).json({ success: false, message: 'Media uploads are not configured on the server.' });
+    }
+
+    const timestamp = Math.floor(Date.now() / 1000);
+    const folder = 'merisamaj_social';
+    const signature = cloudinary.utils.api_sign_request({ folder, timestamp }, apiSecret);
+    return res.json({ success: true, data: { cloudName, apiKey, timestamp, folder, signature } });
+  } catch (error) {
+    console.error('createPostMediaUploadSignature error:', error.message);
+    return res.status(500).json({ success: false, message: 'Could not prepare the media upload.' });
+  }
+};
+
 // @desc    Toggle unique like on a post
 // @route   POST /api/v1/member/social/posts/:id/like
 // @access  Private

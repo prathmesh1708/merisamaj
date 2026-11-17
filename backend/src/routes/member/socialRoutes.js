@@ -18,6 +18,8 @@ router.get('/posts/liked', socialController.getMyLikedPosts);
 // ─────────────────────────────────────────────
 // POSTS & FEEDS ROUTES
 // ─────────────────────────────────────────────
+router.post('/uploads/signature', requireAppPermission('socialPosts'), socialController.createPostMediaUploadSignature);
+
 router.route('/posts')
   .get(socialController.getPosts)
   .post(requireAppPermission('socialPosts'), socialController.createPost);

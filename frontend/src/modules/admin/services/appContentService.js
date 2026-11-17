@@ -12,7 +12,31 @@ export const appContentService = {
 
   // Update Hero Banner
   updateHeroBanner: async (data, communityId, subCommunity = '') => {
-    const payload = { ...data, communityId, subCommunity };
+    let payload = { ...data, communityId, subCommunity };
+    if (typeof data.backgroundImage === 'string' && data.backgroundImage.startsWith('data:image/')) {
+      let imageBlob = await fetch(data.backgroundImage).then((response) => response.blob());
+      if (typeof createImageBitmap === 'function') {
+        try {
+          const bitmap = await createImageBitmap(imageBlob);
+          const scale = Math.min(1, 1920 / Math.max(bitmap.width, bitmap.height));
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+          canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+          canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+          bitmap.close();
+          const compressed = await new Promise((resolve) => canvas.toBlob(resolve, 'image/webp', 0.82));
+          if (compressed && compressed.size < imageBlob.size) imageBlob = compressed;
+        } catch {
+          // Keep the original file if this browser cannot decode or re-encode it.
+        }
+      }
+      payload = new FormData();
+      const extension = imageBlob.type === 'image/webp' ? 'webp' : imageBlob.type.split('/')[1] || 'jpg';
+      payload.append('bannerImage', imageBlob, `hero-banner.${extension}`);
+      Object.entries({ ...data, communityId, subCommunity }).forEach(([key, value]) => {
+        if (key !== 'backgroundImage' && value !== undefined && value !== null) payload.append(key, String(value));
+      });
+    }
     const res = await axiosPrivate.put(`${BASE_URL}/hero`, payload);
     return res.data;
   },

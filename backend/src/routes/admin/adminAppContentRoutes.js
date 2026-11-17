@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const adminAppContentController = require('../../controllers/admin/adminAppContentController');
+const upload = require('../../middleware/uploadMiddleware');
 const { protect, authorize } = require('../../middleware/authMiddleware');
 
 router.use(protect);
@@ -10,7 +11,7 @@ router.use(authorize('admin', 'super_admin', 'master_admin'));
 router.get('/', adminAppContentController.getAppContent);
 
 // Hero banner update
-router.put('/hero', adminAppContentController.updateHeroBanner);
+router.put('/hero', upload.handleUploadError(upload.single('bannerImage')), adminAppContentController.updateHeroBanner);
 
 // Donations page banner update
 router.put('/donation-banner', adminAppContentController.updateDonationBanner);

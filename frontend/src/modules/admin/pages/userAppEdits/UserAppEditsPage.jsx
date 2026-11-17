@@ -290,7 +290,10 @@ export const UserAppEditsPage = () => {
       }
     } catch (err) {
       console.error('Error saving hero banner:', err);
-      showToast(err.response?.data?.message || 'Failed to update hero banner', 'error');
+      const message = err.response?.status === 413
+        ? 'Banner upload is too large. Choose a smaller image and try again.'
+        : err.response?.data?.message || 'Failed to update hero banner';
+      showToast(message, 'error');
     } finally {
       setSaving(false);
     }

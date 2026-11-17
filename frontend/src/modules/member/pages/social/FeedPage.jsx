@@ -762,6 +762,15 @@ const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDelete
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  useEffect(() => {
+    if (!showComments) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const closeOnEscape = (event) => { if (event.key === 'Escape') setShowComments(false); };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => { document.body.style.overflow = previousOverflow; window.removeEventListener('keydown', closeOnEscape); };
+  }, [showComments]);
+
   const isAuthor = (post.authorId || post.userId || post.author?.id) === currentUser?._id || post.author?.name === currentUser?.name;
   const isAdmin = ['admin', 'super_admin', 'master_admin', 'master'].includes(currentUser?.role);
   const isHead = currentUser?.role === 'head' && (currentUser?.communityId === post.communityId || currentUser?.community === post.community);
@@ -1166,36 +1175,44 @@ const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDelete
         <Eye size={13} className="inline mr-1" />{formatEngagementCount(post.views || 0)} {localT[lang].views}
       </div>
 
-      {showComments && (
-        <section className="border-t border-slate-100 bg-slate-50 px-4 py-3" aria-label="Post comments">
-          <div className="mb-3 flex items-center justify-between">
-            <h4 className="text-sm font-bold text-slate-800">Comments <span className="text-slate-400">{formatEngagementCount(post.comments || 0)}</span></h4>
-            <button type="button" onClick={() => setShowComments(false)} className="text-xs font-semibold text-slate-500">Close</button>
-          </div>
-          {loadingComments ? (
-            <p className="py-3 text-sm text-slate-400">Loading commentsâ€¦</p>
-          ) : (
-            <div className="max-h-64 space-y-3 overflow-y-auto">
-              {(post.commentsList || []).map((comment) => (
-                <div key={comment.id || comment._id} className="flex gap-2.5">
-                  <Avatar initials={comment.author?.initials || 'M'} size="sm" color="bg-indigo-50 text-indigo-700" />
-                  <div className="min-w-0 flex-1 rounded-2xl bg-white px-3 py-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-xs font-bold text-slate-800">{comment.author?.name || 'Member'}</span>
-                      <span className="shrink-0 text-[10px] text-slate-400">{comment.time || 'Recently'}</span>
-                    </div>
-                    <p className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-700">{comment.text}</p>
-                  </div>
-                </div>
-              ))}
-              {!post.commentsList?.length && <p className="py-3 text-sm text-slate-400">No comments yet.</p>}
+      {showComments && createPortal(
+        <div className="fixed inset-0 z-[120] flex items-end justify-center sm:items-center" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowComments(false); }}>
+          <div className="absolute inset-0 bg-slate-950/45 backdrop-blur-[2px]" />
+          <section className="relative z-10 flex h-[100dvh] max-h-[100dvh] w-full max-w-xl flex-col overflow-hidden rounded-t-[24px] bg-white shadow-2xl sm:h-auto sm:max-h-[min(680px,82vh)] sm:rounded-[24px]" aria-label="Post comments" role="dialog" aria-modal="true">
+            <div className="flex shrink-0 flex-col items-center border-b border-slate-100 px-4 pb-3 pt-2 sm:pt-4">
+              <div className="mb-3 h-1 w-10 rounded-full bg-slate-300 sm:hidden" />
+              <div className="flex w-full items-center justify-between">
+                <span className="w-8" />
+                <h4 className="text-sm font-bold text-slate-900">Comments <span className="ml-1 text-slate-400">{formatEngagementCount(post.comments || 0)}</span></h4>
+                <button type="button" onClick={() => setShowComments(false)} aria-label="Close comments" className="flex h-8 w-8 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"><span className="text-lg leading-none">×</span></button>
+              </div>
             </div>
-          )}
-          <form onSubmit={submitComment} className="mt-3 flex items-center gap-2">
-            <input value={commentText} onChange={(event) => setCommentText(event.target.value)} placeholder="Add a commentâ€¦" className="min-w-0 flex-1 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-indigo-300" />
-            <button type="submit" disabled={!commentText.trim()} className="rounded-full bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-40">Post</button>
-          </form>
-        </section>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
+              {loadingComments ? (
+                <p className="py-8 text-center text-sm text-slate-400">Loading comments…</p>
+              ) : (
+                <div className="space-y-4">
+                  {(post.commentsList || []).map((comment) => (
+                    <div key={comment.id || comment._id} className="flex gap-3">
+                      <Avatar initials={comment.author?.initials || 'M'} size="sm" color="bg-indigo-50 text-indigo-700" />
+                      <div className="min-w-0 flex-1 pt-0.5">
+                        <p className="break-words text-[13px] leading-5 text-slate-800"><span className="mr-2 font-bold text-slate-950">{comment.author?.name || 'Member'}</span>{comment.text}</p>
+                        <span className="mt-1 block text-[11px] text-slate-400">{comment.time || 'Recently'}</span>
+                      </div>
+                    </div>
+                  ))}
+                  {!post.commentsList?.length && <p className="py-10 text-center text-sm text-slate-400">No comments yet. Start the conversation.</p>}
+                </div>
+              )}
+            </div>
+            <form onSubmit={submitComment} className="flex shrink-0 items-center gap-2 border-t border-slate-100 bg-white px-4 py-3 pb-[max(12px,env(safe-area-inset-bottom))]">
+              <Avatar initials={currentUser?.name?.[0] || 'M'} size="sm" color="bg-indigo-50 text-indigo-700" />
+              <input value={commentText} onChange={(event) => setCommentText(event.target.value)} placeholder="Add a comment…" aria-label="Add a comment" className="min-w-0 flex-1 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-indigo-300" />
+              <button type="submit" disabled={!commentText.trim()} className="rounded-full px-3 py-2 text-sm font-bold text-indigo-600 disabled:opacity-40">Post</button>
+            </form>
+          </section>
+        </div>,
+        document.body
       )}
     </div>
   );
