@@ -13,6 +13,7 @@ import { getDistrictsForState } from '../../data/indianDistricts';
 import { useAuth } from '../../../../core/auth/useAuth';
 import { authService } from '../../../../core/auth/authService';
 import { axiosPublic } from '../../../../core/api/axiosConfig';
+import { axiosPrivate } from '../../../../core/api/axiosPrivate';
 import {
   validateName,
   validateDOB,
@@ -341,11 +342,18 @@ const CustomSelect = ({ value, onChange, options, placeholder = 'Select', disabl
 const VerificationStep = ({ isFaceVerified, setIsFaceVerified, isAadharVerified, setIsAadharVerified, setToastMessage, auth, setAuth, focusVerification, onVerificationComplete, aadharEnabled = true }) => {
   // Aadhaar states
   const [aadhaarStage, setAadhaarStage] = useState('idle'); // idle | input | otp | success | failed
-  const [aadhaarMobile, setAadhaarMobile] = useState('');
+  const [aadhaarNumber, setAadhaarNumber] = useState(''); // 12 digits, never stored by the server
   const [aadhaarOtp, setAadhaarOtp] = useState(['', '', '', '', '', '']);
   const [aadhaarLoading, setAadhaarLoading] = useState(false);
   const [aadhaarError, setAadhaarError] = useState('');
+  const [aadhaarResendIn, setAadhaarResendIn] = useState(0);
   const aadhaarOtpRefs = [useRef(null), useRef(null), useRef(null), useRef(null), useRef(null), useRef(null)];
+
+  useEffect(() => {
+    if (aadhaarResendIn <= 0) return undefined;
+    const timer = setTimeout(() => setAadhaarResendIn(s => Math.max(0, s - 1)), 1000);
+    return () => clearTimeout(timer);
+  }, [aadhaarResendIn]);
 
   // Face states
   const [faceStage, setFaceStage] = useState('idle'); // idle | camera | scanning | success | failed
@@ -358,16 +366,23 @@ const VerificationStep = ({ isFaceVerified, setIsFaceVerified, isAadharVerified,
   const scanIntervalRef = useRef(null);
 
   // ── Aadhaar helpers ──────────────────────────────────────────────────────
+  // UIDAI sends the OTP to the mobile number linked with this Aadhaar (via QuickeKYC).
   const handleSendAadhaarOtp = async () => {
-    const cleaned = aadhaarMobile.replace(/\D/g, '');
-    if (cleaned.length !== 10) { setAadhaarError('Please enter a valid 10-digit mobile number.'); return; }
+    const cleaned = aadhaarNumber.replace(/\D/g, '');
+    if (!/^[2-9]\d{11}$/.test(cleaned)) { setAadhaarError('Please enter your 12-digit Aadhaar number.'); return; }
     setAadhaarLoading(true); setAadhaarError('');
     try {
-      await axiosPublic.post('/auth/aadhaar/send-otp', { mobileNo: cleaned });
+      const res = await axiosPrivate.post('/auth/aadhaar/send-otp', { aadhaarNumber: cleaned });
       setAadhaarStage('otp');
-      setToastMessage('OTP sent to your Aadhaar-registered mobile!');
-      setTimeout(() => setToastMessage(''), 3000);
+      setAadhaarOtp(['', '', '', '', '', '']);
+      setAadhaarResendIn(res.data?.resendAfter || 60);
+      setToastMessage(res.data?.devOtp
+        ? `Test mode: use OTP ${res.data.devOtp}`
+        : 'OTP sent to your Aadhaar-linked mobile!');
+      setTimeout(() => setToastMessage(''), 4000);
+      setTimeout(() => aadhaarOtpRefs[0].current?.focus(), 50);
     } catch (err) {
+      if (err?.response?.data?.retryAfter) setAadhaarResendIn(err.response.data.retryAfter);
       setAadhaarError(err?.response?.data?.message || 'Failed to send OTP. Try again.');
     } finally { setAadhaarLoading(false); }
   };
@@ -377,7 +392,9 @@ const VerificationStep = ({ isFaceVerified, setIsFaceVerified, isAadharVerified,
     if (otpStr.length !== 6) { setAadhaarError('Please enter the 6-digit OTP.'); return; }
     setAadhaarLoading(true); setAadhaarError('');
     try {
-      await axiosPublic.post('/auth/aadhaar/verify-otp', { mobileNo: aadhaarMobile.replace(/\D/g, ''), otp: otpStr });
+      // The server marks the member verified only after UIDAI confirms this OTP.
+      await axiosPrivate.post('/auth/aadhaar/verify-otp', { otp: otpStr });
+      setAadhaarNumber('');
       setIsAadharVerified(true);
       await onVerificationComplete?.('isAadharVerified');
       setAadhaarStage('success');
@@ -390,6 +407,12 @@ const VerificationStep = ({ isFaceVerified, setIsFaceVerified, isAadharVerified,
 
   const handleOtpInput = (idx, val) => {
     if (!/^\d*$/.test(val)) return;
+    if (val.length === 6) { // pasted / autofilled full code
+      setAadhaarOtp(val.split(''));
+      setAadhaarError('');
+      aadhaarOtpRefs[5].current?.focus();
+      return;
+    }
     const next = [...aadhaarOtp];
     next[idx] = val.slice(-1);
     setAadhaarOtp(next);
@@ -614,31 +637,29 @@ const VerificationStep = ({ isFaceVerified, setIsFaceVerified, isAadharVerified,
           ) : null}
         </div>
 
-        {/* Aadhaar — Mobile Input Stage */}
+        {/* Aadhaar — Number Input Stage */}
         {aadhaarStage === 'input' && (
           <div className="px-4 pb-4 space-y-3">
             <div className="bg-[#FFF8F0] rounded-2xl p-3 border border-orange-100">
               <p className="text-[11px] text-orange-700 font-semibold leading-relaxed">
-                Enter the <strong>mobile number registered with your Aadhaar</strong>. An OTP will be sent to verify your identity.
+                Enter your <strong>12-digit Aadhaar number</strong>. UIDAI will send an OTP to the <strong>mobile number linked with your Aadhaar</strong>.
               </p>
             </div>
             <div>
               <label className="text-[10px] font-extrabold text-slate-800 uppercase tracking-wider block mb-1.5">
-                Aadhaar Registered Mobile <span className="text-red-500">*</span>
+                Aadhaar Number <span className="text-red-500">*</span>
               </label>
-              <div className="flex gap-2">
-                <div className="bg-slate-50 border border-slate-200 rounded-xl px-3 flex items-center shrink-0">
-                  <span className="text-xs font-bold text-slate-700">+91</span>
-                </div>
-                <input
-                  type="tel"
-                  maxLength={10}
-                  placeholder="98765 43210"
-                  value={aadhaarMobile}
-                  onChange={e => { setAadhaarMobile(e.target.value.replace(/\D/g, '')); setAadhaarError(''); }}
-                  className="flex-1 bg-white border border-slate-200 rounded-xl px-3.5 py-3 text-sm font-bold text-slate-800 outline-none focus:border-[#7C3AED]"
-                />
-              </div>
+              <input
+                type="tel"
+                inputMode="numeric"
+                autoComplete="off"
+                maxLength={14}
+                placeholder="XXXX XXXX XXXX"
+                value={aadhaarNumber.replace(/(\d{4})(?=\d)/g, '$1 ')}
+                onChange={e => { setAadhaarNumber(e.target.value.replace(/\D/g, '').slice(0, 12)); setAadhaarError(''); }}
+                className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-3 text-sm font-bold tracking-[0.15em] text-slate-800 outline-none focus:border-[#7C3AED]"
+              />
+              <p className="text-[10px] text-slate-400 font-semibold mt-1 ml-1">Your Aadhaar number is not stored — only the last 4 digits.</p>
               {aadhaarError && <p className="text-[10px] text-red-500 font-bold mt-1 ml-1">{aadhaarError}</p>}
             </div>
             <div className="flex gap-2">
@@ -652,12 +673,12 @@ const VerificationStep = ({ isFaceVerified, setIsFaceVerified, isAadharVerified,
               <button
                 type="button"
                 onClick={handleSendAadhaarOtp}
-                disabled={aadhaarLoading}
+                disabled={aadhaarLoading || aadhaarNumber.length !== 12 || aadhaarResendIn > 0}
                 className="flex-1 py-2.5 bg-[#7C3AED] hover:bg-[#6D28D9] text-white text-xs font-extrabold rounded-xl flex items-center justify-center gap-1.5 disabled:opacity-60"
               >
                 {aadhaarLoading ? (
                   <><div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /><span>Sending...</span></>
-                ) : 'Send OTP'}
+                ) : aadhaarResendIn > 0 ? `Send OTP (${aadhaarResendIn}s)` : 'Send OTP'}
               </button>
             </div>
           </div>
@@ -668,7 +689,7 @@ const VerificationStep = ({ isFaceVerified, setIsFaceVerified, isAadharVerified,
           <div className="px-4 pb-4 space-y-3">
             <div className="bg-[#F0FFF4] rounded-2xl p-3 border border-emerald-100">
               <p className="text-[11px] text-emerald-700 font-semibold leading-relaxed">
-                OTP sent to <strong>+91 {aadhaarMobile}</strong>. Enter the 6-digit code below.
+                OTP sent to the mobile linked with Aadhaar <strong>XXXX XXXX {aadhaarNumber.slice(-4)}</strong>. Enter the 6-digit code below.
               </p>
             </div>
             <div>
@@ -679,7 +700,9 @@ const VerificationStep = ({ isFaceVerified, setIsFaceVerified, isAadharVerified,
                     key={i}
                     ref={aadhaarOtpRefs[i]}
                     type="tel"
-                    maxLength={1}
+                    inputMode="numeric"
+                    autoComplete={i === 0 ? 'one-time-code' : 'off'}
+                    maxLength={i === 0 ? 6 : 1}
                     value={digit}
                     onChange={e => handleOtpInput(i, e.target.value)}
                     onKeyDown={e => handleOtpKeyDown(i, e)}
@@ -697,7 +720,7 @@ const VerificationStep = ({ isFaceVerified, setIsFaceVerified, isAadharVerified,
                 onClick={() => { setAadhaarStage('input'); setAadhaarOtp(['','','','','','']); setAadhaarError(''); }}
                 className="flex-1 py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50"
               >
-                Change No.
+                Change Aadhaar
               </button>
               <button
                 type="button"
@@ -713,9 +736,10 @@ const VerificationStep = ({ isFaceVerified, setIsFaceVerified, isAadharVerified,
             <button
               type="button"
               onClick={handleSendAadhaarOtp}
-              className="w-full text-[11px] font-bold text-[#7C3AED] text-center hover:underline"
+              disabled={aadhaarLoading || aadhaarResendIn > 0}
+              className="w-full text-[11px] font-bold text-[#7C3AED] text-center hover:underline disabled:text-slate-400 disabled:no-underline"
             >
-              Resend OTP
+              {aadhaarResendIn > 0 ? `Resend OTP in ${aadhaarResendIn}s` : 'Resend OTP'}
             </button>
           </div>
         )}

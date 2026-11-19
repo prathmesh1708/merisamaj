@@ -2,6 +2,18 @@ import { axiosPrivate } from '../../../core/api/axiosPrivate';
 
 const BASE_URL = '/admin/user-app-edits';
 
+// Decode a base64 data URL into a Blob locally. `fetch(dataUrl)` must not be
+// used here: the app's Content-Security-Policy `connect-src` does not allow
+// the `data:` scheme, so the browser blocks it ("Failed to fetch").
+const dataUrlToBlob = (dataUrl) => {
+  const [header, base64 = ''] = dataUrl.split(',');
+  const mimeType = header.match(/^data:([^;]+)/)?.[1] || 'image/jpeg';
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mimeType });
+};
+
 export const appContentService = {
   // Get all app content customization
   getAppContent: async (communityId, subCommunity = '') => {
@@ -14,7 +26,7 @@ export const appContentService = {
   updateHeroBanner: async (data, communityId, subCommunity = '') => {
     let payload = { ...data, communityId, subCommunity };
     if (typeof data.backgroundImage === 'string' && data.backgroundImage.startsWith('data:image/')) {
-      let imageBlob = await fetch(data.backgroundImage).then((response) => response.blob());
+      let imageBlob = dataUrlToBlob(data.backgroundImage);
       if (typeof createImageBitmap === 'function') {
         try {
           const bitmap = await createImageBitmap(imageBlob);

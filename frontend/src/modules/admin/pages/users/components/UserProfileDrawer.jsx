@@ -3,8 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, User, Users, Briefcase, FileText, Activity, Shield, Heart, MapPin,
   Building2, Calendar, Phone, Mail, ShieldCheck, ShieldAlert, ShieldBan,
-  Loader2, CheckCircle2, Clock, Crown, AlertCircle
+  Loader2, CheckCircle2, Clock, Crown, AlertCircle, Fingerprint
 } from 'lucide-react';
+import { AadhaarDetailsPanel } from './AadhaarDetailsPanel';
 import { Avatar } from '../../../../member/components/common/Avatar';
 import { userService } from '../../../services/userService';
 import { AssignHeadModal } from './AssignHeadModal';
@@ -55,6 +56,7 @@ export const UserProfileDrawer = ({ userId, isOpen, onClose, onActionComplete })
     { id: 'family', label: 'Family', icon: Heart },
     { id: 'activity', label: 'Activity', icon: Activity },
     { id: 'account', label: 'Account', icon: Shield },
+    { id: 'aadhaar', label: 'Aadhaar', icon: Fingerprint },
   ];
 
   return (
@@ -99,6 +101,11 @@ export const UserProfileDrawer = ({ userId, isOpen, onClose, onActionComplete })
                       {user.verificationStatus === 'verified' && (
                         <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-100">
                           Verified
+                        </span>
+                      )}
+                      {user.isAadhaarVerified && (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-100">
+                          ✔ Aadhaar Verified
                         </span>
                       )}
                     </div>
@@ -331,6 +338,11 @@ export const UserProfileDrawer = ({ userId, isOpen, onClose, onActionComplete })
                         </div>
                       </div>
                     </div>
+                  )}
+
+                  {/* Aadhaar Details — Admins only, loaded (and audit-logged) only when opened */}
+                  {activeTab === 'aadhaar' && (
+                    <AadhaarDetailsPanel key={userId} userId={userId} />
                   )}
                 </>
               )}

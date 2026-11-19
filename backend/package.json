@@ -15,7 +15,8 @@
     "test:head-scope": "node scripts/testHeadSocialScope.js",
     "test:push": "node scripts/testPushNotification.js",
     "migrate:referral-codes": "node src/scripts/migrateReferralCodes.js",
-    "test": "node --test src/services/*.test.js"
+    "migrate:aadhaar-name": "node src/scripts/migrateAadhaarVerifiedName.js",
+    "test": "node --test --test-force-exit src/services/*.test.js src/tests/*.test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

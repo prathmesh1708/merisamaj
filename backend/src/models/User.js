@@ -108,6 +108,15 @@ const userSchema = new mongoose.Schema({
   
   // Verification Flags
   isAadharVerified: { type: Boolean, default: false },
+  // Set only by the server after a successful Aadhaar OTP (aadhaarKycService).
+  // The full Aadhaar number is never stored. Who may see what is decided in
+  // utils/aadhaarSerializer.js; DOB/gender/address/photo live encrypted in AadhaarKycRecord.
+  // Name exactly as on the Aadhaar card — separate from the member's own `name`.
+  aadhaarVerifiedName: { type: String, default: '', trim: true },
+  // Hidden from every query unless explicitly selected (+field): self and Admin only.
+  aadhaarLast4: { type: String, default: '', select: false },
+  aadhaarVerifiedAt: { type: Date, default: null, select: false },
+  aadhaarHash: { type: String, default: null, select: false, index: true },
   isFaceVerified: { type: Boolean, default: false },
   isPhoneVerified: { type: Boolean, default: true }, // Default true for development ease
   isEmailVerified: { type: Boolean, default: true }, // Default true for development ease

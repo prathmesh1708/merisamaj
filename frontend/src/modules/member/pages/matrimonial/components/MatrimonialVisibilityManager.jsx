@@ -683,6 +683,9 @@ export const MatrimonialVisibilityManager = ({
     photo: photosList.find(p => p.isPrimary)?.url || photosList[0]?.url || user?.avatar
       || `https://ui-avatars.com/api/?name=${encodeURIComponent(editForm.fullName || user?.name || 'U')}&background=F43F5E&color=ffffff&bold=true`,
     completionPercentage: Math.max(myProfile?.profileCompletion?.percentage || 0, calculatedCompletion),
+    // From /auth/me (own account): only the verified flag and the name as on Aadhaar
+    aadhaarVerified: !!(user?.isAadhaarVerified ?? user?.isAadharVerified),
+    aadhaarVerifiedName: user?.aadhaarVerifiedName || '',
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -742,6 +745,18 @@ export const MatrimonialVisibilityManager = ({
                 <h3 className="text-[15px] font-black text-slate-800 truncate">{previewUser.name}</h3>
               </div>
               <p className="text-[11px] text-slate-400 font-bold">ID: {previewUser.id}</p>
+              {previewUser.aadhaarVerified && (
+                <div className="mt-1 space-y-0.5">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-[#FF9933] bg-white px-2 py-0.5 text-[9.5px] font-black uppercase text-[#000080]">
+                    <ShieldCheck size={10} className="text-[#138808]" /> ✔ Aadhaar Verified
+                  </span>
+                  {previewUser.aadhaarVerifiedName && (
+                    <p className="text-[10.5px] font-semibold text-slate-500 truncate">
+                      Aadhaar Verified Name: <span className="font-black text-slate-700">{previewUser.aadhaarVerifiedName}</span>
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Profile Completion Bar */}
               <div className="mt-2 flex items-center gap-2">
@@ -2504,6 +2519,19 @@ export const MatrimonialVisibilityManager = ({
               {/* Before an accepted interest a public profile's name is hidden */}
               {(previewTab === 'after' || settings.visibleOnlyAfterAccept) && (
                 <h3 className="text-[18px] font-black text-slate-800">{previewUser.name}</h3>
+              )}
+              {/* Same rule as the server: badge always; the Aadhaar name only where a name is shown */}
+              {previewUser.aadhaarVerified && (
+                <div className="mt-1 space-y-0.5">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-[#FF9933] bg-white px-2.5 py-0.5 text-[10px] font-black uppercase text-[#000080]">
+                    <ShieldCheck size={11} className="text-[#138808]" /> ✔ Aadhaar Verified
+                  </span>
+                  {previewUser.aadhaarVerifiedName && (previewTab === 'after' || settings.visibleOnlyAfterAccept) && (
+                    <p className="text-[12px] font-semibold text-slate-500">
+                      Aadhaar Verified Name: <span className="font-black text-slate-700">{previewUser.aadhaarVerifiedName}</span>
+                    </p>
+                  )}
+                </div>
               )}
               <p className="text-[12.5px] text-slate-500 font-bold mt-0.5">
                 {(previewTab === 'before'

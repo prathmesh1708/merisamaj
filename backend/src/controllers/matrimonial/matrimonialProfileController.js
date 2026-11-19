@@ -196,7 +196,7 @@ exports.getUserProfile = async (req, res) => {
       _id: id,
       status: { $in: ['active', 'married'] },
       isDeleted: false
-    }).populate('userId', 'name phone email avatar subCommunity verificationStatus isAadharVerified');
+    }).populate('userId', 'name phone email avatar subCommunity verificationStatus isAadharVerified aadhaarVerifiedName');
 
     if (!profile) {
       return res.status(404).json({ status: 'error', message: 'Profile not found or not available.' });
@@ -337,7 +337,7 @@ exports.getUserProfile = async (req, res) => {
     // ─── My own profile — full view ─────────────────────────────────────────
     if (profileOwnerUserId.equals(viewerId)) {
       return res.json({ status: 'success', data: {
-        profile: buildFullProfile(profile, features),
+        profile: buildFullProfile(profile, features, { isOwner: true }),
         matchPercentage: 100, matchedCriteria: [],
         isConnected: false,
         interestRelationship: null

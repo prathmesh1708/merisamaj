@@ -6,6 +6,7 @@ const Post = require('../../models/Post');
 const Donation = require('../../models/Donation');
 const { applyScopeFilter } = require('../../utils/queryScopeHelper');
 const { invalidateEffectiveCache } = require('../../services/modulePermissionService');
+const { publicAadhaar } = require('../../utils/aadhaarSerializer');
 
 // ─── Helper: normalize filter value to lowercase for DB match ───
 const statusMap = {
@@ -58,6 +59,8 @@ const formatUser = (user) => {
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
     familyMembers: user.familyMembers || [],
+    // Summary only — full Aadhaar details come from GET /admin/users/:id/aadhaar (audited)
+    ...publicAadhaar(user),
   };
 };
 

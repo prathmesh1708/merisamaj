@@ -144,8 +144,15 @@ export const MemberApplicationModal = ({ member: listMember, onClose, onApprove,
                 {member.isAadharVerified ? 'Identity verified through government ID check.' : 'Identity not verified yet — please review the details before approving.'}
               </p>
             </div>
+            {/* Heads see only the status and the name as on Aadhaar (the API sends nothing more) */}
+            {member.isAadhaarVerified && member.aadhaarVerifiedName && (
+              <div className="mb-2 rounded-lg bg-white/70 border border-indigo-100 px-3 py-2">
+                <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">Aadhaar Verified Name</p>
+                <p className="text-sm font-black text-indigo-950">{member.aadhaarVerifiedName}</p>
+              </div>
+            )}
             <div className="flex flex-wrap gap-1.5">
-              <Badge ok={member.isAadharVerified} okText="Aadhaar verified" pendingText="Aadhaar pending" />
+              <Badge ok={member.isAadharVerified} okText="✔ Aadhaar Verified" pendingText="Aadhaar not verified" />
               <Badge ok={member.isPhoneVerified} okText="Phone verified" pendingText="Phone not verified" />
               {member.isFaceVerified !== undefined && <Badge ok={member.isFaceVerified} okText="Face verified" pendingText="Face not verified" />}
             </div>

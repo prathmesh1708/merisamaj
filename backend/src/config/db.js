@@ -19,6 +19,23 @@ const connectDB = async () => {
       // Index not found or already dropped, ignore
     }
 
+    // Sub-community app content used to inherit a UNIQUE index on communityId
+    // alone (via appContentSchema.clone()), which allowed only one sub-community
+    // per community and threw E11000 for the second. Only the compound
+    // (communityId, subCommunity) index may be unique — swap the stale one for
+    // a plain index. No-op once the index is already non-unique.
+    try {
+      const subContent = conn.connection.collection('subcommunityappcontents');
+      const staleIndex = (await subContent.indexes()).find(idx => idx.name === 'communityId_1');
+      if (staleIndex?.unique) {
+        await subContent.dropIndex('communityId_1');
+        await subContent.createIndex({ communityId: 1 }, { background: true });
+        console.log('Replaced legacy unique communityId_1 index on subcommunityappcontents.');
+      }
+    } catch (indexErr) {
+      console.error('[subcommunityappcontents index cleanup]', indexErr.message);
+    }
+
     // Seed default users for testing if they don't exist
     const User = require('../models/User');
 

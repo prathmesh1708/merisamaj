@@ -152,6 +152,10 @@ const MatrimonialProfilePage = () => {
   // Public profiles don't send a name until the interest is accepted (privacy)
   const name      = profile.personal?.fullName || '';
   const isLimitedView = profile.isRestricted && !isConnected;
+  // Aadhaar: the server sends only the verified flag and the name as on Aadhaar
+  // (the name is withheld on public profiles until an interest is accepted)
+  const aadhaarVerified     = profile.aadhaarVerified ?? !!profile.userId?.isAadhaarVerified;
+  const aadhaarVerifiedName = profile.aadhaarVerifiedName || profile.userId?.aadhaarVerifiedName || '';
   const location  = [profile.location?.city, profile.location?.state].filter(Boolean).join(', ');
   const matchScore = profile.matchScore;
 
@@ -349,6 +353,11 @@ View plans?`)) navigate('/member/matrimonial/subscription');
                   <ShieldCheck size={9} /> Verified
                 </span>
               )}
+              {aadhaarVerified && (
+                <span className="inline-flex items-center gap-1 bg-white text-[#000080] text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase border border-[#FF9933]">
+                  <ShieldCheck size={9} className="text-[#138808]" /> ✔ Aadhaar Verified
+                </span>
+              )}
             </div>
             <h1 className="text-white text-[22px] font-black leading-tight">{name ? `${name}${age ? `, ${age}` : ''}` : (age ? `${age} yrs` : '')}</h1>
             <p className="text-white/80 text-[12.5px] font-bold mt-1">
@@ -359,6 +368,12 @@ View plans?`)) navigate('/member/matrimonial/subscription');
                 <MapPin size={11} className="text-white/60" />
                 <span className="text-white/65 text-[11.5px] font-semibold">{location}</span>
               </div>
+            )}
+            {/* Only the name as on Aadhaar is shared — never the number, DOB, photo or address */}
+            {aadhaarVerified && aadhaarVerifiedName && (
+              <p className="text-white/85 text-[11.5px] font-semibold mt-1">
+                Aadhaar Verified Name: <span className="font-black text-white">{aadhaarVerifiedName}</span>
+              </p>
             )}
             <div className="flex items-center justify-between mt-3">
               <div className="flex items-center gap-1.5">

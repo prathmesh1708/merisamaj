@@ -48,6 +48,18 @@ export const userService = {
     return res.data.data;
   },
 
+  // ─── Aadhaar details (Admins only; every call is audit-logged on the server) ─
+  getUserAadhaar: async (id) => {
+    const res = await axiosPrivate.get(`${API}/${id}/aadhaar`);
+    return res.data.data;
+  },
+
+  // Returns an object URL for the UIDAI photo; revoke it when done.
+  getUserAadhaarPhotoUrl: async (id) => {
+    const res = await axiosPrivate.get(`${API}/${id}/aadhaar/photo`, { responseType: 'blob' });
+    return URL.createObjectURL(res.data);
+  },
+
   // ─── Update user profile ────────────────────────────────────────────────────
   updateUser: async (id, data) => {
     const res = await axiosPrivate.put(`${API}/${id}`, data);

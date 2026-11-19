@@ -7,6 +7,7 @@ const { notifyInvitationAccepted, notifySecurityAlert, notifyLocalHeadNewMember 
 const { sendPushNotification } = require('../services/pushNotificationService');
 const familyService = require('../services/familyService');
 const otpService = require('../services/otpService');
+const aadhaarSerializer = require('../utils/aadhaarSerializer');
 
 // Centralized production-secure cookie helper
 const getCookieOptions = (maxAgeMs = 7 * 24 * 60 * 60 * 1000) => {
@@ -121,6 +122,8 @@ const getUserResponsePayload = (user) => {
     prefOccupation: user.prefOccupation,
     prefCity: user.prefCity,
     isAadharVerified: user.isAadharVerified || false,
+    // Own profile: status, verified name, masked number (when the query selected it)
+    ...aadhaarSerializer.selfAadhaar(user),
     isFaceVerified: user.isFaceVerified || false,
     accountStatus: user.accountStatus,
     verificationStatus: user.verificationStatus || 'pending',
@@ -354,6 +357,7 @@ const getMe = async (req, res) => {
       console.warn('[MembershipSync] getMe:', syncErr.message);
     }
     const user = await User.findById(req.user._id)
+      .select('+aadhaarLast4 +aadhaarVerifiedAt') // own profile only (masked in the response)
       .populate('communityId', 'name slug isActive settings subCommunities.name subCommunities.settings logoUrl bannerUrl description city')
       .populate('assignedCommunityIds', 'name slug isActive settings subCommunities.name subCommunities.settings logoUrl bannerUrl description city');
 
@@ -524,22 +528,8 @@ const updateProfile = async (req, res) => {
     const user = await User.findById(req.user._id);
 
     if (user) {
-      // Aadhaar verification is controlled by the member's community. Do not allow
-      // clients to mark themselves verified while that community has disabled it.
-      if (req.body.isAadharVerified === true || req.body.isAadharVerified === 'true') {
-        const Community = require('../models/Community');
-        const communityId = user.communityId || user.assignedCommunityIds?.[0];
-        const community = communityId
-          ? await Community.findById(communityId).select('settings.aadharVerificationEnabled').lean()
-          : null;
-        if (community?.settings?.aadharVerificationEnabled === false) {
-          return res.status(403).json({
-            status: 'error',
-            code: 'AADHAAR_VERIFICATION_DISABLED',
-            message: 'Aadhaar verification is currently disabled for your community.'
-          });
-        }
-      }
+      // isAadharVerified is never taken from the client — it is set only by
+      // verifyAadhaarOtp after UIDAI confirms the OTP (see aadhaarKycService).
 
       // Basic Fields
       user.name = req.body.name !== undefined ? req.body.name : user.name;
@@ -802,7 +792,6 @@ const updateProfile = async (req, res) => {
       }
 
       // Verification Flags
-      user.isAadharVerified = req.body.isAadharVerified !== undefined ? req.body.isAadharVerified : user.isAadharVerified;
       user.isFaceVerified = req.body.isFaceVerified !== undefined ? req.body.isFaceVerified : user.isFaceVerified;
 
       // Membership / "Pro" fields are NOT editable here — they follow the member's real
@@ -838,57 +827,203 @@ const updateProfile = async (req, res) => {
   }
 };
 
-// @desc    Send Aadhaar verification OTP (simulated - uses registered mobile)
-// @route   POST /api/auth/aadhaar/send-otp
-// @access  Public
-const sendAadhaarOtp = async (req, res) => {
+// ─── Aadhaar verification (QuickeKYC → UIDAI OTP to the Aadhaar-linked mobile) ───
+const aadhaarKyc = require('../services/aadhaarKycService');
+const AadhaarVerification = require('../models/AadhaarVerification');
+const AadhaarKycRecord = require('../models/AadhaarKycRecord');
+const aadhaarCrypto = require('../utils/aadhaarCrypto');
+
+// Admin-only KYC record. DOB/gender/address/photo are stored encrypted, and only
+// when AADHAAR_DATA_KEY is configured; the verification itself never fails here.
+const saveAadhaarKycRecord = async (userId, session, holder) => {
   try {
-    const { mobileNo } = req.body;
-    if (!mobileNo || !/^\d{10}$/.test(mobileNo.toString().trim())) {
-      return res.status(400).json({ success: false, message: 'Valid 10-digit mobile number is required.' });
+    const record = {
+      provider: session.provider || 'quickekyc',
+      method: 'aadhaar_otp',
+      mode: session.mode,
+      referenceId: holder.referenceId || session.requestId || '',
+      verifiedName: holder.fullName || '',
+      aadhaarLast4: session.aadhaarLast4,
+      verifiedAt: session.verifiedAt,
+      encryptedDetails: null,
+      encryptedPhoto: null,
+      photoMimeType: '',
+      hasPhoto: false,
+      detailsStored: false
+    };
+    if (aadhaarCrypto.isConfigured()) {
+      record.encryptedDetails = aadhaarCrypto.encryptJson({
+        dob: holder.dob || '', gender: holder.gender || '', address: holder.address || ''
+      });
+      if (holder.photo?.base64) {
+        record.encryptedPhoto = aadhaarCrypto.encrypt(Buffer.from(holder.photo.base64, 'base64'));
+        record.photoMimeType = holder.photo.mimeType || 'image/jpeg';
+        record.hasPhoto = true;
+      }
+      record.detailsStored = true;
+    } else {
+      console.warn('[AadhaarKYC] AADHAAR_DATA_KEY not set — DOB/gender/address/photo were not stored.');
     }
-
-    // TODO: Integrate with UIDAI / DigiLocker API in production for real Aadhaar OTP
-    // Simulated: In dev, always succeed and return fixed OTP
-    const otp = process.env.NODE_ENV !== 'production' ? '123456' : null;
-
-    res.json({
-      success: true,
-      message: `OTP sent successfully to +91 ${mobileNo} (Aadhaar registered mobile).`,
-      // Only returned in dev/test for convenience — NEVER in production
-      ...(otp ? { otp } : {})
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    await AadhaarKycRecord.findOneAndUpdate({ userId }, { $set: record }, { upsert: true });
+  } catch (err) {
+    console.error('[AadhaarKYC] saving KYC record failed:', err.message);
   }
 };
 
-// @desc    Verify Aadhaar OTP (simulated)
-// @route   POST /api/auth/aadhaar/verify-otp
-// @access  Private (user must be logged in)
+const AADHAAR_OTP_TTL_MS = 10 * 60 * 1000;    // UIDAI OTPs are valid for 10 minutes
+const AADHAAR_RESEND_COOLDOWN_MS = 60 * 1000;  // UIDAI rejects rapid repeat requests
+const AADHAAR_MAX_ATTEMPTS = 5;
+const AADHAAR_DAILY_REQUEST_LIMIT = 10;        // each request costs a paid API call
+
+const aadhaarErrorResponse = (res, error, fallback) => {
+  if (error instanceof aadhaarKyc.AadhaarKycError) {
+    return res.status(error.status).json({ success: false, message: error.message });
+  }
+  console.error(fallback, error);
+  return res.status(500).json({ success: false, message: 'Something went wrong. Please try again.' });
+};
+
+const assertAadhaarEnabledFor = async (user) => {
+  const Community = require('../models/Community');
+  const communityId = user.communityId || user.assignedCommunityIds?.[0];
+  if (!communityId) return;
+  const community = await Community.findById(communityId).select('settings.aadharVerificationEnabled').lean();
+  if (community?.settings?.aadharVerificationEnabled === false) {
+    throw new aadhaarKyc.AadhaarKycError('Aadhaar verification is currently disabled for your community.', 403);
+  }
+};
+
+// @desc    Send an Aadhaar OTP. UIDAI texts it to the mobile linked with the Aadhaar.
+// @route   POST /api/v1/auth/aadhaar/send-otp   { aadhaarNumber }
+// @access  Private
+const sendAadhaarOtp = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('isAadharVerified communityId assignedCommunityIds');
+    if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
+    if (user.isAadharVerified) {
+      return res.status(400).json({ success: false, message: 'Your Aadhaar is already verified.' });
+    }
+    await assertAadhaarEnabledFor(user);
+
+    const aadhaar = aadhaarKyc.normalizeAadhaar(req.body.aadhaarNumber);
+    if (!aadhaarKyc.isValidAadhaar(aadhaar)) {
+      return res.status(400).json({ success: false, message: 'Enter a valid 12-digit Aadhaar number.' });
+    }
+    const aadhaarHash = aadhaarKyc.hashAadhaar(aadhaar);
+
+    const usedByOther = await User.exists({ _id: { $ne: user._id }, aadhaarHash, isAadharVerified: true });
+    if (usedByOther) {
+      return res.status(409).json({ success: false, message: 'This Aadhaar is already verified on another account.' });
+    }
+
+    const last = await AadhaarVerification.findOne({ userId: user._id }).sort({ createdAt: -1 }).lean();
+    if (last && Date.now() - new Date(last.createdAt).getTime() < AADHAAR_RESEND_COOLDOWN_MS) {
+      const wait = Math.ceil((AADHAAR_RESEND_COOLDOWN_MS - (Date.now() - new Date(last.createdAt).getTime())) / 1000);
+      return res.status(429).json({ success: false, message: `Please wait ${wait} seconds before requesting a new OTP.`, retryAfter: wait });
+    }
+    const today = await AadhaarVerification.countDocuments({
+      userId: user._id,
+      createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+    });
+    if (today >= AADHAAR_DAILY_REQUEST_LIMIT) {
+      return res.status(429).json({ success: false, message: 'Too many OTP requests today. Please try again tomorrow.' });
+    }
+
+    const { requestId, mode, devOtp } = await aadhaarKyc.generateOtp(aadhaar);
+
+    // Only the newest OTP for this member stays usable.
+    await AadhaarVerification.updateMany(
+      { userId: user._id, verifiedAt: null, expiresAt: { $gt: new Date() } },
+      { $set: { expiresAt: new Date() } }
+    );
+    await AadhaarVerification.create({
+      userId: user._id,
+      mode,
+      requestId,
+      aadhaarHash,
+      aadhaarLast4: aadhaar.slice(-4),
+      expiresAt: new Date(Date.now() + AADHAAR_OTP_TTL_MS)
+    });
+
+    return res.json({
+      success: true,
+      message: 'OTP sent to the mobile number linked with your Aadhaar.',
+      aadhaarLast4: aadhaar.slice(-4),
+      resendAfter: AADHAAR_RESEND_COOLDOWN_MS / 1000,
+      // Local development without QuickeKYC only — never in production
+      ...(devOtp && process.env.NODE_ENV !== 'production' ? { devOtp } : {})
+    });
+  } catch (error) {
+    return aadhaarErrorResponse(res, error, 'sendAadhaarOtp error:');
+  }
+};
+
+// @desc    Verify the Aadhaar OTP with UIDAI and mark the member verified
+// @route   POST /api/v1/auth/aadhaar/verify-otp   { otp }
+// @access  Private
 const verifyAadhaarOtp = async (req, res) => {
   try {
-    const { mobileNo, otp } = req.body;
-    if (!mobileNo || !otp) {
-      return res.status(400).json({ success: false, message: 'Mobile number and OTP are required.' });
+    const otp = String(req.body.otp || '').trim();
+    if (!/^\d{6}$/.test(otp)) {
+      return res.status(400).json({ success: false, message: 'Enter the 6-digit OTP.' });
     }
 
-    // TODO: In production, validate against UIDAI OTP API response
-    const expectedOtp = process.env.NODE_ENV !== 'production' ? '123456' : null;
-
-    if (!expectedOtp || otp.toString().trim() !== expectedOtp) {
-      return res.status(400).json({ success: false, message: 'Invalid OTP. Please try again.' });
+    const session = await AadhaarVerification.findOne({ userId: req.user._id, verifiedAt: null }).sort({ createdAt: -1 });
+    if (!session || session.expiresAt.getTime() < Date.now()) {
+      return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' });
+    }
+    if (session.attempts >= AADHAAR_MAX_ATTEMPTS) {
+      return res.status(429).json({ success: false, message: 'Too many wrong attempts. Please request a new OTP.' });
     }
 
-    // If user is authenticated, mark Aadhaar as verified
-    if (req.user) {
-      const User = require('../models/User');
-      await User.findByIdAndUpdate(req.user._id, { isAadharVerified: true });
+    let holder;
+    try {
+      holder = await aadhaarKyc.submitOtp(session.requestId, otp, session.mode);
+    } catch (error) {
+      if (error instanceof aadhaarKyc.AadhaarKycError && error.otpRejected) {
+        session.attempts += 1;
+        await session.save();
+        const left = AADHAAR_MAX_ATTEMPTS - session.attempts;
+        return res.status(400).json({
+          success: false,
+          message: left > 0
+            ? `${error.message || 'Invalid OTP.'} ${left} attempt(s) left.`
+            : 'Too many wrong attempts. Please request a new OTP.'
+        });
+      }
+      throw error;
     }
 
-    res.json({ success: true, message: 'Aadhaar verified successfully!' });
+    // Re-check right before saving, in case the same Aadhaar was verified elsewhere meanwhile.
+    const usedByOther = await User.exists({ _id: { $ne: req.user._id }, aadhaarHash: session.aadhaarHash, isAadharVerified: true });
+    if (usedByOther) {
+      return res.status(409).json({ success: false, message: 'This Aadhaar is already verified on another account.' });
+    }
+
+    session.verifiedAt = new Date();
+    await session.save();
+    const verifiedName = holder.fullName || '';
+    // The member's own `name` is left untouched; the Aadhaar name is kept separately.
+    const updatedUser = await User.findByIdAndUpdate(req.user._id, {
+      $set: {
+        isAadharVerified: true,
+        aadhaarVerifiedName: verifiedName,
+        aadhaarLast4: session.aadhaarLast4,
+        aadhaarVerifiedAt: session.verifiedAt,
+        aadhaarHash: session.aadhaarHash
+      }
+    }, { new: true }).select('+aadhaarLast4 +aadhaarVerifiedAt');
+    require('../utils/cacheService').del(`auth_user_${req.user._id}`);
+
+    await saveAadhaarKycRecord(req.user._id, session, holder);
+
+    return res.json({
+      success: true,
+      message: 'Aadhaar verified successfully!',
+      data: { isAadharVerified: true, ...aadhaarSerializer.selfAadhaar(updatedUser) }
+    });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return aadhaarErrorResponse(res, error, 'verifyAadhaarOtp error:');
   }
 };
 

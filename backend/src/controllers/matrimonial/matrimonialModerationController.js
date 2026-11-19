@@ -60,7 +60,7 @@ exports.getShortlist = async (req, res) => {
       .sort({ createdAt: -1 })
       .skip((Number(page) - 1) * Number(limit))
       .limit(Number(limit))
-      .populate({ path: 'profileId', populate: { path: 'userId', select: 'name avatar verificationStatus isAadharVerified' } })
+      .populate({ path: 'profileId', populate: { path: 'userId', select: 'name avatar verificationStatus isAadharVerified aadhaarVerifiedName' } })
       .lean({ virtuals: true });
     const shown = await presentProfiles(req.user._id, items.map(i => i.profileId));
     const safeItems = items.map(i => ({ ...i, profileId: i.profileId ? shown.get(String(i.profileId._id)) : null }));
@@ -125,7 +125,7 @@ exports.getMyVisited = async (req, res) => {
       .lean();
     const profiles = await MatrimonialProfile.find({
       _id: { $in: visits.map(v => v.profileId) }, status: 'active', isDeleted: false
-    }).populate('userId', 'name avatar verificationStatus isAadharVerified').lean({ virtuals: true });
+    }).populate('userId', 'name avatar verificationStatus isAadharVerified aadhaarVerifiedName').lean({ virtuals: true });
     const shown = await presentProfiles(req.user._id, profiles);
     const visited = visits
       .filter(v => shown.has(String(v.profileId)))

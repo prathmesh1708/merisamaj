@@ -185,6 +185,16 @@ const getRecommendations = async (userId, myProfile, subscription, filters = {})
   if (filters.manglikStatus === 'manglik') {
     baseQuery['horoscope.manglik'] = /^(yes|manglik|anshik)$/i;
   }
+  // Age range (other members' age is never sent, so it's filtered here via the DOB)
+  const ageMin = Number(filters.ageMin);
+  const ageMax = Number(filters.ageMax);
+  if ((ageMin > 0 && ageMin < 120) || (ageMax > 0 && ageMax < 120)) {
+    const today = new Date();
+    const dobRange = {};
+    if (ageMax > 0 && ageMax < 120) dobRange.$gt = new Date(today.getFullYear() - ageMax - 1, today.getMonth(), today.getDate());
+    if (ageMin > 0 && ageMin < 120) dobRange.$lte = new Date(today.getFullYear() - ageMin, today.getMonth(), today.getDate());
+    baseQuery['personal.dateOfBirth'] = dobRange;
+  }
   const myCity = myProfile?.location?.city || userDoc?.city;
   if (String(filters.nearby) === '1' && myCity) baseQuery['location.city'] = exact(myCity);
   if (filters.subCommunity) {
@@ -197,17 +207,17 @@ const getRecommendations = async (userId, myProfile, subscription, filters = {})
   const pool = limit * 4;
   const [candidatePool, newMembers, recentlyActive, premiumMembers, nearYou] = await Promise.all([
     // Candidates for "Recommended Matches": ranked by partner-preference match below
-    MatrimonialProfile.find(baseQuery).sort({ lastActiveAt: -1 }).limit(200).populate('userId', 'name avatar subCommunity verificationStatus isAadharVerified').lean({ virtuals: true }),
+    MatrimonialProfile.find(baseQuery).sort({ lastActiveAt: -1 }).limit(200).populate('userId', 'name avatar subCommunity verificationStatus isAadharVerified aadhaarVerifiedName').lean({ virtuals: true }),
 
     // New Members
-    MatrimonialProfile.find(baseQuery).sort({ createdAt: -1 }).limit(pool).populate('userId', 'name avatar subCommunity verificationStatus isAadharVerified').lean({ virtuals: true }),
+    MatrimonialProfile.find(baseQuery).sort({ createdAt: -1 }).limit(pool).populate('userId', 'name avatar subCommunity verificationStatus isAadharVerified aadhaarVerifiedName').lean({ virtuals: true }),
 
     // Recently Active
-    MatrimonialProfile.find(baseQuery).sort({ lastActiveAt: -1 }).limit(pool).populate('userId', 'name avatar subCommunity verificationStatus isAadharVerified').lean({ virtuals: true }),
+    MatrimonialProfile.find(baseQuery).sort({ lastActiveAt: -1 }).limit(pool).populate('userId', 'name avatar subCommunity verificationStatus isAadharVerified aadhaarVerifiedName').lean({ virtuals: true }),
 
     // Verified Members first
     MatrimonialProfile.find({ ...baseQuery, verificationStatus: 'verified' })
-      .sort({ createdAt: -1 }).limit(pool).populate('userId', 'name avatar subCommunity verificationStatus isAadharVerified').lean({ virtuals: true }),
+      .sort({ createdAt: -1 }).limit(pool).populate('userId', 'name avatar subCommunity verificationStatus isAadharVerified aadhaarVerifiedName').lean({ virtuals: true }),
 
     // Near You (same city or state)
     MatrimonialProfile.find({
@@ -219,7 +229,7 @@ const getRecommendations = async (userId, myProfile, subscription, filters = {})
           { 'location.state': myProfile?.location?.state || '__none__' }
         ] }
       ]
-    }).sort({ createdAt: -1 }).limit(pool).populate('userId', 'name avatar subCommunity verificationStatus isAadharVerified').lean({ virtuals: true })
+    }).sort({ createdAt: -1 }).limit(pool).populate('userId', 'name avatar subCommunity verificationStatus isAadharVerified aadhaarVerifiedName').lean({ virtuals: true })
   ]);
 
   const fits = (list) => (myProfile ? list.filter(p => passesHardPreferences(myProfile, p)) : list).slice(0, limit);

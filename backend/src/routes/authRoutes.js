@@ -48,9 +48,9 @@ router.post('/refresh', refreshAuth);
 router.post('/refresh/admin', refreshAdmin);
 router.post('/refresh/head', refreshHead);
 
-// Aadhaar verification routes (public — no token required for OTP send; verify marks user)
-router.post('/aadhaar/send-otp', otpLimiter, sendAadhaarOtp);
-router.post('/aadhaar/verify-otp', verifyAadhaarOtp);
+// Aadhaar verification (logged-in member; OTP is sent by UIDAI to the Aadhaar-linked mobile)
+router.post('/aadhaar/send-otp', protect, otpLimiter, sendAadhaarOtp);
+router.post('/aadhaar/verify-otp', protect, verifyAadhaarOtp); // per-member attempt limit in controller
 
 // Private routes
 router.get('/me', protect, getMe);

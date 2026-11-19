@@ -18,6 +18,7 @@ import { eventService } from '../services/eventService';
 import { headEventService } from '../../../core/api/headEventService';
 import { matrimonialProfileService, notificationService as serverNotificationService } from '../../../core/api/matrimonialService';
 import socialService from '../../../core/api/socialService';
+import { formatCommentTime } from '../utils/timeAgo';
 
 const getCommunitySurname = (community) => {
   if (!community) return 'Agrawal';
@@ -1555,7 +1556,7 @@ export const DataProvider = ({ children }) => {
             isVerified: true
           },
           text: c.text,
-          time: c.createdAt ? new Date(c.createdAt).toLocaleDateString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently',
+          time: formatCommentTime(c.createdAt),
           likes: c.likesCount || likesArr.length || 0,
           isLiked: !!isLiked,
           replies: []
@@ -1590,7 +1591,7 @@ export const DataProvider = ({ children }) => {
       _id: tempId,
       text: commentText.trim(),
       createdAt: new Date().toISOString(),
-      time: 'Just now',
+      time: 'now',
       author: {
         id: currentUser?.id || currentUser?._id || 'me',
         name: currentUser?.name || 'Member',
@@ -1634,7 +1635,8 @@ export const DataProvider = ({ children }) => {
             : (currentUser?.initials || 'M')
         },
         text: commentDoc.text || commentText.trim(),
-        time: 'Just now',
+        createdAt: commentDoc.createdAt || new Date().toISOString(),
+        time: 'now',
         likes: 0,
         isLiked: false,
         replies: []
@@ -1668,72 +1670,113 @@ export const DataProvider = ({ children }) => {
     }
   };
 
-  const addCommentReply = async (postId, commentId, replyText) => {
-    try {
-      const res = await socialService.addComment(postId, { text: replyText, parentCommentId: commentId });
-      const replyDoc = res.data;
-      const formattedReply = {
-        ...replyDoc,
-        id: replyDoc._id || replyDoc.id || `r_${Date.now()}`,
-        author: {
-          id: replyDoc.userId?._id || replyDoc.userId?.id || currentUser?.id,
-          name: replyDoc.userId?.name || currentUser?.name || 'Member',
-          avatar: replyDoc.userId?.avatar || currentUser?.avatar,
-          initials: replyDoc.userId?.name
-            ? replyDoc.userId.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
-            : (currentUser?.initials || 'M'),
-          isVerified: true
-        },
-        text: replyDoc.text || replyText,
-        time: 'Just now'
-      };
+  // Applies `fn` to the post's comment (top-level or reply) whose id matches.
+  const mapPostComment = (postId, commentId, fn) => p => {
+    if (p._id !== postId && p.id !== postId) return p;
+    const matches = c => c._id === commentId || c.id === commentId;
+    return {
+      ...p,
+      commentsList: (p.commentsList || []).map(c => {
+        const next = matches(c) ? fn(c) : c;
+        if (!next.replies?.some(matches)) return next;
+        return { ...next, replies: next.replies.map(r => (matches(r) ? fn(r) : r)) };
+      })
+    };
+  };
 
-      const updateFn = p => {
-        if (p._id === postId || p.id === postId) {
-          return {
-            ...p,
-            commentsList: (p.commentsList || []).map(c => (c._id === commentId || c.id === commentId)
-              ? { ...c, replies: [...(c.replies || []), formattedReply] }
-              : c
-            )
-          };
-        }
-        return p;
+  const updateAllPostLists = (postId, updateFn) => {
+    updateStateIfPresent(setPosts, postId, updateFn);
+    updateStateIfPresent(setCityPosts, postId, updateFn);
+    updateStateIfPresent(setCommunityPosts, postId, updateFn);
+  };
+
+  // Instagram-style reply: always attached to the top-level comment `commentId`
+  // (replies are one level deep). Optimistic; resolves to the saved reply, or
+  // null when the server rejected it (the optimistic reply is rolled back).
+  const addCommentReply = async (postId, commentId, replyText) => {
+    const text = (replyText || '').trim();
+    if (!text) return null;
+    const tempId = `temp_r_${Date.now()}`;
+    const buildAuthor = (user) => ({
+      id: user?._id || user?.id || currentUser?.id || currentUser?._id || 'me',
+      name: user?.name || currentUser?.name || 'Member',
+      avatar: user?.avatar || currentUser?.avatar,
+      initials: (user?.name || currentUser?.name || 'M').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase(),
+      isVerified: true
+    });
+    const optimisticReply = {
+      id: tempId,
+      _id: tempId,
+      parentCommentId: String(commentId),
+      text,
+      createdAt: new Date().toISOString(),
+      time: 'now',
+      author: buildAuthor(null),
+      likes: 0,
+      isLiked: false,
+      isPending: true
+    };
+
+    const withReplies = (p, mapReplies, delta) => {
+      if (p._id !== postId && p.id !== postId) return p;
+      const nextCount = Math.max(0, (p.comments || 0) + delta);
+      return {
+        ...p,
+        comments: nextCount,
+        commentsCount: nextCount,
+        commentsList: (p.commentsList || []).map(c => (c._id === commentId || c.id === commentId)
+          ? { ...c, replies: mapReplies(c.replies || []) }
+          : c)
       };
-      setPosts(prev => prev.map(updateFn));
-      setCityPosts(prev => prev.map(updateFn));
-      setCommunityPosts(prev => prev.map(updateFn));
+    };
+
+    updateAllPostLists(postId, p => withReplies(p, replies => [...replies, optimisticReply], 1));
+
+    try {
+      const res = await socialService.addComment(postId, { text, parentCommentId: commentId });
+      const replyDoc = res.data || {};
+      const savedReply = {
+        ...replyDoc,
+        id: replyDoc._id || replyDoc.id || tempId,
+        parentCommentId: String(commentId),
+        author: buildAuthor(replyDoc.userId),
+        text: replyDoc.text || text,
+        createdAt: replyDoc.createdAt || optimisticReply.createdAt,
+        time: 'now',
+        likes: 0,
+        isLiked: false
+      };
+      updateAllPostLists(postId, p => withReplies(p, replies => replies.map(r => (r.id === tempId ? savedReply : r)), 0));
+      return savedReply;
     } catch (error) {
       console.error('Failed to add reply:', error);
+      updateAllPostLists(postId, p => withReplies(p, replies => replies.filter(r => r.id !== tempId), -1));
+      return null;
     }
   };
 
+  // Works for top-level comments and replies. Optimistic, then reconciled
+  // with the server's count; rolled back if the request fails.
   const toggleCommentLike = async (postId, commentId) => {
+    const flip = c => {
+      const isLiked = !c.isLiked;
+      return { ...c, isLiked, likes: Math.max(0, (c.likes || 0) + (isLiked ? 1 : -1)) };
+    };
+    updateAllPostLists(postId, mapPostComment(postId, commentId, flip));
     try {
       const res = await socialService.toggleCommentLike(commentId);
-      const isLiked = res.data?.isLiked;
-      const likesCount = res.data?.likesCount;
-
-      const updateFn = p => {
-        if (p._id === postId || p.id === postId) {
-          return {
-            ...p,
-            commentsList: (p.commentsList || []).map(c => {
-              if (c._id === commentId || c.id === commentId) {
-                return { ...c, isLiked, likes: likesCount };
-              }
-              return c;
-            })
-          };
-        }
-        return p;
-      };
-      setPosts(prev => prev.map(updateFn));
-      setCityPosts(prev => prev.map(updateFn));
-      setCommunityPosts(prev => prev.map(updateFn));
+      const { isLiked, likesCount } = res.data || {};
+      if (typeof isLiked === 'boolean') {
+        updateAllPostLists(postId, mapPostComment(postId, commentId, c => ({
+          ...c,
+          isLiked,
+          likes: typeof likesCount === 'number' ? likesCount : c.likes
+        })));
+      }
       return res.data;
     } catch (error) {
       console.error('Failed to toggle comment like:', error);
+      updateAllPostLists(postId, mapPostComment(postId, commentId, flip));
     }
   };
 

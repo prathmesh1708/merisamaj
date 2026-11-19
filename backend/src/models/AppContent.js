@@ -193,7 +193,12 @@ const appContentSchema = new mongoose.Schema({
 // Sub-community content uses its own collection so existing community-wide
 // documents and their unique communityId index remain compatible.
 const subCommunityAppContentSchema = appContentSchema.clone();
+// clone() copies the path's already-registered `unique` index, so flipping
+// options.unique is not enough — reset the path index to a plain one. Only the
+// compound (communityId, subCommunity) index below may be unique, otherwise a
+// community can hold content for just one of its sub-communities (E11000).
 subCommunityAppContentSchema.path('communityId').options.unique = false;
+subCommunityAppContentSchema.path('communityId').index(true);
 subCommunityAppContentSchema.add({
   subCommunity: { type: String, required: true, trim: true }
 });

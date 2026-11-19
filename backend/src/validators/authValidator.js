@@ -165,7 +165,7 @@ const validateUpdateProfile = (req, res, next) => {
     'prefEducation', 'prefAge', 'prefHeight', 'prefOccupation', 'prefCity',
     'facebook', 'twitter', 'linkedin',
     'isPrivate', 'phonePrivacy', 'emailPrivacy', 'familyPrivacy',
-    'isAadharVerified', 'isFaceVerified',
+    'isFaceVerified', // isAadharVerified is server-only (Aadhaar OTP)
     'avatar', 'cover', 'avatarFile', 'photo', 'deviceToken',
   ];
   sanitizeBody(req, ALLOWED_FIELDS);

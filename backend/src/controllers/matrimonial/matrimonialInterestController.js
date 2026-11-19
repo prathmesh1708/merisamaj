@@ -383,7 +383,7 @@ exports.getDeclinedInterests = async (req, res) => {
     const otherIds = [...new Set(interests.map(i =>
       String(String(i.senderId) === String(me) ? i.receiverId : i.senderId)))];
     const profiles = await MatrimonialProfile.find({ userId: { $in: otherIds }, isDeleted: false })
-      .populate('userId', 'verificationStatus isAadharVerified')
+      .populate('userId', 'verificationStatus isAadharVerified aadhaarVerifiedName')
       .lean({ virtuals: true });
     const { features } = await getEffectiveFeatures(me);
     const canViewPhotos = !!features.viewProfilePhotos;

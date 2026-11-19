@@ -7,17 +7,19 @@
  * decided by the owner's "Visible Only After Request Accept" setting
  * (visibilitySettings.visibleOnlyAfterAccept, on by default = private):
  *
- *   Public profile  (setting off): clear photo · age · education · occupation
+ *   Public profile  (setting off): clear photo · education · occupation
  *                                  (no name, no address/location)
- *   Private profile (setting on):  BLURRED photo · name · age · education · occupation · income
+ *   Private profile (setting on):  BLURRED photo · name · education · occupation · income
  *
  * Nothing else is sent (no account id either: it would lead to the member's social
  * profile, i.e. their name and clear avatar). Once an interest is accepted, both see
- * the full profile. The owner always sees their own full profile.
+ * the full profile except age / date of birth, which only the owner ever sees.
  *
  * Viewers whose plan lacks `viewProfilePhotos` get the blurred photo for public
  * profiles too (callers pass canViewPhotos: false).
  */
+
+const { publicAadhaar } = require('../utils/aadhaarSerializer');
 
 const idOf = (v) => (v ? String(v._id || v) : null);
 
@@ -86,7 +88,7 @@ const buildRestrictedProfile = (profile, { canViewPhotos = true } = {}) => {
       ...(isPrivate ? { fullName: profile.personal?.fullName } : {})
     },
     horoscope: { manglik: profile.horoscope?.manglik || "Don't Know" },
-    age: ageOf(profile), // DOB itself is never sent
+    // Age and DOB are never sent to other members (age filters run on the server)
     education: {
       highestQualification: profile.education?.highestQualification,
       profession:           profile.education?.profession,
@@ -96,6 +98,9 @@ const buildRestrictedProfile = (profile, { canViewPhotos = true } = {}) => {
     // Trust badges (not personal details)
     headVerified:    owner ? owner.verificationStatus === 'verified' : undefined,
     aadhaarVerified: owner ? !!owner.isAadharVerified : undefined,
+    // The Aadhaar name only where this viewer may already see a name (private
+    // profiles); public profiles stay anonymous until an interest is accepted.
+    aadhaarVerifiedName: owner && visibleNameOf(profile) ? publicAadhaar(owner).aadhaarVerifiedName : null,
     lastActiveAt: profile.lastActiveAt,
     createdAt:    profile.createdAt,
     // matchPercentage will be injected by the controller
@@ -108,9 +113,10 @@ const buildRestrictedProfile = (profile, { canViewPhotos = true } = {}) => {
  * Returns the complete profile for the owner or a connected (accepted interest) member.
  * @param {Object} profile - Full MatrimonialProfile object
  * @param {Object} features - User's subscription features (for contact access)
+ * @param {boolean} [options.isOwner] - the owner also gets age / date of birth
  * @returns {Object}
  */
-const buildFullProfile = (profile, features = {}) => {
+const buildFullProfile = (profile, features = {}, { isOwner = false } = {}) => {
   const full = profile.toObject ? profile.toObject() : { ...profile };
 
   // Filter photos to active non-deleted ones; the blurred copies are internal
@@ -123,10 +129,14 @@ const buildFullProfile = (profile, features = {}) => {
   // Populated account: only what the profile screens use
   if (full.userId && typeof full.userId === 'object' && full.userId._id) {
     const u = full.userId;
+    const aadhaar = publicAadhaar(u); // status + verified name only, never other Aadhaar data
     full.userId = {
       _id: u._id, name: u.name, avatar: u.avatar, phone: u.phone, email: u.email,
-      subCommunity: u.subCommunity, verificationStatus: u.verificationStatus, isAadharVerified: u.isAadharVerified
+      subCommunity: u.subCommunity, verificationStatus: u.verificationStatus, isAadharVerified: u.isAadharVerified,
+      ...aadhaar
     };
+    full.aadhaarVerified = aadhaar.isAadhaarVerified;
+    full.aadhaarVerifiedName = aadhaar.aadhaarVerifiedName;
   }
 
   // Contact info: only expose if user has contactDetailsAccess in their plan
@@ -139,7 +149,17 @@ const buildFullProfile = (profile, features = {}) => {
     }
   }
 
-  full.age = ageOf(profile);
+  // Age / date of birth: only the owner sees them — never other members, even connected ones
+  if (isOwner) {
+    full.age = ageOf(profile);
+  } else {
+    delete full.age;
+    // copy first: for lean profiles `personal` is shared with the caller's object
+    if (full.personal) {
+      const { dateOfBirth, ...personal } = full.personal;
+      full.personal = personal;
+    }
+  }
   full.photoPrivate = isPhotoPrivate(profile);
   full.photoBlurred = false;
   full.isRestricted = false;
@@ -148,7 +168,7 @@ const buildFullProfile = (profile, features = {}) => {
 
 /** Full profile for the owner or a connected member, restricted otherwise. */
 const buildProfileForViewer = (profile, { isOwner = false, isConnected = false, features = {}, canViewPhotos = true } = {}) =>
-  (isOwner || isConnected) ? { ...buildFullProfile(profile, features), isConnected } : buildRestrictedProfile(profile, { canViewPhotos });
+  (isOwner || isConnected) ? { ...buildFullProfile(profile, features, { isOwner }), isConnected } : buildRestrictedProfile(profile, { canViewPhotos });
 
 /**
  * Of `userIds`, the ones the viewer has an accepted interest with (either direction).

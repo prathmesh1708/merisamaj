@@ -10,6 +10,7 @@ const EventResponse = require('../../models/EventResponse');
 const Contribution = require('../../models/Contribution');
 const Donation = require('../../models/Donation');
 const { applyScopeFilter } = require('../../utils/queryScopeHelper');
+const { withPublicAadhaar } = require('../../utils/aadhaarSerializer');
 
 // Everything a Head needs to review a member — never the password fields
 const MEMBER_PROFILE_FIELDS = [
@@ -19,7 +20,8 @@ const MEMBER_PROFILE_FIELDS = [
   'city district state country pincode houseNumber streetAddress landmark areaAddress detailedAddress',
   'qualification school passingYear profession company annualIncome workCity',
   'familyMembers',
-  'isAadharVerified isFaceVerified isPhoneVerified isEmailVerified verificationStatus accountStatus registrationSource referredBy createdAt',
+  // Aadhaar: only verified status + verified name (utils/aadhaarSerializer) — never number/DOB/photo/address
+  'isAadharVerified aadhaarVerifiedName isFaceVerified isPhoneVerified isEmailVerified verificationStatus accountStatus registrationSource referredBy createdAt',
   'membershipReview'
 ].join(' ');
 
@@ -263,7 +265,7 @@ exports.getDashboardStats = async (req, res) => {
           totalFundsRaised
         },
         memberGrowthTrend,
-        pendingMembersList,
+        pendingMembersList: pendingMembersList.map(withPublicAadhaar),
         upcomingEventsList,
         professionalCategoryBreakdown,
         recentRegistrations,
@@ -313,7 +315,7 @@ exports.getMemberRequests = async (req, res) => {
     res.status(200).json({
       status: 'success',
       counts: { all: pending + approved + rejected, pending, approved, rejected },
-      data: requests
+      data: requests.map(withPublicAadhaar)
     });
   } catch (error) {
     console.error('Get Member Requests Error:', error);
@@ -352,7 +354,7 @@ exports.getMemberProfile = async (req, res) => {
       .filter(Boolean)
       .slice(0, 12);
 
-    res.status(200).json({ status: 'success', data: member });
+    res.status(200).json({ status: 'success', data: withPublicAadhaar(member) });
   } catch (error) {
     console.error('Get Member Profile Error:', error);
     res.status(500).json({ status: 'error', message: 'Failed to load member profile' });

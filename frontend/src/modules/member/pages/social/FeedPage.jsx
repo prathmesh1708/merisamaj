@@ -22,6 +22,7 @@ const InstagramIcon = (props) => (
   </svg>
 );
 import { Avatar } from '../../components/common/Avatar';
+import { formatCommentTime } from '../../utils/timeAgo';
 import { useData } from '../../context/DataProvider';
 import { PostSkeleton } from '../../components/common/Skeleton';
 import { StoryViewer } from '../../components/common/StoryViewer';
@@ -742,14 +743,71 @@ const formatEngagementCount = (value = 0) => {
   return count.toLocaleString();
 };
 
-const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDeleted }) => {
+const isPendingComment = (comment) => String(comment?.id || comment?._id || '').startsWith('temp_');
+
+// Highlights @mentions in comment text, like Instagram.
+const renderCommentText = (text = '') => String(text).split(/(@[^\s@]+)/g).map((part, i) => (
+  part.startsWith('@') && part.length > 1
+    ? <span key={i} className="font-semibold text-indigo-700">{part}</span>
+    : <React.Fragment key={i}>{part}</React.Fragment>
+));
+
+// One Instagram-style comment row: avatar, name + relative time, text,
+// "Reply" / likes line, and the heart on the right.
+const CommentRow = ({ comment, isReply = false, now, onReply, onLike }) => {
+  const pending = isPendingComment(comment);
+  const likes = comment.likes || 0;
+  return (
+    <div className={`flex gap-3 ${pending ? 'opacity-60' : ''}`}>
+      <Avatar
+        src={comment.author?.avatar}
+        initials={comment.author?.initials || 'M'}
+        size={isReply ? 'xs' : 'sm'}
+        color="bg-indigo-50 text-indigo-700"
+        className={isReply ? 'mt-0.5' : ''}
+      />
+      <div className="min-w-0 flex-1">
+        <p className="text-[12px] leading-4">
+          <span className="font-bold text-slate-950">{comment.author?.name || 'Member'}</span>
+          <span className="ml-2 text-slate-400">{pending ? 'Posting…' : formatCommentTime(comment.createdAt, now)}</span>
+          {comment.isEdited && <span className="ml-1 text-slate-400">· Edited</span>}
+        </p>
+        <p className="mt-0.5 whitespace-pre-wrap break-words text-[13px] leading-5 text-slate-800">{renderCommentText(comment.text)}</p>
+        {!pending && (
+          <div className="mt-1 flex items-center gap-4 text-[12px] font-semibold text-slate-400">
+            {likes > 0 && <span>{likes} {likes === 1 ? 'like' : 'likes'}</span>}
+            <button type="button" onClick={() => onReply(comment)} className="hover:text-slate-600">Reply</button>
+          </div>
+        )}
+      </div>
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() => onLike(comment)}
+        aria-label={comment.isLiked ? 'Unlike comment' : 'Like comment'}
+        className="flex shrink-0 flex-col items-center gap-0.5 self-start pt-3 text-slate-400 disabled:opacity-0"
+      >
+        <Heart size={13} className={comment.isLiked ? 'fill-rose-500 text-rose-500' : ''} />
+        {likes > 0 && <span className="text-[10px] leading-none">{formatEngagementCount(likes)}</span>}
+      </button>
+    </div>
+  );
+};
+
+const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDeleted, onDeleteError }) => {
   const navigate = useNavigate();
-  const { togglePostLike, togglePostSave, members, admins, currentUser, fetchPostComments, addPostComment, recordPostView } = useData();
+  const { togglePostLike, togglePostSave, members, admins, currentUser, fetchPostComments, addPostComment, addCommentReply, toggleCommentLike, recordPostView } = useData();
   const styles = getCategoryStyles(post.category, lang);
   const [doubleHeart, setDoubleHeart] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [loadingComments, setLoadingComments] = useState(false);
+  // { parentId, name } while replying — parentId is always the top-level
+  // comment, since Instagram threads replies one level deep.
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [expandedReplies, setExpandedReplies] = useState(() => new Set());
+  const [commentClock, setCommentClock] = useState(() => Date.now());
+  const commentInputRef = React.useRef(null);
   const [showFullCaption, setShowFullCaption] = useState(false);
   const postElementRef = React.useRef(null);
   const viewRecordedRef = React.useRef(false);
@@ -771,7 +829,16 @@ const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDelete
     return () => { document.body.style.overflow = previousOverflow; window.removeEventListener('keydown', closeOnEscape); };
   }, [showComments]);
 
-  const isAuthor = (post.authorId || post.userId || post.author?.id) === currentUser?._id || post.author?.name === currentUser?.name;
+  // Keep "now" / "5m" / "4h" labels fresh while the sheet is open.
+  useEffect(() => {
+    if (!showComments) return undefined;
+    const timer = window.setInterval(() => setCommentClock(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, [showComments]);
+
+  const postAuthorId = post.authorId?._id || post.authorId || post.userId?._id || post.userId || post.author?.id || post.author?._id;
+  const currentUserId = currentUser?._id || currentUser?.id;
+  const isAuthor = !!(postAuthorId && currentUserId && String(postAuthorId) === String(currentUserId));
   const isAdmin = ['admin', 'super_admin', 'master_admin', 'master'].includes(currentUser?.role);
   const isHead = currentUser?.role === 'head' && (currentUser?.communityId === post.communityId || currentUser?.community === post.community);
   const canDelete = isAuthor || isHead || isAdmin;
@@ -794,6 +861,10 @@ const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDelete
   const toggleComments = async () => {
     const willOpen = !showComments;
     setShowComments(willOpen);
+    if (willOpen) {
+      setReplyingTo(null);
+      setCommentClock(Date.now());
+    }
     if (willOpen && !post.commentsList) {
       setLoadingComments(true);
       await fetchPostComments(post.id || post._id);
@@ -806,12 +877,53 @@ const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDelete
     const text = commentText.trim();
     if (!text) return;
     setCommentText('');
+    const postId = post.id || post._id;
+    if (replyingTo) {
+      const target = replyingTo;
+      setReplyingTo(null);
+      setExpandedReplies(prev => new Set(prev).add(target.parentId));
+      const saved = await addCommentReply(postId, target.parentId, text);
+      if (!saved) {
+        setReplyingTo(target);
+        setCommentText(text);
+      }
+      return;
+    }
     try {
-      await addPostComment(post.id || post._id, text);
+      await addPostComment(postId, text);
     } catch {
       setCommentText(text);
     }
   };
+
+  // Replying to a reply still threads under its top-level comment and
+  // pre-fills the @mention, exactly like Instagram.
+  const startReply = (comment, parentId) => {
+    const name = comment.author?.name || 'Member';
+    setReplyingTo({ parentId: String(parentId), name });
+    setCommentText(`@${name} `);
+    window.requestAnimationFrame(() => {
+      const input = commentInputRef.current;
+      if (!input) return;
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    });
+  };
+
+  const cancelReply = () => {
+    if (replyingTo && commentText.trim() === `@${replyingTo.name}`) setCommentText('');
+    setReplyingTo(null);
+  };
+
+  const toggleReplies = (commentId) => {
+    setExpandedReplies(prev => {
+      const next = new Set(prev);
+      if (next.has(commentId)) next.delete(commentId); else next.add(commentId);
+      return next;
+    });
+  };
+
+  const likeComment = (comment) => toggleCommentLike(post.id || post._id, comment.id || comment._id);
 
   const handleSaveEdit = async () => {
     if (!editContent.trim()) return;
@@ -838,9 +950,12 @@ const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDelete
       if (res && res.success) {
         setShowDeleteConfirm(false);
         if (onPostDeleted) onPostDeleted(postId);
+      } else {
+        onDeleteError?.(res?.message || 'Could not delete this post. Please try again.');
       }
     } catch (err) {
       console.error('Failed to delete post:', err);
+      onDeleteError?.(err.response?.data?.message || 'Could not delete this post. Please try again.');
     } finally {
       setIsDeleting(false);
     }
@@ -1184,30 +1299,52 @@ const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDelete
               <div className="flex w-full items-center justify-between">
                 <span className="w-8" />
                 <h4 className="text-sm font-bold text-slate-900">Comments <span className="ml-1 text-slate-400">{formatEngagementCount(post.comments || 0)}</span></h4>
-                <button type="button" onClick={() => setShowComments(false)} aria-label="Close comments" className="flex h-8 w-8 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"><span className="text-lg leading-none">?</span></button>
+                <button type="button" onClick={() => setShowComments(false)} aria-label="Close comments" className="flex h-8 w-8 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"><X size={18} /></button>
               </div>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
               {loadingComments ? (
-                <p className="py-8 text-center text-sm text-slate-400">Loading comments?</p>
+                <p className="py-8 text-center text-sm text-slate-400">Loading comments…</p>
               ) : (
-                <div className="space-y-4">
-                  {(post.commentsList || []).map((comment) => (
-                    <div key={comment.id || comment._id} className="flex gap-3">
-                      <Avatar initials={comment.author?.initials || 'M'} size="sm" color="bg-indigo-50 text-indigo-700" />
-                      <div className="min-w-0 flex-1 pt-0.5">
-                        <p className="break-words text-[13px] leading-5 text-slate-800"><span className="mr-2 font-bold text-slate-950">{comment.author?.name || 'Member'}</span>{comment.text}</p>
-                        <span className="mt-1 block text-[11px] text-slate-400">{comment.time || 'Recently'}</span>
+                <div className="space-y-5">
+                  {(post.commentsList || []).map((comment) => {
+                    const commentId = String(comment.id || comment._id);
+                    const replies = comment.replies || [];
+                    const repliesOpen = expandedReplies.has(commentId);
+                    return (
+                      <div key={commentId}>
+                        <CommentRow comment={comment} now={commentClock} onReply={(c) => startReply(c, commentId)} onLike={likeComment} />
+                        {replies.length > 0 && (
+                          <div className="ml-11 mt-2">
+                            <button type="button" onClick={() => toggleReplies(commentId)} className="flex items-center gap-3 py-1 text-[12px] font-semibold text-slate-400 hover:text-slate-600">
+                              <span className="h-px w-6 bg-slate-300" />
+                              {repliesOpen ? 'Hide replies' : `View ${replies.length} ${replies.length === 1 ? 'reply' : 'replies'}`}
+                            </button>
+                            {repliesOpen && (
+                              <div className="mt-3 space-y-4">
+                                {replies.map((reply) => (
+                                  <CommentRow key={reply.id || reply._id} comment={reply} isReply now={commentClock} onReply={(c) => startReply(c, commentId)} onLike={likeComment} />
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {!post.commentsList?.length && <p className="py-10 text-center text-sm text-slate-400">No comments yet. Start the conversation.</p>}
                 </div>
               )}
             </div>
-            <form onSubmit={submitComment} className="flex shrink-0 items-center gap-2 border-t border-slate-100 bg-white px-4 py-3 pb-[max(12px,env(safe-area-inset-bottom))]">
-              <Avatar initials={currentUser?.name?.[0] || 'M'} size="sm" color="bg-indigo-50 text-indigo-700" />
-              <input value={commentText} onChange={(event) => setCommentText(event.target.value)} placeholder="Add a comment?" aria-label="Add a comment" className="min-w-0 flex-1 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-indigo-300" />
+            {replyingTo && (
+              <div className="flex shrink-0 items-center justify-between border-t border-slate-100 bg-slate-50 px-4 py-2 text-[12px] text-slate-500">
+                <span className="truncate">Replying to <span className="font-semibold text-slate-700">{replyingTo.name}</span></span>
+                <button type="button" onClick={cancelReply} aria-label="Cancel reply" className="ml-3 flex h-6 w-6 shrink-0 items-center justify-center rounded-full hover:bg-slate-200"><X size={14} /></button>
+              </div>
+            )}
+            <form onSubmit={submitComment} className={`flex shrink-0 items-center gap-2 bg-white px-4 py-3 pb-[max(12px,env(safe-area-inset-bottom))] ${replyingTo ? '' : 'border-t border-slate-100'}`}>
+              <Avatar src={currentUser?.avatar} initials={currentUser?.name?.[0] || 'M'} size="sm" color="bg-indigo-50 text-indigo-700" />
+              <input ref={commentInputRef} value={commentText} onChange={(event) => setCommentText(event.target.value)} placeholder={replyingTo ? `Reply to ${replyingTo.name}…` : 'Add a comment…'} aria-label={replyingTo ? `Reply to ${replyingTo.name}` : 'Add a comment'} className="min-w-0 flex-1 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-indigo-300" />
               <button type="submit" disabled={!commentText.trim()} className="rounded-full px-3 py-2 text-sm font-bold text-indigo-600 disabled:opacity-40">Post</button>
             </form>
           </section>
@@ -1227,7 +1364,9 @@ const FeedPage = ({ isHub = false, feedType = 'city', searchQuery = '', isFilter
   const { 
     posts = [], 
     cityPosts = [], 
+    setCityPosts,
     communityPosts = [], 
+    setCommunityPosts,
     followedAnnouncements, 
     toggleFollowedAnnouncement, 
     members: mockMembers, 
@@ -1238,6 +1377,7 @@ const FeedPage = ({ isHub = false, feedType = 'city', searchQuery = '', isFilter
     logoutUser 
   } = useData();
   const [activeTab, setActiveTab] = useState('all');
+  const [deletedPostIds, setDeletedPostIds] = useState(() => new Set());
   const [searchText, setSearchText] = useState('');
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [isTogglingAnnouncement, setIsTogglingAnnouncement] = useState(false);
@@ -1339,6 +1479,7 @@ const FeedPage = ({ isHub = false, feedType = 'city', searchQuery = '', isFilter
 
   // Filter posts based on active category tab and search query
   const filteredFeedPosts = (feedPostsSource || []).filter(post => {
+    if (deletedPostIds.has(String(post.id || post._id))) return false;
     const matchesCategory = activeTab === 'all' || post.category === activeTab;
     const matchesSearch = searchText.trim() === '' || 
       (post.content && post.content.toLowerCase().includes(searchText.toLowerCase())) ||
@@ -1590,6 +1731,14 @@ const FeedPage = ({ isHub = false, feedType = 'city', searchQuery = '', isFilter
                     setShareModalPost(p);
                     setIsShareModalOpen(true);
                   }}
+                  onPostDeleted={(postId) => {
+                    const deletedId = String(postId);
+                    setDeletedPostIds(prev => new Set([...prev, deletedId]));
+                    setCityPosts?.(prev => prev.filter(item => String(item.id || item._id) !== deletedId));
+                    setCommunityPosts?.(prev => prev.filter(item => String(item.id || item._id) !== deletedId));
+                    triggerToast('Post deleted successfully.');
+                  }}
+                  onDeleteError={triggerToast}
                 />
               ))
             ) : (
