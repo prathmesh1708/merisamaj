@@ -33,12 +33,12 @@ export const UserManagement = () => {
     try {
       const rows = await fetchAllFiltered();
       const headers = ['Customer ID', 'Name', 'Phone', 'Email', 'Gender', 'Community', 'Sub Community',
-        'City', 'District', 'State', 'Pincode', 'Head', 'Verified By', 'Verification', 'Status', 'Joined', 'Photo URL'];
+        'City', 'District', 'State', 'Pincode', 'Head', 'Verified By', 'Verification', 'Aadhaar Verified', 'Status', 'Joined', 'Photo URL'];
       const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
       const lines = rows.map(u => [
         u.customerId, u.name, u.phone, u.email, u.gender, u.community, u.subCommunity,
         u.city, u.district, u.state, u.pincode, u.headName, u.verifiedByName,
-        u.verificationStatus, u.accountStatus,
+        u.verificationStatus, u.isAadhaarVerified ? 'Yes' : 'No', u.accountStatus,
         u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-IN') : '',
         u.avatar && !String(u.avatar).startsWith('data:') ? u.avatar : '',
       ].map(esc).join(','));

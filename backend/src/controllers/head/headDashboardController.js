@@ -379,7 +379,7 @@ exports.approveMember = async (req, res) => {
 
     user.verificationStatus = 'verified';
     user.accountStatus = 'active';
-    user.isAadharVerified = true;
+    // Aadhaar status is set only by the real UIDAI OTP (authController.verifyAadhaarOtp), never by approval
     user.membershipReview = { status: 'approved', by: req.user._id, at: new Date(), note: '' };
     await user.save();
 
@@ -671,7 +671,7 @@ exports.bulkMemberAction = async (req, res) => {
 
     let updateFields = {};
     if (action === 'verify') {
-      updateFields = { verificationStatus: 'verified', accountStatus: 'active', isAadharVerified: true };
+      updateFields = { verificationStatus: 'verified', accountStatus: 'active' }; // not the Aadhaar flag (UIDAI OTP only)
     } else if (action === 'reject') {
       updateFields = { verificationStatus: 'rejected', accountStatus: 'inactive' };
     } else if (action === 'suspend') {

@@ -753,10 +753,44 @@ const renderCommentText = (text = '') => String(text).split(/(@[^\s@]+)/g).map((
 ));
 
 // One Instagram-style comment row: avatar, name + relative time, text,
-// "Reply" / likes line, and the heart on the right.
-const CommentRow = ({ comment, isReply = false, now, onReply, onLike }) => {
+// "Reply" / Edit / Delete / likes line, and the heart on the right.
+// `actions` (from PostCard): { canEdit, canDelete, isEditing, editText, isConfirmingDelete,
+//   busy, onEditStart, onEditChange, onEditSave, onEditCancel, onDeleteAsk, onDeleteConfirm, onDeleteCancel }
+const CommentRow = ({ comment, isReply = false, now, onReply, onLike, actions = {} }) => {
   const pending = isPendingComment(comment);
   const likes = comment.likes || 0;
+  const { canEdit, canDelete, isEditing, editText = '', isConfirmingDelete, busy } = actions;
+
+  if (isEditing) {
+    return (
+      <div className="flex gap-3">
+        <Avatar src={comment.author?.avatar} initials={comment.author?.initials || 'M'} size={isReply ? 'xs' : 'sm'} color="bg-indigo-50 text-indigo-700" className={isReply ? 'mt-0.5' : ''} />
+        <form
+          className="min-w-0 flex-1"
+          onSubmit={(event) => { event.preventDefault(); actions.onEditSave(comment); }}
+        >
+          <textarea
+            value={editText}
+            onChange={(event) => actions.onEditChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') { event.stopPropagation(); actions.onEditCancel(); }
+              if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); actions.onEditSave(comment); }
+            }}
+            rows={2}
+            autoFocus
+            maxLength={2000}
+            aria-label="Edit comment"
+            className="w-full resize-none rounded-xl border border-indigo-200 bg-white px-3 py-2 text-[13px] leading-5 text-slate-800 outline-none focus:border-indigo-400"
+          />
+          <div className="mt-1 flex items-center gap-3 text-[12px] font-semibold">
+            <button type="submit" disabled={busy || !editText.trim()} className="text-indigo-600 disabled:opacity-40">{busy ? 'Saving…' : 'Save'}</button>
+            <button type="button" onClick={actions.onEditCancel} className="text-slate-400 hover:text-slate-600">Cancel</button>
+          </div>
+        </form>
+      </div>
+    );
+  }
+
   return (
     <div className={`flex gap-3 ${pending ? 'opacity-60' : ''}`}>
       <Avatar
@@ -773,10 +807,21 @@ const CommentRow = ({ comment, isReply = false, now, onReply, onLike }) => {
           {comment.isEdited && <span className="ml-1 text-slate-400">· Edited</span>}
         </p>
         <p className="mt-0.5 whitespace-pre-wrap break-words text-[13px] leading-5 text-slate-800">{renderCommentText(comment.text)}</p>
-        {!pending && (
-          <div className="mt-1 flex items-center gap-4 text-[12px] font-semibold text-slate-400">
+        {!pending && !isConfirmingDelete && (
+          <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] font-semibold text-slate-400">
             {likes > 0 && <span>{likes} {likes === 1 ? 'like' : 'likes'}</span>}
             <button type="button" onClick={() => onReply(comment)} className="hover:text-slate-600">Reply</button>
+            {canEdit && <button type="button" onClick={() => actions.onEditStart(comment)} className="hover:text-slate-600">Edit</button>}
+            {canDelete && <button type="button" onClick={() => actions.onDeleteAsk(comment)} className="hover:text-rose-600">Delete</button>}
+          </div>
+        )}
+        {isConfirmingDelete && (
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-rose-50 px-2.5 py-1.5 text-[12px] font-semibold">
+            <span className="text-rose-700">
+              {!isReply && comment.replies?.length ? `Delete this comment and its ${comment.replies.length} ${comment.replies.length === 1 ? 'reply' : 'replies'}?` : 'Delete this comment?'}
+            </span>
+            <button type="button" disabled={busy} onClick={() => actions.onDeleteConfirm(comment)} className="text-rose-600 disabled:opacity-50">{busy ? 'Deleting…' : 'Delete'}</button>
+            <button type="button" onClick={actions.onDeleteCancel} className="text-slate-500 hover:text-slate-700">Cancel</button>
           </div>
         )}
       </div>
@@ -796,7 +841,7 @@ const CommentRow = ({ comment, isReply = false, now, onReply, onLike }) => {
 
 const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDeleted, onDeleteError }) => {
   const navigate = useNavigate();
-  const { togglePostLike, togglePostSave, members, admins, currentUser, fetchPostComments, addPostComment, addCommentReply, toggleCommentLike, recordPostView } = useData();
+  const { togglePostLike, togglePostSave, members, admins, currentUser, fetchPostComments, addPostComment, addCommentReply, toggleCommentLike, editPostComment, deletePostComment, recordPostView } = useData();
   const styles = getCategoryStyles(post.category, lang);
   const [doubleHeart, setDoubleHeart] = useState(false);
   const [showComments, setShowComments] = useState(false);
@@ -808,6 +853,12 @@ const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDelete
   const [expandedReplies, setExpandedReplies] = useState(() => new Set());
   const [commentClock, setCommentClock] = useState(() => Date.now());
   const commentInputRef = React.useRef(null);
+  // Comment edit / delete (one at a time)
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editingCommentText, setEditingCommentText] = useState('');
+  const [confirmDeleteCommentId, setConfirmDeleteCommentId] = useState(null);
+  const [commentActionBusy, setCommentActionBusy] = useState(false);
+  const [commentError, setCommentError] = useState('');
   const [showFullCaption, setShowFullCaption] = useState(false);
   const postElementRef = React.useRef(null);
   const viewRecordedRef = React.useRef(false);
@@ -864,6 +915,9 @@ const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDelete
     if (willOpen) {
       setReplyingTo(null);
       setCommentClock(Date.now());
+      setEditingCommentId(null);
+      setConfirmDeleteCommentId(null);
+      setCommentError('');
     }
     if (willOpen && !post.commentsList) {
       setLoadingComments(true);
@@ -924,6 +978,64 @@ const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDelete
   };
 
   const likeComment = (comment) => toggleCommentLike(post.id || post._id, comment.id || comment._id);
+
+  // Same rules as the server (socialController.updateComment / deleteComment):
+  // edit = comment author only; delete = comment author, post author, community head or admin.
+  const userCommunityId = String(currentUser?.communityId?._id || currentUser?.communityId || '');
+  const postCommunityId = String(post.communityId?._id || post.communityId || '');
+  const isCommunityHead = currentUser?.role === 'head' && !!userCommunityId && userCommunityId === postCommunityId;
+  const isCommentAuthor = (comment) => {
+    const authorId = comment.author?.id || comment.userId?._id || comment.userId;
+    return !!(authorId && currentUserId && String(authorId) === String(currentUserId));
+  };
+  const commentActions = (comment) => {
+    const id = String(comment.id || comment._id);
+    const pending = isPendingComment(comment);
+    return {
+      canEdit: !pending && isCommentAuthor(comment),
+      canDelete: !pending && (isCommentAuthor(comment) || isAuthor || isAdmin || isCommunityHead),
+      isEditing: editingCommentId === id,
+      editText: editingCommentText,
+      isConfirmingDelete: confirmDeleteCommentId === id,
+      busy: commentActionBusy,
+      onEditStart: (c) => {
+        setCommentError('');
+        setConfirmDeleteCommentId(null);
+        setEditingCommentId(String(c.id || c._id));
+        setEditingCommentText(c.text || '');
+      },
+      onEditChange: setEditingCommentText,
+      onEditCancel: () => { setEditingCommentId(null); setEditingCommentText(''); },
+      onEditSave: async (c) => {
+        const text = editingCommentText.trim();
+        if (!text || commentActionBusy) return;
+        if (text === (c.text || '').trim()) { setEditingCommentId(null); return; }
+        setCommentActionBusy(true);
+        const res = await editPostComment(post.id || post._id, c.id || c._id, text);
+        setCommentActionBusy(false);
+        if (res.success) {
+          setEditingCommentId(null);
+          setEditingCommentText('');
+        } else {
+          setCommentError(res.message);
+        }
+      },
+      onDeleteAsk: (c) => {
+        setCommentError('');
+        setEditingCommentId(null);
+        setConfirmDeleteCommentId(String(c.id || c._id));
+      },
+      onDeleteCancel: () => setConfirmDeleteCommentId(null),
+      onDeleteConfirm: async (c) => {
+        if (commentActionBusy) return;
+        setCommentActionBusy(true);
+        const res = await deletePostComment(post.id || post._id, c.id || c._id);
+        setCommentActionBusy(false);
+        setConfirmDeleteCommentId(null);
+        if (!res.success) setCommentError(res.message);
+      }
+    };
+  };
 
   const handleSaveEdit = async () => {
     if (!editContent.trim()) return;
@@ -1065,11 +1177,6 @@ const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDelete
           <div>
             <div className="flex items-center gap-1.5 flex-wrap">
               <h4 className="text-[15px] font-black text-slate-800 leading-tight group-hover:text-indigo-600 transition-colors">{post.author.name}</h4>
-              {(post.author?.proBadge || post.userId?.proBadge) && (
-                <span className="inline-flex items-center gap-0.5 text-[9.5px] font-black bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full select-none" title="PRO member">
-                  <Check size={9} strokeWidth={4} /> PRO
-                </span>
-              )}
               {post.author.isVerified && (
                 <span className="inline-flex items-center gap-0.5 text-[9.5px] font-bold bg-[#8B5CF6]/8 text-[#7C3AED] px-2 py-0.5 rounded-full select-none">
                   <Check size={9} strokeWidth={4} /> {localT[lang].verifiedMember}
@@ -1313,7 +1420,7 @@ const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDelete
                     const repliesOpen = expandedReplies.has(commentId);
                     return (
                       <div key={commentId}>
-                        <CommentRow comment={comment} now={commentClock} onReply={(c) => startReply(c, commentId)} onLike={likeComment} />
+                        <CommentRow comment={comment} now={commentClock} onReply={(c) => startReply(c, commentId)} onLike={likeComment} actions={commentActions(comment)} />
                         {replies.length > 0 && (
                           <div className="ml-11 mt-2">
                             <button type="button" onClick={() => toggleReplies(commentId)} className="flex items-center gap-3 py-1 text-[12px] font-semibold text-slate-400 hover:text-slate-600">
@@ -1323,7 +1430,7 @@ const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDelete
                             {repliesOpen && (
                               <div className="mt-3 space-y-4">
                                 {replies.map((reply) => (
-                                  <CommentRow key={reply.id || reply._id} comment={reply} isReply now={commentClock} onReply={(c) => startReply(c, commentId)} onLike={likeComment} />
+                                  <CommentRow key={reply.id || reply._id} comment={reply} isReply now={commentClock} onReply={(c) => startReply(c, commentId)} onLike={likeComment} actions={commentActions(reply)} />
                                 ))}
                               </div>
                             )}
@@ -1336,6 +1443,12 @@ const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDelete
                 </div>
               )}
             </div>
+            {commentError && (
+              <div role="alert" className="flex shrink-0 items-center justify-between border-t border-rose-100 bg-rose-50 px-4 py-2 text-[12px] font-semibold text-rose-700">
+                <span className="truncate">{commentError}</span>
+                <button type="button" onClick={() => setCommentError('')} aria-label="Dismiss" className="ml-3 flex h-6 w-6 shrink-0 items-center justify-center rounded-full hover:bg-rose-100"><X size={14} /></button>
+              </div>
+            )}
             {replyingTo && (
               <div className="flex shrink-0 items-center justify-between border-t border-slate-100 bg-slate-50 px-4 py-2 text-[12px] text-slate-500">
                 <span className="truncate">Replying to <span className="font-semibold text-slate-700">{replyingTo.name}</span></span>

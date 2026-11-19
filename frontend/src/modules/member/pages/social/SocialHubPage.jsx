@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Menu, Search, Bell, Users, MessageCircle, MapPin, Compass, X, SlidersHorizontal } from 'lucide-react';
+import { Search, Bell, Users, MessageCircle, MapPin, Compass, X, SlidersHorizontal } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Avatar } from '../../components/common/Avatar';
 import { useData } from '../../context/DataProvider';
@@ -103,7 +103,7 @@ const DiscoverIcon = ({ size = 26, isActive }) => (
 const SocialHubPage = ({ initialTab = 'city-feed' }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { currentUser, setMobileMenuOpen, getUnreadCountForModule, fetchFeedPosts, cityPosts = [], communityPosts = [] } = useData();
+  const { currentUser, getUnreadCountForModule, fetchFeedPosts, cityPosts = [], communityPosts = [] } = useData();
   const [activeTab, setActiveTab] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState({ 'city-feed': true, 'community-feed': true });
@@ -455,12 +455,6 @@ const SocialHubPage = ({ initialTab = 'city-feed' }) => {
           ) : (
             <>
               <div className="flex items-center gap-3">
-                <button 
-                  className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center justify-center text-slate-700 hover:bg-purple-50 transition-colors press-scale" 
-                  onClick={() => setMobileMenuOpen(true)}
-                >
-                  <Menu size={20} strokeWidth={2.5} />
-                </button>
                 <div className="text-left">
                   <h1 className={`font-extrabold text-slate-800 tracking-tight leading-tight whitespace-nowrap overflow-hidden text-ellipsis ${activeTab < 2 ? 'text-[15px] sm:text-[16px]' : 'text-[17px]'}`}>{getHeaderTitle()}</h1>
                   <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">Social Hub & Feed</p>

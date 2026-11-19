@@ -8,6 +8,14 @@ import { useMatrimonialProfile } from '../../../../hooks/useMatrimonialProfile';
 import { matrimonialProfileService } from '../../../../core/api/matrimonialService';
 import { useData } from '../../context/DataProvider';
 import { useAuth } from '../../../../core/auth/useAuth';
+import { disabilityFormFromProfile, disabilityPayloadFromForm } from './disabilityOptions';
+import DisabilityTypePicker from './components/DisabilityTypePicker';
+
+// Server fields only (validation already blocked a "Yes" without a type)
+const disabilityFields = (form) => {
+  const result = disabilityPayloadFromForm(form);
+  return result.error ? {} : { hasDisability: result.hasDisability, disabilityType: result.disabilityType };
+};
 
 // ─── Sub-Components ───────────────────────────────────────────────────────────
 const CustomSelect = ({ value, onChange, options }) => {
@@ -119,6 +127,9 @@ const MatrimonialSetupPage = ({ isHub = false, onPublish }) => {
     // Step 3
     gotra:   '',
     manglik: 'No',
+    hasDisability: 'No',
+    disabilityChoice: '',
+    disabilityOther: '',
     rashi:   '',
     star:    '',
     // Step 4
@@ -184,6 +195,7 @@ const MatrimonialSetupPage = ({ isHub = false, onPublish }) => {
           familyValues: p.family?.familyValues || 'Moderate',
           diet:         p.lifestyle?.diet || 'Vegetarian',
           manglik:      p.horoscope?.manglik || 'No',
+          ...disabilityFormFromProfile(p.personal),
           rashi:        p.horoscope?.rashi || '',
           star:         p.horoscope?.star || '',
           ageMin:       String(p.preferences?.ageMin || registered.ageMin),
@@ -229,6 +241,7 @@ const MatrimonialSetupPage = ({ isHub = false, onPublish }) => {
   // Build API payload from form
   const buildPayload = () => ({
     personal: {
+      ...disabilityFields(form),
       fullName:     form.fullName,
       gender:       form.gender,
       dateOfBirth:  form.dateOfBirth,
@@ -281,6 +294,13 @@ const MatrimonialSetupPage = ({ isHub = false, onPublish }) => {
     if (step === 2) {
       if (!form.fullName || form.fullName.trim() === '') errs.fullName = 'Full Name is required';
       if (!form.dateOfBirth) errs.dateOfBirth = 'Date of Birth is required';
+    }
+    if (step === 3 || step === STEPS.length) {
+      const { error } = disabilityPayloadFromForm(form);
+      if (error) {
+        errs.disabilityType = error;
+        if (step !== 3) showToast(`Religious & Social: ${error}`);
+      }
     }
     setStepErrors(errs);
     return Object.keys(errs).length === 0;
@@ -448,6 +468,25 @@ const MatrimonialSetupPage = ({ isHub = false, onPublish }) => {
             </div>
             <InputField label="Rashi" name="rashi" placeholder="e.g. Kanya" value={form.rashi} onChange={handleChange} />
           </div>
+          <div>
+            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Physically Challenged / Disability</label>
+            <CustomSelect value={form.hasDisability} onChange={v => setForm(f => ({ ...f, hasDisability: v }))}
+              options={[{ value: 'No', label: 'No' }, { value: 'Yes', label: 'Yes' }]} />
+          </div>
+          {form.hasDisability === 'Yes' && (
+            <div className="space-y-2">
+              <p id="setup-disability-type-label" className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Type of Disability</p>
+              <DisabilityTypePicker
+                labelId="setup-disability-type-label"
+                value={form.disabilityChoice}
+                onChange={v => setForm(f => ({ ...f, disabilityChoice: v }))}
+              />
+              {form.disabilityChoice === 'Other' && (
+                <InputField label="Describe the disability" name="disabilityOther" placeholder="e.g. Partial hearing loss" value={form.disabilityOther} onChange={handleChange} />
+              )}
+              {stepErrors.disabilityType && <p className="text-[11px] font-semibold text-rose-600">{stepErrors.disabilityType}</p>}
+            </div>
+          )}
           <InputField label="Nakshatra / Star" name="star" placeholder="e.g. Chitra" value={form.star} onChange={handleChange} />
           <InputField label="About Yourself" name="about" placeholder="Describe yourself..." value={form.about} onChange={handleChange} />
         </div>

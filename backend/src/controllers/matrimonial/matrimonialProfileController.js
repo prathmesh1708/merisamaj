@@ -14,6 +14,11 @@ const { ensureBlurredPhotos } = require('../../services/matrimonialPhotoBlur');
 const { notifyProfileViewed, createNotification } = require('../../services/notificationService');
 const { getEffectiveFeatures } = require('../../middleware/subscriptionMiddleware');
 const { inheritTenantPayload } = require('../../utils/queryScopeHelper');
+
+// First readable message of a Mongoose validation error (e.g. a missing disability type)
+const validationMessage = (err) => (err?.name === 'ValidationError'
+  ? (Object.values(err.errors || {})[0]?.message || 'Please check the details you entered.')
+  : err.message);
 const { presentProfiles } = require('../../services/matrimonialPresentProfiles');
 
 // ─── "X viewed your profile" push, with the visitor's photo ───────────────────
@@ -135,7 +140,7 @@ exports.createProfile = async (req, res) => {
     if (err.code === 11000) {
       return res.status(400).json({ status: 'error', message: 'You already have a matrimonial profile.' });
     }
-    res.status(500).json({ status: 'error', message: err.message });
+    res.status(err.name === 'ValidationError' ? 400 : 500).json({ status: 'error', message: validationMessage(err) });
   }
 };
 
@@ -169,7 +174,7 @@ exports.updateProfile = async (req, res) => {
     await profile.save();
     res.json({ status: 'success', data: { profile, profileCompletion: completion } });
   } catch (err) {
-    res.status(500).json({ status: 'error', message: err.message });
+    res.status(err.name === 'ValidationError' ? 400 : 500).json({ status: 'error', message: validationMessage(err) });
   }
 };
 
@@ -427,7 +432,7 @@ exports.searchProfiles = async (req, res) => {
       community, religion, maritalStatus, gotra,
       profession, education, occupation,
       state, city, country,
-      diet, annualIncome,
+      diet, annualIncome, disability,
       sort = 'recent',
       verifiedOnly, withPhoto
     } = req.query;
@@ -565,6 +570,8 @@ exports.searchProfiles = async (req, res) => {
     // Dropdown / Select inputs: Exact match
     if (maritalStatus) query['personal.maritalStatus']           = exactRegex(maritalStatus);
     if (diet)          query['lifestyle.diet']                   = exactRegex(diet);
+    if (disability === 'yes') query['personal.hasDisability'] = true;
+    else if (disability === 'no') query['personal.hasDisability'] = { $ne: true };
 
     // ─── Verified Only ────────────────────────────────────────────────────────
     if (verifiedOnly === 'true' || verifiedOnly === true) {

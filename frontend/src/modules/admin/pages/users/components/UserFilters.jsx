@@ -143,6 +143,14 @@ export const UserFilters = ({ filters, setFilters }) => {
             <option value="no">Without Photo</option>
           </select>
         </Field>
+
+        <Field label="Aadhaar">
+          <select value={filters.aadhaarVerified || 'all'} onChange={set('aadhaarVerified')} className={selectCls}>
+            <option value="all">All</option>
+            <option value="yes">Aadhaar Verified</option>
+            <option value="no">Not Verified</option>
+          </select>
+        </Field>
       </div>
 
       {/* More filters */}

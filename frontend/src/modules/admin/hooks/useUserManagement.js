@@ -18,6 +18,7 @@ export const DEFAULT_USER_FILTERS = {
   name: '',
   gender: 'all',
   hasPhoto: 'all',
+  aadhaarVerified: 'all',
   dateFrom: '',
   dateTo: '',
 };

@@ -286,3 +286,18 @@ test('User schema hides aadhaarLast4 / aadhaarVerifiedAt / aadhaarHash unless ex
     assert.equal(AadhaarKycRecord.schema.path(f).options.select, false, f);
   });
 });
+
+// ─── 7. Matrimonial: age / DOB only for the owner ───────────────────────────
+test('matrimonial: other members never get age or date of birth; the owner does', () => {
+  const restricted = buildRestrictedProfile(matrimonialProfile(true));
+  assert.ok(!('age' in restricted));
+  assert.ok(!JSON.stringify(restricted).includes('dateOfBirth'));
+
+  const connected = buildFullProfile(matrimonialProfile(false));
+  assert.ok(!('age' in connected));
+  assert.ok(!('dateOfBirth' in (connected.personal || {})));
+
+  const owner = buildFullProfile(matrimonialProfile(false), {}, { isOwner: true });
+  assert.equal(typeof owner.age, 'number');
+  assert.ok(owner.personal.dateOfBirth);
+});

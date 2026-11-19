@@ -590,8 +590,10 @@ exports.getComments = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Access denied: post belongs to another community' });
     }
 
+    // Deleted comments are soft-deleted (deleteComment) and must not come back
     const filter = {
-      postId: req.params.id
+      postId: req.params.id,
+      isDeleted: { $ne: true }
     };
 
     if (parentCommentId !== undefined) {
@@ -1359,9 +1361,12 @@ exports.updateComment = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Not authorized to edit this comment' });
     }
 
-    const { text } = req.body;
-    if (text !== undefined) {
-      comment.text = text.trim();
+    const text = typeof req.body.text === 'string' ? req.body.text.trim() : '';
+    if (!text) {
+      return res.status(400).json({ success: false, message: 'Comment cannot be empty.' });
+    }
+    if (text !== comment.text) {
+      comment.text = text;
       comment.isEdited = true;
       comment.editedAt = new Date();
     }

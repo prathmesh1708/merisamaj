@@ -20,7 +20,7 @@ export const userService = {
 
     // Text / dropdown filters — sent only when set
     ['communityName', 'subCommunity', 'state', 'district', 'location', 'verifiedBy',
-     'customerId', 'name', 'gender', 'hasPhoto', 'dateFrom', 'dateTo'].forEach(key => {
+     'customerId', 'name', 'gender', 'hasPhoto', 'aadhaarVerified', 'dateFrom', 'dateTo'].forEach(key => {
       const v = filters[key];
       if (v && v !== 'all' && v !== 'All') params.set(key, v);
     });

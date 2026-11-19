@@ -11,6 +11,8 @@ import {
 import { matrimonialProfileService, matrimonialSubscriptionService } from '../../../../../core/api/matrimonialService';
 import { useData } from '../../../context/DataProvider';
 import PlanFeaturesModal from '../../../components/common/PlanFeaturesModal';
+import { disabilityFormFromProfile, disabilityPayloadFromForm } from '../disabilityOptions';
+import DisabilityTypePicker from './DisabilityTypePicker';
 
 const toDateInputValue = (value) => {
   if (!value) return '';
@@ -74,6 +76,9 @@ export const MatrimonialVisibilityManager = ({
     community: user?.community || '',
     gotra: '',
     manglikStatus: 'No',
+    hasDisability: 'No',
+    disabilityChoice: '',
+    disabilityOther: '',
     diet: '',
     city: user?.city || '',
     state: '',
@@ -233,6 +238,7 @@ export const MatrimonialVisibilityManager = ({
             community: p.personal?.community || user?.community || '',
             gotra: p.personal?.gotra || user?.gotra || '',
             manglikStatus: p.horoscope?.manglik || 'No',
+            ...disabilityFormFromProfile(p.personal),
             diet: p.lifestyle?.diet || '',
             city: p.location?.city || user?.city || '',
             state: p.location?.state || '',
@@ -434,9 +440,16 @@ export const MatrimonialVisibilityManager = ({
 
   const handleSaveProfileForm = async (e) => {
     e.preventDefault();
+    const disability = disabilityPayloadFromForm(editForm);
+    if (disability.error) {
+      showToast(disability.error);
+      return;
+    }
     setSaving(true);
     const payload = {
       personal: {
+        hasDisability: disability.hasDisability,
+        disabilityType: disability.disabilityType,
         fullName: editForm.fullName,
         dateOfBirth: editForm.dateOfBirth || undefined,
         gender: editForm.gender || undefined,
@@ -1766,6 +1779,47 @@ export const MatrimonialVisibilityManager = ({
               </select>
               <p className="text-[10px] text-slate-400 mt-1">You can change this whenever you need.</p>
             </div>
+            <div>
+              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Physically Challenged / Disability</label>
+              <div className="grid grid-cols-2 gap-2">
+                {['No', 'Yes'].map(option => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => setEditForm({ ...editForm, hasDisability: option })}
+                    aria-pressed={editForm.hasDisability === option}
+                    className={`py-2.5 rounded-xl border text-xs font-bold transition-all ${
+                      editForm.hasDisability === option
+                        ? 'bg-rose-50 border-rose-400 text-rose-600'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {editForm.hasDisability === 'Yes' && (
+              <div className="space-y-2">
+                <p id="disability-type-label" className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Type of Disability</p>
+                <DisabilityTypePicker
+                  labelId="disability-type-label"
+                  value={editForm.disabilityChoice}
+                  onChange={type => setEditForm({ ...editForm, disabilityChoice: type })}
+                />
+                {editForm.disabilityChoice === 'Other' && (
+                  <input
+                    type="text"
+                    value={editForm.disabilityOther}
+                    maxLength={100}
+                    onChange={e => setEditForm({ ...editForm, disabilityOther: e.target.value })}
+                    placeholder="Describe the disability"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-rose-500"
+                  />
+                )}
+                <p className="text-[10px] text-slate-400">Shown only to members whose interest you accept.</p>
+              </div>
+            )}
           </div>
 
           {/* Education & Career */}
@@ -2535,9 +2589,9 @@ export const MatrimonialVisibilityManager = ({
               )}
               <p className="text-[12.5px] text-slate-500 font-bold mt-0.5">
                 {(previewTab === 'before'
-                  ? [previewUser.age ? `${previewUser.age} Years` : null, previewUser.education, previewUser.profession,
+                  ? [previewUser.education, previewUser.profession,
                      settings.visibleOnlyAfterAccept && previewUser.income ? `Earns ${previewUser.income}` : null]
-                  : [previewUser.age ? `${previewUser.age} Years` : null, previewUser.height, previewUser.education]
+                  : [previewUser.height, previewUser.education]
                 ).filter(Boolean).join(' | ') || 'Complete your profile to see this here'}
               </p>
             </div>

@@ -16,3 +16,6 @@ coverage/
 .nyc_output/
 .DS_Store
 Thumbs.db
+
+# One-off data backups written by src/scripts (member ids)
+backups/

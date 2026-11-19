@@ -246,9 +246,19 @@ export const UserTable = ({
 
                     {/* Customer Name */}
                     <td className="px-6 py-4">
-                      <button type="button" onClick={() => onViewProfile(user)} className="font-bold text-gray-800 hover:text-brand-primary text-left">
-                        {user.name}
-                      </button>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <button type="button" onClick={() => onViewProfile(user)} className="font-bold text-gray-800 hover:text-brand-primary text-left">
+                          {user.name}
+                        </button>
+                        {user.isAadhaarVerified && (
+                          <span
+                            className="inline-flex items-center gap-0.5 whitespace-nowrap rounded-full border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[9.5px] font-black uppercase tracking-wide text-emerald-700"
+                            title="Aadhaar verified"
+                          >
+                            <ShieldCheck size={10} strokeWidth={3} /> Aadhaar
+                          </span>
+                        )}
+                      </div>
                       {user.gender && <p className="text-xs text-gray-400 mt-0.5 capitalize">{user.gender}</p>}
                     </td>
 

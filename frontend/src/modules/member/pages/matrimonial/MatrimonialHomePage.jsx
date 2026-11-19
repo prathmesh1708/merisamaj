@@ -299,6 +299,7 @@ const MatrimonialHomePage = () => {
   const [ageRange, setAgeRange] = useState({ min: 18, max: 50 });
   const [selectedMaritalStatus, setSelectedMaritalStatus] = useState('All');
   const [selectedDiet, setSelectedDiet] = useState('All');
+  const [selectedDisability, setSelectedDisability] = useState('Any'); // 'Any' | 'No' | 'Yes' (filtered on the server)
   const [verifiedOnlyFilter, setVerifiedOnlyFilter] = useState(false);
   const [withPhotoOnlyFilter, setWithPhotoOnlyFilter] = useState(false);
 
@@ -541,7 +542,11 @@ const MatrimonialHomePage = () => {
     diet: selectedDiet !== 'All' ? selectedDiet : undefined,
     nearby: activeFilterPill === 'nearby' ? '1' : undefined,
     manglikStatus: activeFilterPill === 'manglik' ? 'manglik' : undefined,
-    subCommunity: selectedCommunityScope === 'specific' && selectedSpecificCommunity ? selectedSpecificCommunity : undefined
+    subCommunity: selectedCommunityScope === 'specific' && selectedSpecificCommunity ? selectedSpecificCommunity : undefined,
+    // Other members' age is never sent, so the age range is filtered on the server
+    ageMin: ageRange.min !== 18 ? ageRange.min : undefined,
+    ageMax: ageRange.max !== 50 ? ageRange.max : undefined,
+    disability: selectedDisability !== 'Any' ? selectedDisability.toLowerCase() : undefined
   });
   const lastServerFilterKey = useRef(JSON.stringify({}));
   useEffect(() => {
@@ -1473,7 +1478,7 @@ const MatrimonialHomePage = () => {
                           {visitor.activeStatus}
                         </span>
                         <h2 className="text-white text-[23px] font-black mt-1 leading-none">
-                          {visitor.requiresUpgrade ? 'XXXXX' : visitor.name}, {visitor.age}
+                          {visitor.requiresUpgrade ? 'XXXXX' : visitor.name}{visitor.age ? `, ${visitor.age}` : ''}
                         </h2>
                         <p className="text-white/80 text-[13px] font-bold mt-2 leading-none">
                           {visitor.height} · {visitor.city} · {visitor.community}
@@ -1612,7 +1617,7 @@ const MatrimonialHomePage = () => {
                             {visited.activeStatus}
                           </span>
                           <h2 className="text-white text-[23px] font-black mt-1 leading-none">
-                            {visited.name}, {visited.age}
+                            {visited.name}{visited.age ? `, ${visited.age}` : ''}
                           </h2>
                           <p className="text-white/80 text-[13px] font-bold mt-2 leading-none">
                             {visited.height} · {visited.city} · {visited.community}
@@ -2922,6 +2927,27 @@ const MatrimonialHomePage = () => {
                   ))}
                 </div>
               </div>
+
+              {/* Physically Challenged */}
+              <div>
+                <label className="text-[11px] text-slate-400 font-extrabold uppercase tracking-wide block mb-2">Physically Challenged</label>
+                <div className="flex gap-2">
+                  {[['Any', 'Any'], ['No', 'Not Challenged'], ['Yes', 'Challenged']].map(([value, label]) => (
+                    <button
+                      key={value}
+                      onClick={() => setSelectedDisability(value)}
+                      aria-pressed={selectedDisability === value}
+                      className={`flex-1 py-2 text-[10.5px] font-extrabold rounded-xl border transition-all ${
+                        selectedDisability === value
+                          ? 'bg-rose-50 border-rose-350 text-rose-600 shadow-xs'
+                          : 'bg-white border-slate-200 text-slate-650 hover:bg-slate-50'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             {/* Bottom Actions */}
@@ -2931,6 +2957,7 @@ const MatrimonialHomePage = () => {
                   setAgeRange({ min: 18, max: 50 });
                   setSelectedMaritalStatus('All');
                   setSelectedDiet('All');
+                  setSelectedDisability('Any');
                   setSelectedCommunityScope('all');
                   setSelectedSpecificCommunity('');
                   setActiveFilterPill('all');

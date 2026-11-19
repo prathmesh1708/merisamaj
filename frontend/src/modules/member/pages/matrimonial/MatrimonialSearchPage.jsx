@@ -126,6 +126,7 @@ const MatrimonialSearchPage = () => {
     highestQualification: '',
     profession:    '',
     diet:          '',
+    disability:    '',   // '' (any) | 'no' | 'yes'
     sortBy:        'matchScore',
     withPhoto:     true,
     verifiedOnly:  false,
@@ -319,6 +320,16 @@ const MatrimonialSearchPage = () => {
               </select>
             </div>
 
+            {/* Physically Challenged */}
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Physically Challenged</label>
+              <select value={filters.disability} onChange={e => setFilters(f => ({ ...f, disability: e.target.value }))} className={selectCls}>
+                <option value="">Any</option>
+                <option value="no">Not Challenged</option>
+                <option value="yes">Challenged</option>
+              </select>
+            </div>
+
             {/* Diet */}
             {!advancedLocked && (
             <div>
@@ -386,7 +397,7 @@ const MatrimonialSearchPage = () => {
             <Search size={36} className="text-slate-300 mb-3" />
             <h3 className="text-[14px] font-extrabold text-slate-800 mb-1">No profiles found</h3>
             <p className="text-[12px] text-slate-400 font-semibold">Try adjusting your filters</p>
-            <button onClick={() => { setFilters(f => ({ ...f, community: '', city: '', maritalStatus: '', diet: '' })); handleApplyFilters(); }}
+            <button onClick={() => { setFilters(f => ({ ...f, community: '', city: '', maritalStatus: '', diet: '', disability: '' })); handleApplyFilters(); }}
               className="mt-4 px-6 py-2.5 bg-rose-500 text-white rounded-xl text-[12.5px] font-bold active:scale-95">
               Clear Filters
             </button>

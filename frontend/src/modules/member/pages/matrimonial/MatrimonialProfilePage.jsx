@@ -17,6 +17,7 @@ import {
 } from '../../../../core/api/matrimonialService';
 import MatchScoreBadge from './components/MatchScoreBadge';
 import MarriageSuccessScreen from './components/MarriageSuccessScreen';
+import { disabilityLabel } from './disabilityOptions';
 
 // ─── Info Row ──────────────────────────────────────────────────────────────────
 const InfoRow = ({ label, value, icon: Icon }) => (
@@ -429,6 +430,7 @@ View plans?`)) navigate('/member/matrimonial/subscription');
             <InfoRow label="Mother Tongue" value={profile.personal?.motherTongue} />
             <InfoRow label="Religion"      value={profile.personal?.religion} />
             <InfoRow label="Community"     value={profile.personal?.community} />
+            <InfoRow label="Physically Challenged" value={disabilityLabel(profile.personal)} />
           </div>
         </SectionCard>
         )}

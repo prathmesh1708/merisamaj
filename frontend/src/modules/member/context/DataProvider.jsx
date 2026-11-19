@@ -1780,6 +1780,55 @@ export const DataProvider = ({ children }) => {
     }
   };
 
+  // Edit own comment or reply. Optimistic; the old text comes back if the server refuses.
+  // Resolves to { success, message }.
+  const editPostComment = async (postId, commentId, newText) => {
+    const text = (newText || '').trim();
+    if (!text) return { success: false, message: 'Comment cannot be empty.' };
+    let previousText = null;
+    updateAllPostLists(postId, mapPostComment(postId, commentId, c => {
+      previousText = c.text;
+      return { ...c, text, isEdited: true };
+    }));
+    try {
+      await socialService.updateComment(commentId, { text });
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to edit comment:', error);
+      if (previousText !== null) {
+        updateAllPostLists(postId, mapPostComment(postId, commentId, c => ({ ...c, text: previousText })));
+      }
+      return { success: false, message: error.response?.data?.message || 'Could not edit the comment.' };
+    }
+  };
+
+  // Delete a comment (with its replies) or a single reply. Optimistic; on failure
+  // the comments are reloaded from the server. Resolves to { success, message }.
+  const deletePostComment = async (postId, commentId) => {
+    const isTarget = c => c._id === commentId || c.id === commentId;
+    updateAllPostLists(postId, p => {
+      if (p._id !== postId && p.id !== postId) return p;
+      let removed = 0;
+      const commentsList = [];
+      (p.commentsList || []).forEach(c => {
+        if (isTarget(c)) { removed += 1 + (c.replies?.length || 0); return; }
+        const replies = (c.replies || []).filter(r => !isTarget(r));
+        removed += (c.replies?.length || 0) - replies.length;
+        commentsList.push(replies.length === (c.replies?.length || 0) ? c : { ...c, replies });
+      });
+      const nextCount = Math.max(0, (p.comments ?? p.commentsCount ?? 0) - removed);
+      return { ...p, commentsList, comments: nextCount, commentsCount: nextCount };
+    });
+    try {
+      await socialService.deleteComment(commentId);
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to delete comment:', error);
+      fetchPostComments(postId);
+      return { success: false, message: error.response?.data?.message || 'Could not delete the comment.' };
+    }
+  };
+
   const recordPostView = async (postId) => {
     try {
       const res = await socialService.recordView(postId);
@@ -3344,6 +3393,8 @@ export const DataProvider = ({ children }) => {
     recordPostView,
     addCommentReply,
     toggleCommentLike,
+    editPostComment,
+    deletePostComment,
     followedAnnouncements,
     toggleFollowedAnnouncement,
     // NOTE: addMatrimonialProfile, toggleMatrimonialInterest, handleMatrimonialInterestResponse REMOVED.

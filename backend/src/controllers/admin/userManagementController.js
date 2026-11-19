@@ -88,6 +88,7 @@ exports.getUsers = async (req, res) => {
       name = '',
       gender = '',
       hasPhoto = '',
+      aadhaarVerified = '',
       dateFrom = '',
       dateTo = '',
       all = '',
@@ -137,6 +138,10 @@ exports.getUsers = async (req, res) => {
 
     if (hasPhoto === 'yes') query.avatar = { $exists: true, $nin: [null, ''] };
     else if (hasPhoto === 'no') and.push({ $or: [{ avatar: { $exists: false } }, { avatar: null }, { avatar: '' }] });
+
+    // Aadhaar: yes = verified (UIDAI OTP or Head approval), no = not verified
+    if (aadhaarVerified === 'yes') query.isAadharVerified = true;
+    else if (aadhaarVerified === 'no') query.isAadharVerified = { $ne: true };
 
     if (dateFrom || dateTo) {
       query.createdAt = {};

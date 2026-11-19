@@ -21,7 +21,6 @@ const InstagramIcon = (props) => (
 );
 import { Avatar } from '../../components/common/Avatar';
 import { useData } from '../../context/DataProvider';
-import socialService from '../../../../core/api/socialService';
 import { SharePostModal } from './components/SharePostModal';
 
 const categoryColors = {
@@ -502,7 +501,7 @@ const MultiImageGrid = ({ images }) => {
 const PostDetailPage = () => {
   const { postId } = useParams();
   const navigate = useNavigate();
-  const { posts, togglePostLike, togglePostSave, addPostComment, fetchPostComments, recordPostView, addCommentReply, toggleCommentLike, currentUser, language, members, admins } = useData();
+  const { posts, togglePostLike, togglePostSave, addPostComment, fetchPostComments, recordPostView, addCommentReply, toggleCommentLike, editPostComment, deletePostComment, currentUser, language, members, admins } = useData();
   const [commentText, setCommentText] = useState('');
   const commentInputRef = React.useRef(null);
   const [activeSort, setActiveSort] = useState('newest'); // newest | oldest
@@ -582,6 +581,37 @@ const PostDetailPage = () => {
     return { name: 'Member', avatar: null, initials: 'M', isVerified: true };
   };
 
+  // Same rules as the server: edit = comment author; delete = comment author,
+  // post author, the post's community head, or an admin.
+  const myId = String(currentUser?._id || currentUser?.id || '');
+  const isOwnComment = (c) => {
+    if (String(c?.id || c?._id || '').startsWith('temp_')) return false;
+    const authorId = c?.author?.id || c?.userId?._id || c?.userId;
+    return !!(myId && authorId && String(authorId) === myId);
+  };
+  const postOwnerId = String(post.authorId?._id || post.authorId || post.userId?._id || post.userId || post.author?.id || '');
+  const myCommunityId = String(currentUser?.communityId?._id || currentUser?.communityId || '');
+  const postCommunityId = String(post.communityId?._id || post.communityId || '');
+  const canModerateComments = (!!myId && postOwnerId === myId)
+    || ['admin', 'super_admin', 'master_admin', 'master'].includes(currentUser?.role)
+    || (currentUser?.role === 'head' && !!myCommunityId && myCommunityId === postCommunityId);
+  const canDeleteComment = (c) => !String(c?.id || c?._id || '').startsWith('temp_') && (isOwnComment(c) || canModerateComments);
+
+  const handleEditComment = async (c) => {
+    const newText = window.prompt('Edit comment:', c.text || '');
+    if (newText === null || !newText.trim() || newText.trim() === (c.text || '').trim()) return;
+    const res = await editPostComment(post.id, c.id || c._id, newText);
+    if (!res.success) window.alert(res.message);
+  };
+
+  const handleDeleteComment = async (c) => {
+    const replyCount = c.replies?.length || 0;
+    const question = replyCount ? `Delete this comment and its ${replyCount} ${replyCount === 1 ? 'reply' : 'replies'}?` : 'Delete this comment?';
+    if (!window.confirm(question)) return;
+    const res = await deletePostComment(post.id, c.id || c._id);
+    if (!res.success) window.alert(res.message);
+  };
+
   const rawComments = post.commentsList || [];
   const sortedComments = [...rawComments].sort((a, b) => {
     const idA = String(a._id || a.id || '');
@@ -641,11 +671,6 @@ const PostDetailPage = () => {
               <div>
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <h4 className="text-[15px] font-black text-slate-800 leading-tight group-hover:text-indigo-600 transition-colors">{post.author.name}</h4>
-              {(post.author?.proBadge || post.userId?.proBadge) && (
-                <span className="inline-flex items-center gap-0.5 text-[9.5px] font-black bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full select-none" title="PRO member">
-                  <Check size={9} strokeWidth={4} /> PRO
-                </span>
-              )}
                   {post.author.isVerified && (
                     <span className="inline-flex items-center gap-0.5 text-[9.5px] font-bold bg-[#8B5CF6]/8 text-[#7C3AED] px-2 py-0.5 rounded-full select-none">
                       <Check size={9} strokeWidth={4} /> Verified Member
@@ -812,41 +837,14 @@ const PostDetailPage = () => {
                       </button>
 
                       {/* Comment Edit/Delete Actions */}
-                      {((comment.userId?._id || comment.userId) === currentUser?._id || author.name === currentUser?.name) && (
-                        <button
-                          onClick={async () => {
-                            const newText = prompt('Edit comment:', comment.text);
-                            if (newText && newText.trim() && comment._id) {
-                              try {
-                                await socialService.updateComment(comment._id, { text: newText.trim() });
-                                setRawComments(prev => prev.map(c => c._id === comment._id ? { ...c, text: newText.trim(), isEdited: true } : c));
-                              } catch (err) {
-                                console.error('Failed to update comment:', err);
-                              }
-                            }
-                          }}
-                          className="hover:text-slate-600 cursor-pointer transition-colors"
-                        >
+                      {isOwnComment(comment) && (
+                        <button onClick={() => handleEditComment(comment)} className="hover:text-slate-600 cursor-pointer transition-colors">
                           Edit
                         </button>
                       )}
 
-                      {(((comment.userId?._id || comment.userId) === currentUser?._id || author.name === currentUser?.name || (post.userId?._id || post.authorId) === currentUser?._id || ['admin','super_admin','master_admin','head'].includes(currentUser?.role))) && (
-                        <button
-                          onClick={async () => {
-                            if (window.confirm('Delete this comment?') && comment._id) {
-                              try {
-                                const res = await socialService.deleteComment(comment._id);
-                                const decCount = res.deletedCount || 1;
-                                setRawComments(prev => prev.filter(c => c._id !== comment._id));
-                                setPost(prev => prev ? { ...prev, commentsCount: Math.max(0, (prev.commentsCount || 0) - decCount) } : prev);
-                              } catch (err) {
-                                console.error('Failed to delete comment:', err);
-                              }
-                            }
-                          }}
-                          className="hover:text-slate-600 cursor-pointer transition-colors"
-                        >
+                      {canDeleteComment(comment) && (
+                        <button onClick={() => handleDeleteComment(comment)} className="hover:text-rose-600 cursor-pointer transition-colors">
                           Delete
                         </button>
                       )}
@@ -871,6 +869,16 @@ const PostDetailPage = () => {
                                   )}
                                 </div>
                                 <p className="text-[13px] text-slate-800 leading-snug mt-0.5 break-words">{reply.text}</p>
+                                {(isOwnComment(reply) || canDeleteComment(reply)) && (
+                                  <div className="flex items-center gap-4 mt-1 text-[12px] font-semibold text-slate-400">
+                                    {isOwnComment(reply) && (
+                                      <button onClick={() => handleEditComment(reply)} className="hover:text-slate-600 cursor-pointer transition-colors">Edit</button>
+                                    )}
+                                    {canDeleteComment(reply) && (
+                                      <button onClick={() => handleDeleteComment(reply)} className="hover:text-rose-600 cursor-pointer transition-colors">Delete</button>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           );

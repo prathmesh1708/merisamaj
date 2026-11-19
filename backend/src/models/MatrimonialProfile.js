@@ -111,7 +111,10 @@ const matrimonialProfileSchema = new mongoose.Schema(
       religion:      { type: String, index: true },
       community:     { type: String, index: true },
       gotra:         { type: String },
-      motherTongue:  { type: String }
+      motherTongue:  { type: String },
+      // Physically challenged / disability (Divyang). Type is kept only when hasDisability is true.
+      hasDisability:  { type: Boolean, default: false, index: true },
+      disabilityType: { type: String, trim: true, maxlength: 100, default: '' }
     },
 
     // ─── Photos ───────────────────────────────────────────────────────────────
@@ -260,5 +263,18 @@ matrimonialProfileSchema.virtual('age').get(function () {
 
 matrimonialProfileSchema.set('toJSON',   { virtuals: true });
 matrimonialProfileSchema.set('toObject', { virtuals: true });
+
+// Disability type only makes sense when the member said they have one;
+// a "Yes" also needs a type.
+matrimonialProfileSchema.pre('validate', function () {
+  if (!this.personal) return;
+  const raw = this.personal.hasDisability;
+  this.personal.hasDisability = raw === true || raw === 'true' || raw === 'Yes';
+  if (!this.personal.hasDisability) {
+    this.personal.disabilityType = '';
+  } else if (!String(this.personal.disabilityType || '').trim()) {
+    this.invalidate('personal.disabilityType', 'Please enter the type of disability.');
+  }
+});
 
 module.exports = mongoose.model('MatrimonialProfile', matrimonialProfileSchema);

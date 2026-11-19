@@ -97,7 +97,7 @@ const ProfileCard = ({
         {/* Info Section */}
         <div className="p-3">
           <h4 className="text-[13.5px] font-extrabold text-slate-800 truncate leading-tight">
-            {profile.name}, {profile.age}
+            {profile.name}{profile.age ? `, ${profile.age}` : ''}
           </h4>
           <p className="text-[11px] text-slate-500 font-semibold mt-0.5 truncate">
             {profile.height} · {profile.gotra} Gotra
@@ -165,7 +165,7 @@ const ProfileCard = ({
         <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
           <div>
             <div className="flex items-center gap-2 mb-0.5">
-              <h4 className="text-[14px] font-extrabold text-slate-800 truncate">{profile.name}, {profile.age}</h4>
+              <h4 className="text-[14px] font-extrabold text-slate-800 truncate">{profile.name}{profile.age ? `, ${profile.age}` : ''}</h4>
               {profile.verifiedStatus && <ShieldCheck size={14} className="text-emerald-500 shrink-0" />}
             </div>
             <p className="text-[12px] text-slate-600 font-semibold">{profile.height} · {profile.gotra} Gotra</p>
