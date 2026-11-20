@@ -13,6 +13,9 @@ const uploadRateLimiter = rateLimit({
 // Only file uploads count towards the limit — plain text messages are never throttled
 const imageLimiter = (req, res, next) => (req.is('multipart/form-data') ? uploadRateLimiter(req, res, next) : next());
 
+// ─── Badge: total unread across member / group / matrimonial chats ────────────
+router.get('/unread-count',                                      chatCtrl.getUnreadChatCount);
+
 // ─── Conversations ────────────────────────────────────────────────────────────
 router.post('/conversations',                                    chatCtrl.openConversation);
 router.get('/conversations',                                     chatCtrl.getConversations);

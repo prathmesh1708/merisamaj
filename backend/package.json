@@ -17,6 +17,8 @@
     "migrate:referral-codes": "node src/scripts/migrateReferralCodes.js",
     "migrate:aadhaar-name": "node src/scripts/migrateAadhaarVerifiedName.js",
     "reset:legacy-aadhaar": "node src/scripts/resetLegacyAadhaarFlags.js",
+    "recalc:matrimonial-completion": "node src/scripts/recalcMatrimonialCompletion.js",
+    "host:app-content-images": "node src/scripts/hostAppContentImages.js",
     "test": "node --test --test-force-exit src/services/*.test.js src/tests/*.test.js"
   },
   "dependencies": {

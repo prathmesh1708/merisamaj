@@ -31,12 +31,35 @@ export const UserProfileDrawer = ({ userId, isOpen, onClose, onActionComplete })
   const [loading, setLoading] = useState(false);
   const [isAssignHeadOpen, setIsAssignHeadOpen] = useState(false);
   const [isEditCommunityOpen, setIsEditCommunityOpen] = useState(false);
+  // Gender: locked for members, editable by Admins only
+  const [editingGender, setEditingGender] = useState(false);
+  const [genderDraft, setGenderDraft] = useState('');
+  const [savingGender, setSavingGender] = useState(false);
+  const [genderError, setGenderError] = useState('');
+
+  const saveGender = async () => {
+    if (!genderDraft || !user) return;
+    setSavingGender(true);
+    setGenderError('');
+    try {
+      await userService.updateUser(userId, { gender: genderDraft });
+      setUser(prev => (prev ? { ...prev, gender: genderDraft } : prev));
+      setEditingGender(false);
+      if (onActionComplete) onActionComplete();
+    } catch (e) {
+      setGenderError(e.response?.data?.message || 'Could not update gender.');
+    } finally {
+      setSavingGender(false);
+    }
+  };
 
   useEffect(() => {
     if (!isOpen || !userId) return;
     const load = async () => {
       setLoading(true);
       setUser(null);
+      setEditingGender(false);
+      setGenderError('');
       try {
         const data = await userService.getUserById(userId);
         setUser(data);
@@ -177,7 +200,44 @@ export const UserProfileDrawer = ({ userId, isOpen, onClose, onActionComplete })
                     <div className="space-y-6">
                       <div className="grid grid-cols-2 gap-x-8 gap-y-5">
                         <Field label="Full Name" value={user.name} />
-                        <Field label="Gender" value={user.gender} />
+                        {/* Members can't change their gender after registration — only Admins, here */}
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Gender</p>
+                          {editingGender ? (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <select
+                                value={genderDraft}
+                                onChange={e => setGenderDraft(e.target.value)}
+                                className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm font-semibold text-gray-800 outline-none focus:border-brand-primary"
+                                aria-label="Gender"
+                              >
+                                <option value="" disabled>Select</option>
+                                {['Male', 'Female', 'Other'].map(g => <option key={g} value={g}>{g}</option>)}
+                              </select>
+                              <button type="button" onClick={saveGender} disabled={savingGender || !genderDraft} className="text-xs font-bold text-brand-primary disabled:opacity-50">
+                                {savingGender ? 'Saving…' : 'Save'}
+                              </button>
+                              <button type="button" onClick={() => { setEditingGender(false); setGenderError(''); }} className="text-xs font-bold text-gray-400 hover:text-gray-600">Cancel</button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-semibold text-gray-800 capitalize">{user.gender || '—'}</p>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const g = String(user.gender || '').toLowerCase();
+                                  setGenderDraft(g ? g.charAt(0).toUpperCase() + g.slice(1) : '');
+                                  setGenderError('');
+                                  setEditingGender(true);
+                                }}
+                                className="text-xs font-bold text-brand-primary hover:underline"
+                              >
+                                Change
+                              </button>
+                            </div>
+                          )}
+                          {genderError && <p className="text-[11px] font-semibold text-rose-600 mt-1">{genderError}</p>}
+                        </div>
                         <Field label="Date of Birth" value={user.dob ? new Date(user.dob).toLocaleDateString('en-IN') : null} />
                         <Field label="Blood Group" value={user.bloodGroup} />
                         <Field label="Marital Status" value={user.maritalStatus} />

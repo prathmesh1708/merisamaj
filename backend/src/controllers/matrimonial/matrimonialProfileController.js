@@ -15,6 +15,18 @@ const { notifyProfileViewed, createNotification } = require('../../services/noti
 const { getEffectiveFeatures } = require('../../middleware/subscriptionMiddleware');
 const { inheritTenantPayload } = require('../../utils/queryScopeHelper');
 
+// The matrimonial gender always follows the account gender, which members can't
+// change after registration (only an Admin can). A member whose account has no
+// gender yet keeps what they entered.
+const MATRIMONIAL_GENDERS = { male: 'male', female: 'female', other: 'other', m: 'male', f: 'female' };
+const lockGenderToAccount = async (profile, userId) => {
+  const account = await User.findById(userId).select('gender').lean();
+  const locked = MATRIMONIAL_GENDERS[String(account?.gender || '').trim().toLowerCase()];
+  if (!locked) return;
+  if (!profile.personal) profile.personal = {};
+  profile.personal.gender = locked;
+};
+
 // First readable message of a Mongoose validation error (e.g. a missing disability type)
 const validationMessage = (err) => (err?.name === 'ValidationError'
   ? (Object.values(err.errors || {})[0]?.message || 'Please check the details you entered.')
@@ -52,37 +64,8 @@ const notifyOwnerOfVisit = async (ownerUserId, viewerId) => {
 };
 
 // ─── Completion Calculator ────────────────────────────────────────────────────
-const SECTION_REQUIRED_FIELDS = {
-  personal:    ['fullName', 'gender', 'dateOfBirth', 'maritalStatus', 'religion', 'community'],
-  education:   ['highestQualification', 'profession'],
-  family:      ['familyType'],
-  lifestyle:   ['diet'],
-  location:    ['state', 'city'],
-  preferences: ['ageMin', 'ageMax'],
-  photos:      null,  // Checked separately
-  about:       ['biography']
-};
-
-const calculateCompletion = (profile) => {
-  const completedSections = [];
-  const sections = Object.keys(SECTION_REQUIRED_FIELDS);
-
-  for (const section of sections) {
-    if (section === 'photos') {
-      const validPhotos = (profile.photos || []).filter(p => !p.isDeleted);
-      if (validPhotos.length > 0) completedSections.push('photos');
-      continue;
-    }
-    const requiredFields = SECTION_REQUIRED_FIELDS[section];
-    const sectionData    = profile[section];
-    if (!sectionData) continue;
-    const allFilled = requiredFields.every(f => sectionData[f] !== undefined && sectionData[f] !== null && sectionData[f] !== '');
-    if (allFilled) completedSections.push(section);
-  }
-
-  const percentage = Math.round((completedSections.length / sections.length) * 100);
-  return { percentage, completedSections };
-};
+// One shared calculator (also run by the model on every save)
+const { calculateCompletion } = require('../../services/matrimonialCompletion');
 
 // ─── Get effective min completion (env-driven, falls back to DB settings) ─────
 const getMinCompletion = async () => {
@@ -111,6 +94,7 @@ exports.createProfile = async (req, res) => {
     };
 
     const profile = new MatrimonialProfile(profileData);
+    await lockGenderToAccount(profile, req.user._id);
     profile.status = 'active';
     profile.verificationStatus = 'verified';
     profile.visibility = req.body.visibility || 'all_members';
@@ -164,6 +148,7 @@ exports.updateProfile = async (req, res) => {
       }
     }
 
+    await lockGenderToAccount(profile, req.user._id);
     profile.updatedBy  = req.user._id;
     profile.lastActiveAt = new Date();
 
@@ -185,6 +170,14 @@ exports.getMyProfile = async (req, res) => {
     if (!profile) {
       return res.status(200).json({ status: 'success', data: { profile: null } });
     }
+    // Always current (incl. what's still missing); persist it when the stored copy is outdated,
+    // since the stored percentage decides feed/search visibility.
+    const completion = calculateCompletion(profile);
+    if (completion.percentage !== profile.profileCompletion?.percentage
+      || (profile.profileCompletion?.missing || []).length !== completion.missing.length) {
+      await MatrimonialProfile.updateOne({ _id: profile._id }, { $set: { profileCompletion: completion } });
+    }
+    profile.profileCompletion = completion;
     res.json({ status: 'success', data: { profile } });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
@@ -263,6 +256,27 @@ exports.getUserProfile = async (req, res) => {
       (viewerSub && profile.visibilitySettings?.mySubCommunity?.enabled === false)
     )) {
       return res.status(403).json({ status: 'error', code: 'PROFILE_VISIBILITY_RESTRICTED', message: 'This member has limited profile visibility.' });
+    }
+
+    // The owner's viewer filters (Aadhaar verified / community verified / selected
+    // locations) narrow whichever audience the community switches allow. An existing
+    // interest between the two keeps the profile open so conversations keep working.
+    if (!profileOwnerUserId.equals(viewerId) && profile.visibilitySettings?.viewerFiltersActive === true) {
+      const { viewerTraits, viewerFilterBlock } = require('../../utils/matrimonialCommunityScope');
+      const blockedBy = viewerFilterBlock(profile.visibilitySettings, await viewerTraits(req.user));
+      if (blockedBy && !(await InterestRequest.exists({
+        $or: [
+          { senderId: viewerId, receiverId: profileOwnerUserId },
+          { senderId: profileOwnerUserId, receiverId: viewerId }
+        ]
+      }))) {
+        const messages = {
+          aadhaar: 'This member shows their profile only to Aadhaar verified members. Verify your Aadhaar to view it.',
+          community: 'This member shows their profile only to community verified members.',
+          location: 'This member shows their profile only to members from selected locations.'
+        };
+        return res.status(403).json({ status: 'error', code: 'PROFILE_VISIBILITY_RESTRICTED', reason: blockedBy, message: messages[blockedBy] });
+      }
     }
 
     // Another community's profile needs the viewer's plan feature (an accepted/pending
@@ -759,6 +773,7 @@ exports.getAvailableLocations = async (req, res) => {
       const ownId = viewerCommunityId(req.user, req.communityId);
       // ObjectIds, not strings: aggregate() does not cast them
       let ownIds = await communityUserIds(ownId);
+      const allOwnCommunityIds = ownIds;
       const ownSub = String(req.user?.subCommunity || '').trim();
       const { features: viewerFeatures } = await getEffectiveFeatures(req.user._id);
       const canBrowseSiblings = !!viewerFeatures?.allSubCommunitiesAccess;
@@ -772,9 +787,11 @@ exports.getAvailableLocations = async (req, res) => {
       const or = [];
 
       if (String(myCommunity) === '1' && ownIds.length) {
+        // Named sub-communities = the audience the member allowed on the settings screen
+        // (own sub-community and/or other sub-communities of the same community)
         const subs = list(subCommunities);
         const ids = subs.length
-          ? await User.find({ _id: { $in: ownIds }, subCommunity: { $in: subs.map(exact) } }).distinct('_id')
+          ? await User.find({ _id: { $in: allOwnCommunityIds }, subCommunity: { $in: subs.map(exact) } }).distinct('_id')
           : ownIds;
         or.push({ userId: { $in: ids } });
       }
@@ -879,6 +896,35 @@ exports.getVisibilitySettings = async (req, res) => {
     ]);
     const verifiedCounts = { aadharVerified, communityVerified };
 
+    // The same profiles split by audience group, so the screen can count only the
+    // members allowed by the community switches currently on (outside `data`):
+    //   mySub   — own sub-community (whole community when the member has none)
+    //   sibling — another sub-community of the own community (name = sub-community)
+    //   other   — another community (name = that community's name)
+    const audienceCounts = [];
+    {
+      const ownCommunity = communityId ? String(communityId._id || communityId) : '';
+      const ownSubKey = String(memberOf.subCommunityName || '').trim().toLowerCase();
+      const owners = await User.find({ _id: { $in: activeOwners } })
+        .select('communityId assignedCommunityIds subCommunity isAadharVerified verificationStatus').lean();
+      const otherIds = [...new Set(owners.map(o => o.communityId && String(o.communityId)).filter(id => id && id !== ownCommunity))];
+      const names = new Map((await Community.find({ _id: { $in: otherIds } }).select('name').lean()).map(c => [String(c._id), c.name]));
+      const rows = new Map();
+      for (const o of owners) {
+        const inOwn = ownCommunity && [o.communityId, ...(o.assignedCommunityIds || [])].some(id => id && String(id) === ownCommunity);
+        const sub = String(o.subCommunity || '').trim();
+        const group = inOwn ? (!ownSubKey || sub.toLowerCase() === ownSubKey ? 'mySub' : 'sibling') : 'other';
+        const name = group === 'sibling' ? sub : group === 'other' ? (names.get(String(o.communityId)) || '') : '';
+        const key = `${group}|${name.toLowerCase()}`;
+        if (!rows.has(key)) rows.set(key, { group, name, total: 0, aadhaar: 0, community: 0 });
+        const row = rows.get(key);
+        row.total += 1;
+        if (o.isAadharVerified === true) row.aadhaar += 1;
+        if (o.verificationStatus === 'verified') row.community += 1;
+      }
+      audienceCounts.push(...rows.values());
+    }
+
     // Profiles in each sub community of my community (same opposite-gender profiles)
     const subCounts = {};
     if (communityId) {
@@ -914,10 +960,11 @@ exports.getVisibilitySettings = async (req, res) => {
         scope: 'all'
       },
       allSubCommunities: { enabled: false, scope: 'all', selectedSubCommunities: [] },
-      aadharVerifiedOnly: true,
-      communityVerifiedOnly: true,
+      // Viewer filters are opt-in (see utils/matrimonialCommunityScope.js)
+      aadharVerifiedOnly: false,
+      communityVerifiedOnly: false,
       selectedLocations: {
-        enabled: true,
+        enabled: false,
         locations: []
       },
       visibleOnlyAfterAccept: true
@@ -926,7 +973,7 @@ exports.getVisibilitySettings = async (req, res) => {
     // "Other Community Members" is a paid plan feature: always off without it.
     if (!canUseOtherCommunities) defaultSettings.otherCommunities.enabled = false;
     if (!profile) {
-      return res.json({ status: 'success', data: defaultSettings, memberOf, verifiedCounts });
+      return res.json({ status: 'success', data: defaultSettings, memberOf, verifiedCounts, audienceCounts });
     }
 
     const settings = {
@@ -941,8 +988,16 @@ exports.getVisibilitySettings = async (req, res) => {
       settings.otherCommunities = { ...(settings.otherCommunities || {}), enabled: false };
     }
     if (!canUseAllSubCommunities) settings.allSubCommunities = { ...(settings.allSubCommunities || {}), enabled: false };
+    // Saved before the viewer filters applied: show them as they really work (off).
+    const storedVs = profile.toObject().visibilitySettings || {};
+    if (storedVs.viewerFiltersActive !== true) {
+      settings.aadharVerifiedOnly = false;
+      settings.communityVerifiedOnly = false;
+      settings.selectedLocations = { locations: storedVs.selectedLocations?.locations || [], enabled: false };
+    }
+    delete settings.viewerFiltersActive;
 
-    res.json({ status: 'success', data: settings, memberOf, verifiedCounts });
+    res.json({ status: 'success', data: settings, memberOf, verifiedCounts, audienceCounts });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }
@@ -958,6 +1013,12 @@ exports.updateVisibilitySettings = async (req, res) => {
     if (!features?.allSubCommunitiesAccess && req.body?.allSubCommunities) {
       req.body.allSubCommunities = { ...req.body.allSubCommunities, enabled: false };
     }
+    // Viewer filters saved from the settings screen apply from now on, exactly as shown
+    // there. A partial save (e.g. only the photo privacy switch) leaves them as they were.
+    const body = { ...(req.body || {}) };
+    delete body.viewerFiltersActive;
+    const sentViewerFilters = ['aadharVerifiedOnly', 'communityVerifiedOnly', 'selectedLocations'].every(k => k in body);
+    req.body = sentViewerFilters ? { ...body, viewerFiltersActive: true } : body;
     let profile = await MatrimonialProfile.findOne({ userId: req.user._id, isDeleted: false });
     if (!profile) {
       profile = new MatrimonialProfile({

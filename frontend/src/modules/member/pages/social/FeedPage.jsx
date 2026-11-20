@@ -1486,9 +1486,12 @@ const FeedPage = ({ isHub = false, feedType = 'city', searchQuery = '', isFilter
     currentUser, 
     language, 
     stories: allStories = [], 
-    getUnreadCountForModule, 
-    logoutUser 
+    getUnreadCountForModule,
+    logoutUser,
+    requestSocialData
   } = useData();
+  // Stories + announcement status load when the feed opens (not on every page)
+  useEffect(() => { requestSocialData?.(); }, [requestSocialData]);
   const [activeTab, setActiveTab] = useState('all');
   const [deletedPostIds, setDeletedPostIds] = useState(() => new Set());
   const [searchText, setSearchText] = useState('');

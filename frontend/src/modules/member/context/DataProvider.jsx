@@ -740,25 +740,32 @@ export const DataProvider = ({ children }) => {
   const [stories, setStories] = useState([]);
   const inFlightFeedRequests = useRef(new Map());
 
+  // Social data (stories + announcement follow status) loads only once a social
+  // screen asks for it via requestSocialData() — not on every page of the app.
+  const [socialDataWanted, setSocialDataWanted] = useState(false);
+  const requestSocialData = useCallback(() => setSocialDataWanted(true), []);
+
   useEffect(() => {
-    if (auth.isAuthenticated && currentUserId) {
-      // Stories and announcement status are lightweight; feeds are fetched on-demand in SocialHubPage
-      fetchStoriesList();
-      socialService.getAnnouncementFollowStatus().then(res => {
-        if (res && res.success && typeof res.isFollowing === 'boolean') {
-          setFollowedAnnouncements(prev => ({
-            ...prev,
-            announcements: res.isFollowing
-          }));
-        }
-      }).catch(() => {});
-    } else {
+    if (!(auth.isAuthenticated && currentUserId)) {
       setPosts([]);
       setCityPosts([]);
       setCommunityPosts([]);
       setStories([]);
+      return;
     }
-  }, [auth.isAuthenticated, currentUserId]);
+    if (!socialDataWanted) return;
+    // Feeds are fetched on-demand in SocialHubPage
+    fetchStoriesList();
+    socialService.getAnnouncementFollowStatus().then(res => {
+      if (res && res.success && typeof res.isFollowing === 'boolean') {
+        setFollowedAnnouncements(prev => ({
+          ...prev,
+          announcements: res.isFollowing
+        }));
+      }
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth.isAuthenticated, currentUserId, socialDataWanted]);
 
   const [followedAnnouncements, setFollowedAnnouncements] = useState(() => loadState('followedAnnouncements', {
     announcements: true,
@@ -1145,6 +1152,11 @@ export const DataProvider = ({ children }) => {
     }
   };
 
+  // Follow relations / requests load only when a profile, settings or discover
+  // screen asks for them via requestFollowData().
+  const [followDataWanted, setFollowDataWanted] = useState(false);
+  const requestFollowData = useCallback(() => setFollowDataWanted(true), []);
+
   const followUserKey = currentUser?._id || currentUser?.id;
   useEffect(() => {
     if (!followUserKey) {
@@ -1152,9 +1164,10 @@ export const DataProvider = ({ children }) => {
       setFollowRequests([]);
       return;
     }
+    if (!followDataWanted) return;
     loadFollowData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [followUserKey]);
+  }, [followUserKey, followDataWanted]);
 
   // My account type comes from the server's user record
   useEffect(() => {
@@ -3395,6 +3408,8 @@ export const DataProvider = ({ children }) => {
     toggleCommentLike,
     editPostComment,
     deletePostComment,
+    requestSocialData,
+    requestFollowData,
     followedAnnouncements,
     toggleFollowedAnnouncement,
     // NOTE: addMatrimonialProfile, toggleMatrimonialInterest, handleMatrimonialInterestResponse REMOVED.

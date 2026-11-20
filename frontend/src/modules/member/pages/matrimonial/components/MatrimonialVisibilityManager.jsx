@@ -29,6 +29,16 @@ const normalizeGender = value => {
   return ['male', 'female', 'other'].includes(gender) ? gender : '';
 };
 
+// Options of the profile editor's dropdowns. A saved value outside the list is still
+// shown as its own option, so the dropdown never pretends a different value is chosen.
+const DIET_OPTIONS = ['Vegetarian', 'Non-Vegetarian', 'Eggetarian', 'Jain', 'Vegan'];
+const MARITAL_OPTIONS = ['Never Married', 'Divorced', 'Widowed', 'Separated'];
+// Older forms saved "Single" / "Unmarried" for never married
+const normalizeMarital = value => {
+  const v = String(value || '').trim();
+  return /^(single|unmarried)$/i.test(v) ? 'Never Married' : v;
+};
+
 export const MatrimonialVisibilityManager = ({
   onClose,
   initialScreen = 'menu', // 'menu' | 'visibility' | 'select-communities' | 'select-locations' | 'preview' | 'edit-profile' | 'photos' | 'preferences' | 'privacy' | 'subscription' | 'help'
@@ -40,6 +50,9 @@ export const MatrimonialVisibilityManager = ({
   const { currentUser: dataUser, updateProfile } = useData();
   const user = propUser || dataUser || {};
   const profile = propProfile || {};
+  // Gender is set at registration and locked (only an admin can change it);
+  // the server also overrides the matrimonial gender with the account's.
+  const accountGender = normalizeGender(user?.gender);
 
   // Current active screen in the suite
   const [currentScreen, setCurrentScreen] = useState(initialScreen);
@@ -123,10 +136,10 @@ export const MatrimonialVisibilityManager = ({
       selectedSubCommunities: []
     },
     allSubCommunities: { enabled: false, scope: 'all', selectedSubCommunities: [] },
-    aadharVerifiedOnly: true,
-    communityVerifiedOnly: true,
+    aadharVerifiedOnly: false,
+    communityVerifiedOnly: false,
     selectedLocations: {
-      enabled: true,
+      enabled: false,
       locations: []
     },
     visibleOnlyAfterAccept: true
@@ -175,10 +188,42 @@ export const MatrimonialVisibilityManager = ({
   const [memberOf, setMemberOf] = useState({ communityName: '', subCommunityName: '', canUseOtherCommunities: false, canUseAllSubCommunities: false, subCommunities: [], mySubCommunityCount: 0, communityProfileCount: 0 });
   const otherLocked = memberOf.canUseOtherCommunities === false;
   const allSubCommunitiesLocked = memberOf.canUseAllSubCommunities !== true;
-  // How many members are Aadhaar / community verified (shown on those two switches)
-  const [verifiedCounts, setVerifiedCounts] = useState(null);
+  // Profiles split by audience group (own sub-community / other sub-communities /
+  // other communities) with how many are Aadhaar / community verified
+  const [audienceCounts, setAudienceCounts] = useState(null);
   // "Gupta ji" -> "Gupta ji Samaj" (names that already say Samaj are left as they are)
   const samaj = (name) => (/samaj/i.test(name) ? name : `${name} Samaj`);
+
+  // Who the community switches (first card) currently let in. The Aadhaar / community
+  // verified / location switches below only narrow this audience.
+  const audience = useMemo(() => {
+    const lc = (s) => String(s || '').trim().toLowerCase();
+    const noSamaj = (s) => lc(s).replace(/\s+samaj$/, '');
+    const ownSubOn = memberOf.subCommunityName
+      ? settings.myCommunity.enabled && settings.mySubCommunity.enabled
+      : settings.myCommunity.enabled;
+    const siblingsOn = !allSubCommunitiesLocked && settings.allSubCommunities.enabled;
+    const siblingNames = siblingsOn
+      ? (settings.allSubCommunities.scope === 'selected' ? (settings.allSubCommunities.selectedSubCommunities || []) : memberOf.subCommunities || [])
+          .filter(n => lc(n) !== lc(memberOf.subCommunityName))
+      : [];
+    const otherOn = !otherLocked && settings.otherCommunities.enabled;
+    const otherSelected = otherOn && settings.otherCommunities.scope === 'selected'
+      ? new Set((settings.otherCommunities.selectedCommunities || []).map(noSamaj))
+      : null;
+    const siblingSet = new Set(siblingNames.map(lc));
+    const totals = { total: 0, aadhaar: 0, community: 0 };
+    (audienceCounts || []).forEach(row => {
+      const inAudience = row.group === 'mySub' ? ownSubOn
+        : row.group === 'sibling' ? siblingSet.has(lc(row.name))
+        : otherOn && (!otherSelected || otherSelected.has(noSamaj(row.name)));
+      if (!inAudience) return;
+      totals.total += row.total;
+      totals.aadhaar += row.aadhaar;
+      totals.community += row.community;
+    });
+    return { ownSubOn, siblingNames, otherOn, totals: audienceCounts ? totals : null };
+  }, [audienceCounts, settings, memberOf, otherLocked, allSubCommunitiesLocked]);
 
   // Load saved visibility settings on mount
   useEffect(() => {
@@ -186,7 +231,7 @@ export const MatrimonialVisibilityManager = ({
       try {
         const res = await matrimonialProfileService.getVisibilitySettings();
         if (res.data?.memberOf) setMemberOf(res.data.memberOf);
-        if (res.data?.verifiedCounts) setVerifiedCounts(res.data.verifiedCounts);
+        if (Array.isArray(res.data?.audienceCounts)) setAudienceCounts(res.data.audienceCounts);
         if (res.data?.data) {
           setSettings(prev => ({
             ...prev,
@@ -231,7 +276,7 @@ export const MatrimonialVisibilityManager = ({
             gender: normalizeGender(p.personal?.gender || user?.gender),
             height: p.personal?.height || '',
             weight: p.personal?.weight || '',
-            maritalStatus: p.personal?.maritalStatus || user?.maritalStatus || '',
+            maritalStatus: normalizeMarital(p.personal?.maritalStatus || user?.maritalStatus),
             education: p.education?.highestQualification || '',
             profession: p.education?.profession || '',
             annualIncome: p.education?.annualIncome || '',
@@ -330,12 +375,14 @@ export const MatrimonialVisibilityManager = ({
   // only where members of the communities chosen above live, so it's loaded on opening that screen
   useEffect(() => {
     if (currentScreen !== 'select-locations') return;
-    const otherOn = !otherLocked && settings.otherCommunities.enabled;
+    // Locations only from the audience the community switches allow
+    const { ownSubOn, siblingNames, otherOn } = audience;
+    const ownSubs = ownSubOn && memberOf.subCommunityName ? [memberOf.subCommunityName] : [];
+    const subs = [...ownSubs, ...siblingNames];
+    const wholeOwnCommunity = ownSubOn && !memberOf.subCommunityName;
     const params = {
-      myCommunity: settings.myCommunity.enabled ? '1' : '0',
-      subCommunities: settings.myCommunity.enabled && settings.mySubCommunity.scope === 'selected'
-        ? (settings.mySubCommunity.selectedSubCommunities || []).join(',') || undefined
-        : undefined,
+      myCommunity: wholeOwnCommunity || subs.length ? '1' : '0',
+      subCommunities: wholeOwnCommunity ? undefined : subs.join(',') || undefined,
       otherScope: otherOn ? settings.otherCommunities.scope : 'none',
       communities: otherOn && settings.otherCommunities.scope === 'selected'
         ? (settings.otherCommunities.selectedCommunities || []).join(',')
@@ -511,8 +558,9 @@ export const MatrimonialVisibilityManager = ({
     try {
       const num = (v) => (v === '' || v === null || v === undefined ? null : Number(v));
       const txt = (v) => (v && String(v).trim() ? String(v).trim() : null);
-      let ageMin = num(preferences.minAge);
-      let ageMax = num(preferences.maxAge);
+      // The age sliders show 18–60 when nothing is saved yet: save what is shown
+      let ageMin = num(preferences.minAge) ?? 18;
+      let ageMax = num(preferences.maxAge) ?? 60;
       if (ageMin !== null && ageMax !== null && ageMin > ageMax) [ageMin, ageMax] = [ageMax, ageMin];
       let heightMin = num(preferences.minHeight);
       let heightMax = num(preferences.maxHeight);
@@ -682,6 +730,17 @@ export const MatrimonialVisibilityManager = ({
     (completionFields.filter(value => value !== undefined && value !== null && value !== '').length / completionFields.length) * 100
   );
 
+  // Completion comes from the server (services/matrimonialCompletion.js), which also
+  // lists what's missing. Photos uploaded in this session count before the next reload.
+  const completion = (() => {
+    const server = myProfile?.profileCompletion;
+    if (!server || !Array.isArray(server.missing)) return { percentage: calculatedCompletion, missing: null };
+    const missing = server.missing.filter(m => !(m.key === 'photos' && photosList.length > 0));
+    const total = (server.completedSections?.length || 0) + server.missing.length;
+    const percentage = total ? Math.round(((total - missing.length) / total) * 100) : (server.percentage || 0);
+    return { percentage, missing };
+  })();
+
   const previewUser = {
     name: editForm.fullName || user?.name || 'Your Name',
     id: user?.memberId || (user?._id ? `MP${user._id.slice(-6).toUpperCase()}` : ''),
@@ -695,7 +754,7 @@ export const MatrimonialVisibilityManager = ({
     caste: editForm.community || '',
     photo: photosList.find(p => p.isPrimary)?.url || photosList[0]?.url || user?.avatar
       || `https://ui-avatars.com/api/?name=${encodeURIComponent(editForm.fullName || user?.name || 'U')}&background=F43F5E&color=ffffff&bold=true`,
-    completionPercentage: Math.max(myProfile?.profileCompletion?.percentage || 0, calculatedCompletion),
+    completionPercentage: completion.percentage,
     // From /auth/me (own account): only the verified flag and the name as on Aadhaar
     aadhaarVerified: !!(user?.isAadhaarVerified ?? user?.isAadharVerified),
     aadhaarVerifiedName: user?.aadhaarVerifiedName || '',
@@ -736,7 +795,8 @@ export const MatrimonialVisibilityManager = ({
 
         <div className="p-4 space-y-4 max-w-lg mx-auto w-full">
           {/* User Profile Card */}
-          <div className="bg-white rounded-3xl p-5 border border-slate-200/70 shadow-sm flex items-center gap-4">
+          <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200/70 shadow-sm">
+          <div className="flex items-center gap-4">
             <div className="relative shrink-0">
               <div 
                 onClick={() => setCurrentScreen('photos')}
@@ -764,34 +824,56 @@ export const MatrimonialVisibilityManager = ({
                     <ShieldCheck size={10} className="text-[#138808]" /> ✔ Aadhaar Verified
                   </span>
                   {previewUser.aadhaarVerifiedName && (
-                    <p className="text-[10.5px] font-semibold text-slate-500 truncate">
+                    <p className="text-[10.5px] font-semibold text-slate-500 break-words">
                       Aadhaar Verified Name: <span className="font-black text-slate-700">{previewUser.aadhaarVerifiedName}</span>
                     </p>
                   )}
                 </div>
               )}
+            </div>
+          </div>
 
-              {/* Profile Completion Bar */}
-              <div className="mt-2 flex items-center gap-2">
-                <div className="flex-1 bg-slate-100 h-2 rounded-full overflow-hidden">
-                  <div
-                    className="bg-emerald-500 h-full rounded-full transition-all duration-500"
-                    style={{ width: `${previewUser.completionPercentage}%` }}
-                  />
+          {/* Profile Completion: percentage + exactly what is still missing */}
+          <div className="mt-4">
+            <div className="flex items-center justify-between mb-1.5">
+              <p className="text-[11px] text-slate-500 font-bold">Profile Completion</p>
+              <span className={`text-[12px] font-black ${completion.missing?.length !== 0 ? 'text-slate-700' : 'text-emerald-600'}`}>{completion.percentage}%</span>
+            </div>
+            <div className="bg-slate-100 h-2 rounded-full overflow-hidden">
+              <div
+                className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                style={{ width: `${completion.percentage}%` }}
+              />
+            </div>
+            {completion.missing?.length > 0 ? (
+              <div className="mt-3">
+                <p className="text-[11px] font-bold text-rose-600 mb-1.5">
+                  Complete these {completion.missing.length === 1 ? 'detail' : `${completion.missing.length} details`} to reach 100%:
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {completion.missing.map(item => (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={() => setCurrentScreen(item.screen || 'edit-profile')}
+                      className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-600 hover:bg-rose-100 active:scale-95 transition-all"
+                    >
+                      + {item.label}
+                    </button>
+                  ))}
                 </div>
-                <span className="text-[11px] font-black text-slate-700">{previewUser.completionPercentage}%</span>
               </div>
-              <p className="text-[9.5px] text-slate-400 font-semibold mt-0.5">Profile Completion</p>
-            </div>
+            ) : completion.missing ? (
+              <p className="mt-2 text-[11px] font-bold text-emerald-600">✓ Your profile is 100% complete</p>
+            ) : null}
+          </div>
 
-            <div>
-              <button
-                onClick={() => setCurrentScreen('preview')}
-                className="px-3 py-1.5 rounded-xl border border-rose-400 text-rose-600 hover:bg-rose-50 text-[11px] font-bold whitespace-nowrap active:scale-95 transition-all shadow-xs"
-              >
-                View Profile
-              </button>
-            </div>
+          <button
+            onClick={() => setCurrentScreen('preview')}
+            className="mt-4 w-full py-2.5 rounded-xl border border-rose-400 text-rose-600 hover:bg-rose-50 text-[12px] font-bold active:scale-[0.98] transition-all shadow-xs"
+          >
+            View Profile
+          </button>
           </div>
 
           {/* Menu Items List (All 7 Features 100% Clickable & Interactive) */}
@@ -1172,6 +1254,15 @@ export const MatrimonialVisibilityManager = ({
               </div>
             </div>
 
+            {/* Settings 4–6 narrow the audience chosen by the community switches above */}
+            <div className="px-1 pt-1">
+              <p className="text-[11.5px] font-bold text-slate-600">Extra filters</p>
+              <p className="text-[10.5px] text-slate-400 font-medium leading-snug">
+                Upar chune gaye members mein se sirf yeh log aapki profile dekh payenge.
+                {audience.totals && ` Abhi ${audience.totals.total} ${audience.totals.total === 1 ? 'member' : 'members'} chune gaye hain.`}
+              </p>
+            </div>
+
             {/* Setting 4: Aadhar Verified Members */}
             <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs">
               <div className="flex items-start justify-between gap-3">
@@ -1184,10 +1275,13 @@ export const MatrimonialVisibilityManager = ({
                     <p className="text-[11px] text-slate-400 font-medium leading-tight mt-0.5">
                       Sirf Aadhar verified members aapki profile dekh sakte hain.
                     </p>
-                    {verifiedCounts && (
+                    {audience.totals && (
                       <p className="text-[11.5px] font-bold text-rose-600 mt-1.5">
-                        {verifiedCounts.aadharVerified} Aadhar verified {verifiedCounts.aadharVerified === 1 ? 'member' : 'members'}
+                        {audience.totals.aadhaar} of {audience.totals.total} Aadhar verified
                       </p>
+                    )}
+                    {settings.aadharVerifiedOnly && audience.totals && audience.totals.aadhaar === 0 && (
+                      <p className="text-[10.5px] font-semibold text-amber-600 mt-1 leading-snug">Abhi koi bhi aapki profile nahi dekh payega.</p>
                     )}
                   </div>
                 </div>
@@ -1216,10 +1310,13 @@ export const MatrimonialVisibilityManager = ({
                     <p className="text-[11px] text-slate-400 font-medium leading-tight mt-0.5">
                       Sirf community verified members aapki profile dekh sakte hain.
                     </p>
-                    {verifiedCounts && (
+                    {audience.totals && (
                       <p className="text-[11.5px] font-bold text-emerald-600 mt-1.5">
-                        {verifiedCounts.communityVerified} community verified {verifiedCounts.communityVerified === 1 ? 'member' : 'members'}
+                        {audience.totals.community} of {audience.totals.total} community verified
                       </p>
+                    )}
+                    {settings.communityVerifiedOnly && audience.totals && audience.totals.community === 0 && (
+                      <p className="text-[10.5px] font-semibold text-amber-600 mt-1 leading-snug">Abhi koi bhi aapki profile nahi dekh payega.</p>
                     )}
                   </div>
                 </div>
@@ -1656,6 +1753,17 @@ export const MatrimonialVisibilityManager = ({
               </div>
               <div>
                 <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Gender</label>
+                {accountGender ? (
+                  // Comes from the account; only the admin can change it
+                  <div
+                    className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-500 flex items-center justify-between cursor-not-allowed"
+                    aria-disabled="true"
+                    title="Gender can only be changed by the admin"
+                  >
+                    <span>{accountGender === 'female' ? 'Female (Bride)' : accountGender === 'male' ? 'Male (Groom)' : 'Other'}</span>
+                    <Lock size={12} className="shrink-0" />
+                  </div>
+                ) : (
                 <select
                   value={editForm.gender}
                   onChange={e => setEditForm({ ...editForm, gender: e.target.value })}
@@ -1666,6 +1774,7 @@ export const MatrimonialVisibilityManager = ({
                   <option value="male">Male (Groom)</option>
                   <option value="female">Female (Bride)</option>
                 </select>
+                )}
               </div>
             </div>
 
@@ -1703,6 +1812,8 @@ export const MatrimonialVisibilityManager = ({
                 <option value="Never Married">Never Married</option>
                 <option value="Divorced">Divorced</option>
                 <option value="Widowed">Widowed</option>
+                <option value="Separated">Separated</option>
+                {editForm.maritalStatus && !MARITAL_OPTIONS.includes(editForm.maritalStatus) && <option value={editForm.maritalStatus}>{editForm.maritalStatus}</option>}
               </select>
             </div>
           </div>
@@ -1739,10 +1850,14 @@ export const MatrimonialVisibilityManager = ({
                   onChange={e => setEditForm({ ...editForm, diet: e.target.value })}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-rose-500"
                 >
+                  {/* Empty first option: without it an unset diet looked like "Vegetarian" but saved nothing */}
+                  <option value="">Select diet</option>
                   <option value="Vegetarian">Vegetarian</option>
                   <option value="Non-Vegetarian">Non-Vegetarian</option>
                   <option value="Eggetarian">Eggetarian</option>
                   <option value="Jain">Jain Vegetarian</option>
+                  <option value="Vegan">Vegan</option>
+                  {editForm.diet && !DIET_OPTIONS.includes(editForm.diet) && <option value={editForm.diet}>{editForm.diet}</option>}
                 </select>
               </div>
               <div>

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { Outlet } from 'react-router-dom';
 import { useAuth } from '../../../../core/auth/useAuth';
 import { MarriedMatrimonialPoster } from './components/MarriedMatrimonialPoster';
@@ -88,16 +88,23 @@ export const MatrimonialProvider = () => {
   }, []);
 
   // ─── Fetch Dashboard ──────────────────────────────────────────────────────
+  // A refresh without filters (after sending an interest, etc.) keeps the feed's
+  // current filters, and only the newest request may update the feed (an older,
+  // slower response must not overwrite newer filter results).
+  const dashboardFiltersRef = useRef(undefined);
+  const dashboardRequestRef = useRef(0);
   const fetchDashboard = useCallback(async (filters) => {
+    if (filters !== undefined) dashboardFiltersRef.current = filters;
+    const requestId = ++dashboardRequestRef.current;
     setDashboardLoading(true);
     try {
-      const res = await matrimonialDashboardService.getDashboard(filters);
-      setDashboard(res.data.data.dashboard);
+      const res = await matrimonialDashboardService.getDashboard(dashboardFiltersRef.current);
+      if (requestId === dashboardRequestRef.current) setDashboard(res.data.data.dashboard);
     } catch (err) {
       checkMarriedRefusal(err);
       console.error('[MatrimonialContext] Dashboard fetch failed:', err.response?.data?.message);
     } finally {
-      setDashboardLoading(false);
+      if (requestId === dashboardRequestRef.current) setDashboardLoading(false);
     }
   }, []);
 

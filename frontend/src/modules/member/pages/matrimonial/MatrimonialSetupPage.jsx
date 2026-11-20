@@ -68,6 +68,8 @@ const MatrimonialSetupPage = ({ isHub = false, onPublish }) => {
   const navigate = useNavigate();
   const { profile, loading, saving, fetchMyProfile, saveProfile } = useMatrimonialProfile();
   const { currentUser } = useData();
+  // Gender comes from the account (set at registration; only the admin can change it)
+  const accountGender = ['male', 'female', 'other'].find(g => g === String(currentUser?.gender || '').trim().toLowerCase()) || '';
   const { auth } = useAuth();
   const registrationUser = { ...(currentUser || {}), ...(auth?.user || {}) };
 
@@ -243,7 +245,7 @@ const MatrimonialSetupPage = ({ isHub = false, onPublish }) => {
     personal: {
       ...disabilityFields(form),
       fullName:     form.fullName,
-      gender:       form.gender,
+      gender:       accountGender || form.gender,
       dateOfBirth:  form.dateOfBirth,
       height:       Number(form.height) || undefined,
       weight:       Number(form.weight) || undefined,
@@ -421,6 +423,16 @@ const MatrimonialSetupPage = ({ isHub = false, onPublish }) => {
           <InputField label="Full Name" name="fullName" required placeholder="Your full name" value={form.fullName} onChange={handleChange} error={stepErrors.fullName} />
           <div>
             <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Gender <span className="text-rose-500">*</span></label>
+            {accountGender ? (
+              <>
+                {/* Taken from the account — set at registration, only the admin can change it */}
+                <div className="w-full py-3 px-4 rounded-xl text-[13px] font-bold border border-slate-200 bg-slate-100 text-slate-500 flex items-center justify-between cursor-not-allowed" aria-disabled="true">
+                  <span>{accountGender === 'female' ? '👩 Female' : accountGender === 'male' ? '👨 Male' : 'Other'}</span>
+                  <span className="text-[10px] font-semibold">🔒 Locked</span>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">Gender is set from your registration. Contact the admin to change it.</p>
+              </>
+            ) : (
             <div className="flex gap-2">
               {['male', 'female'].map(g => (
                 <button key={g} type="button" onClick={() => setForm(f => ({ ...f, gender: g }))}
@@ -429,6 +441,7 @@ const MatrimonialSetupPage = ({ isHub = false, onPublish }) => {
                 </button>
               ))}
             </div>
+            )}
           </div>
           <InputField label="Date of Birth" name="dateOfBirth" required type="date" value={form.dateOfBirth} onChange={handleChange} error={stepErrors.dateOfBirth} />
           <div className="grid grid-cols-2 gap-3">

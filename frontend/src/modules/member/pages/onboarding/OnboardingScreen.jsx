@@ -922,6 +922,7 @@ const OnboardingScreen = () => {
   const [avatarFile, setAvatarFile] = useState(null);
   const [name, setName] = useState('');
   const [gender, setGender] = useState('');
+  const [genderLocked, setGenderLocked] = useState(false);
   const [dob, setDob] = useState('');
   const [bloodGroup, setBloodGroup] = useState('');
   const [maritalStatus, setMaritalStatus] = useState('');
@@ -988,7 +989,10 @@ const OnboardingScreen = () => {
     if (userToLoad) {
       if (userToLoad.name) setName(userToLoad.name);
       if (userToLoad.phone) setPhone(userToLoad.phone);
-      if (userToLoad.gender) setGender(userToLoad.gender);
+      if (userToLoad.gender) {
+        setGender(userToLoad.gender);
+        setGenderLocked(true); // chosen before — only the admin can change it now
+      }
       if (userToLoad.communityId) {
         const cId = userToLoad.communityId._id || userToLoad.communityId;
         const matched = apiCommunities.find(c => c.value === cId || c.label.toLowerCase() === (userToLoad.community || '').toLowerCase());
@@ -1766,21 +1770,33 @@ const OnboardingScreen = () => {
                     GENDER <span className="text-red-500">*</span>
                   </label>
                   <div className="flex gap-2.5 mt-1">
-                    {['Male', 'Female', 'Other'].map(g => (
-                      <button
-                        key={g}
-                        type="button"
-                        onClick={() => { setGender(g); setStepErrors(prev => ({ ...prev, gender: '' })); }}
-                        className={`flex-1 py-3 rounded-xl text-xs sm:text-sm font-extrabold transition-all border-2 ${
-                          gender === g
-                            ? 'bg-[#F3E8FF] border-[#7C3AED] text-[#7C3AED] shadow-sm'
-                            : 'bg-white border-slate-200 text-slate-700 hover:border-purple-200'
-                        }`}
-                      >
-                        {g}
-                      </button>
-                    ))}
+                    {['Male', 'Female', 'Other'].map(g => {
+                      const selected = String(gender).toLowerCase() === g.toLowerCase();
+                      return (
+                        <button
+                          key={g}
+                          type="button"
+                          disabled={genderLocked && !selected}
+                          aria-pressed={selected}
+                          onClick={() => {
+                            if (genderLocked) return;
+                            setGender(g);
+                            setStepErrors(prev => ({ ...prev, gender: '' }));
+                          }}
+                          className={`flex-1 py-3 rounded-xl text-xs sm:text-sm font-extrabold transition-all border-2 ${
+                            selected
+                              ? 'bg-[#F3E8FF] border-[#7C3AED] text-[#7C3AED] shadow-sm'
+                              : 'bg-white border-slate-200 text-slate-700 hover:border-purple-200'
+                          } ${genderLocked ? 'cursor-not-allowed' : ''} ${genderLocked && !selected ? 'opacity-40' : ''}`}
+                        >
+                          {g}
+                        </button>
+                      );
+                    })}
                   </div>
+                  {genderLocked && (
+                    <p className="text-[10px] text-slate-500 font-semibold mt-1 ml-1">🔒 Gender can't be changed after registration. Contact the admin to change it.</p>
+                  )}
                   {stepErrors.gender && <p role="alert" className="text-[10px] text-red-500 font-bold mt-1 ml-1">{stepErrors.gender}</p>}
                 </div>
 

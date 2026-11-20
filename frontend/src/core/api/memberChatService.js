@@ -13,6 +13,10 @@ export const memberChatService = {
   openConversation: (targetUserId) =>
     axiosPrivate.post(`${BASE}/conversations`, { targetUserId }),
 
+  /** Badge count: total unread across member, group and matrimonial chats */
+  getUnreadCount: () =>
+    axiosPrivate.get(`${BASE}/unread-count`),
+
   /** List all active conversations for current user */
   getConversations: () =>
     axiosPrivate.get(`${BASE}/conversations`),

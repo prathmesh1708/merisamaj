@@ -159,7 +159,31 @@ const getUserConversations = async (userId, type, limit = 30) => {
   return populated;
 };
 
+/**
+ * Total unread chat messages for the app badge, across member, group and
+ * matrimonial conversations — the same "unread" rule as getUserConversations,
+ * but counted in the database instead of downloading three conversation lists.
+ */
+const getUnreadChatTotal = async (userId) => {
+  const mongoose = require('mongoose');
+  const userObjId = typeof userId === 'string' ? new mongoose.Types.ObjectId(userId) : userId;
+  const conversationIds = await Conversation.find({
+    participants: userObjId,
+    type: { $in: ['member', 'group', 'matrimonial'] },
+    isDeleted: false
+  }).distinct('_id');
+  if (!conversationIds.length) return 0;
+  return Message.countDocuments({
+    conversationId: { $in: conversationIds },
+    isDeleted: false,
+    deletedFor: { $ne: userObjId },
+    senderId: { $ne: userObjId },
+    'seenBy.userId': { $ne: userObjId }
+  });
+};
+
 module.exports = {
+  getUnreadChatTotal,
   findOrCreateConversation,
   findOrCreateGroupConversation,
   addParticipant,

@@ -75,6 +75,18 @@ exports.openConversation = async (req, res) => {
   }
 };
 
+// ─── Unread badge count (one light query instead of three conversation lists) ─
+// GET /api/v1/member/chat/unread-count
+exports.getUnreadChatCount = async (req, res) => {
+  try {
+    const { getUnreadChatTotal } = require('../../services/conversationService');
+    const unreadChatCount = await getUnreadChatTotal(req.user._id);
+    res.json({ status: 'success', data: { unreadChatCount } });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
 // ─── Get All Conversations ────────────────────────────────────────────────────
 exports.getConversations = async (req, res) => {
   try {

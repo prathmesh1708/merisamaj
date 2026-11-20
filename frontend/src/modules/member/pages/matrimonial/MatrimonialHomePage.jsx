@@ -295,8 +295,10 @@ const MatrimonialHomePage = () => {
   const [conversations, setConversations] = useState([]);
   const [conversationsLoading, setConversationsLoading] = useState(false);
 
-  // Advanced Filter state
-  const [ageRange, setAgeRange] = useState({ min: 18, max: 50 });
+  // Advanced Filter state. AGE_LIMITS is the full slider range = no age filter
+  // (the top end means "60 and above").
+  const AGE_LIMITS = { min: 18, max: 60 };
+  const [ageRange, setAgeRange] = useState(AGE_LIMITS);
   const [selectedMaritalStatus, setSelectedMaritalStatus] = useState('All');
   const [selectedDiet, setSelectedDiet] = useState('All');
   const [selectedDisability, setSelectedDisability] = useState('Any'); // 'Any' | 'No' | 'Yes' (filtered on the server)
@@ -489,71 +491,57 @@ const MatrimonialHomePage = () => {
   }, [dashboard]);
 
   // ─── filteredFeed — same filter logic, now on live data ──────────────────
-  const filteredFeed = useMemo(() => {
-    return feedProfiles.filter(profile => {
-      if (ignoredIds.includes(profile.id)) return false;
-      if (searchText.trim()) {
-        const query = searchText.toLowerCase();
-        const matchesName      = (profile.name || '').toLowerCase().includes(query);
-        const matchesCity      = (profile.city || '').toLowerCase().includes(query);
-        const matchesProfession= (profile.profession || '').toLowerCase().includes(query);
-        const matchesGotra     = (profile.gotra || '').toLowerCase().includes(query);
-        if (!matchesName && !matchesCity && !matchesProfession && !matchesGotra) return false;
-      }
-      if (activeFilterPill === 'verified' && !profile.headVerified && !profile.aadhaarVerified) return false;
-      if (activeFilterPill === 'joined'   && !profile.isNew)          return false;
-      if (activeFilterPill === 'manglik'  && !['yes', 'manglik', 'anshik'].includes(String(profile.manglikStatus || '').trim().toLowerCase())) return false;
-      // Nearby, sub-community, marital status and diet are applied by the server
-      // (those details aren't sent for profiles you aren't connected with).
+  // Every filter runs on the server, over all matching profiles, not only the few
+  // already loaded (most details aren't even sent for unconnected profiles).
+  const filteredFeed = useMemo(
+    () => feedProfiles.filter(profile => !ignoredIds.includes(profile.id)),
+    [feedProfiles, ignoredIds]
+  );
 
-      // ─── Community Scope & Visibility Filtering ───────────────────────
-      const userComm = (currentUser?.community || myProfile?.personal?.community || '').toLowerCase();
-      const profComm = (profile.community || profile.personal?.community || '').toLowerCase();
-      // Prefer the server's account-based answer; the typed community name is often wrong.
-      const isCrossCommunity = typeof profile.fromMyCommunity === 'boolean'
-        ? !profile.fromMyCommunity
-        : userComm && profComm && !profComm.includes(userComm);
-      const isAllMembers = profile.visibility === 'all_members' || profile.visibility === 'public' || profile.visibility === undefined;
+  // Typing in the search box asks the server once the user pauses
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchText.trim()), 400);
+    return () => clearTimeout(t);
+  }, [searchText]);
 
-      // Cross-community rule: other community profiles MUST have selected "All Members" visibility
-      if (isCrossCommunity && !isAllMembers) {
-        return false;
-      }
-
-      if (activeFilterPill === 'other_community' || selectedCommunityScope === 'other') {
-        if (!isCrossCommunity || !isAllMembers) return false;
-      } else if (activeFilterPill === 'my_community' || selectedCommunityScope === 'my') {
-        if (isCrossCommunity) return false;
-      }
-
-      if (profile.age !== null && profile.age !== undefined) {
-        if (profile.age < ageRange.min || profile.age > ageRange.max) return false;
-      }
-      if (verifiedOnlyFilter && !profile.headVerified && !profile.aadhaarVerified) return false;
-      if (withPhotoOnlyFilter && !profile.photoCount) return false;
-      return true;
-    });
-  }, [feedProfiles, ignoredIds, activeFilterPill, searchText, ageRange, verifiedOnlyFilter, withPhotoOnlyFilter, currentUser, selectedCommunityScope, selectedSpecificCommunity, myProfile]);
-
-  // Filters on details that aren't sent for unconnected profiles (privacy) run on the
-  // server: reload the feed when one of them changes. The first load is done by the context.
+  const communityScopeFilter = activeFilterPill === 'other_community' || selectedCommunityScope === 'other'
+    ? 'other'
+    : activeFilterPill === 'my_community' || selectedCommunityScope === 'my' ? 'my' : undefined;
   const serverFilterKey = JSON.stringify({
     maritalStatus: selectedMaritalStatus !== 'All' ? selectedMaritalStatus : undefined,
     diet: selectedDiet !== 'All' ? selectedDiet : undefined,
     nearby: activeFilterPill === 'nearby' ? '1' : undefined,
     manglikStatus: activeFilterPill === 'manglik' ? 'manglik' : undefined,
+    joined: activeFilterPill === 'joined' ? '1' : undefined,
+    verified: activeFilterPill === 'verified' || verifiedOnlyFilter ? '1' : undefined,
+    withPhoto: withPhotoOnlyFilter ? '1' : undefined,
+    communityScope: communityScopeFilter,
     subCommunity: selectedCommunityScope === 'specific' && selectedSpecificCommunity ? selectedSpecificCommunity : undefined,
     // Other members' age is never sent, so the age range is filtered on the server
-    ageMin: ageRange.min !== 18 ? ageRange.min : undefined,
-    ageMax: ageRange.max !== 50 ? ageRange.max : undefined,
-    disability: selectedDisability !== 'Any' ? selectedDisability.toLowerCase() : undefined
+    ageMin: ageRange.min > AGE_LIMITS.min ? ageRange.min : undefined,
+    ageMax: ageRange.max < AGE_LIMITS.max ? ageRange.max : undefined,
+    disability: selectedDisability !== 'Any' ? selectedDisability.toLowerCase() : undefined,
+    q: debouncedSearch || undefined
   });
+  // One request when the filter sheet closes (not one per slider step while it's open).
+  // The first load is done by the context.
   const lastServerFilterKey = useRef(JSON.stringify({}));
   useEffect(() => {
+    if (isFilterDrawerOpen) return;
     if (serverFilterKey === lastServerFilterKey.current) return;
     lastServerFilterKey.current = serverFilterKey;
     fetchDashboard(JSON.parse(serverFilterKey));
-  }, [serverFilterKey, fetchDashboard]);
+  }, [serverFilterKey, isFilterDrawerOpen, fetchDashboard]);
+  // Leaving the page: the shared feed goes back to unfiltered for next time
+  useEffect(() => () => {
+    if (lastServerFilterKey.current !== JSON.stringify({})) fetchDashboard({});
+  }, [fetchDashboard]);
+  const activeFilterCount = [
+    selectedMaritalStatus !== 'All', selectedDiet !== 'All', selectedDisability !== 'Any',
+    verifiedOnlyFilter, withPhotoOnlyFilter, selectedCommunityScope !== 'all',
+    ageRange.min > AGE_LIMITS.min || ageRange.max < AGE_LIMITS.max
+  ].filter(Boolean).length;
 
   // ─── Profile visit cards (visitors of me / profiles I visited) ─────────────
   // Built from the profile the server sent, which already follows its privacy rules.
@@ -799,6 +787,9 @@ const MatrimonialHomePage = () => {
                 className="px-3.5 py-1.5 rounded-full border border-slate-200 bg-white text-slate-800 text-[12.5px] font-bold flex items-center gap-1.5 shrink-0 active:scale-95 transition-transform"
               >
                 <SlidersHorizontal size={14} className="text-slate-600" /> Filters
+                {activeFilterCount > 0 && (
+                  <span className="ml-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center">{activeFilterCount}</span>
+                )}
               </button>
               
               {[
@@ -2727,13 +2718,17 @@ const MatrimonialHomePage = () => {
               <div>
                 <div className="flex justify-between items-center mb-2">
                   <label className="text-[11px] text-slate-400 font-extrabold uppercase tracking-wide">Age Range</label>
-                  <span className="text-[12px] font-black text-rose-500">{ageRange.min} - {ageRange.max} Years</span>
+                  <span className="text-[12px] font-black text-rose-500">
+                    {ageRange.min === AGE_LIMITS.min && ageRange.max === AGE_LIMITS.max
+                      ? 'Any age'
+                      : `${ageRange.min} - ${ageRange.max}${ageRange.max === AGE_LIMITS.max ? '+' : ''} Years`}
+                  </span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <input 
-                    type="range" 
-                    min="18" 
-                    max="60" 
+                  <input
+                    type="range"
+                    min="18"
+                    max="60"
                     value={ageRange.min}
                     onChange={(e) => setAgeRange(prev => ({ ...prev, min: Math.min(parseInt(e.target.value), prev.max) }))}
                     className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-rose-500"
@@ -2749,7 +2744,7 @@ const MatrimonialHomePage = () => {
                 </div>
                 <div className="flex justify-between text-[9.5px] text-slate-400 font-bold mt-1.5 uppercase">
                   <span>Min: {ageRange.min} yrs</span>
-                  <span>Max: {ageRange.max} yrs</span>
+                  <span>Max: {ageRange.max === AGE_LIMITS.max ? `${AGE_LIMITS.max}+` : ageRange.max} yrs</span>
                 </div>
               </div>
 
@@ -2848,7 +2843,7 @@ const MatrimonialHomePage = () => {
               <div>
                 <label className="text-[11px] text-slate-400 font-extrabold uppercase tracking-wide block mb-2">Marital Status</label>
                 <div className="grid grid-cols-2 gap-2">
-                  {['All', 'Never Married', 'Divorced', 'Widowed', 'Awaiting Divorce'].map(ms => (
+                  {['All', 'Never Married', 'Divorced', 'Widowed', 'Separated'].map(ms => (
                     <button
                       key={ms}
                       onClick={() => setSelectedMaritalStatus(ms)}
@@ -2954,7 +2949,7 @@ const MatrimonialHomePage = () => {
             <div className="p-4 border-t border-slate-100 bg-slate-50 flex gap-3">
               <button 
                 onClick={() => {
-                  setAgeRange({ min: 18, max: 50 });
+                  setAgeRange(AGE_LIMITS);
                   setSelectedMaritalStatus('All');
                   setSelectedDiet('All');
                   setSelectedDisability('Any');
@@ -2971,8 +2966,8 @@ const MatrimonialHomePage = () => {
               </button>
               <button 
                 onClick={() => {
-                  setIsFilterDrawerOpen(false);
-                  showToast('Filters applied successfully! 🔍');
+                  setIsFilterDrawerOpen(false); // closing the sheet loads the filtered matches
+                  showToast(activeFilterCount ? 'Filters applied 🔍' : 'Showing all matches');
                 }}
                 className="flex-1 py-3 bg-rose-500 text-white rounded-xl text-[12.5px] font-black uppercase tracking-wider active:scale-95 transition-transform shadow-md shadow-rose-500/10"
               >
