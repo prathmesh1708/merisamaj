@@ -9,6 +9,9 @@ export const useReferral = () => {
   if (!context) {
     throw new Error('useReferral must be used within a ReferralProvider');
   }
+  // Using referral data is what loads it (once per session, refetched on focus by the pages themselves)
+  const { requestReferralData } = context;
+  useEffect(() => { requestReferralData(); }, [requestReferralData]);
   return context;
 };
 
@@ -111,11 +114,15 @@ export const ReferralProvider = ({ children }) => {
     }
   }, [auth?.user?.referralCode]);
 
+  // Lazy: the 5 referral calls run only when a screen that uses referral data
+  // mounts (useReferral() asks for them), not on every page of the app.
+  const [wanted, setWanted] = useState(false);
+  const requestReferralData = useCallback(() => setWanted(true), []);
   useEffect(() => {
-    if (auth?.isAuthenticated) {
+    if (wanted && auth?.isAuthenticated) {
       fetchReferralData();
     }
-  }, [auth?.isAuthenticated, fetchReferralData]);
+  }, [wanted, auth?.isAuthenticated, fetchReferralData]);
 
   // Real backend validation function
   const validateReferralCode = async (code) => {
@@ -148,6 +155,7 @@ export const ReferralProvider = ({ children }) => {
   const recentActivity = referralHistory.slice(0, 5);
 
   const value = {
+    requestReferralData,
     loading,
     referralCode,
     totalPoints,

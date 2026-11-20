@@ -3,9 +3,8 @@ import { Bell, X, ExternalLink, MessageCircle } from 'lucide-react';
 import { useAuth } from '../../../core/auth/useAuth';
 import { useHeadAuth } from '../../../modules/head/auth/useHeadAuth';
 import { useAdminAuth } from '../../../modules/admin/auth/useAdminAuth';
-import { notificationService, matrimonialChatService } from '../../../core/api/matrimonialService';
+import { notificationService } from '../../../core/api/matrimonialService';
 import { memberChatService } from '../../../core/api/memberChatService';
-import { groupService } from '../../../core/api/groupService';
 import { getSocket } from '../hooks/useChatSocket';
 import { PushPermissionModal } from '../components/layout/PushPermissionModal';
 import { registerPushDevice } from '../../../core/push/pushClient';
@@ -58,34 +57,18 @@ export const NotificationProvider = ({ children }) => {
       // 1. System Notifications Unread
       const notifPromise = notificationService.getUnread().catch(() => null);
 
-      // 2. Chat Messages Unread across member, group, and matrimonial conversations
-      const chatPromises = Promise.allSettled([
-        memberChatService.getConversations(),
-        groupService.getMyGroups(),
-        matrimonialChatService.getConversations()
-      ]);
+      // 2. Chat badge: one count request (member + group + matrimonial), instead of
+      //    downloading all three conversation lists on every page and window focus.
+      const chatPromise = memberChatService.getUnreadCount().catch(() => null);
 
-      const [notifRes, chatSettled] = await Promise.all([notifPromise, chatPromises]);
+      const [notifRes, chatRes] = await Promise.all([notifPromise, chatPromise]);
 
       if (notifRes?.data?.data) {
         setUnreadCount(notifRes.data.data.count || notifRes.data.data.unreadCount || 0);
       }
-
-      const [memberRes, groupRes, matRes] = chatSettled;
-      let totalChatUnread = 0;
-      if (memberRes.status === 'fulfilled') {
-        const memberConvs = memberRes.value.data?.data?.conversations || [];
-        totalChatUnread += memberConvs.reduce((acc, c) => acc + (c.unreadCount || 0), 0);
+      if (typeof chatRes?.data?.data?.unreadChatCount === 'number') {
+        setUnreadChatCount(chatRes.data.data.unreadChatCount);
       }
-      if (groupRes.status === 'fulfilled') {
-        const groups = groupRes.value.data?.data?.groups || [];
-        totalChatUnread += groups.reduce((acc, g) => acc + (g.unreadCount || 0), 0);
-      }
-      if (matRes.status === 'fulfilled') {
-        const matConvs = matRes.value.data?.data?.conversations || [];
-        totalChatUnread += matConvs.reduce((acc, c) => acc + (c.unreadCount || 0), 0);
-      }
-      setUnreadChatCount(totalChatUnread);
     } catch {
       // Non-critical background fetch
     } finally {

@@ -494,6 +494,12 @@ exports.updateUser = async (req, res) => {
       if (req.body[field] !== undefined) updates[field] = req.body[field];
     });
 
+    if (updates.gender !== undefined) {
+      const g = { male: 'Male', female: 'Female', other: 'Other' }[String(updates.gender).trim().toLowerCase()];
+      if (!g) return res.status(400).json({ status: 'fail', message: 'Gender must be Male, Female or Other.' });
+      updates.gender = g;
+    }
+
     const Community = require('../../models/Community');
     const mongoose = require('mongoose');
 
@@ -526,6 +532,14 @@ exports.updateUser = async (req, res) => {
 
     const cacheService = require('../../utils/cacheService');
     cacheService.del(`auth_user_${user._id}`);
+
+    // Members can't change their gender themselves (only Admins can, here);
+    // keep the matrimonial profile's gender in step with the account.
+    const matrimonialGender = { male: 'male', female: 'female', other: 'other' }[String(updates.gender || '').toLowerCase()];
+    if (matrimonialGender) {
+      const MatrimonialProfile = require('../../models/MatrimonialProfile');
+      await MatrimonialProfile.updateOne({ userId: user._id, isDeleted: false }, { $set: { 'personal.gender': matrimonialGender } });
+    }
 
     res.status(200).json({ status: 'success', data: formatUser(user) });
   } catch (error) {

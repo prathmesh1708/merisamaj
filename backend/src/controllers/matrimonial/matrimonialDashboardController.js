@@ -55,7 +55,7 @@ exports.getDashboard = async (req, res) => {
 
     // ─── Build Response ────────────────────────────────────────────────────────
     const dashboard = {
-      profileCompletion: myProfile?.profileCompletion || { percentage: 0, completedSections: [] },
+      profileCompletion: myProfile ? require('../../services/matrimonialCompletion').calculateCompletion(myProfile) : { percentage: 0, completedSections: [], missing: [] },
       profileStatus:     myProfile?.status || null,
       maritalLifecycle:  myProfile?.maritalLifecycle || 'single',
       subscription: {
@@ -100,8 +100,8 @@ exports.getDashboard = async (req, res) => {
     // ─── Recommendations (categorized) ────────────────────────────────────────
     // Filters on details members can't see (marital status, diet, city, sub-community)
     // run here, so those values never have to be sent to the app.
-    const { maritalStatus, diet, nearby, subCommunity, manglikStatus, ageMin, ageMax, disability } = req.query;
-    const recommendations = await getRecommendations(userId, myProfile, subscription, { maritalStatus, diet, nearby, subCommunity, manglikStatus, ageMin, ageMax, disability });
+    const { maritalStatus, diet, nearby, subCommunity, manglikStatus, ageMin, ageMax, disability, verified, withPhoto, joined, communityScope, q } = req.query;
+    const recommendations = await getRecommendations(userId, myProfile, subscription, { maritalStatus, diet, nearby, subCommunity, manglikStatus, ageMin, ageMax, disability, verified, withPhoto, joined, communityScope, q });
     dashboard.recommendations = recommendations;
 
     res.json({ status: 'success', data: { dashboard } });
@@ -156,11 +156,16 @@ const getRecommendations = async (userId, myProfile, subscription, filters = {})
   const { getEffectiveFeatures } = require('../../middleware/subscriptionMiddleware');
   const { profileScopeCondition, communityUserIds, viewerCommunityId } = require('../../utils/matrimonialCommunityScope');
   const { features: planFeatures } = await getEffectiveFeatures(userId);
-  const { condition: communityCondition } = await profileScopeCondition({
+  // "My Community" / "Other Communities" pills: filtered here, not on the few
+  // profiles already loaded in the app.
+  const scope = ['my', 'other'].includes(filters.communityScope) ? filters.communityScope : 'all';
+  const { condition: communityCondition, blocked: scopeBlocked } = await profileScopeCondition({
     user: userDoc,
     canSeeOtherCommunities: !!planFeatures?.crossCommunityVisibility,
-    canSeeSiblingSubCommunities: !!planFeatures?.allSubCommunitiesAccess
+    canSeeSiblingSubCommunities: !!planFeatures?.allSubCommunitiesAccess,
+    scope
   });
+  if (scopeBlocked) return { recommendedMatches: [], newMembers: [], recentlyActive: [], premiumMembers: [], nearYou: [] };
   baseQuery.$and = [communityCondition];
 
   // ─── Apply opposite gender filter (Strictly Enforce) ────────────────────
@@ -180,8 +185,36 @@ const getRecommendations = async (userId, myProfile, subscription, filters = {})
   // ─── Feed filters on hidden details ──────────────────────────────────────
   const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const exact = (v) => new RegExp('^' + escapeRegex(String(v).trim()) + '$', 'i');
-  if (filters.maritalStatus && filters.maritalStatus !== 'All') baseQuery['personal.maritalStatus'] = exact(filters.maritalStatus);
-  if (filters.diet && filters.diet !== 'All') baseQuery['lifestyle.diet'] = exact(filters.diet);
+  // Profiles store several spellings ("Single" from older forms, "Jain" diet, ...)
+  const MARITAL_ALIASES = {
+    'never married': /^(never married|single|unmarried)$/i,
+    separated: /^(separated|awaiting divorce)$/i
+  };
+  const DIET_ALIASES = {
+    vegetarian: /^(vegetarian|veg|pure veg|jain|vegan)$/i,
+    'non-vegetarian': /^(non[- ]?vegetarian|non[- ]?veg)$/i
+  };
+  const aliasOrExact = (aliases, value) => aliases[String(value).trim().toLowerCase()] || exact(value);
+  if (filters.maritalStatus && filters.maritalStatus !== 'All') baseQuery['personal.maritalStatus'] = aliasOrExact(MARITAL_ALIASES, filters.maritalStatus);
+  if (filters.diet && filters.diet !== 'All') baseQuery['lifestyle.diet'] = aliasOrExact(DIET_ALIASES, filters.diet);
+  if (String(filters.withPhoto) === '1') baseQuery.photos = { $elemMatch: { isDeleted: { $ne: true } } };
+  if (String(filters.joined) === '1') baseQuery.createdAt = { $gte: new Date(Date.now() - 7 * 24 * 3600000) };
+  // Verified = approved by the community head or Aadhaar verified (the account's badges)
+  if (String(filters.verified) === '1') {
+    const verifiedIds = await User.find({ $or: [{ verificationStatus: 'verified' }, { isAadharVerified: true }] }).distinct('_id');
+    baseQuery.$and.push({ userId: { $in: verifiedIds } });
+  }
+  // Search box: location, gotra, profession, education; the name only where the
+  // viewer may already see it (private profiles show the name, public ones don't).
+  const q = String(filters.q || '').trim().slice(0, 60);
+  if (q) {
+    const re = new RegExp(escapeRegex(q), 'i');
+    baseQuery.$and.push({ $or: [
+      { 'location.city': re }, { 'location.state': re }, { 'personal.gotra': re },
+      { 'education.profession': re }, { 'education.occupation': re }, { 'education.highestQualification': re },
+      { 'personal.fullName': re, 'visibilitySettings.visibleOnlyAfterAccept': { $ne: false } }
+    ] });
+  }
   if (filters.disability === 'yes') baseQuery['personal.hasDisability'] = true;
   else if (filters.disability === 'no') baseQuery['personal.hasDisability'] = { $ne: true };
   if (filters.manglikStatus === 'manglik') {

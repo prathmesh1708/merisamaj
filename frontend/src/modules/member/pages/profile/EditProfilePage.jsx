@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { axiosPublic } from '../../../../core/api/axiosConfig';
-import { ArrowLeft, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Users, Building2, Sparkles } from 'lucide-react';
+import { ArrowLeft, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Users, Building2, Sparkles, Lock } from 'lucide-react';
 import { useData } from '../../context/DataProvider';
 import { Avatar } from '../../components/common/Avatar';
 import { cropImageFile } from '../../../../core/components/ImageCropper';
@@ -39,6 +39,8 @@ const EditProfilePage = () => {
   });
 
   const [showGenderDropdown, setShowGenderDropdown] = useState(false);
+  // Gender is chosen once at registration; after that only an admin can change it (server enforces it too)
+  const genderLocked = !!currentUser?.gender;
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [dynamicStatesAndCities, setDynamicStatesAndCities] = useState(DEFAULT_INDIAN_STATES_AND_CITIES);
   const [communities, setCommunities] = useState([]);
@@ -311,6 +313,20 @@ const EditProfilePage = () => {
             {/* Custom Gender Select */}
             <div className="relative">
               <label className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Gender</label>
+              {genderLocked ? (
+                <>
+                  {/* Set at registration — only an admin can change it */}
+                  <div
+                    className="w-full mt-1.5 flex items-center justify-between bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-text-secondary cursor-not-allowed"
+                    aria-disabled="true"
+                    title="Gender can only be changed by the admin"
+                  >
+                    <span>{formData.gender}</span>
+                    <Lock size={14} className="shrink-0" />
+                  </div>
+                  <p className="mt-1 text-[10px] text-text-secondary leading-tight">Contact the admin to change gender.</p>
+                </>
+              ) : (
               <button
                 type="button"
                 onClick={() => {
@@ -319,11 +335,12 @@ const EditProfilePage = () => {
                 }}
                 className="w-full mt-1.5 flex items-center justify-between bg-card border border-gray-200 rounded-xl px-4 py-3 text-sm text-text-primary outline-none focus:border-brand-primary transition-all text-left"
               >
-                <span>{formData.gender}</span>
+                <span>{formData.gender || 'Select'}</span>
                 <ChevronDown size={16} className="text-text-secondary shrink-0" />
               </button>
-              
-              {showGenderDropdown && (
+              )}
+
+              {!genderLocked && showGenderDropdown && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowGenderDropdown(false)} />
                   <div className="absolute top-[72px] left-0 right-0 bg-card border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden py-1 animate-slide-up">

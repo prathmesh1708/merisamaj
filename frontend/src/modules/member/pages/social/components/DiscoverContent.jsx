@@ -1,11 +1,13 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, MapPin, UserCheck, UserPlus, Compass } from 'lucide-react';
 import { useData } from '../../../context/DataProvider';
 
 export const DiscoverContent = () => {
   const navigate = useNavigate();
-  const { members = [], followRelations = [], sendFollowRequest, unfollowUser, currentUser } = useData();
+  const { members = [], followRelations = [], sendFollowRequest, unfollowUser, currentUser, requestFollowData } = useData();
+  // Follow state loads when Discover opens
+  useEffect(() => { requestFollowData?.(); }, [requestFollowData]);
   const [searchText, setSearchText] = useState('');
   
   // userId → 'accepted' | 'pending' for people I follow or asked to follow

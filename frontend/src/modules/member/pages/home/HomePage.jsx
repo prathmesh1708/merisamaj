@@ -182,6 +182,9 @@ const HomePage = () => {
   const { latestNotification, decrementUnreadCount } = useNotifications();
   const { currentUser, members: mockMembers, admins: contextAdmins, posts: mockPosts, events: mockEvents, language, setLanguage, notifications, getUnreadCountForModule, markModuleAsVisited } = useData();
   const effectiveUser = auth?.isAuthenticated ? auth?.user : currentUser;
+  // Stable keys for the home data effect (see below)
+  const homeCommunityKey = String(currentUser?.communityId?._id || currentUser?.communityId || (typeof currentUser?.community === 'string' ? currentUser.community : '') || '');
+  const homeCityKey = String(currentUser?.city || '').trim();
   const [adminBroadcastPopup, setAdminBroadcastPopup] = useState(null);
   const isApproved = isMemberApproved(effectiveUser);
   const mockAdmins = contextAdmins && contextAdmins.length > 0 ? contextAdmins : mockAdminsRaw;
@@ -352,7 +355,10 @@ const HomePage = () => {
       });
 
     return () => { isMounted = false; };
-  }, [currentUser?.communityId, currentUser?.city]);
+    // Plain-string keys: communityId is an id in the cached user but an object after
+    // /auth/me refreshes, which used to re-run this whole effect (duplicate requests).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [homeCommunityKey, homeCityKey]);
 
   const displayTopDonors = liveTopDonors;
 

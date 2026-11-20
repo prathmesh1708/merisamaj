@@ -103,7 +103,9 @@ const DiscoverIcon = ({ size = 26, isActive }) => (
 const SocialHubPage = ({ initialTab = 'city-feed' }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { currentUser, getUnreadCountForModule, fetchFeedPosts, cityPosts = [], communityPosts = [] } = useData();
+  const { currentUser, getUnreadCountForModule, fetchFeedPosts, cityPosts = [], communityPosts = [], requestSocialData } = useData();
+  // Stories + announcement status load when Social opens (not on every page)
+  useEffect(() => { requestSocialData?.(); }, [requestSocialData]);
   const [activeTab, setActiveTab] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState({ 'city-feed': true, 'community-feed': true });

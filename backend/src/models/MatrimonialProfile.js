@@ -63,12 +63,15 @@ const matrimonialProfileSchema = new mongoose.Schema(
         scope: { type: String, enum: ['all', 'selected'], default: 'all' },
         selectedSubCommunities: { type: [String], default: [] }
       },
-      aadharVerifiedOnly: { type: Boolean, default: true },
-      communityVerifiedOnly: { type: Boolean, default: true },
+      // Viewer filters: narrow the community audience above. Enforced only when
+      // viewerFiltersActive (saved from the settings screen); see matrimonialCommunityScope.
+      aadharVerifiedOnly: { type: Boolean, default: false },
+      communityVerifiedOnly: { type: Boolean, default: false },
       selectedLocations: {
-        enabled: { type: Boolean, default: true },
+        enabled: { type: Boolean, default: false },
         locations: { type: [String], default: [] }
       },
+      viewerFiltersActive: { type: Boolean, default: false },
       visibleOnlyAfterAccept: { type: Boolean, default: true }
     },
     verificationStatus: {
@@ -81,10 +84,14 @@ const matrimonialProfileSchema = new mongoose.Schema(
     verifiedAt:  { type: Date },
 
     // ─── Profile Completion Tracking ─────────────────────────────────────────
+    // Recalculated on every save (services/matrimonialCompletion.js)
     profileCompletion: {
       percentage:        { type: Number, default: 0 },
-      completedSections: { type: [String], default: [] }
-      // Possible sections: personal, education, family, lifestyle, location, preferences, horoscope, photos, about
+      completedSections: { type: [String], default: [] },   // completed item keys
+      missing: {                                            // what the member still has to fill
+        type: [{ _id: false, key: String, label: String, screen: String }],
+        default: []
+      }
     },
 
     // ─── Contact Sharing Preferences (post-acceptance) ───────────────────────
@@ -275,6 +282,13 @@ matrimonialProfileSchema.pre('validate', function () {
   } else if (!String(this.personal.disabilityType || '').trim()) {
     this.invalidate('personal.disabilityType', 'Please enter the type of disability.');
   }
+});
+
+// Completion is always derived from the data, so it can never go stale
+// (profile edits, photo uploads/deletes, preferences all go through save()).
+matrimonialProfileSchema.pre('save', function () {
+  const { calculateCompletion } = require('../services/matrimonialCompletion');
+  this.profileCompletion = calculateCompletion(this);
 });
 
 module.exports = mongoose.model('MatrimonialProfile', matrimonialProfileSchema);

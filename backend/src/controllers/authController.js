@@ -535,7 +535,19 @@ const updateProfile = async (req, res) => {
       user.name = req.body.name !== undefined ? req.body.name : user.name;
       user.bio = req.body.bio !== undefined ? req.body.bio : user.bio;
       user.about = req.body.about !== undefined ? req.body.about : (req.body.bio !== undefined ? req.body.bio : user.about);
-      user.gender = req.body.gender || user.gender;
+      // Gender is chosen once (registration / onboarding); after that only an
+      // Admin can change it (PUT /admin/users/:id).
+      if (req.body.gender) {
+        if (!user.gender) {
+          user.gender = req.body.gender;
+        } else if (String(req.body.gender).toLowerCase() !== String(user.gender).toLowerCase()) {
+          return res.status(403).json({
+            success: false,
+            code: 'GENDER_LOCKED',
+            message: 'Gender cannot be changed after registration. Please contact the admin to change it.'
+          });
+        }
+      }
       user.dob = req.body.dob || user.dob;
       user.bloodGroup = req.body.bloodGroup || user.bloodGroup;
       user.maritalStatus = req.body.maritalStatus || user.maritalStatus;

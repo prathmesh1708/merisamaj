@@ -30,8 +30,12 @@ export const SettingsPage = () => {
     followRequests = [],
     acceptFollowRequest,
     rejectFollowRequest,
-    loadFollowData
+    loadFollowData,
+    requestSocialData,
+    requestFollowData
   } = useData();
+  // Follow requests and announcement status load when Settings opens
+  useEffect(() => { requestFollowData?.(); requestSocialData?.(); }, [requestFollowData, requestSocialData]);
 
   // Follow requests (private account)
   const [showRequestsModal, setShowRequestsModal] = useState(

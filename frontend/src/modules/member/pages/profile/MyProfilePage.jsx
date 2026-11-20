@@ -101,8 +101,12 @@ const MyProfilePage = () => {
     cancelFollowRequest,
     followRequests = [],
     blockUser,
-    admins
+    admins,
+    requestSocialData,
+    requestFollowData
   } = useData();
+  // Followers / following and announcement status load when a profile opens
+  useEffect(() => { requestFollowData?.(); requestSocialData?.(); }, [requestFollowData, requestSocialData]);
 
   const myId = currentUser?.id || currentUser?._id || 'u1';
   const isMe = !memberId || memberId === myId;
