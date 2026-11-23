@@ -753,57 +753,60 @@ export const UserAppEditsPage = () => {
               )}
             </AnimatePresence>
           </div>
-          {subCommunities.length > 0 && (
-            <div className="min-w-0 flex items-center gap-2 bg-white/10 backdrop-blur-md p-1.5 pl-3 rounded-2xl border border-white/20 shadow-lg">
-              <div className="flex items-center gap-1.5 text-purple-200 text-xs font-bold shrink-0">
-                <Layers size={15} className="text-amber-400" />
-                <span>Sub-community:</span>
-              </div>
-              <select
-                value={selectedSubCommunity}
-                onChange={e => {
-                  resetScopedEditor();
-                  setSelectedSubCommunity(e.target.value);
-                  setSelectedLocation(''); // each sub-community has its own list of locations
-                }}
-                className="flex-1 min-w-0 w-full truncate !bg-[#211145] !text-white text-xs font-bold px-3.5 py-2 rounded-xl border border-purple-400/40 outline-none cursor-pointer"
-              >
-                <option value="" className="bg-white text-slate-900">Community-wide settings</option>
-                {subCommunities.map(sub => (
-                  <option key={sub._id || sub.id || sub.name} value={sub.name} className="bg-white text-slate-900">{sub.name}</option>
-                ))}
-              </select>
+          {/* Always shown; disabled with a hint when the community has no sub-communities */}
+          <div
+            className="min-w-0 flex items-center gap-2 bg-white/10 backdrop-blur-md p-1.5 pl-3 rounded-2xl border border-white/20 shadow-lg"
+            title={subCommunities.length === 0 ? `${communityName} has no sub-communities. Add them in Communities to edit content per sub-community.` : undefined}
+          >
+            <div className="flex items-center gap-1.5 text-purple-200 text-xs font-bold shrink-0">
+              <Layers size={15} className="text-amber-400" />
+              <span>Sub-community:</span>
             </div>
-          )}
+            <select
+              value={selectedSubCommunity}
+              disabled={subCommunities.length === 0}
+              onChange={e => {
+                resetScopedEditor();
+                setSelectedSubCommunity(e.target.value);
+                setSelectedLocation(''); // each sub-community has its own list of locations
+              }}
+              className="flex-1 min-w-0 w-full truncate !bg-[#211145] !text-white text-xs font-bold px-3.5 py-2 rounded-xl border border-purple-400/40 outline-none cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <option value="" className="bg-white text-slate-900">
+                {subCommunities.length === 0 ? 'No sub-communities' : 'Community-wide settings'}
+              </option>
+              {subCommunities.map(sub => (
+                <option key={sub._id || sub.id || sub.name} value={sub.name} className="bg-white text-slate-900">{sub.name}</option>
+              ))}
+            </select>
+          </div>
           {/* Location: one city of the community (or of the selected sub-community) */}
           <div className="min-w-0 flex items-center gap-2 bg-white/10 backdrop-blur-md p-1.5 pl-3 rounded-2xl border border-white/20 shadow-lg">
             <div className="flex items-center gap-1.5 text-purple-200 text-xs font-bold shrink-0">
               <MapPin size={15} className="text-amber-400" />
               <span>Location:</span>
             </div>
+            {/* Only the locations set up for this community / sub-community in Admin → Communities */}
             <select
               value={selectedLocation}
               onChange={e => {
-                let city = e.target.value;
-                if (city === '__other__') {
-                  city = (window.prompt('Enter the city name') || '').trim().replace(/\s+/g, ' ');
-                  if (!city) return;
-                }
                 resetScopedEditor();
-                setSelectedLocation(city);
+                setSelectedLocation(e.target.value);
               }}
+              title={locations.length === 0 ? `No locations are set up for ${selectedSubCommunity || communityName}. Add them in Communities.` : undefined}
               className="flex-1 min-w-0 w-full truncate !bg-[#211145] !text-white text-xs font-bold px-3.5 py-2 rounded-xl border border-purple-400/40 outline-none cursor-pointer"
             >
-              <option value="" className="bg-white text-slate-900">All locations</option>
+              <option value="" className="bg-white text-slate-900">
+                {locations.length === 0 ? 'All locations (none set up)' : 'All locations'}
+              </option>
               {selectedLocation && !locations.some(l => l.city.toLowerCase() === selectedLocation.toLowerCase()) && (
                 <option value={selectedLocation} className="bg-white text-slate-900">{selectedLocation}</option>
               )}
               {locations.map(l => (
                 <option key={l.city.toLowerCase()} value={l.city} className="bg-white text-slate-900">
-                  {l.city}{l.members ? ` (${l.members} ${l.members === 1 ? 'member' : 'members'})` : ''}{l.hasContent ? ' • custom' : ''}
+                  {l.city}{l.members ? ` (${l.members} ${l.members === 1 ? 'member' : 'members'})` : ''}{l.hasContent ? ' • custom' : ''}{l.notConfigured ? ' • no longer a location' : ''}
                 </option>
               ))}
-              <option value="__other__" className="bg-white text-slate-900">+ Other city…</option>
             </select>
           </div>
           </div>

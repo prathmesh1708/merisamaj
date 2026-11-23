@@ -7,9 +7,39 @@ const cacheService = require('../../utils/cacheService');
 
 const saveAndInvalidate = async (doc) => {
   await hostEmbeddedImages(doc);
-  await hostEmbeddedImages(doc);
   await doc.save();
   cacheService.invalidate('app_content_');
+};
+
+// Images that arrive as base64 `data:` URIs are uploaded to Cloudinary and only the
+// URL is stored. Embedded base64 made one sub-community's home content 3 MB, which
+// every member downloaded on each home page load.
+const hostEmbeddedImages = async (doc) => {
+  const { uploadDataUri } = require('../../utils/uploadDataUri');
+  const paths = [];
+  const walk = (value, path) => {
+    if (typeof value === 'string') {
+      if (value.startsWith('data:image/')) paths.push([path, value]);
+    } else if (Array.isArray(value)) {
+      value.forEach((v, i) => walk(v, `${path}.${i}`));
+    } else if (value && typeof value === 'object' && !(value instanceof Date) && !mongoose.isValidObjectId(value)) {
+      Object.entries(value).forEach(([k, v]) => walk(v, path ? `${path}.${k}` : k));
+    }
+  };
+  walk(doc.toObject({ depopulate: true }), '');
+  for (const [path, dataUri] of paths) {
+    doc.set(path, await uploadDataUri(dataUri, 'merisamaj/app-content', 'image'));
+  }
+};
+
+// Which content the request edits: the community, a sub-community, or a location
+// (city) of either. The location only comes from the admin panel; the Head panel
+// shares some of these handlers and keeps editing community / sub-community content.
+const scopeOf = (req) => {
+  const subCommunity = req.body?.subCommunity || req.query?.subCommunity || '';
+  const fromAdminPanel = /\/admin\//.test(req.baseUrl || req.originalUrl || '');
+  const city = fromAdminPanel ? (req.body?.locationCity || req.query?.locationCity || '') : '';
+  return [subCommunity, city];
 };
 
 // Helper to get or create default AppContent document for a community
@@ -822,6 +852,24 @@ exports.getLocations = async (req, res) => {
     const subCommunity = String(req.query.subCommunity || '').trim();
     const escapeRegex = (v) => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const User = require('../../models/User');
+    const Community = require('../../models/Community');
+    const City = require('../../models/City');
+
+    // The locations set up for this community in Admin → Communities — or, when a
+    // sub-community is selected, that sub-community's own list (older subs without
+    // one share the community list). Deactivated locations are left out.
+    const community = await Community.findById(communityOid)
+      .select('cityIds inactiveCityIds subCommunities.name subCommunities.cityIds subCommunities.inactiveCityIds').lean();
+    if (!community) return res.status(404).json({ success: false, message: 'Community not found.' });
+    const sub = subCommunity
+      ? (community.subCommunities || []).find(s => (s.name || '').trim().toLowerCase() === subCommunity.toLowerCase())
+      : null;
+    const cityIds = sub && Array.isArray(sub.cityIds) ? sub.cityIds : (community.cityIds || []);
+    const inactive = new Set((sub && Array.isArray(sub.inactiveCityIds) ? sub.inactiveCityIds : (community.inactiveCityIds || [])).map(String));
+    const activeIds = cityIds.filter(id => !inactive.has(String(id)));
+    const configuredCities = activeIds.length
+      ? await City.find({ _id: { $in: activeIds }, isActive: { $ne: false } }).select('name').lean()
+      : [];
 
     const [memberCities, withContent] = await Promise.all([
       User.aggregate([
@@ -835,14 +883,20 @@ exports.getLocations = async (req, res) => {
       LocationAppContent.find({ communityId: communityOid, subCommunity }).select('city cityKey updatedAt').lean()
     ]);
 
+    const membersByKey = new Map(memberCities.map(c => [c._id, c.members]));
     const byKey = new Map();
-    memberCities.forEach(c => byKey.set(c._id, { city: c.city, members: c.members, hasContent: false }));
+    configuredCities.forEach(c => {
+      const key = String(c.name || '').trim().toLowerCase();
+      if (key && !byKey.has(key)) byKey.set(key, { city: c.name.trim(), members: membersByKey.get(key) || 0, hasContent: false });
+    });
+    // Content saved earlier for a city that is no longer a location stays listed
+    // (flagged) so the admin can still open or reset it.
     withContent.forEach(d => {
-      const entry = byKey.get(d.cityKey) || { city: d.city, members: 0 };
+      const entry = byKey.get(d.cityKey) || { city: d.city, members: membersByKey.get(d.cityKey) || 0, notConfigured: true };
       byKey.set(d.cityKey, { ...entry, hasContent: true, updatedAt: d.updatedAt });
     });
     const locations = [...byKey.values()].sort((a, b) =>
-      (Number(b.hasContent) - Number(a.hasContent)) || (b.members - a.members) || a.city.localeCompare(b.city));
+      (Number(!!a.notConfigured) - Number(!!b.notConfigured)) || a.city.localeCompare(b.city));
 
     return res.status(200).json({ success: true, data: locations });
   } catch (error) {
