@@ -7,39 +7,9 @@ const cacheService = require('../../utils/cacheService');
 
 const saveAndInvalidate = async (doc) => {
   await hostEmbeddedImages(doc);
+  await hostEmbeddedImages(doc);
   await doc.save();
   cacheService.invalidate('app_content_');
-};
-
-// Images that arrive as base64 `data:` URIs are uploaded to Cloudinary and only the
-// URL is stored. Embedded base64 made one sub-community's home content 3 MB, which
-// every member downloaded on each home page load.
-const hostEmbeddedImages = async (doc) => {
-  const { uploadDataUri } = require('../../utils/uploadDataUri');
-  const paths = [];
-  const walk = (value, path) => {
-    if (typeof value === 'string') {
-      if (value.startsWith('data:image/')) paths.push([path, value]);
-    } else if (Array.isArray(value)) {
-      value.forEach((v, i) => walk(v, `${path}.${i}`));
-    } else if (value && typeof value === 'object' && !(value instanceof Date) && !mongoose.isValidObjectId(value)) {
-      Object.entries(value).forEach(([k, v]) => walk(v, path ? `${path}.${k}` : k));
-    }
-  };
-  walk(doc.toObject({ depopulate: true }), '');
-  for (const [path, dataUri] of paths) {
-    doc.set(path, await uploadDataUri(dataUri, 'merisamaj/app-content', 'image'));
-  }
-};
-
-// Which content the request edits: the community, a sub-community, or a location
-// (city) of either. The location only comes from the admin panel; the Head panel
-// shares some of these handlers and keeps editing community / sub-community content.
-const scopeOf = (req) => {
-  const subCommunity = req.body?.subCommunity || req.query?.subCommunity || '';
-  const fromAdminPanel = /\/admin\//.test(req.baseUrl || req.originalUrl || '');
-  const city = fromAdminPanel ? (req.body?.locationCity || req.query?.locationCity || '') : '';
-  return [subCommunity, city];
 };
 
 // Helper to get or create default AppContent document for a community
