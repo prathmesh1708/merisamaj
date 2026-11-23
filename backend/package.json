@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 {
   "name": "backend",
   "version": "1.0.0",
@@ -8,8 +7,8 @@
   "type": "commonjs",
   "main": "index.js",
   "scripts": {
-    "start": "node init && node index.js",
-    "dev": "node init && nodemon index.js",
+    "start": "node index.js",
+    "dev": "nodemon index.js",
     "seed:tri-panel": "node src/scripts/seedTriPanelMockData.js",
     "seed:all": "node src/scripts/seedAllModulesMockData.js",
     "seed:profile": "node src/scripts/seedProfileMockData.js",
@@ -44,50 +43,3 @@
     "nodemon": "^3.1.0"
   }
 }
-=======
-{
-  "name": "backend",
-  "version": "1.0.0",
-  "description": "Apni Samaj Backend Services",
-  "license": "ISC",
-  "author": "",
-  "type": "commonjs",
-  "main": "index.js",
-  "scripts": {
-    "start": "node init && node index.js",
-    "dev": "node init && nodemon index.js",
-    "seed:tri-panel": "node src/scripts/seedTriPanelMockData.js",
-    "seed:all": "node src/scripts/seedAllModulesMockData.js",
-    "seed:profile": "node src/scripts/seedProfileMockData.js",
-    "test:head-scope": "node scripts/testHeadSocialScope.js",
-    "test:push": "node scripts/testPushNotification.js",
-    "migrate:referral-codes": "node src/scripts/migrateReferralCodes.js",
-    "migrate:aadhaar-name": "node src/scripts/migrateAadhaarVerifiedName.js",
-    "reset:legacy-aadhaar": "node src/scripts/resetLegacyAadhaarFlags.js",
-    "recalc:matrimonial-completion": "node src/scripts/recalcMatrimonialCompletion.js",
-    "host:app-content-images": "node src/scripts/hostAppContentImages.js",
-    "test": "node --test --test-force-exit src/services/*.test.js src/tests/*.test.js"
-  },
-  "dependencies": {
-    "bcryptjs": "^2.4.3",
-    "cloudinary": "^1.41.3",
-    "cookie-parser": "^1.4.6",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2",
-    "express-mongo-sanitize": "^2.2.0",
-    "express-rate-limit": "^7.5.1",
-    "express-validator": "^7.3.2",
-    "helmet": "^7.2.0",
-    "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.3.1",
-    "multer": "^1.4.5-lts.1",
-    "multer-storage-cloudinary": "^4.0.0",
-    "firebase-admin": "^12.0.0",
-    "socket.io": "^4.8.3"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.0"
-  }
-}
->>>>>>> 3a82001da6be07a644982a09e14f277468cc20e6
