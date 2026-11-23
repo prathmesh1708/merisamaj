@@ -103,6 +103,14 @@ export const UserAppEditsPage = () => {
   const [communities, setCommunities] = useState([]);
   const [selectedCommunityId, setSelectedCommunityId] = useState('');
   const [selectedSubCommunity, setSelectedSubCommunity] = useState('');
+  // A city of the selected community / sub-community ('' = all locations)
+  const [selectedLocation, setSelectedLocation] = useState('');
+  const [locations, setLocations] = useState([]);
+  // What every save / delete below edits
+  const selectedScope = useMemo(
+    () => ({ subCommunity: selectedSubCommunity, locationCity: selectedLocation }),
+    [selectedSubCommunity, selectedLocation]
+  );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
@@ -220,20 +228,29 @@ export const UserAppEditsPage = () => {
   }, []);
 
   // Fetch App Content for selected community
-  const fetchAppContent = async (commId, subCommunity = selectedSubCommunity) => {
+  const fetchAppContent = async (commId, scope = selectedScope) => {
     const requestId = ++appContentRequestRef.current;
     setLoading(true);
     setAppContent(null);
     try {
-      const res = await appContentService.getAppContent(commId, subCommunity);
+      const res = await appContentService.getAppContent(commId, scope);
       if (requestId !== appContentRequestRef.current) return;
       if (res.success && res.data) {
         const responseCommunityId = res.data.communityId?._id || res.data.communityId;
+        const same = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
         if (String(responseCommunityId) !== String(commId) ||
-            String(res.data.subCommunity || '').trim().toLowerCase() !== String(subCommunity || '').trim().toLowerCase()) {
-          throw new Error('The loaded settings do not match the selected community and sub-community. Please reload.');
+            !same(res.data.subCommunity, scope.subCommunity) ||
+            !same(res.data.locationCity, scope.locationCity)) {
+          throw new Error('The loaded settings do not match the selected community, sub-community and location. Please reload.');
         }
         setAppContent(res.data);
+        // After the first save a location has its own content: mark it in the list
+        if (scope.locationCity && res.data.inheritedFromParent === false) {
+          const key = String(scope.locationCity).trim().toLowerCase();
+          setLocations(prev => prev.some(l => l.city.toLowerCase() === key)
+            ? prev.map(l => l.city.toLowerCase() === key ? { ...l, hasContent: true } : l)
+            : [{ city: scope.locationCity, members: 0, hasContent: true }, ...prev]);
+        }
         if (res.data.heroBanner) {
           setHeroForm({
             backgroundImage: res.data.heroBanner.backgroundImage || '',
@@ -275,18 +292,45 @@ export const UserAppEditsPage = () => {
 
   useEffect(() => {
     if (selectedCommunityId) {
-      fetchAppContent(selectedCommunityId, selectedSubCommunity);
+      fetchAppContent(selectedCommunityId, selectedScope);
     }
+  }, [selectedCommunityId, selectedScope]);
+
+  // Cities where the selected community's (or sub-community's) members live
+  const loadLocations = async (commId = selectedCommunityId, subCommunity = selectedSubCommunity) => {
+    try {
+      const res = await appContentService.getLocations(commId, subCommunity);
+      setLocations(res.success && Array.isArray(res.data) ? res.data : []);
+    } catch {
+      setLocations([]);
+    }
+  };
+  useEffect(() => {
+    if (selectedCommunityId) loadLocations(selectedCommunityId, selectedSubCommunity);
   }, [selectedCommunityId, selectedSubCommunity]);
+
+  const scopeLabel = selectedSubCommunity || communityName;
+  const handleResetLocation = async () => {
+    if (!selectedLocation) return;
+    if (!window.confirm(`Remove ${selectedLocation}'s own home content? Members in ${selectedLocation} will see the ${scopeLabel} content again.`)) return;
+    try {
+      const res = await appContentService.resetLocation(selectedCommunityId, selectedScope);
+      showToast(res.message || 'Location content removed');
+      loadLocations();
+      fetchAppContent(selectedCommunityId, selectedScope);
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Could not reset this location', 'error');
+    }
+  };
 
   // Save Hero Banner
   const handleSaveHero = async () => {
     setSaving(true);
     try {
-      const res = await appContentService.updateHeroBanner(heroForm, selectedCommunityId, selectedSubCommunity);
+      const res = await appContentService.updateHeroBanner(heroForm, selectedCommunityId, selectedScope);
       if (res.success) {
         showToast('Header banner updated successfully!');
-        fetchAppContent(selectedCommunityId, selectedSubCommunity);
+        fetchAppContent(selectedCommunityId, selectedScope);
       }
     } catch (err) {
       console.error('Error saving hero banner:', err);
@@ -325,10 +369,10 @@ export const UserAppEditsPage = () => {
   const handleSaveCensus = async () => {
     setSaving(true);
     try {
-      const res = await appContentService.updateCensusBanner(censusForm, selectedCommunityId, selectedSubCommunity);
+      const res = await appContentService.updateCensusBanner(censusForm, selectedCommunityId, selectedScope);
       if (res.success) {
         showToast('Community Census Banner updated successfully!');
-        fetchAppContent(selectedCommunityId, selectedSubCommunity);
+        fetchAppContent(selectedCommunityId, selectedScope);
       }
     } catch (err) {
       console.error('Error saving census banner:', err);
@@ -362,10 +406,10 @@ export const UserAppEditsPage = () => {
   const handleSaveFooter = async () => {
     setSaving(true);
     try {
-      const res = await appContentService.updateFooterArtwork(footerForm, selectedCommunityId, selectedSubCommunity);
+      const res = await appContentService.updateFooterArtwork(footerForm, selectedCommunityId, selectedScope);
       if (res.success) {
         showToast('End of Feed & Footer Artwork updated successfully!');
-        fetchAppContent(selectedCommunityId, selectedSubCommunity);
+        fetchAppContent(selectedCommunityId, selectedScope);
       }
     } catch (err) {
       console.error('Error saving footer artwork:', err);
@@ -401,14 +445,14 @@ export const UserAppEditsPage = () => {
     setSaving(true);
     try {
       if (featureModal.isEditing) {
-        await appContentService.updateFeature(featureModal.data.id, formData, selectedCommunityId, selectedSubCommunity);
+        await appContentService.updateFeature(featureModal.data.id, formData, selectedCommunityId, selectedScope);
         showToast('Exclusive feature updated successfully!');
       } else {
-        await appContentService.createFeature(formData, selectedCommunityId, selectedSubCommunity);
+        await appContentService.createFeature(formData, selectedCommunityId, selectedScope);
         showToast('New exclusive feature added successfully!');
       }
       setFeatureModal({ isOpen: false, isEditing: false, data: null });
-      fetchAppContent(selectedCommunityId, selectedSubCommunity);
+      fetchAppContent(selectedCommunityId, selectedScope);
     } catch (err) {
       console.error('Error saving feature:', err);
       showToast(err.response?.data?.message || 'Failed to save feature', 'error');
@@ -419,10 +463,10 @@ export const UserAppEditsPage = () => {
 
   const handleDeleteFeature = async (id) => {
     try {
-      await appContentService.deleteFeature(id, selectedCommunityId, selectedSubCommunity);
+      await appContentService.deleteFeature(id, selectedCommunityId, selectedScope);
       showToast('Feature deleted successfully');
       setDeleteConfirm({ isOpen: false, type: '', id: '', title: '' });
-      fetchAppContent(selectedCommunityId, selectedSubCommunity);
+      fetchAppContent(selectedCommunityId, selectedScope);
     } catch (err) {
       showToast('Failed to delete feature', 'error');
     }
@@ -433,14 +477,14 @@ export const UserAppEditsPage = () => {
     setSaving(true);
     try {
       if (storyModal.isEditing) {
-        await appContentService.updateSuccessStory(storyModal.data.id, formData, selectedCommunityId, selectedSubCommunity);
+        await appContentService.updateSuccessStory(storyModal.data.id, formData, selectedCommunityId, selectedScope);
         showToast('Success story updated successfully!');
       } else {
-        await appContentService.createSuccessStory(formData, selectedCommunityId, selectedSubCommunity);
+        await appContentService.createSuccessStory(formData, selectedCommunityId, selectedScope);
         showToast('New success story created successfully!');
       }
       setStoryModal({ isOpen: false, isEditing: false, data: null });
-      fetchAppContent(selectedCommunityId, selectedSubCommunity);
+      fetchAppContent(selectedCommunityId, selectedScope);
     } catch (err) {
       console.error('Error saving story:', err);
       showToast(err.response?.data?.message || 'Failed to save success story', 'error');
@@ -451,10 +495,10 @@ export const UserAppEditsPage = () => {
 
   const handleDeleteStory = async (id) => {
     try {
-      await appContentService.deleteSuccessStory(id, selectedCommunityId, selectedSubCommunity);
+      await appContentService.deleteSuccessStory(id, selectedCommunityId, selectedScope);
       showToast('Success story deleted successfully');
       setDeleteConfirm({ isOpen: false, type: '', id: '', title: '' });
-      fetchAppContent(selectedCommunityId, selectedSubCommunity);
+      fetchAppContent(selectedCommunityId, selectedScope);
     } catch (err) {
       showToast('Failed to delete story', 'error');
     }
@@ -464,10 +508,10 @@ export const UserAppEditsPage = () => {
   const handleSaveHead = async (formData) => {
     setSaving(true);
     try {
-      await appContentService.updateCommunityHead(formData, selectedCommunityId, selectedSubCommunity);
+      await appContentService.updateCommunityHead(formData, selectedCommunityId, selectedScope);
       showToast('Community Head profile updated successfully!');
       setHeadModal({ isOpen: false, data: null });
-      fetchAppContent(selectedCommunityId, selectedSubCommunity);
+      fetchAppContent(selectedCommunityId, selectedScope);
     } catch (err) {
       console.error('Error saving community head:', err);
       showToast(err.response?.data?.message || 'Failed to update community head', 'error');
@@ -481,14 +525,14 @@ export const UserAppEditsPage = () => {
     setSaving(true);
     try {
       if (committeeModal.isEditing) {
-        await appContentService.updateCommitteeMember(committeeModal.data.id, formData, selectedCommunityId, selectedSubCommunity);
+        await appContentService.updateCommitteeMember(committeeModal.data.id, formData, selectedCommunityId, selectedScope);
         showToast('Committee member updated successfully!');
       } else {
-        await appContentService.createCommitteeMember(formData, selectedCommunityId, selectedSubCommunity);
+        await appContentService.createCommitteeMember(formData, selectedCommunityId, selectedScope);
         showToast('New committee member added successfully!');
       }
       setCommitteeModal({ isOpen: false, isEditing: false, data: null });
-      fetchAppContent(selectedCommunityId, selectedSubCommunity);
+      fetchAppContent(selectedCommunityId, selectedScope);
     } catch (err) {
       console.error('Error saving committee member:', err);
       showToast(err.response?.data?.message || 'Failed to save committee member', 'error');
@@ -499,10 +543,10 @@ export const UserAppEditsPage = () => {
 
   const handleDeleteCommittee = async (id) => {
     try {
-      await appContentService.deleteCommitteeMember(id, selectedCommunityId, selectedSubCommunity);
+      await appContentService.deleteCommitteeMember(id, selectedCommunityId, selectedScope);
       showToast('Committee member removed successfully');
       setDeleteConfirm({ isOpen: false, type: '', id: '', title: '' });
-      fetchAppContent(selectedCommunityId, selectedSubCommunity);
+      fetchAppContent(selectedCommunityId, selectedScope);
     } catch (err) {
       showToast('Failed to remove committee member', 'error');
     }
@@ -513,14 +557,14 @@ export const UserAppEditsPage = () => {
     setSaving(true);
     try {
       if (promoBannerModal.isEditing) {
-        await appContentService.updatePromotionalBanner(promoBannerModal.data.id, formData, selectedCommunityId, selectedSubCommunity);
+        await appContentService.updatePromotionalBanner(promoBannerModal.data.id, formData, selectedCommunityId, selectedScope);
         showToast('Sliding banner updated successfully!');
       } else {
-        await appContentService.createPromotionalBanner(formData, selectedCommunityId, selectedSubCommunity);
+        await appContentService.createPromotionalBanner(formData, selectedCommunityId, selectedScope);
         showToast('New sliding banner created successfully!');
       }
       setPromoBannerModal({ isOpen: false, isEditing: false, data: null });
-      fetchAppContent(selectedCommunityId, selectedSubCommunity);
+      fetchAppContent(selectedCommunityId, selectedScope);
     } catch (err) {
       console.error('Error saving promotional banner:', err);
       showToast(err.response?.data?.message || 'Failed to save sliding banner', 'error');
@@ -531,10 +575,10 @@ export const UserAppEditsPage = () => {
 
   const handleDeletePromoBanner = async (id) => {
     try {
-      await appContentService.deletePromotionalBanner(id, selectedCommunityId, selectedSubCommunity);
+      await appContentService.deletePromotionalBanner(id, selectedCommunityId, selectedScope);
       showToast('Sliding banner deleted successfully');
       setDeleteConfirm({ isOpen: false, type: '', id: '', title: '' });
-      fetchAppContent(selectedCommunityId, selectedSubCommunity);
+      fetchAppContent(selectedCommunityId, selectedScope);
     } catch (err) {
       showToast('Failed to delete sliding banner', 'error');
     }
@@ -542,9 +586,9 @@ export const UserAppEditsPage = () => {
 
   const handleTogglePromoBanner = async (banner) => {
     try {
-      await appContentService.updatePromotionalBanner(banner.id, { enabled: !banner.enabled }, selectedCommunityId, selectedSubCommunity);
+      await appContentService.updatePromotionalBanner(banner.id, { enabled: !banner.enabled }, selectedCommunityId, selectedScope);
       showToast(`Banner ${!banner.enabled ? 'activated' : 'deactivated'}`);
-      fetchAppContent(selectedCommunityId, selectedSubCommunity);
+      fetchAppContent(selectedCommunityId, selectedScope);
     } catch (err) {
       showToast('Failed to toggle banner', 'error');
     }
@@ -573,7 +617,9 @@ export const UserAppEditsPage = () => {
 
       {/* Header Bar */}
       <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-purple-950 rounded-3xl p-6 text-white shadow-xl shadow-purple-950/20 border border-purple-800/40 relative z-20">
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        {/* Title on its own row; the three scope selectors share a grid below it
+            (3 across on wide screens, 2 on medium, stacked on small) */}
+        <div className="relative z-10 flex flex-col gap-5">
           <div>
             <div className="flex items-center gap-2 text-purple-300 text-xs font-black uppercase tracking-widest mb-1.5">
               <Sliders size={14} className="text-purple-400" />
@@ -585,9 +631,10 @@ export const UserAppEditsPage = () => {
             </p>
           </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 w-full">
           {/* Searchable Community Switcher */}
-          <div className="relative z-50" ref={communityDropdownRef}>
-            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md p-1.5 pl-3 rounded-2xl border border-white/20 shadow-lg">
+          <div className="relative z-50 min-w-0" ref={communityDropdownRef}>
+            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md p-1.5 pl-3 rounded-2xl border border-white/20 shadow-lg h-full">
               <div className="flex items-center gap-1.5 text-purple-200 text-xs font-bold shrink-0">
                 <Building2 size={15} className="text-amber-400" />
                 <span className="hidden sm:inline">Community:</span>
@@ -598,7 +645,7 @@ export const UserAppEditsPage = () => {
                   setIsCommunityDropdownOpen(prev => !prev);
                   setCommunitySearchQuery('');
                 }}
-                className="flex items-center justify-between gap-2.5 bg-gradient-to-r from-[#211145] to-[#2b1758] hover:from-[#2a1656] hover:to-[#351d6c] text-white text-xs font-bold px-3.5 py-2 rounded-xl border border-purple-400/40 shadow-inner min-w-[200px] sm:min-w-[240px] text-left transition-all press-scale"
+                className="flex-1 min-w-0 flex items-center justify-between gap-2.5 bg-gradient-to-r from-[#211145] to-[#2b1758] hover:from-[#2a1656] hover:to-[#351d6c] text-white text-xs font-bold px-3.5 py-2 rounded-xl border border-purple-400/40 shadow-inner text-left transition-all press-scale"
               >
                 <div className="flex items-center gap-2 truncate">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0 shadow-sm shadow-emerald-400/50" />
@@ -624,7 +671,7 @@ export const UserAppEditsPage = () => {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 8, scale: 0.96 }}
                   transition={{ duration: 0.15, ease: 'easeOut' }}
-                  className="absolute right-0 top-full mt-2 w-[290px] sm:w-[340px] bg-[#140b2b] border border-purple-500/50 rounded-2xl shadow-2xl shadow-black/80 p-3 z-50 overflow-hidden text-white"
+                  className="absolute left-0 top-full mt-2 w-full min-w-[260px] max-w-[400px] bg-[#140b2b] border border-purple-500/50 rounded-2xl shadow-2xl shadow-black/80 p-3 z-50 overflow-hidden text-white"
                 >
                   {/* Search Box */}
                   <div className="relative mb-2.5">
@@ -667,6 +714,7 @@ export const UserAppEditsPage = () => {
                               resetScopedEditor();
                               setSelectedCommunityId(c._id || c.id);
                               setSelectedSubCommunity('');
+                              setSelectedLocation('');
                               setIsCommunityDropdownOpen(false);
                             }}
                             className={`w-full flex items-center justify-between p-2 rounded-xl text-xs font-bold text-left transition-all ${
@@ -706,7 +754,7 @@ export const UserAppEditsPage = () => {
             </AnimatePresence>
           </div>
           {subCommunities.length > 0 && (
-            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md p-1.5 pl-3 rounded-2xl border border-white/20 shadow-lg">
+            <div className="min-w-0 flex items-center gap-2 bg-white/10 backdrop-blur-md p-1.5 pl-3 rounded-2xl border border-white/20 shadow-lg">
               <div className="flex items-center gap-1.5 text-purple-200 text-xs font-bold shrink-0">
                 <Layers size={15} className="text-amber-400" />
                 <span>Sub-community:</span>
@@ -716,8 +764,9 @@ export const UserAppEditsPage = () => {
                 onChange={e => {
                   resetScopedEditor();
                   setSelectedSubCommunity(e.target.value);
+                  setSelectedLocation(''); // each sub-community has its own list of locations
                 }}
-                className="!bg-[#211145] !text-white text-xs font-bold px-3.5 py-2 rounded-xl border border-purple-400/40 outline-none min-w-[200px] cursor-pointer"
+                className="flex-1 min-w-0 w-full truncate !bg-[#211145] !text-white text-xs font-bold px-3.5 py-2 rounded-xl border border-purple-400/40 outline-none cursor-pointer"
               >
                 <option value="" className="bg-white text-slate-900">Community-wide settings</option>
                 {subCommunities.map(sub => (
@@ -726,7 +775,57 @@ export const UserAppEditsPage = () => {
               </select>
             </div>
           )}
+          {/* Location: one city of the community (or of the selected sub-community) */}
+          <div className="min-w-0 flex items-center gap-2 bg-white/10 backdrop-blur-md p-1.5 pl-3 rounded-2xl border border-white/20 shadow-lg">
+            <div className="flex items-center gap-1.5 text-purple-200 text-xs font-bold shrink-0">
+              <MapPin size={15} className="text-amber-400" />
+              <span>Location:</span>
+            </div>
+            <select
+              value={selectedLocation}
+              onChange={e => {
+                let city = e.target.value;
+                if (city === '__other__') {
+                  city = (window.prompt('Enter the city name') || '').trim().replace(/\s+/g, ' ');
+                  if (!city) return;
+                }
+                resetScopedEditor();
+                setSelectedLocation(city);
+              }}
+              className="flex-1 min-w-0 w-full truncate !bg-[#211145] !text-white text-xs font-bold px-3.5 py-2 rounded-xl border border-purple-400/40 outline-none cursor-pointer"
+            >
+              <option value="" className="bg-white text-slate-900">All locations</option>
+              {selectedLocation && !locations.some(l => l.city.toLowerCase() === selectedLocation.toLowerCase()) && (
+                <option value={selectedLocation} className="bg-white text-slate-900">{selectedLocation}</option>
+              )}
+              {locations.map(l => (
+                <option key={l.city.toLowerCase()} value={l.city} className="bg-white text-slate-900">
+                  {l.city}{l.members ? ` (${l.members} ${l.members === 1 ? 'member' : 'members'})` : ''}{l.hasContent ? ' • custom' : ''}
+                </option>
+              ))}
+              <option value="__other__" className="bg-white text-slate-900">+ Other city…</option>
+            </select>
+          </div>
+          </div>
         </div>
+        {selectedLocation && appContent && (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white/10 border border-white/20 px-4 py-3 text-xs text-purple-100">
+            <p className="font-semibold leading-relaxed">
+              {appContent.inheritedFromParent
+                ? <>Members in <b className="text-white">{selectedLocation}</b> currently see the <b className="text-white">{scopeLabel}</b> content shown below. Your first save here gives {selectedLocation} its own content; other locations are not affected.</>
+                : <>Editing <b className="text-white">{selectedLocation}</b>'s own content. Members in {selectedLocation}{selectedSubCommunity ? ` (${selectedSubCommunity})` : ''} see this instead of the {scopeLabel} content.</>}
+            </p>
+            {!appContent.inheritedFromParent && (
+              <button
+                type="button"
+                onClick={handleResetLocation}
+                className="shrink-0 px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 border border-white/30 text-white font-bold"
+              >
+                Reset to {scopeLabel} content
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Tab Switcher Navigation */}

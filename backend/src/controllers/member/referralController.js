@@ -5,12 +5,11 @@ const referralService = require('../../services/referralService');
 const RewardTransaction = require('../../models/RewardTransaction');
 const RewardSchedule = require('../../models/RewardSchedule');
 
-// Public link that opens registration with the code filled in
+// Public link that opens registration with the code filled in. Not CLIENT_URL:
+// that is the CORS origin list (comma-separated, can start with localhost).
 const shareLinkFor = (req, code) => {
-  const base = (process.env.CLIENT_URL || '').split(',')[0].trim()
-    || req.get('origin')
-    || 'https://apnisamaj.com';
-  return `${base.replace(/\/$/, '')}/member/register?ref=${encodeURIComponent(code)}`;
+  const base = String(process.env.PUBLIC_APP_URL || '').split(',')[0].trim() || 'https://apnisamaj.com';
+  return `${base.replace(/\/+$/, '')}/member/register?ref=${encodeURIComponent(code)}`;
 };
 
 const OPEN_STATUSES = ['pending', 'approved'];

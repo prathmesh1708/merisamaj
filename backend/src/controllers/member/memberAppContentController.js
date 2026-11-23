@@ -1,5 +1,6 @@
 const AppContent = require('../../models/AppContent');
 const SubCommunityAppContent = AppContent.SubCommunityAppContent;
+const LocationAppContent = AppContent.LocationAppContent;
 const Community = require('../../models/Community');
 const User = require('../../models/User');
 const mongoose = require('mongoose');
@@ -26,9 +27,22 @@ exports.getMemberAppContent = async (req, res) => {
       return res.status(200).json(cached);
     }
 
-    let doc = memberSubCommunity
-      ? await SubCommunityAppContent.findOne({ communityId: targetCommunityId, subCommunity: memberSubCommunity }).lean()
-      : null;
+    // Most specific content first: this city in my sub-community, this city in my
+    // community, my sub-community, my community.
+    const memberCityKey2 = (req.user?.city || '').trim().toLowerCase();
+    let doc = null;
+    if (memberCityKey2) {
+      const locations = await LocationAppContent.find({
+        communityId: targetCommunityId,
+        cityKey: memberCityKey2,
+        subCommunity: { $in: [...(memberSubCommunity ? [memberSubCommunity] : []), ''] }
+      }).lean();
+      doc = locations.find(l => memberSubCommunity && l.subCommunity === memberSubCommunity)
+        || locations.find(l => !l.subCommunity) || null;
+    }
+    if (!doc && memberSubCommunity) {
+      doc = await SubCommunityAppContent.findOne({ communityId: targetCommunityId, subCommunity: memberSubCommunity }).lean();
+    }
     if (!doc) doc = await AppContent.findOne({ communityId: targetCommunityId }).lean();
     if (!doc) {
       // Return default configuration if no custom document exists yet

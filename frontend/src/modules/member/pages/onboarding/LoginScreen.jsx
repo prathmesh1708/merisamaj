@@ -296,6 +296,13 @@ const LoginScreen = () => {
                   {!isLoading && <ArrowRight size={16} />}
                 </button>
 
+                <p className="text-center text-[11px] font-semibold text-slate-400 pt-1">
+                  By continuing you agree to our{' '}
+                  <button type="button" onClick={() => navigate('/privacy-policy')} className="font-bold text-[#7C3AED] hover:underline">
+                    Privacy Policy
+                  </button>
+                </p>
+
                 <p className="text-center text-xs font-semibold text-text-secondary pt-2">
                   New here?{' '}
                   <button onClick={() => navigate('/member/register')} className="font-black text-[#7C3AED] hover:underline">

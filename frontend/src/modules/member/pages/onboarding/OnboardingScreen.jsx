@@ -14,6 +14,7 @@ import { useAuth } from '../../../../core/auth/useAuth';
 import { authService } from '../../../../core/auth/authService';
 import { axiosPublic } from '../../../../core/api/axiosConfig';
 import { axiosPrivate } from '../../../../core/api/axiosPrivate';
+import { toDateOnly } from '../../../../core/utils/dateOnly';
 import {
   validateName,
   validateDOB,
@@ -1019,7 +1020,7 @@ const OnboardingScreen = () => {
       if (userToLoad.district) setDistrict(userToLoad.district);
       if (userToLoad.state) setStateName(userToLoad.state);
       if (userToLoad.avatar) setAvatar(userToLoad.avatar);
-      if (userToLoad.dob) setDob(userToLoad.dob);
+      if (userToLoad.dob) setDob(toDateOnly(userToLoad.dob)); // date field needs "YYYY-MM-DD"
       if (userToLoad.bloodGroup) setBloodGroup(userToLoad.bloodGroup);
       if (userToLoad.maritalStatus) setMaritalStatus(userToLoad.maritalStatus);
       if (userToLoad.gotra) setGotra(userToLoad.gotra);

@@ -1,5 +1,6 @@
 const AppContent = require('../../models/AppContent');
 const SubCommunityAppContent = AppContent.SubCommunityAppContent;
+const LocationAppContent = AppContent.LocationAppContent;
 const Community = require('../../models/Community');
 const mongoose = require('mongoose');
 const cacheService = require('../../utils/cacheService');
@@ -31,8 +32,18 @@ const hostEmbeddedImages = async (doc) => {
   }
 };
 
+// Which content the request edits: the community, a sub-community, or a location
+// (city) of either. The location only comes from the admin panel; the Head panel
+// shares some of these handlers and keeps editing community / sub-community content.
+const scopeOf = (req) => {
+  const subCommunity = req.body?.subCommunity || req.query?.subCommunity || '';
+  const fromAdminPanel = /\/admin\//.test(req.baseUrl || req.originalUrl || '');
+  const city = fromAdminPanel ? (req.body?.locationCity || req.query?.locationCity || '') : '';
+  return [subCommunity, city];
+};
+
 // Helper to get or create default AppContent document for a community
-const getOrCreateAppContent = async (communityId, subCommunity = '') => {
+const getOrCreateAppContent = async (communityId, subCommunity = '', city = '') => {
   const targetCommunityId = communityId?._id || communityId;
   if (!targetCommunityId || !mongoose.Types.ObjectId.isValid(targetCommunityId)) {
     throw new Error('Select a valid community before editing app content.');
@@ -53,14 +64,18 @@ const getOrCreateAppContent = async (communityId, subCommunity = '') => {
     normalizedSubCommunity = matchedSubCommunity.name;
   }
 
-  const ContentModel = normalizedSubCommunity ? SubCommunityAppContent : AppContent;
-  let doc = await ContentModel.findOne(normalizedSubCommunity
-    ? { communityId: targetCommunityId, subCommunity: normalizedSubCommunity }
-    : { communityId: targetCommunityId });
+  const normalizedCity = typeof city === 'string' ? city.trim().replace(/\s+/g, ' ').slice(0, 80) : '';
+  const ContentModel = normalizedCity ? LocationAppContent : (normalizedSubCommunity ? SubCommunityAppContent : AppContent);
+  let doc = await ContentModel.findOne(normalizedCity
+    ? { communityId: targetCommunityId, subCommunity: normalizedSubCommunity, cityKey: normalizedCity.toLowerCase() }
+    : normalizedSubCommunity
+      ? { communityId: targetCommunityId, subCommunity: normalizedSubCommunity }
+      : { communityId: targetCommunityId });
   if (!doc) {
     doc = await ContentModel.create({
       communityId: targetCommunityId,
-      ...(normalizedSubCommunity ? { subCommunity: normalizedSubCommunity } : {}),
+      ...(normalizedSubCommunity || normalizedCity ? { subCommunity: normalizedSubCommunity } : {}),
+      ...(normalizedCity ? { city: normalizedCity, cityKey: normalizedCity.toLowerCase() } : {}),
       promotionalBanners: [],
       heroBanner: {
         backgroundImage: '',
@@ -94,8 +109,13 @@ const getOrCreateAppContent = async (communityId, subCommunity = '') => {
         enabled: true
       }
     });
-    if (normalizedSubCommunity) {
-      const communityDefaults = await AppContent.findOne({ communityId: targetCommunityId }).lean();
+    // A new sub-community or location starts as a copy of what its members see today:
+    // location ← its sub-community's content (if any) ← the community's content.
+    if (normalizedSubCommunity || normalizedCity) {
+      const subDefaults = normalizedCity && normalizedSubCommunity
+        ? await SubCommunityAppContent.findOne({ communityId: targetCommunityId, subCommunity: normalizedSubCommunity }).lean()
+        : null;
+      const communityDefaults = subDefaults || await AppContent.findOne({ communityId: targetCommunityId }).lean();
       if (communityDefaults) {
         [
           'promotionalBanners', 'heroBanner', 'locationHeroBanners', 'exclusiveFeatures',
@@ -154,7 +174,22 @@ const getOrCreateAppContent = async (communityId, subCommunity = '') => {
 exports.getAppContent = async (req, res) => {
   try {
     const targetCommunityId = req.query.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || '');
+    const [subCommunity, city] = scopeOf(req);
+    const cityName = String(city || '').trim();
+    if (cityName) {
+      // Just looking at a location must not give it its own copy (it would stop
+      // following later community changes). Until the first save, show what the
+      // location's members see today: the sub-community / community content.
+      const parent = await getOrCreateAppContent(targetCommunityId, subCommunity);
+      const own = await LocationAppContent.findOne({
+        communityId: parent.communityId, subCommunity: parent.subCommunity || '', cityKey: cityName.toLowerCase()
+      });
+      const data = own
+        ? { ...own.toObject(), locationCity: own.city, inheritedFromParent: false }
+        : { ...parent.toObject(), locationCity: cityName, inheritedFromParent: true };
+      return res.status(200).json({ success: true, data });
+    }
+    const doc = await getOrCreateAppContent(targetCommunityId, subCommunity);
     return res.status(200).json({
       success: true,
       data: doc
@@ -171,7 +206,7 @@ exports.getAppContent = async (req, res) => {
 exports.updateHeroBanner = async (req, res) => {
   try {
     const targetCommunityId = req.body.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
+    const doc = await getOrCreateAppContent(targetCommunityId, ...scopeOf(req));
 
     // Prefer a real uploaded file (goes to Cloudinary, returns a URL) over a
     // raw `backgroundImage` string — a base64 data URL must never be stored
@@ -217,7 +252,7 @@ exports.updateDonationBanner = async (req, res) => {
   try {
     const { resolveAvatarUpload } = require('../../utils/avatarUploadHelper');
     const targetCommunityId = req.body.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
+    const doc = await getOrCreateAppContent(targetCommunityId, ...scopeOf(req));
 
     // Resolve uploaded banner image file (if provided)
     const uploadedImageUrl = await resolveAvatarUpload(req, `community_${targetCommunityId}`);
@@ -257,7 +292,7 @@ exports.getLocationHeroBanner = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Only Local Heads (accounts with their own city/location) can manage a location-specific home banner.' });
     }
     const targetCommunityId = req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
+    const doc = await getOrCreateAppContent(targetCommunityId, ...scopeOf(req));
     const entry = (doc.locationHeroBanners || []).find(b => b.city.toLowerCase() === city.toLowerCase());
     return res.status(200).json({
       success: true,
@@ -282,7 +317,7 @@ exports.updateLocationHeroBanner = async (req, res) => {
     }
     const { resolveAvatarUpload } = require('../../utils/avatarUploadHelper');
     const targetCommunityId = req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
+    const doc = await getOrCreateAppContent(targetCommunityId, ...scopeOf(req));
 
     if (!Array.isArray(doc.locationHeroBanners)) doc.locationHeroBanners = [];
     let entry = doc.locationHeroBanners.find(b => b.city.toLowerCase() === city.toLowerCase());
@@ -325,7 +360,7 @@ exports.updateLocationHeroBanner = async (req, res) => {
 exports.updateCensusBanner = async (req, res) => {
   try {
     const targetCommunityId = req.body.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
+    const doc = await getOrCreateAppContent(targetCommunityId, ...scopeOf(req));
 
     const { backgroundImage, overlayOpacity, overlayGradient, enabled } = req.body;
     if (!doc.censusBanner) {
@@ -354,7 +389,7 @@ exports.updateCensusBanner = async (req, res) => {
 exports.updateFooterArtwork = async (req, res) => {
   try {
     const targetCommunityId = req.body.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
+    const doc = await getOrCreateAppContent(targetCommunityId, ...scopeOf(req));
 
     const { artworkType, backgroundImage, hashtagText, caughtUpTitle, caughtUpSubtitle, enabled } = req.body;
     if (!doc.footerArtwork) {
@@ -388,7 +423,7 @@ exports.updateFooterArtwork = async (req, res) => {
 exports.createFeature = async (req, res) => {
   try {
     const targetCommunityId = req.body.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
+    const doc = await getOrCreateAppContent(targetCommunityId, ...scopeOf(req));
 
     const { label, desc, path, state, icon, bgImage, displayOrder, enabled } = req.body;
     if (!label) {
@@ -428,7 +463,7 @@ exports.updateFeature = async (req, res) => {
   try {
     const { id } = req.params;
     const targetCommunityId = req.body.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
+    const doc = await getOrCreateAppContent(targetCommunityId, ...scopeOf(req));
 
     const featureIndex = doc.exclusiveFeatures.findIndex(f => f.id === id);
     if (featureIndex === -1) {
@@ -461,7 +496,7 @@ exports.deleteFeature = async (req, res) => {
   try {
     const { id } = req.params;
     const targetCommunityId = req.query.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
+    const doc = await getOrCreateAppContent(targetCommunityId, ...scopeOf(req));
 
     doc.exclusiveFeatures = doc.exclusiveFeatures.filter(f => f.id !== id);
     await saveAndInvalidate(doc);
@@ -484,7 +519,7 @@ exports.deleteFeature = async (req, res) => {
 exports.createSuccessStory = async (req, res) => {
   try {
     const targetCommunityId = req.body.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
+    const doc = await getOrCreateAppContent(targetCommunityId, ...scopeOf(req));
 
     const { title, tag, quote, shortDescription, coverImage, weddingDate, groomName, brideName, featured, displayOrder, enabled } = req.body;
     if (!title) {
@@ -531,7 +566,7 @@ exports.updateSuccessStory = async (req, res) => {
   try {
     const { id } = req.params;
     const targetCommunityId = req.body.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
+    const doc = await getOrCreateAppContent(targetCommunityId, ...scopeOf(req));
 
     const storyIndex = doc.successStories.findIndex(s => s.id === id);
     if (storyIndex === -1) {
@@ -568,7 +603,7 @@ exports.deleteSuccessStory = async (req, res) => {
   try {
     const { id } = req.params;
     const targetCommunityId = req.query.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
+    const doc = await getOrCreateAppContent(targetCommunityId, ...scopeOf(req));
 
     doc.successStories = doc.successStories.filter(s => s.id !== id);
     await saveAndInvalidate(doc);
@@ -591,7 +626,7 @@ exports.deleteSuccessStory = async (req, res) => {
 exports.updateCommunityHead = async (req, res) => {
   try {
     const targetCommunityId = req.body.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
+    const doc = await getOrCreateAppContent(targetCommunityId, ...scopeOf(req));
 
     const fields = ['name', 'role', 'designation', 'avatar', 'city', 'state', 'phone', 'termYears', 'enabled'];
     fields.forEach(f => {
@@ -618,7 +653,7 @@ exports.updateCommunityHead = async (req, res) => {
 exports.createCommitteeMember = async (req, res) => {
   try {
     const targetCommunityId = req.body.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
+    const doc = await getOrCreateAppContent(targetCommunityId, ...scopeOf(req));
 
     const { name, role, designation, avatar, phone, city, displayOrder, enabled } = req.body;
     if (!name) {
@@ -658,7 +693,7 @@ exports.updateCommitteeMember = async (req, res) => {
   try {
     const { id } = req.params;
     const targetCommunityId = req.body.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
+    const doc = await getOrCreateAppContent(targetCommunityId, ...scopeOf(req));
 
     const memberIndex = doc.coreMembers.committee.findIndex(m => m.id === id);
     if (memberIndex === -1) {
@@ -691,7 +726,7 @@ exports.deleteCommitteeMember = async (req, res) => {
   try {
     const { id } = req.params;
     const targetCommunityId = req.query.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
+    const doc = await getOrCreateAppContent(targetCommunityId, ...scopeOf(req));
 
     doc.coreMembers.committee = doc.coreMembers.committee.filter(m => m.id !== id);
     await saveAndInvalidate(doc);
@@ -714,7 +749,7 @@ exports.deleteCommitteeMember = async (req, res) => {
 exports.createPromotionalBanner = async (req, res) => {
   try {
     const targetCommunityId = req.body.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
+    const doc = await getOrCreateAppContent(targetCommunityId, ...scopeOf(req));
 
     const newBanner = {
       id: req.body.id || `promo_${Date.now()}`,
@@ -752,7 +787,7 @@ exports.updatePromotionalBanner = async (req, res) => {
   try {
     const { id } = req.params;
     const targetCommunityId = req.body.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
+    const doc = await getOrCreateAppContent(targetCommunityId, ...scopeOf(req));
 
     if (!doc.promotionalBanners) doc.promotionalBanners = [];
     const bannerIndex = doc.promotionalBanners.findIndex(b => b.id === id);
@@ -786,7 +821,7 @@ exports.deletePromotionalBanner = async (req, res) => {
   try {
     const { id } = req.params;
     const targetCommunityId = req.query.communityId || req.communityId || req.user?.communityId;
-    const doc = await getOrCreateAppContent(targetCommunityId, req.body?.subCommunity || req.query?.subCommunity || null);
+    const doc = await getOrCreateAppContent(targetCommunityId, ...scopeOf(req));
 
     if (!doc.promotionalBanners) doc.promotionalBanners = [];
     doc.promotionalBanners = doc.promotionalBanners.filter(b => b.id !== id);
@@ -798,6 +833,76 @@ exports.deletePromotionalBanner = async (req, res) => {
     });
   } catch (error) {
     console.error('Error deleting promotional banner:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Locations (cities) the admin can set home content for: where the selected
+//          community's (or sub-community's) members live, plus any city that already
+//          has its own content.
+// @route   GET /api/v1/admin/user-app-edits/locations?communityId=&subCommunity=
+// @access  Admin
+exports.getLocations = async (req, res) => {
+  try {
+    const targetCommunityId = req.query.communityId || req.communityId || req.user?.communityId;
+    if (!targetCommunityId || !mongoose.Types.ObjectId.isValid(String(targetCommunityId))) {
+      return res.status(400).json({ success: false, message: 'Select a valid community first.' });
+    }
+    const communityOid = new mongoose.Types.ObjectId(String(targetCommunityId));
+    const subCommunity = String(req.query.subCommunity || '').trim();
+    const escapeRegex = (v) => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const User = require('../../models/User');
+
+    const [memberCities, withContent] = await Promise.all([
+      User.aggregate([
+        { $match: {
+          $or: [{ communityId: communityOid }, { assignedCommunityIds: communityOid }],
+          ...(subCommunity ? { subCommunity: new RegExp(`^${escapeRegex(subCommunity)}$`, 'i') } : {}),
+          city: { $nin: [null, ''] }
+        } },
+        { $group: { _id: { $toLower: { $trim: { input: '$city' } } }, city: { $first: { $trim: { input: '$city' } } }, members: { $sum: 1 } } }
+      ]),
+      LocationAppContent.find({ communityId: communityOid, subCommunity }).select('city cityKey updatedAt').lean()
+    ]);
+
+    const byKey = new Map();
+    memberCities.forEach(c => byKey.set(c._id, { city: c.city, members: c.members, hasContent: false }));
+    withContent.forEach(d => {
+      const entry = byKey.get(d.cityKey) || { city: d.city, members: 0 };
+      byKey.set(d.cityKey, { ...entry, hasContent: true, updatedAt: d.updatedAt });
+    });
+    const locations = [...byKey.values()].sort((a, b) =>
+      (Number(b.hasContent) - Number(a.hasContent)) || (b.members - a.members) || a.city.localeCompare(b.city));
+
+    return res.status(200).json({ success: true, data: locations });
+  } catch (error) {
+    console.error('Error in getLocations:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Remove a location's own content: its members see the sub-community /
+//          community content again.
+// @route   DELETE /api/v1/admin/user-app-edits/locations?communityId=&subCommunity=&locationCity=
+// @access  Admin
+exports.resetLocationContent = async (req, res) => {
+  try {
+    const targetCommunityId = req.query.communityId || req.body?.communityId;
+    const city = String(req.query.locationCity || req.body?.locationCity || '').trim();
+    if (!targetCommunityId || !mongoose.Types.ObjectId.isValid(String(targetCommunityId)) || !city) {
+      return res.status(400).json({ success: false, message: 'Select a community and a location.' });
+    }
+    const subCommunity = String(req.query.subCommunity || req.body?.subCommunity || '').trim();
+    const result = await LocationAppContent.deleteOne({ communityId: targetCommunityId, subCommunity, cityKey: city.toLowerCase() });
+    cacheService.invalidate('app_content_');
+    return res.status(200).json({
+      success: true,
+      message: result.deletedCount
+        ? `${city} now shows the ${subCommunity || 'community'} content again.`
+        : `${city} had no content of its own.`
+    });
+  } catch (error) {
+    console.error('Error in resetLocationContent:', error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };

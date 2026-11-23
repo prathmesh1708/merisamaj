@@ -10,6 +10,11 @@ router.use(authorize('admin', 'super_admin', 'master_admin'));
 // GET all app content configuration
 router.get('/', adminAppContentController.getAppContent);
 
+// Location (city) content: list the community's locations, or drop one location's own
+// content so its members see the sub-community / community content again
+router.get('/locations', adminAppContentController.getLocations);
+router.delete('/locations', adminAppContentController.resetLocationContent);
+
 // Hero banner update
 router.put('/hero', upload.handleUploadError(upload.single('bannerImage')), adminAppContentController.updateHeroBanner);
 

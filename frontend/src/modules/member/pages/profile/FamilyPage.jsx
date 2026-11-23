@@ -7,6 +7,7 @@ import { PageHeader } from '../../components/layout/PageHeader';
 import InteractiveFamilyTree from '../../components/family/InteractiveFamilyTree';
 import { familyService } from '../../services/familyService';
 import { cropImageFile } from '../../../../core/components/ImageCropper';
+import { toDateOnly, formatDateDDMMYYYY } from '../../../../core/utils/dateOnly';
 
 const CustomSelect = ({ value, onChange, options }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -325,10 +326,11 @@ const RELATION_OPTIONS = [
 const FamilyMemberForm = ({ initialMember, onCancel, onSave, saving, language }) => {
   // Linked members manage their own profile — only the relation can be changed here
   const isLinked = !!initialMember?.isLinked;
-  const [form, setForm] = useState({ 
-    name: initialMember?.name || '', 
-    relation: initialMember?.relation || 'Spouse', 
-    dob: initialMember?.dob || '', 
+  const initialDob = toDateOnly(initialMember?.dob);
+  const [form, setForm] = useState({
+    name: initialMember?.name || '',
+    relation: initialMember?.relation || 'Spouse',
+    dob: initialDob,
     phone: initialMember?.phone || '',
     avatar: initialMember?.avatar || null,
     maritalStatus: initialMember?.maritalStatus || 'Single',
@@ -337,7 +339,7 @@ const FamilyMemberForm = ({ initialMember, onCancel, onSave, saving, language })
 
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [pickerDate, setPickerDate] = useState(() => {
-    const parts = (initialMember?.dob || '1995-08-15').split('-');
+    const parts = (initialDob || '1995-08-15').split('-');
     const y = parts[0] ? Number(parts[0]) : 1995;
     const m = parts[1] ? Number(parts[1]) - 1 : 7;
     const d = parts[2] ? Number(parts[2]) : 15;
@@ -357,9 +359,7 @@ const FamilyMemberForm = ({ initialMember, onCancel, onSave, saving, language })
   }, [pickerDate.year, pickerDate.month]);
 
   const formatDateDisplay = (dateStr) => {
-    if (!dateStr) return 'dd-mm-yyyy';
-    const [y, m, d] = dateStr.split('-');
-    return `${d}-${m}-${y}`;
+    return formatDateDDMMYYYY(dateStr) || 'dd-mm-yyyy';
   };
 
   return (
@@ -647,7 +647,7 @@ const FamilyListView =({ members, onEdit, onDelete, language }) => {
                   )}
                 </div>
                 <div className="text-[11px] text-slate-500 font-medium space-y-1">
-                  {member.dob && <p className="flex items-center gap-1.5"><Calendar size={12} className="text-slate-400" /> {member.dob}</p>}
+                  {formatDateDDMMYYYY(member.dob) && <p className="flex items-center gap-1.5"><Calendar size={12} className="text-slate-400" /> {formatDateDDMMYYYY(member.dob)}</p>}
                   {member.phone && <p className="flex items-center gap-1.5"><Phone size={12} className="text-slate-400" /> {member.phone}</p>}
                   {member.occupation && <p className="flex items-center gap-1.5"><Briefcase size={12} className="text-slate-400" /> {member.occupation}</p>}
                 </div>

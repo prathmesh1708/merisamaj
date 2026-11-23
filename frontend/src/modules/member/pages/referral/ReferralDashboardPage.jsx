@@ -5,6 +5,7 @@ import { FaFacebook } from 'react-icons/fa';
 import { useReferral } from './ReferralContext';
 import { useAuth } from '../../../../core/auth/useAuth';
 import { Avatar } from '../../components/common/Avatar';
+import { publicAppUrl } from '../../../../core/utils/publicUrl';
 
 const StatCard = ({ icon: Icon, title, value, subtext, colorClass, iconBgClass }) => (
   <div className="bg-white rounded-[20px] p-4 border border-purple-100/50 shadow-sm flex items-center gap-3.5">
@@ -31,7 +32,7 @@ const MiniStat = ({ icon: Icon, title, value, colorClass, iconBgClass }) => (
 
 // Opens registration with the code already filled in
 const referralLink = (code) =>
-  `${(import.meta.env.VITE_CLIENT_URL || window.location.origin).replace(/\/$/, '')}/member/register?ref=${encodeURIComponent(code)}`;
+  `${publicAppUrl()}/member/register?ref=${encodeURIComponent(code)}`;
 
 const ReferralDashboardPage = () => {
   const navigate = useNavigate();

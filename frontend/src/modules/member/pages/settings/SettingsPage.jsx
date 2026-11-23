@@ -463,6 +463,23 @@ export const SettingsPage = () => {
               </div>
               <ChevronRight size={16} className="text-slate-400 group-hover:text-purple-600 transition-colors" />
             </button>
+
+            {/* Action: Privacy Policy */}
+            <button
+              onClick={() => navigate('/privacy-policy')}
+              className="w-full flex items-center justify-between p-3.5 hover:bg-purple-50/30 transition-colors text-left group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 border border-purple-100">
+                  <ShieldCheck size={18} />
+                </div>
+                <div>
+                  <span className="text-[13px] font-extrabold text-slate-800 group-hover:text-purple-700 transition-colors block">Privacy Policy</span>
+                  <span className="text-[10.5px] font-semibold text-slate-400 mt-0.5 block leading-none">How we use and protect your data</span>
+                </div>
+              </div>
+              <ChevronRight size={16} className="text-slate-400 group-hover:text-purple-600 transition-colors" />
+            </button>
           </div>
 
           {/* Group 3: Logout Action */}

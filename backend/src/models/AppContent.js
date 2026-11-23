@@ -204,5 +204,19 @@ subCommunityAppContentSchema.add({
 });
 subCommunityAppContentSchema.index({ communityId: 1, subCommunity: 1 }, { unique: true });
 
+// Location (city) content, set by the admin for one city of a community, or one city
+// of one sub-community. Members in that city see it instead of the sub-community /
+// community content (see memberAppContentController). Starts as a copy of the parent.
+const locationAppContentSchema = appContentSchema.clone();
+locationAppContentSchema.path('communityId').options.unique = false;
+locationAppContentSchema.path('communityId').index(true);
+locationAppContentSchema.add({
+  subCommunity: { type: String, default: '', trim: true }, // '' = the whole community
+  city: { type: String, required: true, trim: true },      // as shown to the admin
+  cityKey: { type: String, required: true, lowercase: true, trim: true } // for matching
+});
+locationAppContentSchema.index({ communityId: 1, subCommunity: 1, cityKey: 1 }, { unique: true });
+
 module.exports = mongoose.model('AppContent', appContentSchema);
 module.exports.SubCommunityAppContent = mongoose.model('SubCommunityAppContent', subCommunityAppContentSchema);
+module.exports.LocationAppContent = mongoose.model('LocationAppContent', locationAppContentSchema);

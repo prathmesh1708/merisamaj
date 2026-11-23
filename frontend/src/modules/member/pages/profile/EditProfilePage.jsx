@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { axiosPublic } from '../../../../core/api/axiosConfig';
-import { ArrowLeft, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Users, Building2, Sparkles, Lock } from 'lucide-react';
+import { ArrowLeft, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Users, Building2, Sparkles, Lock, Search, X } from 'lucide-react';
 import { useData } from '../../context/DataProvider';
 import { Avatar } from '../../components/common/Avatar';
 import { cropImageFile } from '../../../../core/components/ImageCropper';
+import { toDateOnly, formatDateDDMMYYYY } from '../../../../core/utils/dateOnly';
 
 const DEFAULT_INDIAN_STATES_AND_CITIES = {
   'Madhya Pradesh': [],
@@ -27,7 +28,7 @@ const EditProfilePage = () => {
     phone: currentUser?.phone || '',
     email: currentUser?.email || '',
     gender: currentUser?.gender || '',
-    dob: currentUser?.dob || '',
+    dob: toDateOnly(currentUser?.dob),
     communityId: currentUser?.communityId?._id || currentUser?.communityId || '',
     community: currentUser?.communityId?.name || currentUser?.community || '',
     subCommunity: currentUser?.subCommunity || '',
@@ -215,12 +216,7 @@ const EditProfilePage = () => {
     navigate(-1);
   };
 
-  const formatDateDisplay = (dateStr) => {
-    if (!dateStr) return '';
-    const parts = dateStr.split('-');
-    if (parts.length !== 3) return dateStr;
-    return `${parts[2]}-${parts[1]}-${parts[0]}`; // DD-MM-YYYY format
-  };
+  const formatDateDisplay = formatDateDDMMYYYY;
 
   return (
     <div className="min-h-screen bg-surface flex flex-col pb-6">
@@ -518,61 +514,108 @@ const EditProfilePage = () => {
   );
 };
 
+// State / City picker. Tapping the field opens a full-screen search with the search
+// box at the top: a dropdown under a field near the bottom of the page was hidden
+// behind the phone keyboard, so members couldn't see what they were typing.
 const AutocompleteField = ({ label, name, value, onChange, suggestions, placeholder, onSelect }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [filteredSuggestions, setFilteredSuggestions] = useState([]);
+  const [query, setQuery] = useState('');
 
+  const filteredSuggestions = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return q ? suggestions.filter((item) => item.toLowerCase().includes(q)) : suggestions;
+  }, [query, suggestions]);
+
+  // Keep the page behind the search from scrolling while it is open
   useEffect(() => {
-    if (!value) {
-      setFilteredSuggestions(suggestions);
-    } else {
-      const query = value.toLowerCase();
-      setFilteredSuggestions(
-        suggestions.filter((item) => item.toLowerCase().includes(query))
-      );
-    }
-  }, [value, suggestions]);
+    if (!isOpen) return undefined;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previous; };
+  }, [isOpen]);
+
+  const open = () => { setQuery(''); setIsOpen(true); };
+  const close = () => setIsOpen(false);
+  const choose = (item) => { onSelect(item); close(); };
+  // A name typed that isn't in the list is still kept (same as before)
+  const keepTyped = () => {
+    const typed = query.trim();
+    if (typed) onChange({ target: { name, value: typed } });
+    close();
+  };
 
   return (
     <div className="relative">
       <label className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
         {label}
       </label>
-      <input
-        type="text"
-        name={name}
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-        onFocus={() => setIsOpen(true)}
-        className="w-full mt-1.5 bg-card border border-gray-200 rounded-xl px-4 py-3 text-sm text-text-primary outline-none transition-all placeholder-gray-400 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10"
-      />
+      <button
+        type="button"
+        onClick={open}
+        className="w-full mt-1.5 bg-card border border-gray-200 rounded-xl px-4 py-3 text-sm text-left outline-none transition-all focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/10 flex items-center justify-between gap-2 min-w-0"
+      >
+        <span className={`truncate ${value ? 'text-text-primary' : 'text-gray-400'}`}>{value || placeholder}</span>
+        <ChevronDown size={16} className="text-text-secondary shrink-0" />
+      </button>
+
       {isOpen && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-          <div className="absolute left-0 right-0 mt-1.5 bg-card border border-gray-200 rounded-2xl shadow-xl z-50 max-h-48 overflow-y-auto py-1 divide-y divide-gray-55">
-            {filteredSuggestions.length > 0 ? (
-              filteredSuggestions.map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() => {
-                    onSelect(item);
-                    setIsOpen(false);
-                  }}
-                  className="w-full text-left px-4 py-3 hover:bg-purple-50/50 text-xs font-semibold text-text-primary transition-colors flex items-center justify-between"
-                >
-                  <span className={value === item ? 'text-brand-primary font-bold' : ''}>{item}</span>
-                  {value === item && <Check size={14} className="text-brand-primary shrink-0" />}
+        <div className="fixed inset-0 z-[60] bg-card flex flex-col" role="dialog" aria-label={`Select ${label}`}>
+          {/* Search box at the top so it stays above the keyboard */}
+          <div className="px-4 pt-[max(env(safe-area-inset-top),12px)] pb-3 border-b border-gray-100 shrink-0">
+            <div className="flex items-center gap-2 mb-3">
+              <button type="button" onClick={close} className="p-1 -ml-1 press-scale" aria-label="Close">
+                <ArrowLeft size={22} className="text-text-primary" />
+              </button>
+              <h2 className="text-base font-semibold text-text-primary">Select {label}</h2>
+            </div>
+            <div className="flex items-center gap-2 bg-surface border border-gray-200 rounded-xl px-3 focus-within:border-brand-primary">
+              <Search size={16} className="text-text-secondary shrink-0" />
+              <input
+                type="text"
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); filteredSuggestions.length === 1 ? choose(filteredSuggestions[0]) : keepTyped(); } }}
+                placeholder={`Search ${label.toLowerCase()}`}
+                enterKeyHint="search"
+                className="flex-1 min-w-0 bg-transparent py-3 text-base text-text-primary outline-none placeholder-gray-400"
+              />
+              {query && (
+                <button type="button" onClick={() => setQuery('')} className="p-1 text-text-secondary" aria-label="Clear search">
+                  <X size={16} />
                 </button>
-              ))
-            ) : (
-              <div className="px-4 py-3 text-xs text-text-secondary italic">
-                No matches found.
+              )}
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto overscroll-contain divide-y divide-gray-100">
+            {filteredSuggestions.map((item) => (
+              <button
+                key={item}
+                type="button"
+                onClick={() => choose(item)}
+                className="w-full text-left px-4 py-3.5 active:bg-purple-50/50 text-sm font-semibold text-text-primary flex items-center justify-between gap-2"
+              >
+                <span className={value === item ? 'text-brand-primary font-bold' : ''}>{item}</span>
+                {value === item && <Check size={16} className="text-brand-primary shrink-0" />}
+              </button>
+            ))}
+            {query.trim() && !filteredSuggestions.some(item => item.toLowerCase() === query.trim().toLowerCase()) && (
+              <button
+                type="button"
+                onClick={keepTyped}
+                className="w-full text-left px-4 py-3.5 text-sm font-semibold text-brand-primary"
+              >
+                Use “{query.trim()}”
+              </button>
+            )}
+            {!query.trim() && filteredSuggestions.length === 0 && (
+              <div className="px-4 py-6 text-sm text-text-secondary text-center">
+                {placeholder}
               </div>
             )}
           </div>
-        </>
+        </div>
       )}
     </div>
   );

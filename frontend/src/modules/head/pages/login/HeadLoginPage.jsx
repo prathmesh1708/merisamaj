@@ -332,7 +332,7 @@ const HeadLoginPage = () => {
           {['Forgot Password', 'Contact Support', 'Privacy Policy'].map((link, i) => (
             <a
               key={link}
-              href="#"
+              href={link === 'Privacy Policy' ? '/privacy-policy' : '#'}
               className="text-[11px] font-medium transition-colors"
               style={{ color: 'rgba(255,255,255,0.25)' }}
               onMouseEnter={e => (e.target.style.color = 'rgba(167,139,250,0.7)')}

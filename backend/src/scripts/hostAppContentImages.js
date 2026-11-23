@@ -32,7 +32,7 @@ async function main() {
   const db = mongoose.connection.db;
 
   let docsAffected = 0; let images = 0; let bytes = 0;
-  for (const coll of ['appcontents', 'subcommunityappcontents']) {
+  for (const coll of ['appcontents', 'subcommunityappcontents', 'locationappcontents']) {
     const docs = await db.collection(coll).find({}).toArray();
     for (const doc of docs) {
       const found = findDataUris(doc, '', []);

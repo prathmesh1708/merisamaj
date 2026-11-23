@@ -15,6 +15,7 @@ import { useAxiosPrivate } from './core/auth/useAxiosPrivate';
 import ScrollToTop from './components/ScrollToTop';
 import { ImageCropHost } from './core/components/ImageCropper';
 import LoginAsPage from './pages/LoginAsPage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 
 const AxiosInterceptorProvider = ({ children }) => {
   const [isReady, setIsReady] = useState(false);
@@ -42,6 +43,9 @@ const AppContent = () => {
 
           {/* Single entry: login as Member / Local Head / Community Head */}
           <Route path="/login" element={<LoginAsPage />} />
+
+          {/* Public legal page — no login needed (app stores link here) */}
+          <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
           
           {/* Route all /member/* requests to MemberRoutes */}
           <Route path="/member/*" element={<MemberRoutes />} />

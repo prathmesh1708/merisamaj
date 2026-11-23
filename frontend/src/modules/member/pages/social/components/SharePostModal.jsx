@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { Avatar } from '../../../components/common/Avatar';
 import socialService from '../../../../../core/api/socialService';
+import { publicAppUrl } from '../../../../../core/utils/publicUrl';
 
 export const SharePostModal = ({ isOpen, onClose, post, onPostShared }) => {
   const [recipients, setRecipients] = useState([]);
@@ -158,8 +159,7 @@ export const SharePostModal = ({ isOpen, onClose, post, onPostShared }) => {
   // External Action: Copy Link
   const handleCopyLink = async () => {
     const postId = post?._id || post?.id;
-    const clientUrl = import.meta.env.VITE_CLIENT_URL || window.location.origin;
-    const url = `${clientUrl}/member/social/${postId}`;
+    const url = `${publicAppUrl()}/member/social/${postId}`;
     try {
       await navigator.clipboard.writeText(url);
       await socialService.recordShare(postId, 'copy_link');
@@ -173,8 +173,7 @@ export const SharePostModal = ({ isOpen, onClose, post, onPostShared }) => {
   // External Action: Native Web Share API
   const handleNativeShare = async () => {
     const postId = post?._id || post?.id;
-    const clientUrl = import.meta.env.VITE_CLIENT_URL || window.location.origin;
-    const url = `${clientUrl}/member/social/${postId}`;
+    const url = `${publicAppUrl()}/member/social/${postId}`;
     const title = post?.title || 'Shared Community Post';
 
     if (navigator.share) {
