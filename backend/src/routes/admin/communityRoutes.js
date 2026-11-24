@@ -47,6 +47,9 @@ router.put('/:id', authorize('admin'), updateCommunity);
 // PATCH /api/v1/admin/communities/:id/toggle-status
 router.patch('/:id/toggle-status', authorize('admin'), toggleCommunityStatus);
 
+// GET    /api/v1/admin/communities/:id/deletion-impact?subCommunity= → counts for the delete confirmation
+router.get('/:id/deletion-impact', authorize('admin'), require('../../controllers/admin/communityController').getDeletionImpact);
+
 // DELETE /api/v1/admin/communities/:id
 router.delete('/:id', authorize('admin'), deleteCommunity);
 

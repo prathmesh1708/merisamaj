@@ -273,9 +273,10 @@ export const UserAppEditsPage = () => {
           setFooterForm({
             artworkType: res.data.footerArtwork.artworkType || 'svg',
             backgroundImage: res.data.footerArtwork.backgroundImage || '',
-            hashtagText: res.data.footerArtwork.hashtagText || '#ApniSamaj',
-            caughtUpTitle: res.data.footerArtwork.caughtUpTitle || "You're all caught up!",
-            caughtUpSubtitle: res.data.footerArtwork.caughtUpSubtitle || 'Check back later for new updates',
+            // `??`, not `||`: a field the admin cleared stays empty (it isn't shown in the app)
+            hashtagText: res.data.footerArtwork.hashtagText ?? '#ApniSamaj',
+            caughtUpTitle: res.data.footerArtwork.caughtUpTitle ?? "You're all caught up!",
+            caughtUpSubtitle: res.data.footerArtwork.caughtUpSubtitle ?? 'Check back later for new updates',
             enabled: res.data.footerArtwork.enabled !== false
           });
         }
@@ -310,6 +311,42 @@ export const UserAppEditsPage = () => {
   }, [selectedCommunityId, selectedSubCommunity]);
 
   const scopeLabel = selectedSubCommunity || communityName;
+
+  // ─── Section inheritance (community → sub-community → location) ───
+  // A sub-community / location only "owns" the sections edited at its level; every
+  // other section follows the level above, so community-wide changes reach its members.
+  const TAB_SECTION = {
+    banner: 'heroBanner', promotionalBanners: 'promotionalBanners', features: 'exclusiveFeatures',
+    stories: 'successStories', leadership: 'coreMembers', census: 'censusBanner', footer: 'footerArtwork'
+  };
+  const TAB_SECTION_NAME = {
+    banner: 'Top Header Banner', promotionalBanners: 'Sliding Banners', features: 'Exclusive Features',
+    stories: 'Success Stories', leadership: 'Core Members', census: 'Census Banner', footer: 'End of Feed'
+  };
+  const activeSection = TAB_SECTION[activeTab];
+  const activeSectionName = TAB_SECTION_NAME[activeTab] || 'this section';
+  const editingScopeName = selectedLocation || selectedSubCommunity || communityName;
+  const parentScopeName = selectedLocation ? (selectedSubCommunity || communityName) : communityName;
+  const isScopedView = !!(selectedSubCommunity || selectedLocation);
+  const ownsActiveSection = isScopedView && (appContent?.customizedSections || []).includes(activeSection);
+  const sectionOverriddenBy = (activeSection && appContent?.overriddenBy?.[activeSection]) || [];
+
+  const handleInheritSection = async (target) => {
+    if (!activeSection) return;
+    const question = target === 'self'
+      ? `Use the ${parentScopeName} ${activeSectionName} for ${editingScopeName}? Its own ${activeSectionName} is removed, and later ${parentScopeName} changes will show to its members.`
+      : `Show this ${activeSectionName} to ${sectionOverriddenBy.length} sub-communit${sectionOverriddenBy.length === 1 ? 'y / location' : 'ies / locations'} too (${sectionOverriddenBy.join(', ')})? Their own ${activeSectionName} is removed.`;
+    if (!window.confirm(question)) return;
+    try {
+      const res = await appContentService.inheritSection(selectedCommunityId, selectedScope, activeSection, target);
+      showToast(res.message || 'Updated');
+      loadLocations();
+      fetchAppContent(selectedCommunityId, selectedScope);
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Could not update', 'error');
+    }
+  };
+
   const handleResetLocation = async () => {
     if (!selectedLocation) return;
     if (!window.confirm(`Remove ${selectedLocation}'s own home content? Members in ${selectedLocation} will see the ${scopeLabel} content again.`)) return;
@@ -815,8 +852,8 @@ export const UserAppEditsPage = () => {
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white/10 border border-white/20 px-4 py-3 text-xs text-purple-100">
             <p className="font-semibold leading-relaxed">
               {appContent.inheritedFromParent
-                ? <>Members in <b className="text-white">{selectedLocation}</b> currently see the <b className="text-white">{scopeLabel}</b> content shown below. Your first save here gives {selectedLocation} its own content; other locations are not affected.</>
-                : <>Editing <b className="text-white">{selectedLocation}</b>'s own content. Members in {selectedLocation}{selectedSubCommunity ? ` (${selectedSubCommunity})` : ''} see this instead of the {scopeLabel} content.</>}
+                ? <>Members in <b className="text-white">{selectedLocation}</b> currently see the <b className="text-white">{scopeLabel}</b> content shown below. A section you save here becomes {selectedLocation}'s own; the other sections keep following {scopeLabel}.</>
+                : <>Editing <b className="text-white">{selectedLocation}</b>. Sections saved here are {selectedLocation}'s own; the rest follow the {scopeLabel} content.</>}
             </p>
             {!appContent.inheritedFromParent && (
               <button
@@ -913,6 +950,53 @@ export const UserAppEditsPage = () => {
         </div>
       ) : (
         <div>
+          {/* Who sees this section: does this scope set it itself, and who below overrides it */}
+          {appContent && activeSection && (
+            <div className="mb-4 space-y-2">
+              {isScopedView && (ownsActiveSection ? (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-purple-200 bg-purple-50 px-4 py-3 text-xs text-purple-900">
+                  <p className="font-semibold leading-relaxed">
+                    <b>{editingScopeName}</b> uses its own {activeSectionName}. Changes to the {parentScopeName} {activeSectionName} do not reach its members.
+                  </p>
+                  <button type="button" onClick={() => handleInheritSection('self')}
+                    className="shrink-0 px-3 py-1.5 rounded-xl bg-white border border-purple-300 text-purple-700 font-bold hover:bg-purple-100">
+                    Use {parentScopeName} {activeSectionName}
+                  </button>
+                </div>
+              ) : (
+                <p className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-semibold text-slate-500">
+                  This {activeSectionName} follows the <b className="text-slate-700">{parentScopeName}</b> content. Saving it here makes it {editingScopeName}'s own.
+                </p>
+              ))}
+              {sectionOverriddenBy.length > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+                  <p className="font-semibold leading-relaxed min-w-0">
+                    <b>{sectionOverriddenBy.length}</b> {sectionOverriddenBy.length === 1 ? 'sub-community / location uses its' : 'sub-communities / locations use their'} own {activeSectionName}, so changes here do not reach their members: <span className="font-bold">{sectionOverriddenBy.join(', ')}</span>.
+                  </p>
+                  <button type="button" onClick={() => handleInheritSection('below')}
+                    className="shrink-0 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold">
+                    Use this for all
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* A Local Head's city banner (Head panel) replaces the header for this location's
+              members unless the admin saves a header for the location here */}
+          {activeTab === 'banner' && selectedLocation && appContent?.localHeadBanner && (
+            <div className={`mb-4 flex items-center gap-3 rounded-2xl border px-4 py-3 text-xs ${
+              appContent.localHeadBanner.heroOwnedHere ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-rose-200 bg-rose-50 text-rose-900'
+            }`}>
+              <img src={appContent.localHeadBanner.backgroundImage} alt="Local Head banner" className="w-20 h-12 rounded-lg object-cover shrink-0 border border-white shadow-sm" />
+              <p className="font-semibold leading-relaxed">
+                {appContent.localHeadBanner.heroOwnedHere
+                  ? <>A Local Head has also set this banner for <b>{selectedLocation}</b>. Your header saved here is shown instead.</>
+                  : <>Members in <b>{selectedLocation}</b> currently see this <b>Local Head banner</b>, not the header below. Press <b>Save Banner</b> here to show this header to {selectedLocation} instead.</>}
+              </p>
+            </div>
+          )}
+
           {/* ─── TAB 1: TOP HEADER BANNER ─── */}
           {activeTab === 'banner' && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -2106,17 +2190,26 @@ export const UserAppEditsPage = () => {
 
                       {/* Hashtag Watermark & Caught-Up Card */}
                       <div className="relative z-10 flex flex-col items-center px-4">
-                        <h3 className="text-purple-600/35 text-[34px] font-black italic tracking-tighter mb-2 drop-shadow-sm leading-none select-none">
-                          {footerForm.hashtagText || `#${communityName.replace(/\s+/g, '')}`}
-                        </h3>
-                        <div className="bg-white/90 backdrop-blur-xl px-5 py-2 rounded-2xl border border-purple-200/40 shadow-sm flex flex-col items-center text-center">
-                          <span className="text-slate-800 text-xs font-black tracking-wide">
-                            {footerForm.caughtUpTitle || "You're all caught up!"}
-                          </span>
-                          <span className="text-slate-500 text-[10px] font-medium mt-0.5">
-                            {footerForm.caughtUpSubtitle || 'Check back later for new updates'}
-                          </span>
-                        </div>
+                        {/* Same as the app: an empty field is simply not shown */}
+                        {footerForm.hashtagText?.trim() && (
+                          <h3 className="text-purple-600/35 text-[34px] font-black italic tracking-tighter mb-2 drop-shadow-sm leading-none select-none">
+                            {footerForm.hashtagText}
+                          </h3>
+                        )}
+                        {(footerForm.caughtUpTitle?.trim() || footerForm.caughtUpSubtitle?.trim()) && (
+                          <div className="bg-white/90 backdrop-blur-xl px-5 py-2 rounded-2xl border border-purple-200/40 shadow-sm flex flex-col items-center text-center">
+                            {footerForm.caughtUpTitle?.trim() && (
+                              <span className="text-slate-800 text-xs font-black tracking-wide">
+                                {footerForm.caughtUpTitle}
+                              </span>
+                            )}
+                            {footerForm.caughtUpSubtitle?.trim() && (
+                              <span className="text-slate-500 text-[10px] font-medium mt-0.5">
+                                {footerForm.caughtUpSubtitle}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
 

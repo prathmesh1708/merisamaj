@@ -14,6 +14,8 @@ router.get('/', adminAppContentController.getAppContent);
 // content so its members see the sub-community / community content again
 router.get('/locations', adminAppContentController.getLocations);
 router.delete('/locations', adminAppContentController.resetLocationContent);
+// Hand a section back to the level above (for this scope, or for everything below it)
+router.post('/inherit', adminAppContentController.inheritSection);
 
 // Hero banner update
 router.put('/hero', upload.handleUploadError(upload.single('bannerImage')), adminAppContentController.updateHeroBanner);

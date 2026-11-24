@@ -176,6 +176,23 @@ const VerificationPrompt = ({ user, navigate }) => {
   );
 };
 
+// ─── Admin announcement popup rules ───
+// It appears only within 24 hours of the broadcast being sent; after that the
+// announcement stays in Notifications but no longer pops up. Closed once = never again.
+const BROADCAST_POPUP_TTL_MS = 24 * 60 * 60 * 1000;
+const broadcastSentAt = (n) => new Date(n?.createdAt || n?.sentAt || 0).getTime();
+const popupDismissed = (notification) => {
+  const key = notification?._id || notification?.referenceId;
+  if (!key) return false;
+  try { return localStorage.getItem(`admin_broadcast_popup_dismissed_${key}`) === '1'; }
+  catch { return false; }
+};
+const popupExpired = (n) => {
+  const sentAt = broadcastSentAt(n);
+  return !sentAt || Date.now() - sentAt > BROADCAST_POPUP_TTL_MS;
+};
+const canPopUp = (n) => n?.type === 'admin_broadcast' && !popupDismissed(n) && !popupExpired(n);
+
 const HomePage = () => {
   const navigate = useNavigate();
   const { auth } = useAuth();
@@ -216,19 +233,12 @@ const HomePage = () => {
   const [liveFooterArtwork, setLiveFooterArtwork] = useState(null);
   const [footerImageAspectRatio, setFooterImageAspectRatio] = useState(null);
 
-  const popupDismissed = (notification) => {
-    const key = notification?._id || notification?.referenceId;
-    if (!key) return false;
-    try { return localStorage.getItem(`admin_broadcast_popup_dismissed_${key}`) === '1'; }
-    catch { return false; }
-  };
-
   useEffect(() => {
     let active = true;
     notificationService.getAll({ page: 1, limit: 20, isRead: false, type: 'admin_broadcast' })
       .then(res => {
         if (!active) return;
-        const pending = (res.data?.data?.notifications || []).find(n => !popupDismissed(n));
+        const pending = (res.data?.data?.notifications || []).find(n => canPopUp({ type: 'admin_broadcast', ...n }));
         if (pending) setAdminBroadcastPopup(current => current || pending);
       })
       .catch(() => {});
@@ -236,9 +246,19 @@ const HomePage = () => {
   }, [effectiveUser?._id]);
 
   useEffect(() => {
-    if (latestNotification?.type !== 'admin_broadcast' || popupDismissed(latestNotification)) return;
+    if (!canPopUp(latestNotification)) return;
     setAdminBroadcastPopup(current => current || latestNotification);
   }, [latestNotification]);
+
+  // A popup left open past its 24 hours closes by itself
+  useEffect(() => {
+    if (!adminBroadcastPopup) return undefined;
+    const sentAt = broadcastSentAt(adminBroadcastPopup);
+    if (!sentAt) return undefined;
+    const msLeft = sentAt + BROADCAST_POPUP_TTL_MS - Date.now();
+    const timer = setTimeout(() => setAdminBroadcastPopup(null), Math.max(0, msLeft));
+    return () => clearTimeout(timer);
+  }, [adminBroadcastPopup]);
 
   const closeAdminBroadcastPopup = async (openNotification = false) => {
     const notification = adminBroadcastPopup;
@@ -1738,20 +1758,37 @@ const HomePage = () => {
                 </div>
               )}
               
-              {/* End text */}
-              <div className="relative z-10 flex flex-col items-center">
-                 <h3 className="text-brand-primary/40 text-[clamp(30px,10vw,42px)] sm:text-[42px] font-black italic tracking-tighter mb-2 drop-shadow-md leading-none select-none">
-                   {liveFooterArtwork?.hashtagText || '#ApniSamaj'}
-                 </h3>
-                 <div className="bg-white/85 backdrop-blur-xl px-6 py-2.5 rounded-2xl border border-purple-200/40 shadow-sm flex flex-col items-center text-center">
-                   <span className="text-text-secondary text-[14px] font-black tracking-wide">
-                     {liveFooterArtwork?.caughtUpTitle || "You're all caught up!"}
-                   </span>
-                   <span className="text-text-muted text-[11px] font-medium mt-0.5">
-                     {liveFooterArtwork?.caughtUpSubtitle || 'Check back later for new updates'}
-                   </span>
-                 </div>
-              </div>
+              {/* End text — a field the admin left empty is not shown; the defaults are
+                  used only until the content loads or for older content without the field */}
+              {(() => {
+                const pick = (key, fallback) => String((liveFooterArtwork ? liveFooterArtwork[key] : undefined) ?? fallback).trim();
+                const hashtag = pick('hashtagText', '#ApniSamaj');
+                const title = pick('caughtUpTitle', "You're all caught up!");
+                const subtitle = pick('caughtUpSubtitle', 'Check back later for new updates');
+                return (
+                  <div className="relative z-10 flex flex-col items-center">
+                    {hashtag && (
+                      <h3 className="text-brand-primary/40 text-[clamp(30px,10vw,42px)] sm:text-[42px] font-black italic tracking-tighter mb-2 drop-shadow-md leading-none select-none">
+                        {hashtag}
+                      </h3>
+                    )}
+                    {(title || subtitle) && (
+                      <div className="bg-white/85 backdrop-blur-xl px-6 py-2.5 rounded-2xl border border-purple-200/40 shadow-sm flex flex-col items-center text-center">
+                        {title && (
+                          <span className="text-text-secondary text-[14px] font-black tracking-wide">
+                            {title}
+                          </span>
+                        )}
+                        {subtitle && (
+                          <span className="text-text-muted text-[11px] font-medium mt-0.5">
+                            {subtitle}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           )}
 

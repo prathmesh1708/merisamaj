@@ -129,6 +129,51 @@ export const deleteSubCommunity = async (communityId, subId) => {
   return response.data;
 };
 
+// GET /admin/communities/:id/deletion-impact → how many people a delete affects (changes nothing)
+export const getDeletionImpact = async (communityId, subCommunity = '') => {
+  const response = await axiosPrivate.get(`${API_BASE}/${communityId}/deletion-impact`, { params: subCommunity ? { subCommunity } : {} });
+  return response.data?.data || {};
+};
+
+// Confirmation before a permanent delete, with the real numbers. A whole community
+// also needs its name typed, so it can't be deleted by a stray click.
+export const confirmCommunityDeletion = async (communityId, name) => {
+  let n = {};
+  try { n = await getDeletionImpact(communityId); } catch { /* still ask, without numbers */ }
+  const lines = [
+    `PERMANENTLY DELETE "${name}"?`,
+    '',
+    `• ${n.members ?? 'All'} member(s) will be logged out and removed from this community. When they log in again they choose a new community (and need approval again).`,
+    `• ${n.staff ?? 'Its'} head / sub-head account(s) lose this community (deactivated if it was their only one).`,
+    `• Deleted: posts${n.posts !== undefined ? ` (${n.posts})` : ''}, stories, events, groups, family trees, invitations, obituaries, votes, leadership and home-screen content.`,
+    `• Hidden: matrimonial profiles${n.matrimonialProfiles !== undefined ? ` (${n.matrimonialProfiles})` : ''}.`,
+    '• Kept (required by law): donations, funds, payments, bookings and audit records.',
+    '',
+    'This cannot be undone.'
+  ];
+  if (!window.confirm(lines.join('\n'))) return false;
+  const typed = window.prompt(`Type the community name to confirm:\n${name}`);
+  if ((typed || '').trim() !== String(name).trim()) {
+    if (typed !== null) window.alert('The name did not match. Nothing was deleted.');
+    return false;
+  }
+  return true;
+};
+
+export const confirmSubCommunityDeletion = async (communityId, subName) => {
+  let n = {};
+  try { n = await getDeletionImpact(communityId, subName); } catch { /* still ask */ }
+  return window.confirm([
+    `Delete the sub-community "${subName}"?`,
+    '',
+    `• ${n.members ?? 'Its'} member(s) will be logged out. They stay in the community and must choose a sub-community again when they log in.`,
+    `• ${n.staff ?? 'Its'} head / sub-head account(s) assigned to it will be deactivated.`,
+    `• Its own home-screen content (and its location copies) is deleted.`,
+    '',
+    'This cannot be undone.'
+  ].join('\n'));
+};
+
 // GET /admin/communities/:id/sub-communities/:subName/locations → real location breakdown with Local Heads
 export const getSubCommunityLocationBreakdown = async (communityId, subName) => {
   const encoded = encodeURIComponent(subName);

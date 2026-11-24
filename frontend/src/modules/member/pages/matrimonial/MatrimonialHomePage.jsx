@@ -7,7 +7,7 @@ import {
   Briefcase, GraduationCap, Clock, Check, CheckCheck, Bookmark, BookmarkCheck,
   Play, Pencil, User, Image, Lock, ShieldAlert, Eye, EyeOff, ArrowLeft, Plus,
   Phone, MailCheck, ShieldCheck as VerifiedIcon, Sparkles as SpotlightIcon,
-  PhoneCall, Users, SwitchCamera, Settings, ChevronDown, BadgeCheck
+  PhoneCall, Users, SwitchCamera, Settings, BadgeCheck
 } from 'lucide-react';
 import { useData } from '../../context/DataProvider';
 import { useMatrimonial } from './MatrimonialContext';
@@ -31,6 +31,48 @@ const membershipRanks = {
 const PAID_MEMBER_RANK = Math.max(...Object.values(membershipRanks));
 const viewerRank = (membership, isSubscribed) =>
   membershipRanks[membership] ?? (isSubscribed ? PAID_MEMBER_RANK : membershipRanks.Normal);
+// ─── Filter sheet "Show matches from" controls (same look as the visibility screen) ───
+const FilterSwitch = ({ on, onChange, label }) => (
+  <button type="button" role="switch" aria-checked={on} aria-label={label} onClick={() => onChange(!on)}
+    className={`relative w-11 h-6 rounded-full shrink-0 transition-colors ${on ? 'bg-emerald-500' : 'bg-slate-300'}`}>
+    <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${on ? 'left-[22px]' : 'left-0.5'}`} />
+  </button>
+);
+const FilterRadio = ({ checked, onClick, children }) => (
+  <button type="button" onClick={onClick} className="flex items-center gap-2.5 text-left">
+    <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${checked ? 'border-blue-600' : 'border-slate-300'}`}>
+      {checked && <span className="w-2 h-2 rounded-full bg-blue-600" />}
+    </span>
+    <span className="text-[12.5px] font-semibold text-slate-700">{children}</span>
+  </button>
+);
+const FilterChips = ({ options, picked, onToggle }) => (
+  <div className="flex flex-wrap gap-1.5 pt-1">
+    {options.map(({ value, label }) => {
+      const on = picked.includes(value);
+      return (
+        <button key={value} type="button" onClick={() => onToggle(value)}
+          className={`px-3 py-1.5 rounded-full text-[11.5px] font-bold border flex items-center gap-1 ${on ? 'bg-rose-50 border-rose-300 text-rose-600' : 'bg-white border-slate-200 text-slate-600'}`}>
+          {on && <Check size={12} />} {label}
+        </button>
+      );
+    })}
+  </div>
+);
+const FilterCard = ({ icon, title, subtitle, on, onToggle, children }) => (
+  <div className="rounded-2xl border border-slate-200 bg-white p-3.5 space-y-3">
+    <div className="flex items-start gap-3">
+      <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center shrink-0">{icon}</div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[13px] font-black text-slate-800 truncate">{title}</p>
+        <p className="text-[11px] font-semibold text-slate-400 leading-snug">{subtitle}</p>
+      </div>
+      <FilterSwitch on={on} onChange={onToggle} label={title} />
+    </div>
+    {on && children}
+  </div>
+);
+
 const MatrimonialHomePage = () => {
   const navigate = useNavigate();
   const { currentUser, updateProfile, markModuleAsVisited } = useData();
@@ -123,31 +165,27 @@ const MatrimonialHomePage = () => {
   }, [locallySentIds, sentInterests, acceptedInterests]);
 
   const [expandedId, setExpandedId] = useState(null);
-  const [activeFilterPill, setActiveFilterPill] = useState('all'); // 'all' | 'other_community' | 'verified' | 'joined' | 'nearby'
+  // Quick-filter pills, several at once. Community pills add up (My Community +
+  // Other Communities = both); Verified / Just Joined / Manglik / Nearby narrow.
+  // Empty = "All matches".
+  const [activePills, setActivePills] = useState([]);
+  const hasPill = (key) => activePills.includes(key);
   const [searchText, setSearchText] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
 
   // Community Scope & Filter States
-  const [selectedCommunityScope, setSelectedCommunityScope] = useState('all'); // 'all' | 'my' | 'other' | 'specific'
-  const [selectedSpecificCommunity, setSelectedSpecificCommunity] = useState('');
-  const [availableCommunities, setAvailableCommunities] = useState([
-    'Agrawal', 'Jain', 'Brahmin', 'Maheshwari', 'Maratha', 'Khandelwal', 'Rajput', 'Gupta', 'Patel', 'Sikh', 'Punjabi', 'Yadav', 'Sindhi'
-  ]);
-
-  useEffect(() => {
-    const fetchCommunities = async () => {
-      try {
-        const res = await matrimonialProfileService.getAvailableCommunities();
-        if (res.data?.data && Array.isArray(res.data.data) && res.data.data.length > 0) {
-          setAvailableCommunities(res.data.data);
-        }
-      } catch (err) {
-        console.warn('Using default communities list');
-      }
-    };
-    fetchCommunities();
-  }, []);
+  // Filter sheet "Which members to see" — the same three choices as the profile
+  // visibility screen (my sub-community / other sub-communities / other communities)
+  const [seeOwnSub, setSeeOwnSub] = useState(true);
+  const [seeSiblings, setSeeSiblings] = useState(true);
+  const [siblingMode, setSiblingMode] = useState('all'); // 'all' | 'selected'
+  const [siblingPick, setSiblingPick] = useState([]);
+  const [seeOther, setSeeOther] = useState(true);
+  const [otherMode, setOtherMode] = useState('all'); // 'all' | 'selected'
+  const [otherPick, setOtherPick] = useState([]);
+  const [otherOptions, setOtherOptions] = useState(null); // [{ name, count }] once loaded
+  const toggleIn = (list, value) => (list.includes(value) ? list.filter(v => v !== value) : [...list, value]);
 
   const openChatWithProfile = async (profileId) => {
     try {
@@ -505,24 +543,30 @@ const MatrimonialHomePage = () => {
     return () => clearTimeout(t);
   }, [searchText]);
 
-  const communityScopeFilter = activeFilterPill === 'other_community' || selectedCommunityScope === 'other'
-    ? 'other'
-    : activeFilterPill === 'my_community' || selectedCommunityScope === 'my' ? 'my' : undefined;
+  // Community pills chosen → only those groups (combined with the filter sheet's choices)
+  const anyCommunityPill = ['other_community', 'my_community', 'my_subcommunity'].some(hasPill);
+  const pillOwnSub = !anyCommunityPill || hasPill('my_community') || hasPill('my_subcommunity');
+  const pillSiblings = !anyCommunityPill || hasPill('my_community');
+  const pillOther = !anyCommunityPill || hasPill('other_community');
   const serverFilterKey = JSON.stringify({
     maritalStatus: selectedMaritalStatus !== 'All' ? selectedMaritalStatus : undefined,
     diet: selectedDiet !== 'All' ? selectedDiet : undefined,
-    nearby: activeFilterPill === 'nearby' ? '1' : undefined,
-    manglikStatus: activeFilterPill === 'manglik' ? 'manglik' : undefined,
-    joined: activeFilterPill === 'joined' ? '1' : undefined,
-    verified: activeFilterPill === 'verified' || verifiedOnlyFilter ? '1' : undefined,
+    nearby: hasPill('nearby') ? '1' : undefined,
+    manglikStatus: hasPill('manglik') ? 'manglik' : undefined,
+    joined: hasPill('joined') ? '1' : undefined,
+    verified: hasPill('verified') || verifiedOnlyFilter ? '1' : undefined,
     withPhoto: withPhotoOnlyFilter ? '1' : undefined,
-    communityScope: communityScopeFilter,
-    subCommunity: selectedCommunityScope === 'specific' && selectedSpecificCommunity ? selectedSpecificCommunity : undefined,
     // Other members' age is never sent, so the age range is filtered on the server
     ageMin: ageRange.min > AGE_LIMITS.min ? ageRange.min : undefined,
     ageMax: ageRange.max < AGE_LIMITS.max ? ageRange.max : undefined,
     disability: selectedDisability !== 'Any' ? selectedDisability.toLowerCase() : undefined,
-    q: debouncedSearch || undefined
+    q: debouncedSearch || undefined,
+    // "Which members to see" ('selected' with nothing picked shows none of that group)
+    showOwnSub: !seeOwnSub || !pillOwnSub ? '0' : undefined,
+    showSiblings: !seeSiblings || !pillSiblings || (siblingMode === 'selected' && !siblingPick.length) ? '0' : undefined,
+    siblingSubs: seeSiblings && siblingMode === 'selected' && siblingPick.length ? siblingPick.join(',') : undefined,
+    showOther: !seeOther || !pillOther || (otherMode === 'selected' && !otherPick.length) ? '0' : undefined,
+    otherCommunities: seeOther && otherMode === 'selected' && otherPick.length ? otherPick.join(',') : undefined
   });
   // One request when the filter sheet closes (not one per slider step while it's open).
   // The first load is done by the context.
@@ -539,9 +583,21 @@ const MatrimonialHomePage = () => {
   }, [fetchDashboard]);
   const activeFilterCount = [
     selectedMaritalStatus !== 'All', selectedDiet !== 'All', selectedDisability !== 'Any',
-    verifiedOnlyFilter, withPhotoOnlyFilter, selectedCommunityScope !== 'all',
-    ageRange.min > AGE_LIMITS.min || ageRange.max < AGE_LIMITS.max
+    verifiedOnlyFilter, withPhotoOnlyFilter,
+    ageRange.min > AGE_LIMITS.min || ageRange.max < AGE_LIMITS.max,
+    !seeOwnSub || !seeSiblings || !seeOther || siblingMode === 'selected' || otherMode === 'selected'
   ].filter(Boolean).length;
+
+  // Other communities for the "Selected communities" chooser — loaded the first time
+  // the filter sheet opens
+  useEffect(() => {
+    if (!isFilterDrawerOpen || otherOptions) return;
+    let cancelled = false;
+    matrimonialProfileService.getAvailableCommunitiesWithCounts()
+      .then(res => { if (!cancelled) setOtherOptions(Array.isArray(res.data?.data) ? res.data.data : []); })
+      .catch(() => { if (!cancelled) setOtherOptions([]); });
+    return () => { cancelled = true; };
+  }, [isFilterDrawerOpen, otherOptions]);
 
   // ─── Profile visit cards (visitors of me / profiles I visited) ─────────────
   // Built from the profile the server sent, which already follows its privacy rules.
@@ -813,32 +869,17 @@ const MatrimonialHomePage = () => {
                       navigate('/member/matrimonial/subscription');
                       return;
                     }
-                    setActiveFilterPill(key);
-                    if (key === 'other_community') {
-                      setSelectedCommunityScope('other');
-                      setSelectedSpecificCommunity('');
-                      showToast('Showing matches from other communities 🌐');
-                    } else if (key === 'my_community') {
-                      setSelectedCommunityScope('my');
-                      setSelectedSpecificCommunity('');
-                      showToast('Showing matches from your community 🤝');
-                    } else if (key === 'my_subcommunity') {
-                      const mySubCommunity = subCommunityInfo.subCommunityName || dashboard?.community?.mySubCommunity;
-                      setSelectedCommunityScope('specific');
-                      setSelectedSpecificCommunity(mySubCommunity || '');
-                      showToast(`Showing matches from ${mySubCommunity || 'your sub-community'}`);
-                    } else if (key === 'all') {
-                      setSelectedCommunityScope('all');
-                      setSelectedSpecificCommunity('');
-                    }
+                    // "All matches" clears every pill; any other pill switches on / off
+                    setActivePills(prev => (key === 'all' ? [] : prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]));
                   }}
                   className={`px-3.5 py-1.5 rounded-full text-[12.5px] font-bold transition-all shrink-0 active:scale-95 border flex items-center gap-1 ${
-                    activeFilterPill === key
+                    (key === 'all' ? activePills.length === 0 : hasPill(key))
                       ? 'bg-rose-500 border-rose-500 text-white shadow-sm'
                       : 'bg-white border-slate-200 text-slate-655 hover:bg-slate-50'
                   }`}
                 >
-                  {key === 'other_community' && <Users size={14} className={activeFilterPill === key ? 'text-white' : 'text-rose-500'} />}
+                  {key === 'other_community' && <Users size={14} className={hasPill(key) ? 'text-white' : 'text-rose-500'} />}
+                  {key !== 'all' && hasPill(key) && <Check size={13} className="text-white" />}
                   {label}
                 </button>
               ))}
@@ -2748,96 +2789,64 @@ const MatrimonialHomePage = () => {
                 </div>
               </div>
 
-              {/* ─── COMMUNITY FILTER — only for plans that include it ─── */}
-              {(dashboard?.subscription?.features?.communityFilter === true || dashboard?.subscription?.features?.allSubCommunitiesAccess === true) && (
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <label className="text-[11px] text-slate-400 font-extrabold uppercase tracking-wide">Community Filter</label>
-                  <span className="text-[11px] font-black text-rose-500">
-                    {selectedCommunityScope === 'my' 
-                      ? (currentUser?.community || 'My Community')
-                      : selectedCommunityScope === 'other' 
-                        ? 'Other Communities' 
-                        : selectedSpecificCommunity 
-                          ? `Sub: ${selectedSpecificCommunity}` 
-                          : 'All Communities'}
-                  </span>
-                </div>
+              {/* ─── WHICH MEMBERS TO SEE — the same choices as the profile visibility
+                  screen. Only for plans that include the community filter. ─── */}
+              {(dashboard?.subscription?.features?.communityFilter === true || dashboard?.subscription?.features?.allSubCommunitiesAccess === true) && (() => {
+                const ownSub = subCommunityInfo.subCommunityName || dashboard?.community?.mySubCommunity || '';
+                const commName = subCommunityInfo.communityName || dashboard?.community?.name || 'My Samaj';
+                const subs = subCommunityInfo.subCommunities?.length ? subCommunityInfo.subCommunities : (dashboard?.community?.subCommunities || []);
+                const siblingOptions = subs.filter(s => s && s !== ownSub);
+                const canSiblings = !!ownSub && siblingOptions.length > 0
+                  && (dashboard?.subscription?.canSeeAllSubCommunities === true || dashboard?.subscription?.features?.allSubCommunitiesAccess === true);
+                const canOther = dashboard?.subscription?.canSeeOtherCommunities === true;
+                const bare = (n) => String(n || '').replace(/\s+samaj$/i, '').trim().toLowerCase();
+                const otherList = (otherOptions || []).filter(c => c?.name && bare(c.name) !== bare(commName));
+                const summary = [
+                  ownSub && seeOwnSub ? ownSub : null,
+                  canSiblings && seeSiblings ? (siblingMode === 'selected' ? `${siblingPick.length} sub-communit${siblingPick.length === 1 ? 'y' : 'ies'}` : `All ${commName}`) : null,
+                  canOther && seeOther ? (otherMode === 'selected' ? `${otherPick.length} other` : 'Other communities') : null
+                ].filter(Boolean);
 
-                {/* Two dropdowns: community group, and (optionally) one specific community */}
-                {(() => {
-                  const canOther = dashboard?.subscription?.canSeeOtherCommunities !== false;
-                  const myName = currentUser?.community || '';
-                  const looksLikeId = (n) => /^[a-f0-9]{24}$/i.test(String(n || ''));
-                  const specific = (availableCommunities || [])
-                    .filter(c => c && !looksLikeId(c))
-                    .filter(c => canOther || (myName && c.toLowerCase() === myName.toLowerCase()));
-                  const selectCls = 'block w-full min-w-0 max-w-full appearance-none bg-white border border-slate-200 rounded-xl pl-3.5 pr-10 h-12 text-[13px] sm:text-[14px] font-bold text-slate-800 truncate focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100';
-                  const Arrow = () => <ChevronDown size={18} className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" />;
-                  return (
-                    <div className="space-y-3 w-full min-w-0">
-                      <div className="min-w-0">
-                        <p className="text-[10px] text-slate-400 font-bold uppercase mb-1.5">Community</p>
-                        <div className="relative w-full">
-                        <select
-                          value={selectedSpecificCommunity ? '' : selectedCommunityScope}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setSelectedSpecificCommunity('');
-                            setSelectedCommunityScope(v);
-                            setActiveFilterPill(v === 'other' ? 'other_community' : 'all');
-                          }}
-                          className={selectCls}
-                        >
-                          {selectedSpecificCommunity && <option value="" disabled>Sub community selected below</option>}
-                          <option value="all">All Samaj</option>
-                          <option value="my">{dashboard?.community?.name ? `My Samaj (${dashboard.community.name})` : (myName ? `My Samaj (${myName})` : 'My Samaj')}</option>
-                          {canOther && <option value="other">Other Samaj</option>}
-                        </select>
-                        <Arrow />
-                        </div>
-                      </div>
-
-                      <div className="min-w-0">
-                        <p className="text-[10px] text-slate-400 font-bold uppercase mb-1.5">Sub Community</p>
-                        <div className="relative w-full">
-                        <select
-                          value={selectedSpecificCommunity}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            if (v) {
-                              setSelectedSpecificCommunity(v);
-                              setSelectedCommunityScope('specific');
-                            } else {
-                              setSelectedSpecificCommunity('');
-                              setSelectedCommunityScope('all');
-                            }
-                            setActiveFilterPill('all');
-                          }}
-                          className={selectCls}
-                        >
-                          {(() => {
-                            const subs = subCommunityInfo.subCommunities?.length ? subCommunityInfo.subCommunities : (dashboard?.community?.subCommunities || []);
-                            const mine = subCommunityInfo.subCommunityName || dashboard?.community?.mySubCommunity;
-                            const commName = subCommunityInfo.communityName || dashboard?.community?.name || 'your community';
-                            return subs.length === 0 ? (
-                              <option value="">No sub communities in {commName}</option>
-                            ) : (
-                              <>
-                                <option value="">All sub communities ({subs.length})</option>
-                                {subs.map(sc => <option key={sc} value={sc}>{sc}{sc === mine ? ' (yours)' : ''}</option>)}
-                              </>
-                            );
-                          })()}
-                        </select>
-                        <Arrow />
-                        </div>
-                      </div>
+                if (!ownSub && !canSiblings && !canOther) return null;
+                return (
+                  <div>
+                    <div className="flex justify-between items-center mb-2 gap-2">
+                      <label className="text-[11px] text-slate-400 font-extrabold uppercase tracking-wide">Show matches from</label>
+                      <span className="text-[11px] font-black text-rose-500 truncate">{summary.length ? summary.join(' · ') : 'Nobody selected'}</span>
                     </div>
-                  );
-                })()}
-              </div>
-              )}
+                    <div className="space-y-2.5">
+                      {ownSub && (
+                        <FilterCard icon={<Users size={17} />} title={ownSub} subtitle="Members of your own sub-community" on={seeOwnSub} onToggle={setSeeOwnSub} />
+                      )}
+                      {canSiblings && (
+                        <FilterCard icon={<Users size={17} />} title={`All ${commName} Members`} subtitle={`Other sub-communities in ${commName}`} on={seeSiblings} onToggle={setSeeSiblings}>
+                          <div className="space-y-2 pl-1">
+                            <FilterRadio checked={siblingMode === 'all'} onClick={() => setSiblingMode('all')}>All sub-communities ({siblingOptions.length})</FilterRadio>
+                            <FilterRadio checked={siblingMode === 'selected'} onClick={() => setSiblingMode('selected')}>Selected sub-communities</FilterRadio>
+                            {siblingMode === 'selected' && (
+                              <FilterChips options={siblingOptions.map(s => ({ value: s, label: s }))} picked={siblingPick} onToggle={(v) => setSiblingPick(p => toggleIn(p, v))} />
+                            )}
+                          </div>
+                        </FilterCard>
+                      )}
+                      {canOther && (
+                        <FilterCard icon={<Home size={17} />} title="Other Community Members" subtitle="Profiles from other communities" on={seeOther} onToggle={setSeeOther}>
+                          <div className="space-y-2 pl-1">
+                            <FilterRadio checked={otherMode === 'all'} onClick={() => setOtherMode('all')}>All other communities</FilterRadio>
+                            <FilterRadio checked={otherMode === 'selected'} onClick={() => setOtherMode('selected')}>Selected communities {otherPick.length ? `(${otherPick.length})` : ''}</FilterRadio>
+                            {otherMode === 'selected' && (otherOptions === null
+                              ? <p className="text-[11px] font-semibold text-slate-400 pt-1">Loading communities…</p>
+                              : otherList.length === 0
+                                ? <p className="text-[11px] font-semibold text-slate-400 pt-1">No other communities yet.</p>
+                                : <FilterChips options={otherList.map(c => ({ value: c.name, label: `${c.name}${c.count ? ` (${c.count})` : ''}` }))} picked={otherPick} onToggle={(v) => setOtherPick(p => toggleIn(p, v))} />
+                            )}
+                          </div>
+                        </FilterCard>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Marital Status Selection */}
               <div>
@@ -2953,11 +2962,11 @@ const MatrimonialHomePage = () => {
                   setSelectedMaritalStatus('All');
                   setSelectedDiet('All');
                   setSelectedDisability('Any');
-                  setSelectedCommunityScope('all');
-                  setSelectedSpecificCommunity('');
-                  setActiveFilterPill('all');
+                  setActivePills([]);
                   setVerifiedOnlyFilter(false);
                   setWithPhotoOnlyFilter(false);
+                  setSeeOwnSub(true); setSeeSiblings(true); setSiblingMode('all'); setSiblingPick([]);
+                  setSeeOther(true); setOtherMode('all'); setOtherPick([]);
                   showToast('Filters reset to default.');
                 }}
                 className="flex-1 py-3 bg-white border border-slate-200 rounded-xl text-[12.5px] font-black text-slate-500 uppercase tracking-wider active:scale-95 transition-transform"

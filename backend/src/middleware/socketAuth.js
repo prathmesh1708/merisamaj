@@ -24,8 +24,9 @@ const socketAuth = async (socket, next) => {
       return next(new Error('unauthorized'));
     }
 
-    const user = await User.findById(decoded.id).select('_id accountStatus').lean();
-    if (!user || ['blocked', 'deleted'].includes(user.accountStatus)) {
+    const user = await User.findById(decoded.id).select('_id accountStatus sessionVersion').lean();
+    if (!user || ['blocked', 'deleted'].includes(user.accountStatus)
+      || (decoded.sv || 0) !== (user.sessionVersion || 0)) { // session ended by an admin action
       return next(new Error('unauthorized'));
     }
 

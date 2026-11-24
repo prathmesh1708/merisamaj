@@ -25,20 +25,25 @@ const getCookieOptions = (maxAgeMs = 7 * 24 * 60 * 60 * 1000) => {
 const generateTokens = (user) => {
   const isPrivileged = ['admin', 'head', 'sub_head', 'admin_sub_head'].includes(user.role);
   
+  // `sv` = the account's session version: bumping it logs out every device
+  const sv = user.sessionVersion || 0;
   const accessToken = jwt.sign(
-    { id: user._id, role: user.role, subHeadType: user.subHeadType },
+    { id: user._id, role: user.role, subHeadType: user.subHeadType, sv },
     config.jwtSecret,
     { expiresIn: isPrivileged ? '1d' : config.jwtExpiresIn }
   );
 
   const refreshToken = jwt.sign(
-    { id: user._id },
+    { id: user._id, sv },
     config.jwtRefreshSecret,
     { expiresIn: isPrivileged ? '1d' : config.jwtRefreshExpiresIn }
   );
 
   return { accessToken, refreshToken };
 };
+
+// A token from before the account's sessions were ended (see User.sessionVersion)
+const sessionEnded = (decoded, user) => (decoded?.sv || 0) !== (user?.sessionVersion || 0);
 
 const COMMUNITY_MODULE_KEYS = [
   'matrimonialEnabled', 'aadharVerificationEnabled', 'donationEnabled', 'invitationEnabled', 'eventEnabled', 'directoryEnabled',
@@ -92,6 +97,7 @@ const getUserResponsePayload = (user) => {
     communityDescription: user.communityId?.description || '',
     communityCity: user.communityId?.city || '',
     subCommunity: user.subCommunity,
+    mustChooseSubCommunity: !!user.mustChooseSubCommunity,
     city: user.city,
     district: user.district,
     state: user.state,
@@ -434,6 +440,10 @@ const refreshAuth = async (req, res) => {
       return res.status(403).json({ message: 'Account status is not active' });
     }
 
+    if (sessionEnded(decoded, user)) {
+      return res.status(401).json({ code: 'SESSION_ENDED', message: 'Your session has ended. Please log in again.' });
+    }
+
     const tokens = generateTokens(user);
 
     // Rotate refresh token cookies
@@ -465,6 +475,9 @@ const refreshAdmin = async (req, res) => {
 
     if (!user || user.role !== 'admin') {
       return res.status(401).json({ message: 'Admin not found' });
+    }
+    if (sessionEnded(decoded, user)) {
+      return res.status(401).json({ code: 'SESSION_ENDED', message: 'Your session has ended. Please log in again.' });
     }
 
     const tokens = generateTokens(user);
@@ -502,6 +515,9 @@ const refreshHead = async (req, res) => {
 
     if (user.accountStatus === 'inactive' || user.accountStatus === 'suspended') {
       return res.status(403).json({ message: 'Your Community Head account is currently inactive.' });
+    }
+    if (sessionEnded(decoded, user)) {
+      return res.status(401).json({ code: 'SESSION_ENDED', message: 'Your session has ended. Please log in again.' });
     }
 
     const tokens = generateTokens(user);
@@ -727,6 +743,8 @@ const updateProfile = async (req, res) => {
         }
       }
       user.subCommunity = req.body.subCommunity !== undefined ? req.body.subCommunity : user.subCommunity;
+      // A member asked to re-pick (their sub-community was deleted) is done once they choose one
+      if (user.mustChooseSubCommunity && String(user.subCommunity || '').trim()) user.mustChooseSubCommunity = false;
       
       // Location
       user.city = req.body.city || user.city;

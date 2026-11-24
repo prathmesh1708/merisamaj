@@ -122,7 +122,14 @@ const userSchema = new mongoose.Schema({
   isEmailVerified: { type: Boolean, default: true }, // Default true for development ease
   
   // Centralized Status Fields
-  accountStatus: { 
+  // Bumped to end every login of this account at once (e.g. its community or
+  // sub-community was deleted). Tokens carry it as `sv`; an older value is rejected.
+  sessionVersion: { type: Number, default: 0 },
+  // Set when the admin deleted this member's sub-community: the app asks them to
+  // choose a sub-community again; cleared once they save one.
+  mustChooseSubCommunity: { type: Boolean, default: false },
+
+  accountStatus: {
     type: String, 
     enum: ['active', 'inactive', 'blocked', 'deleted', 'pending verification'], 
     default: 'pending verification' 

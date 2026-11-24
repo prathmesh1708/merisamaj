@@ -1172,6 +1172,10 @@ const OnboardingScreen = () => {
         errors.customCommunity = 'Please write your community name.';
       }
       if (!selectedCity) errors.city = 'Please select your city.';
+      // The member's sub-community was deleted by the admin: they must pick a new one
+      if (auth.user?.mustChooseSubCommunity && availableSubCommunities.length > 0 && !selectedSubCommunity) {
+        errors.subCommunity = 'Your sub-community was removed. Please choose your sub-community.';
+      }
     }
     if (stepNum === 3) {
       const nameResult = validateName(name);
@@ -1604,6 +1608,7 @@ const OnboardingScreen = () => {
                     disabled={!selectedCommunity || (selectedCommunity === 'other' && !customCommunity.trim())}
                     searchable
                   />
+                  {stepErrors.subCommunity && <p role="alert" className="text-[10px] text-red-500 font-bold mt-1 ml-1">{stepErrors.subCommunity}</p>}
                   {availableSubCommunities.length > 0 && availableSubCommunities[0] !== 'General' && (
                     <p className="text-[10px] text-slate-400 font-semibold mt-1">
                       Choose from registered sub-communities for this Samaj.
