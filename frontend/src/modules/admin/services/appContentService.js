@@ -45,6 +45,13 @@ export const appContentService = {
     return res.data;
   },
 
+  // Hand one section back to the level above: target 'self' (this sub-community /
+  // location follows it again) or 'below' (everything under this scope follows this one)
+  inheritSection: async (communityId, scope, section, target) => {
+    const res = await axiosPrivate.post(`${BASE_URL}/inherit`, { communityId, ...scopeFields(scope), section, target });
+    return res.data;
+  },
+
   // Update Hero Banner
   updateHeroBanner: async (data, communityId, scope = '') => {
     let payload = { ...data, communityId, ...scopeFields(scope) };

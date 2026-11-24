@@ -100,8 +100,10 @@ exports.getDashboard = async (req, res) => {
     // ─── Recommendations (categorized) ────────────────────────────────────────
     // Filters on details members can't see (marital status, diet, city, sub-community)
     // run here, so those values never have to be sent to the app.
-    const { maritalStatus, diet, nearby, subCommunity, manglikStatus, ageMin, ageMax, disability, verified, withPhoto, joined, communityScope, q } = req.query;
-    const recommendations = await getRecommendations(userId, myProfile, subscription, { maritalStatus, diet, nearby, subCommunity, manglikStatus, ageMin, ageMax, disability, verified, withPhoto, joined, communityScope, q });
+    const { maritalStatus, diet, nearby, subCommunity, manglikStatus, ageMin, ageMax, disability, verified, withPhoto, joined, communityScope, q,
+      showOwnSub, showSiblings, siblingSubs, showOther, otherCommunities } = req.query;
+    const recommendations = await getRecommendations(userId, myProfile, subscription, { maritalStatus, diet, nearby, subCommunity, manglikStatus, ageMin, ageMax, disability, verified, withPhoto, joined, communityScope, q,
+      showOwnSub, showSiblings, siblingSubs, showOther, otherCommunities });
     dashboard.recommendations = recommendations;
 
     res.json({ status: 'success', data: { dashboard } });
@@ -235,6 +237,46 @@ const getRecommendations = async (userId, myProfile, subscription, filters = {})
   if (filters.subCommunity) {
     const subIds = await User.find({ subCommunity: exact(filters.subCommunity) }).distinct('_id');
     baseQuery.$and.push({ userId: { $in: subIds } });
+  }
+
+  // Filter sheet "Which members to see" — the same three choices as the profile
+  // visibility screen: my sub-community, the other sub-communities of my community
+  // (all or selected), other communities (all or selected). These only narrow what
+  // the plan already allows (the community scope above still applies).
+  const isOff = (v) => String(v) === '0';
+  const listOf = (v) => String(v || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 50);
+  const siblingList = listOf(filters.siblingSubs);
+  const otherList = listOf(filters.otherCommunities);
+  if (isOff(filters.showOwnSub) || isOff(filters.showSiblings) || isOff(filters.showOther) || siblingList.length || otherList.length) {
+    const myCommunityUsers = await communityUserIds(viewerCommunityId(userDoc));
+    const mySub = String(userDoc?.subCommunity || '').trim();
+    const ownIds = mySub
+      ? await User.find({ _id: { $in: myCommunityUsers }, subCommunity: exact(mySub) }).distinct('_id')
+      : myCommunityUsers;
+    const allowed = [];
+    if (!isOff(filters.showOwnSub)) allowed.push({ userId: { $in: ownIds } });
+    if (!isOff(filters.showSiblings) && mySub) {
+      const siblingQuery = { _id: { $in: myCommunityUsers, $nin: ownIds } };
+      if (siblingList.length) siblingQuery.subCommunity = { $in: siblingList.map(exact) };
+      allowed.push({ userId: { $in: await User.find(siblingQuery).distinct('_id') } });
+    }
+    if (!isOff(filters.showOther)) {
+      if (otherList.length) {
+        // Names as shown on the visibility screen ("Rajput", "Jain Samaj", ...)
+        const Community = require('../../models/Community');
+        const nameRes = otherList.map(n => new RegExp(`^${escapeRegex(n.replace(/\s+samaj$/i, ''))}(\\s+samaj)?$`, 'i'));
+        const chosen = await Community.find({ name: { $in: nameRes } }).distinct('_id');
+        const theirUsers = await User.find({
+          $or: [{ communityId: { $in: chosen } }, { assignedCommunityIds: { $in: chosen } }],
+          _id: { $nin: myCommunityUsers }
+        }).distinct('_id');
+        allowed.push({ userId: { $in: theirUsers } });
+      } else {
+        allowed.push({ userId: { $nin: myCommunityUsers } });
+      }
+    }
+    if (!allowed.length) return { recommendedMatches: [], newMembers: [], recentlyActive: [], premiumMembers: [], nearYou: [] };
+    baseQuery.$and.push({ $or: allowed });
   }
 
   // Fetch a wider pool for each list, then drop profiles that break the user's

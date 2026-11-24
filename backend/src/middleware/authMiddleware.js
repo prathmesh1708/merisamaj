@@ -108,6 +108,17 @@ const protect = async (req, res, next) => {
       });
     }
 
+    // Sessions ended by an admin action (e.g. the member's community or sub-community
+    // was deleted): a token from before User.sessionVersion was bumped is rejected, and
+    // its refresh fails too, so the app logs the member out.
+    if ((decoded.sv || 0) !== (user.sessionVersion || 0)) {
+      return res.status(401).json({
+        status: 'error',
+        code: 'SESSION_ENDED',
+        message: 'Your session has ended. Please log in again.'
+      });
+    }
+
     // Verify account status
     if (user.accountStatus === 'blocked') {
       return res.status(403).json({
@@ -320,7 +331,8 @@ const optionalProtect = async (req, res, next) => {
       const user = await User.findById(decoded.id)
         .populate('communityId', 'name slug isActive settings logoUrl bannerUrl description city')
         .populate('assignedCommunityIds', 'name slug isActive settings logoUrl bannerUrl description city');
-      if (user) {
+      // An ended session continues as a guest
+      if (user && (decoded.sv || 0) === (user.sessionVersion || 0)) {
         req.user = user;
         req.communityId = user.communityId?._id || user.communityId;
       }

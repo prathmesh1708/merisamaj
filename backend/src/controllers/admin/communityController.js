@@ -625,45 +625,25 @@ exports.deleteCommunity = async (req, res) => {
       });
     }
 
-    // Permanent Hard Deletion:
-    // 1. Unset head assignments
-    if (community.headId) {
-      await User.findByIdAndUpdate(
-        community.headId,
-        { 
-          $set: { assignedCommunityId: null },
-          $pull: { assignedCommunityIds: community._id }
-        },
-        { session }
-      );
-    }
-
-    // 2. Clear user references for members
-    await User.updateMany(
-      { communityId: community._id },
-      { $set: { communityId: null } },
-      { session }
-    );
-    await User.updateMany(
-      { assignedCommunityId: community._id },
-      { $set: { assignedCommunityId: null } },
-      { session }
-    );
-    await User.updateMany(
-      { assignedCommunityIds: community._id },
-      { $pull: { assignedCommunityIds: community._id } },
-      { session }
-    );
-
-    // 3. Delete community document
+    // Permanent deletion (see services/communityDeletionService for the rules):
+    // 1. Members leave the community and are logged out; heads lose it (deactivated
+    //    when it was their only community). 2. The community record goes.
+    const { endCommunityMemberships, deleteCommunityContent } = require('../../services/communityDeletionService');
+    const people = await endCommunityMemberships(community._id, session);
     await Community.findByIdAndDelete(req.params.id).session(session);
 
     await session.commitTransaction();
     session.endSession();
 
+    // 3. Its content (posts, events, groups, family trees, home content, ...) is
+    //    deleted after the commit; money and audit records are kept.
+    const content = await deleteCommunityContent(community._id);
+    console.log(`[deleteCommunity] "${community.name}" deleted by ${req.user?._id}:`, JSON.stringify({ ...people, content }));
+
     res.json({
       success: true,
-      message: `Community "${community.name}" deleted permanently.`,
+      message: `Community "${community.name}" deleted permanently. ${people.membersRemoved} member(s) were logged out and will choose a new community when they log in again.`,
+      data: { ...people, content }
     });
   } catch (error) {
     await session.abortTransaction();
@@ -996,6 +976,25 @@ exports.addSubCommunity = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────
+// @desc    Who and what a delete would affect (counts only, changes nothing)
+// @route   GET /api/v1/admin/communities/:id/deletion-impact?subCommunity=
+// @access  Admin
+// ─────────────────────────────────────────────
+exports.getDeletionImpact = async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ status: 'error', message: 'Invalid community' });
+    }
+    const { deletionImpact } = require('../../services/communityDeletionService');
+    const data = await deletionImpact(req.params.id, String(req.query.subCommunity || '').trim());
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('getDeletionImpact error:', error);
+    res.status(500).json({ status: 'error', message: 'Server error' });
+  }
+};
+
+// ─────────────────────────────────────────────
 // @desc    Delete a single sub-community
 // @route   DELETE /api/v1/admin/communities/:id/sub-communities/:subId
 // @access  Admin
@@ -1016,7 +1015,17 @@ exports.deleteSubCommunity = async (req, res) => {
     community.subCommunities = community.subCommunities.filter(s => String(s._id) !== req.params.subId);
     await community.save();
 
-    res.json({ success: true, message: `"${name}" deleted successfully.` });
+    // Its members are logged out and must choose a sub-community again; its heads are
+    // deactivated; its own home content goes (services/communityDeletionService).
+    const { deleteSubCommunityData } = require('../../services/communityDeletionService');
+    const result = await deleteSubCommunityData(community._id, name);
+    console.log(`[deleteSubCommunity] "${name}" of ${community.name} deleted by ${req.user?._id}:`, JSON.stringify(result));
+
+    res.json({
+      success: true,
+      message: `"${name}" deleted. ${result.membersLoggedOut} member(s) were logged out and will choose a sub-community again${result.staffDeactivated ? `; ${result.staffDeactivated} head account(s) deactivated` : ''}.`,
+      data: result
+    });
   } catch (error) {
     console.error('deleteSubCommunity error:', error);
     res.status(500).json({ status: 'error', message: 'Server error' });

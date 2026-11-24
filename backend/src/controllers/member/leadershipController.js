@@ -32,6 +32,8 @@ const formatLeaderUser = (u, { isHead = false, fallbackDesignation = 'Executive 
     termYears: u.termYears || (isHead ? '' : '2024-2027'),
     joiningDate: u.joiningDate,
     isHead,
+    // Sub-community this leader serves ('' = the whole community)
+    subCommunity: (u.subCommunity || '').trim(),
     // Mantri Mandal (मंत्री मंडल) — display-only committee this Head curated from
     // existing members; shown nested under the Head, separate from real Sub-Heads.
     mantriMandal: (u.mantriMandal || []).map(m => ({
@@ -51,7 +53,7 @@ const groupSortValue = (label) => {
   return match ? parseInt(match[1], 10) : 0;
 };
 
-const LEADER_SELECT = 'name email phone city state role accountType designation department group groupVisibleOnHome bio avatar cover socialLinks termYears joiningDate parentHeadId createdAt mantriMandal';
+const LEADER_SELECT = 'name email phone city state role accountType designation department group groupVisibleOnHome bio avatar cover socialLinks termYears joiningDate parentHeadId createdAt mantriMandal subCommunity';
 
 // @desc    Get grouped leadership directory for member's community
 //          (Community Head groups + Local Head groups, each with their own sub-heads)
@@ -149,17 +151,37 @@ exports.getCommunityLeadership = async (req, res) => {
       ? req.query.city.trim()
       : (req.user?.city ? req.user.city.trim() : '');
 
-    // 1. Community Heads represent the entire community across ALL locations —
-    //    always visible to members of the community regardless of their city.
-    const homeVisibleCommunityGroups = communityHeadGroups
-      .filter(g => g.head.groupVisibleOnHome !== false)
-      .map(g => ({ ...g, scope: 'community_head' }));
+    // A community can have a head per sub-community (e.g. Mali → one head for each
+    // sub-community). On Home a member sees only the heads of THEIR sub-community,
+    // plus heads with no sub-community (they serve the whole community). Before this,
+    // every sub-community's head showed up in every member's Core Members.
+    const memberSubKey = String(req.user?.subCommunity || '').trim().toLowerCase();
+    const servesMember = (head) => {
+      const headSubKey = String(head.subCommunity || '').trim().toLowerCase();
+      return !headSubKey || (!!memberSubKey && headSubKey === memberSubKey);
+    };
+
+    // 1. Community Heads represent the community across ALL locations (city is not
+    //    checked), limited to the member's own sub-community as above.
+    const visibleCommunityHeadGroups = communityHeadGroups.filter(g => g.head.groupVisibleOnHome !== false);
+    let homeVisibleCommunityGroups = visibleCommunityHeadGroups.filter(g => servesMember(g.head));
+    if (homeVisibleCommunityGroups.length === 0 && visibleCommunityHeadGroups.length > 0) {
+      // Nobody heads this member's sub-community yet: show the community's main head
+      // (Community.headId) rather than every sub-community's head, or an empty widget.
+      const Community = require('../../models/Community');
+      const comm = await Community.findById(targetCommunityId).select('headId').lean().catch(() => null);
+      const mainHead = comm?.headId && visibleCommunityHeadGroups.find(g => String(g.head._id) === String(comm.headId));
+      homeVisibleCommunityGroups = mainHead ? [mainHead] : [];
+    }
+    homeVisibleCommunityGroups = homeVisibleCommunityGroups.map(g => ({ ...g, scope: 'community_head' }));
 
     // 2. Local Heads represent a specific location — only visible on Home if the
-    //    head's location matches the member's current location/city.
+    //    head's location matches the member's current location/city (and the
+    //    member's sub-community, like Community Heads).
     const homeVisibleLocalGroups = localHeadGroups
       .filter(g => {
         if (g.head.groupVisibleOnHome === false) return false;
+        if (!servesMember(g.head)) return false;
         if (req.query.city === 'all') return true;
         if (activeMemberCity) {
           return isCityMatch(g.head.city, activeMemberCity);

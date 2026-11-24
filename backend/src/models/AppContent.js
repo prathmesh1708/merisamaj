@@ -217,6 +217,19 @@ locationAppContentSchema.add({
 });
 locationAppContentSchema.index({ communityId: 1, subCommunity: 1, cityKey: 1 }, { unique: true });
 
+// Sections a sub-community / location has edited for itself. Every other section
+// follows the level above (location → sub-community → community), so a later
+// community-wide change still reaches its members. `undefined` = an older copy made
+// before this existed: it owns every section until the admin hands one back.
+const CONTENT_SECTIONS = [
+  'heroBanner', 'locationHeroBanners', 'promotionalBanners', 'exclusiveFeatures',
+  'successStories', 'coreMembers', 'donationBanner', 'censusBanner', 'footerArtwork'
+];
+[subCommunityAppContentSchema, locationAppContentSchema].forEach(schema => schema.add({
+  customizedSections: { type: [{ type: String, enum: CONTENT_SECTIONS }], default: undefined }
+}));
+
 module.exports = mongoose.model('AppContent', appContentSchema);
+module.exports.CONTENT_SECTIONS = CONTENT_SECTIONS;
 module.exports.SubCommunityAppContent = mongoose.model('SubCommunityAppContent', subCommunityAppContentSchema);
 module.exports.LocationAppContent = mongoose.model('LocationAppContent', locationAppContentSchema);

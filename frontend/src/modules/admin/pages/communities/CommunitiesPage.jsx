@@ -20,6 +20,8 @@ import {
   renameSubCommunity,
   toggleSubCommunityStatus,
   deleteSubCommunity,
+  confirmCommunityDeletion,
+  confirmSubCommunityDeletion,
   getSubCommunityLocationBreakdown,
   assignLocalHeadToLocationGroup,
   searchMantriMandalCandidates,
@@ -1046,15 +1048,16 @@ const EditCommunityModal = ({ community, onClose, onUpdated }) => {
               <button 
                 type="button" 
                 className="community-btn-danger-sm" 
-                onClick={() => {
-                  if (window.confirm(`Are you sure you want to PERMANENTLY DELETE "${community.name}"?\n\nThis will remove the community from the platform. This action cannot be undone.`)) {
-                    deleteCommunity(community._id || community.id)
-                      .then(() => {
-                        onUpdated();
-                        onClose();
-                      })
-                      .catch(err => alert(err.response?.data?.message || 'Delete failed'));
-                  }
+                onClick={async () => {
+                  const id = community._id || community.id;
+                  if (!(await confirmCommunityDeletion(id, community.name))) return;
+                  deleteCommunity(id)
+                    .then((res) => {
+                      if (res?.message) alert(res.message);
+                      onUpdated();
+                      onClose();
+                    })
+                    .catch(err => alert(err.response?.data?.message || 'Delete failed'));
                 }}
               >
                 🗑️ Delete Community
@@ -3265,9 +3268,10 @@ const SubCommunityLocationView = ({
   };
 
   const handleDeleteSub = async (sub) => {
-    if (!window.confirm(`Are you sure you want to delete "${sub.name}"?`)) return;
+    if (!(await confirmSubCommunityDeletion(communityId, sub.name))) return;
     try {
-      await deleteSubCommunity(communityId, sub._id);
+      const res = await deleteSubCommunity(communityId, sub._id);
+      if (res?.message) alert(res.message);
       setData(prev => ({
         ...prev,
         subCommunities: prev.subCommunities.filter(s => s._id !== sub._id)
@@ -5047,9 +5051,10 @@ const CommunitiesPage = () => {
   };
 
   const handleDelete = async (community) => {
-    if (!window.confirm(`Are you sure you want to PERMANENTLY DELETE "${community.name}"?\n\nThis will remove the community from the platform. This action cannot be undone.`)) return;
+    if (!(await confirmCommunityDeletion(community._id, community.name))) return;
     try {
-      await deleteCommunity(community._id);
+      const res = await deleteCommunity(community._id);
+      if (res?.message) alert(res.message);
       if (selectedCommunity?._id === community._id) {
         setSelectedCommunity(null);
       }

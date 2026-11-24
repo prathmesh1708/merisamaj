@@ -1,6 +1,4 @@
-const AppContent = require('../../models/AppContent');
-const SubCommunityAppContent = AppContent.SubCommunityAppContent;
-const LocationAppContent = AppContent.LocationAppContent;
+const { contentChain, resolveContent, resolveSection } = require('../../utils/appContentInheritance');
 const Community = require('../../models/Community');
 const User = require('../../models/User');
 const mongoose = require('mongoose');
@@ -27,23 +25,11 @@ exports.getMemberAppContent = async (req, res) => {
       return res.status(200).json(cached);
     }
 
-    // Most specific content first: this city in my sub-community, this city in my
-    // community, my sub-community, my community.
-    const memberCityKey2 = (req.user?.city || '').trim().toLowerCase();
-    let doc = null;
-    if (memberCityKey2) {
-      const locations = await LocationAppContent.find({
-        communityId: targetCommunityId,
-        cityKey: memberCityKey2,
-        subCommunity: { $in: [...(memberSubCommunity ? [memberSubCommunity] : []), ''] }
-      }).lean();
-      doc = locations.find(l => memberSubCommunity && l.subCommunity === memberSubCommunity)
-        || locations.find(l => !l.subCommunity) || null;
-    }
-    if (!doc && memberSubCommunity) {
-      doc = await SubCommunityAppContent.findOne({ communityId: targetCommunityId, subCommunity: memberSubCommunity }).lean();
-    }
-    if (!doc) doc = await AppContent.findOne({ communityId: targetCommunityId }).lean();
+    // Section by section, the most specific content that sets it: this city in my
+    // sub-community → this city → my sub-community → my community. A section a
+    // sub-community / location never edited follows the community-wide content.
+    const chain = await contentChain(targetCommunityId, memberSubCommunity, req.user?.city || '');
+    let doc = resolveContent(chain);
     if (!doc) {
       // Return default configuration if no custom document exists yet
       doc = {
@@ -81,12 +67,14 @@ exports.getMemberAppContent = async (req, res) => {
       };
     }
 
-    // If the viewing member's own city has a Local Head-set hero banner
-    // override, it takes priority over the community-wide default below —
-    // it's the most specific setting for them.
+    // If the viewing member's own city has a Local Head-set hero banner, it replaces
+    // the sub-community / community banner — but not a banner the admin saved for
+    // this location itself (User App Edits → Location), which is the most specific.
+    // Order: admin location banner → Local Head city banner → sub-community → community.
     try {
       const memberCity = (req.user?.city || '').trim();
-      if (memberCity && Array.isArray(doc.locationHeroBanners)) {
+      const heroFromLocation = resolveSection(chain, 'heroBanner').from?.level === 'location';
+      if (memberCity && !heroFromLocation && Array.isArray(doc.locationHeroBanners)) {
         const cityEntry = doc.locationHeroBanners.find(
           b => b.enabled !== false && b.backgroundImage && b.city && b.city.toLowerCase() === memberCity.toLowerCase()
         );

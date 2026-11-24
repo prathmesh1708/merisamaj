@@ -41,9 +41,17 @@ const MemberProtectedRoute = () => {
     if (!hasCommunity && !isOnboardingPath) {
       return <Navigate to="/member/onboarding" replace />;
     }
-    
+
+    // The admin deleted this member's sub-community: send them to the community /
+    // sub-community step until they pick a new one (the server clears the flag).
+    const mustChooseSub = !!auth.user?.mustChooseSubCommunity;
+    if (hasCommunity && mustChooseSub && !isOnboardingPath) {
+      try { localStorage.setItem('merisamaj_onboarding_resume_step', 'onboarding-2'); } catch { /* storage unavailable */ }
+      return <Navigate to="/member/onboarding" replace />;
+    }
+
     // If onboarding is complete and not resuming, prevent navigating back to onboarding screen
-    if (hasCommunity && location.pathname.startsWith('/member/onboarding') && !isResumingOnboarding) {
+    if (hasCommunity && location.pathname.startsWith('/member/onboarding') && !isResumingOnboarding && !mustChooseSub) {
       return <Navigate to="/member/home" replace />;
     }
     

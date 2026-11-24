@@ -4,11 +4,45 @@ const LocationAppContent = AppContent.LocationAppContent;
 const Community = require('../../models/Community');
 const mongoose = require('mongoose');
 const cacheService = require('../../utils/cacheService');
+const { CONTENT_SECTIONS, ownedSections, contentChain, resolveSection } = require('../../utils/appContentInheritance');
+
+const isScopedDoc = (doc) => ['SubCommunityAppContent', 'LocationAppContent'].includes(doc?.constructor?.modelName);
 
 const saveAndInvalidate = async (doc) => {
   await hostEmbeddedImages(doc);
+  // A sub-community / location now owns the sections this request edited; the
+  // whole section is written (it was filled from the level above, see below).
+  if (isScopedDoc(doc) && Array.isArray(doc.customizedSections)) {
+    CONTENT_SECTIONS.forEach(section => {
+      if (doc.isModified(section) && !doc.customizedSections.includes(section)) {
+        doc.customizedSections.push(section);
+        doc.markModified(section);
+      }
+    });
+  }
   await doc.save();
   cacheService.invalidate('app_content_');
+};
+
+// Fill the sections a sub-community / location doesn't own with what its members get
+// from the level above, without marking them changed: editors then start from the
+// content members actually see, and only an edited section becomes the scope's own.
+const fillInheritedSections = async (doc) => {
+  if (!isScopedDoc(doc) || !Array.isArray(doc.customizedSections)) return doc;
+  const isLocation = doc.constructor.modelName === 'LocationAppContent';
+  const chain = (await contentChain(doc.communityId, doc.subCommunity || '', isLocation ? doc.city : ''))
+    .filter(entry => String(entry.doc._id) !== String(doc._id));
+  CONTENT_SECTIONS.forEach(section => {
+    if (doc.customizedSections.includes(section)) return;
+    const { value } = resolveSection(chain, section);
+    if (value === undefined) return;
+    doc.set(section, value);
+    // Nested paths (e.g. coreMembers.communityHead) are marked separately
+    doc.modifiedPaths().forEach(p => {
+      if (p === section || p.startsWith(`${section}.`)) doc.unmarkModified(p);
+    });
+  });
+  return doc;
 };
 
 // Images that arrive as base64 `data:` URIs are uploaded to Cloudinary and only the
@@ -107,26 +141,12 @@ const getOrCreateAppContent = async (communityId, subCommunity = '', city = '') 
         caughtUpTitle: "You're all caught up!",
         caughtUpSubtitle: 'Check back later for new updates',
         enabled: true
-      }
+      },
+      // A new sub-community / location owns nothing yet: every section follows the
+      // level above until it is edited here (filled in below, not copied).
+      ...(normalizedSubCommunity || normalizedCity ? { customizedSections: [] } : {})
     });
-    // A new sub-community or location starts as a copy of what its members see today:
-    // location ← its sub-community's content (if any) ← the community's content.
-    if (normalizedSubCommunity || normalizedCity) {
-      const subDefaults = normalizedCity && normalizedSubCommunity
-        ? await SubCommunityAppContent.findOne({ communityId: targetCommunityId, subCommunity: normalizedSubCommunity }).lean()
-        : null;
-      const communityDefaults = subDefaults || await AppContent.findOne({ communityId: targetCommunityId }).lean();
-      if (communityDefaults) {
-        [
-          'promotionalBanners', 'heroBanner', 'locationHeroBanners', 'exclusiveFeatures',
-          'successStories', 'coreMembers', 'donationBanner', 'censusBanner', 'footerArtwork'
-        ].forEach((field) => {
-          if (communityDefaults[field] !== undefined) doc[field] = communityDefaults[field];
-        });
-        await saveAndInvalidate(doc);
-      }
-    }
-  } else {
+  } else if (!isScopedDoc(doc)) {
     // An empty banner array is an intentional admin choice (all banners
     // deleted), so do not repopulate it with starter banners on later reads.
     let modified = false;
@@ -163,7 +183,21 @@ const getOrCreateAppContent = async (communityId, subCommunity = '', city = '') 
       await saveAndInvalidate(doc);
     }
   }
-  return doc;
+  return fillInheritedSections(doc);
+};
+
+// Which sub-communities / locations below this scope set a section themselves
+// (so a change here does not reach their members): { section: ['Bagwan Mali', ...] }.
+const overridesBelow = async (communityId, subCommunity = '') => {
+  const [subs, locations] = await Promise.all([
+    subCommunity ? [] : SubCommunityAppContent.find({ communityId }).select('subCommunity customizedSections').lean(),
+    LocationAppContent.find(subCommunity ? { communityId, subCommunity } : { communityId }).select('city subCommunity customizedSections').lean()
+  ]);
+  const result = {};
+  const add = (doc, label) => ownedSections(doc).forEach(section => { (result[section] = result[section] || []).push(label); });
+  subs.forEach(s => add(s, s.subCommunity));
+  locations.forEach(l => add(l, l.subCommunity && !subCommunity ? `${l.city} (${l.subCommunity})` : l.city));
+  return result;
 };
 
 // ─── ADMIN ENDPOINTS ───
@@ -176,23 +210,70 @@ exports.getAppContent = async (req, res) => {
     const targetCommunityId = req.query.communityId || req.communityId || req.user?.communityId;
     const [subCommunity, city] = scopeOf(req);
     const cityName = String(city || '').trim();
-    if (cityName) {
-      // Just looking at a location must not give it its own copy (it would stop
-      // following later community changes). Until the first save, show what the
-      // location's members see today: the sub-community / community content.
-      const parent = await getOrCreateAppContent(targetCommunityId, subCommunity);
-      const own = await LocationAppContent.findOne({
-        communityId: parent.communityId, subCommunity: parent.subCommunity || '', cityKey: cityName.toLowerCase()
+
+    // Community-wide: its own document, plus which sub-communities / locations set
+    // each section themselves (a change here does not reach their members).
+    if (!subCommunity && !cityName) {
+      const doc = await getOrCreateAppContent(targetCommunityId);
+      return res.status(200).json({
+        success: true,
+        data: { ...doc.toObject(), customizedSections: null, overriddenBy: await overridesBelow(doc.communityId) }
       });
-      const data = own
-        ? { ...own.toObject(), locationCity: own.city, inheritedFromParent: false }
-        : { ...parent.toObject(), locationCity: cityName, inheritedFromParent: true };
-      return res.status(200).json({ success: true, data });
     }
-    const doc = await getOrCreateAppContent(targetCommunityId, subCommunity);
+
+    // Sub-community or location: just looking must not create a copy. Show what its
+    // members get today, section by section, and which sections are its own.
+    const parent = await getOrCreateAppContent(targetCommunityId); // validates the community
+    const sub = String(subCommunity || '').trim();
+    if (sub) {
+      const comm = await Community.findById(parent.communityId).select('subCommunities.name subCommunities.isActive').lean();
+      const match = (comm?.subCommunities || []).find(s => s.isActive !== false && String(s.name || '').trim().toLowerCase() === sub.toLowerCase());
+      if (!match) throw new Error('The selected sub-community does not belong to this community.');
+    }
+    const ScopedModel = cityName ? LocationAppContent : SubCommunityAppContent;
+    const own = await ScopedModel.findOne(cityName
+      ? { communityId: parent.communityId, subCommunity: sub, cityKey: cityName.toLowerCase() }
+      : { communityId: parent.communityId, subCommunity: sub });
+
+    const chain = await contentChain(parent.communityId, sub, cityName);
+    let content;
+    if (own) {
+      content = (await fillInheritedSections(own)).toObject();
+    } else {
+      content = { communityId: parent.communityId };
+      CONTENT_SECTIONS.forEach(section => {
+        const { value } = resolveSection(chain, section);
+        if (value !== undefined) content[section] = value;
+      });
+    }
+
+    // A Local Head's banner for this city (Head panel → location banner) replaces the
+    // header for its members unless the admin saves a header for this location here.
+    let localHeadBanner = null;
+    if (cityName) {
+      const cityBanners = resolveSection(chain, 'locationHeroBanners').value || [];
+      const entry = cityBanners.find(b => b.enabled !== false && b.backgroundImage && String(b.city || '').trim().toLowerCase() === cityName.toLowerCase());
+      if (entry) {
+        localHeadBanner = {
+          backgroundImage: entry.backgroundImage,
+          title: entry.title || '',
+          heroOwnedHere: !!own && ownedSections(own).includes('heroBanner')
+        };
+      }
+    }
     return res.status(200).json({
       success: true,
-      data: doc
+      data: {
+        ...content,
+        communityId: parent.communityId,
+        subCommunity: sub,
+        ...(cityName ? { locationCity: own?.city || cityName } : {}),
+        inheritedFromParent: !own,
+        customizedSections: own ? ownedSections(own) : [],
+        olderFullCopy: !!own && !Array.isArray(own.customizedSections),
+        localHeadBanner,
+        overriddenBy: cityName ? {} : await overridesBelow(parent.communityId, sub)
+      }
     });
   } catch (error) {
     console.error('Error in getAppContent:', error);
@@ -228,6 +309,8 @@ exports.updateHeroBanner = async (req, res) => {
     if (buttonText !== undefined) doc.heroBanner.buttonText = buttonText;
     if (buttonLink !== undefined) doc.heroBanner.buttonLink = buttonLink;
     if (enabled !== undefined) doc.heroBanner.enabled = enabled;
+    // Saving this section here makes it this scope's own, even unchanged
+    doc.markModified('heroBanner');
 
     await saveAndInvalidate(doc);
     return res.status(200).json({
@@ -265,6 +348,8 @@ exports.updateDonationBanner = async (req, res) => {
     if (title !== undefined) doc.donationBanner.title = title;
     if (subtitle !== undefined) doc.donationBanner.subtitle = subtitle;
     if (enabled !== undefined) doc.donationBanner.enabled = enabled;
+    // Saving this section here makes it this scope's own, even unchanged
+    doc.markModified('donationBanner');
 
     await saveAndInvalidate(doc);
     return res.status(200).json({
@@ -370,6 +455,8 @@ exports.updateCensusBanner = async (req, res) => {
     if (overlayOpacity !== undefined) doc.censusBanner.overlayOpacity = Number(overlayOpacity);
     if (overlayGradient !== undefined) doc.censusBanner.overlayGradient = overlayGradient;
     if (enabled !== undefined) doc.censusBanner.enabled = enabled;
+    // Saving this section here makes it this scope's own, even unchanged
+    doc.markModified('censusBanner');
 
     await saveAndInvalidate(doc);
     return res.status(200).json({
@@ -401,6 +488,8 @@ exports.updateFooterArtwork = async (req, res) => {
     if (caughtUpTitle !== undefined) doc.footerArtwork.caughtUpTitle = caughtUpTitle;
     if (caughtUpSubtitle !== undefined) doc.footerArtwork.caughtUpSubtitle = caughtUpSubtitle;
     if (enabled !== undefined) doc.footerArtwork.enabled = enabled;
+    // Saving this section here makes it this scope's own, even unchanged
+    doc.markModified('footerArtwork');
 
     await saveAndInvalidate(doc);
     return res.status(200).json({
@@ -880,7 +969,8 @@ exports.getLocations = async (req, res) => {
         } },
         { $group: { _id: { $toLower: { $trim: { input: '$city' } } }, city: { $first: { $trim: { input: '$city' } } }, members: { $sum: 1 } } }
       ]),
-      LocationAppContent.find({ communityId: communityOid, subCommunity }).select('city cityKey updatedAt').lean()
+      LocationAppContent.find({ communityId: communityOid, subCommunity }).select('city cityKey updatedAt customizedSections').lean()
+        .then(docs => docs.filter(d => ownedSections(d).length > 0)) // "custom" = sets at least one section itself
     ]);
 
     const membersByKey = new Map(memberCities.map(c => [c._id, c.members]));
@@ -927,6 +1017,63 @@ exports.resetLocationContent = async (req, res) => {
     });
   } catch (error) {
     console.error('Error in resetLocationContent:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Hand one section back to the level above, so it follows that content again.
+//          target 'self'  → this sub-community / location stops setting the section.
+//          target 'below' → every sub-community / location under this scope stops
+//                           setting it (members there see this scope's version).
+// @route   POST /api/v1/admin/user-app-edits/inherit  { communityId, subCommunity, locationCity, section, target }
+// @access  Admin
+exports.inheritSection = async (req, res) => {
+  try {
+    const { communityId, section, target } = req.body || {};
+    if (!communityId || !mongoose.Types.ObjectId.isValid(String(communityId))) {
+      return res.status(400).json({ success: false, message: 'Select a community first.' });
+    }
+    if (!CONTENT_SECTIONS.includes(section) || !['self', 'below'].includes(target)) {
+      return res.status(400).json({ success: false, message: 'Unknown section.' });
+    }
+    const subCommunity = String(req.body.subCommunity || '').trim();
+    const city = String(req.body.locationCity || '').trim();
+
+    let docs = [];
+    if (target === 'self') {
+      if (!subCommunity && !city) return res.status(400).json({ success: false, message: 'The community-wide content has no level above it.' });
+      const doc = city
+        ? await LocationAppContent.findOne({ communityId, subCommunity, cityKey: city.toLowerCase() })
+        : await SubCommunityAppContent.findOne({ communityId, subCommunity });
+      if (doc) docs = [doc];
+    } else {
+      if (city) return res.status(400).json({ success: false, message: 'A location has nothing below it.' });
+      docs = [
+        ...(subCommunity ? [] : await SubCommunityAppContent.find({ communityId })),
+        ...await LocationAppContent.find(subCommunity ? { communityId, subCommunity } : { communityId })
+      ];
+    }
+
+    let changed = 0;
+    for (const doc of docs) {
+      const owned = ownedSections(doc);
+      if (!owned.includes(section)) continue;
+      doc.customizedSections = owned.filter(s => s !== section); // older full copies get an explicit list here
+      await doc.save();
+      changed += 1;
+    }
+    cacheService.invalidate('app_content_');
+    return res.status(200).json({
+      success: true,
+      changed,
+      message: changed
+        ? (target === 'self'
+          ? 'This now follows the content above it.'
+          : `${changed} sub-${changed === 1 ? 'community / location now follows' : 'communities / locations now follow'} this content.`)
+        : 'Nothing to change.'
+    });
+  } catch (error) {
+    console.error('Error in inheritSection:', error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };
