@@ -17,10 +17,12 @@ const profileReportSchema = new mongoose.Schema(
 
     reason: {
       type: String,
-      enum: ['fake_profile', 'inappropriate_photos', 'harassment', 'spam', 'fraud', 'other'],
+      enum: ['child_safety', 'underage', 'fake_profile', 'inappropriate_photos', 'harassment', 'spam', 'fraud', 'other'],
       required: true
     },
     description: { type: String, maxlength: 1000 },
+    // child_safety / underage reports are urgent: listed first for admins (Child Safety Standards Policy)
+    priority: { type: String, enum: ['urgent', 'normal'], default: 'normal', index: true },
 
     // ─── Moderation ──────────────────────────────────────────────────────────
     status: {

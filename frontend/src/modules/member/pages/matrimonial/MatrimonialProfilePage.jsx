@@ -240,11 +240,11 @@ View plans?`)) navigate('/member/matrimonial/subscription');
     if (!reportReason.trim()) return;
     setReportSending(true);
     try {
-      await matrimonialModerationService.reportProfile({
+      const res = await matrimonialModerationService.reportProfile({
         reportedUserId: targetId,  // account id, or the profile id for restricted profiles (server resolves it)
         reason: reportReason
       });
-      showToast('Report submitted. Thank you.');
+      showToast(res?.data?.message || 'Report submitted. Thank you.');
       setReportModal(false);
       setReportReason('');
     } catch (err) {
@@ -607,12 +607,21 @@ View plans?`)) navigate('/member/matrimonial/subscription');
             <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-4" />
             <h3 className="text-[15px] font-black text-slate-800 mb-4">Report Profile</h3>
             <div className="space-y-2 mb-4">
-              {['Fake / Fraud Profile', 'Inappropriate Photos', 'Abusive Behaviour', 'Spam / Scam', 'Other'].map(r => (
-                <button key={r} onClick={() => setReportReason(r)}
+              {/* Values must match ProfileReport.reason on the server */}
+              {[
+                ['underage', 'Under the legal marriage age'],
+                ['child_safety', 'Child safety concern'],
+                ['fake_profile', 'Fake / Fraud Profile'],
+                ['inappropriate_photos', 'Inappropriate Photos'],
+                ['harassment', 'Abusive Behaviour'],
+                ['spam', 'Spam / Scam'],
+                ['other', 'Other']
+              ].map(([value, label]) => (
+                <button key={value} onClick={() => setReportReason(value)}
                   className={`w-full py-2.5 rounded-xl text-[13px] font-bold text-left px-4 transition-all ${
-                    reportReason === r ? 'bg-red-50 text-red-500 border border-red-200' : 'bg-slate-50 text-slate-700'
+                    reportReason === value ? 'bg-red-50 text-red-500 border border-red-200' : 'bg-slate-50 text-slate-700'
                   }`}>
-                  {r}
+                  {label}
                 </button>
               ))}
             </div>

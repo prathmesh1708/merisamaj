@@ -213,8 +213,10 @@ const validateUpdateProfile = (req, res, next) => {
       if (date > today) {
         errors.dob = 'Date of birth cannot be in the future.';
       } else {
-        const age = Math.floor((today - date) / (365.25 * 24 * 60 * 60 * 1000));
-        if (age < 5) errors.dob = 'Age must be at least 5 years.';
+        // ApniSamaj accounts are 18+ (Child Safety Standards Policy, section 2)
+        const { ageOn, MIN_ACCOUNT_AGE } = require('../utils/age');
+        const age = ageOn(date, today);
+        if (age < MIN_ACCOUNT_AGE) errors.dob = `You must be ${MIN_ACCOUNT_AGE} or older to use ApniSamaj.`;
         else if (age > 120) errors.dob = 'Please enter a valid date of birth.';
       }
     }

@@ -22,6 +22,7 @@ import { LiveCameraModal } from './components/LiveCameraModal';
 import { WhatsAppAttachmentMenu } from './components/WhatsAppAttachmentMenu';
 import { MediaLightboxModal } from './components/MediaLightboxModal';
 import { WhatsAppContactProfileModal } from './components/WhatsAppContactProfileModal';
+import { ReportSheet } from '../../components/common/ReportSheet';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const formatMsgTime = (isoString) => {
@@ -149,6 +150,7 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
   // ── UI State ──────────────────────────────────────────────────────────────
   const [newMessage, setNewMessage]                   = useState('');
   const [showMenu, setShowMenu]                       = useState(false);
+  const [showReport, setShowReport]                   = useState(false);
   const [showMoreMenu, setShowMoreMenu]               = useState(false);
   const [showEmojiPicker, setShowEmojiPicker]         = useState(false);
   const [showAttachmentMenu, setShowAttachmentMenu]   = useState(false);
@@ -916,6 +918,12 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
                           className="w-full text-left px-4 py-2.5 text-[13px] font-extrabold text-slate-700 hover:bg-purple-50/50 transition-colors">
                           Wallpaper Theme
                         </button>
+                        {targetId && (
+                          <button onClick={(e) => { e.stopPropagation(); setShowReport(true); setShowMenu(false); }}
+                            className="w-full text-left px-4 py-2.5 text-[13px] font-extrabold text-rose-600 hover:bg-rose-50/50 transition-colors">
+                            Report {chatName}
+                          </button>
+                        )}
                         <button onClick={(e) => { e.stopPropagation(); setShowMoreMenu(true); }}
                           className="w-full text-left px-4 py-2.5 text-[13px] font-extrabold text-slate-700 hover:bg-purple-50/50 transition-colors border-t border-slate-100 mt-1 flex items-center justify-between">
                           <span>More</span><span className="text-slate-400">→</span>
@@ -944,6 +952,13 @@ const ChatRoomPage = ({ chatType = 'member', openByUserId = false }) => {
           </div>
         </div>
       )}
+
+      <ReportSheet
+        open={showReport}
+        targetType="user"
+        targetId={targetId}
+        onClose={() => setShowReport(false)}
+      />
 
       {/* Pinned Message */}
       {!isSelectionMode && pinnedMessage && (

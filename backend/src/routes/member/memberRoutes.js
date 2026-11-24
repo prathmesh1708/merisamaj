@@ -27,6 +27,9 @@ router.get('/test', (req, res) => {
   });
 });
 
+// Report a post, comment, story, chat message or member (Child Safety Standards Policy)
+router.post('/safety-reports', require('../../controllers/safetyReportController').createReport);
+
 // Premier callbacks are available from both matrimonial and general membership pages.
 router.post('/premier-callback', premierCallbackCtrl.submitRequest);
 

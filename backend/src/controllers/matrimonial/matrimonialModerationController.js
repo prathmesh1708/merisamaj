@@ -201,14 +201,23 @@ exports.reportProfile = async (req, res) => {
     if (req.user._id.equals(reportedUserId)) {
       return res.status(400).json({ status: 'error', message: 'You cannot report yourself.' });
     }
+    const urgent = ['child_safety', 'underage'].includes(reason);
     const report = await ProfileReport.create({
       reporterId:   req.user._id,
       reportedUserId,
       reason,
       description,
+      priority: urgent ? 'urgent' : 'normal',
       status: 'pending'
     });
-    res.status(201).json({ status: 'success', message: 'Report submitted. Our team will review it.', data: { report } });
+    if (urgent) console.warn(`[ProfileReport] URGENT ${reason} report on user ${reportedUserId}`);
+    res.status(201).json({
+      status: 'success',
+      message: urgent
+        ? 'Report sent to our child safety team. If a child is in danger, call 112 or 1098 now.'
+        : 'Report submitted. Our team will review it.',
+      data: { report }
+    });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }

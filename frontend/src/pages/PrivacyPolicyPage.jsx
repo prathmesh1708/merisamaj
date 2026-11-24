@@ -15,14 +15,14 @@ const CONTACT = {
   privacyEmail: '[privacy@yourdomain.com]'
 };
 
-const Section = ({ n, title, children }) => (
+export const Section = ({ n, title, children }) => (
   <section className="space-y-2.5">
     <h2 className="text-[15px] font-black text-slate-900">{n}. {title}</h2>
     {children}
   </section>
 );
-const P = ({ children }) => <p className="text-[13px] leading-relaxed text-slate-600">{children}</p>;
-const List = ({ items }) => (
+export const P = ({ children }) => <p className="text-[13px] leading-relaxed text-slate-600">{children}</p>;
+export const List = ({ items }) => (
   <ul className="space-y-1.5 pl-1">
     {items.map(([label, text]) => (
       <li key={label} className="text-[13px] leading-relaxed text-slate-600 flex gap-2">
@@ -33,7 +33,7 @@ const List = ({ items }) => (
   </ul>
 );
 // Two-column facts; stacks on phones instead of a cramped table.
-const Rows = ({ head, rows }) => (
+export const Rows = ({ head, rows }) => (
   <div className="rounded-2xl border border-slate-200 overflow-hidden divide-y divide-slate-100">
     {head && (
       <div className="hidden sm:grid grid-cols-[180px_1fr] gap-3 px-3.5 py-2 bg-slate-50 text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
@@ -193,7 +193,7 @@ const PrivacyPolicyPage = () => {
         </Section>
 
         <Section n={10} title="Children, changes and contact">
-          <P><strong className="text-slate-800">Children.</strong> You must be 18 or older to create an ApniSamaj account, and 18 (women) or 21 (men) to create a matrimonial profile, as Indian marriage law requires. You may add family members under 18 to your family tree as their parent or guardian. Their details are shown only to members who can see your family. We do not knowingly let anyone under 18 hold an account. If we learn that a minor has signed up, we delete the account.</P>
+          <P><strong className="text-slate-800">Children.</strong> You must be 18 or older to create an ApniSamaj account, and 18 (women) or 21 (men) to create a matrimonial profile, as Indian marriage law requires. You may add family members under 18 to your family tree as their parent or guardian. Their details are shown only to members who can see your family. We do not knowingly let anyone under 18 hold an account. If we learn that a minor has signed up, we delete the account. See our <a href="/child-safety" className="text-purple-600 font-bold hover:underline">Child Safety Standards</a>.</P>
           <P><strong className="text-slate-800">Changes to this policy.</strong> We will post any update here and change the date at the top. For significant changes, we will also notify you in the app or by SMS before they take effect.</P>
           <P><strong className="text-slate-800">Grievance Officer.</strong> For questions, requests or complaints about your data:</P>
           <Rows rows={[

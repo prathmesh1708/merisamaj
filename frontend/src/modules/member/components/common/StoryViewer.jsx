@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Heart, Send, Eye, Trash2, Loader2 } from 'lucide-react';
+import { X, Heart, Send, Eye, Trash2, Loader2, Flag } from 'lucide-react';
+import { ReportSheet } from './ReportSheet';
 import { Avatar } from './Avatar';
 import { useData } from '../../context/DataProvider';
 import { createPortal } from 'react-dom';
@@ -34,6 +35,7 @@ export const StoryViewer = ({ story, stories = [], onStoryChange, onClose }) => 
   const isMyStory = !!story && !!myUserId && story.memberId === myUserId;
   const [replyText, setReplyText] = useState('');
   const [showToast, setShowToast] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   
   // State to hold fixed window height, ignoring dynamic keyboard resizing on mobile
   const [fixedHeight, setFixedHeight] = useState('100vh');
@@ -232,7 +234,7 @@ export const StoryViewer = ({ story, stories = [], onStoryChange, onClose }) => 
 
   // Auto advance timeline (5 seconds per photo / text story; videos drive their own progress)
   useEffect(() => {
-    if (!story || isVideoStory || isPaused || viewersOpen || deleting) return;
+    if (!story || isVideoStory || isPaused || viewersOpen || deleting || reportOpen) return;
 
     const duration = 5000;
     const interval = 50; // Update every 50ms
@@ -243,7 +245,7 @@ export const StoryViewer = ({ story, stories = [], onStoryChange, onClose }) => 
     }, interval);
 
     return () => clearInterval(timer);
-  }, [story?.id, isVideoStory, isPaused, viewersOpen, deleting]);
+  }, [story?.id, isVideoStory, isPaused, viewersOpen, deleting, reportOpen]);
 
   // When the bar fills up, move on (kept out of the state updater so it runs exactly once)
   useEffect(() => {
@@ -296,7 +298,7 @@ export const StoryViewer = ({ story, stories = [], onStoryChange, onClose }) => 
     <AnimatePresence>
       {story && (
       <motion.div 
-        drag={!isPaused && !viewersOpen ? "y" : false}
+        drag={!isPaused && !viewersOpen && !reportOpen ? "y" : false}
         dragConstraints={{ top: 0, bottom: 0 }}
         dragElastic={{ top: 0, bottom: 0.8 }}
         onDragEnd={(event, info) => {
@@ -335,7 +337,7 @@ export const StoryViewer = ({ story, stories = [], onStoryChange, onClose }) => 
                 autoPlay
                 // Videos are shown whole (no zoom/crop); photos keep filling the screen
                 className={`w-full h-full ${isVideo(story) ? 'object-contain bg-black' : 'object-cover'}`}
-                paused={isPaused || viewersOpen || deleting}
+                paused={isPaused || viewersOpen || deleting || reportOpen}
                 onVideoProgress={handleVideoProgress}
                 onVideoEnded={handleVideoEnded}
                 onVideoError={handleVideoError}
@@ -368,12 +370,23 @@ export const StoryViewer = ({ story, stories = [], onStoryChange, onClose }) => 
                   <p className="text-[11px] opacity-80">{story.timestamp || '2h ago'}</p>
                 </div>
               </div>
-              <button 
-                onClick={onClose}
-                className="w-8 h-8 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white active:scale-90"
-              >
-                <X size={20} />
-              </button>
+              <div className="flex items-center gap-2">
+                {!isMyStory && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setReportOpen(true); }}
+                    aria-label="Report story"
+                    className="w-8 h-8 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white active:scale-90"
+                  >
+                    <Flag size={16} />
+                  </button>
+                )}
+                <button
+                  onClick={onClose}
+                  className="w-8 h-8 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white active:scale-90"
+                >
+                  <X size={20} />
+                </button>
+              </div>
             </div>
 
             {/* Text Overlay */}
@@ -488,6 +501,13 @@ export const StoryViewer = ({ story, stories = [], onStoryChange, onClose }) => 
               </div>
             </div>
             )}
+
+            <ReportSheet
+              open={reportOpen}
+              targetType="story"
+              targetId={story.id}
+              onClose={() => setReportOpen(false)}
+            />
 
             {/* Float Sent Toast */}
             {showToast && (

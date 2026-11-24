@@ -357,7 +357,7 @@ exports.listReports = async (req, res) => {
     const reports = await ProfileReport.find(query)
       .populate('reporterId', 'name phone')
       .populate('reportedUserId', 'name phone')
-      .sort({ createdAt: -1 })
+      .sort({ priority: -1, createdAt: -1 }) // child-safety ('urgent') reports first
       .skip((Number(page) - 1) * Number(limit))
       .limit(Number(limit));
 

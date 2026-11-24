@@ -18,6 +18,7 @@ import { toDateOnly } from '../../../../core/utils/dateOnly';
 import {
   validateName,
   validateDOB,
+  maxAdultDob,
   validatePincode,
   validateEnum,
   validateOptionalPhone,
@@ -1810,6 +1811,7 @@ const OnboardingScreen = () => {
                     <input
                       type="date"
                       value={dob}
+                      max={maxAdultDob()}
                       onChange={(e) => { setDob(e.target.value); setStepErrors(prev => ({ ...prev, dob: '' })); }}
                       className="w-full mt-1 bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-bold text-slate-800 outline-none focus:border-[#7C3AED]"
                     />

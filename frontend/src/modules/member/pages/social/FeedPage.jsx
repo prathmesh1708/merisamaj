@@ -31,6 +31,7 @@ import { useDraggableScroll } from '../../../../hooks/useDraggableScroll';
 import socialService from '../../../../core/api/socialService';
 import { SharePostModal } from './components/SharePostModal';
 import { PostUploadBanner } from '../../components/common/PostUploadBanner';
+import { ReportSheet } from '../../components/common/ReportSheet';
 
 // Local translation dictionary for Feed Redesign
 const localT = {
@@ -865,6 +866,7 @@ const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDelete
 
   // Action Menu & Edit / Delete States
   const [showMenu, setShowMenu] = useState(false);
+  const [showReport, setShowReport] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(post.content || '');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
@@ -1207,8 +1209,8 @@ const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDelete
             )}
           </div>
 
-          {/* Three-Dot Menu Options */}
-          {(canEdit || canDelete) && (
+          {/* Three-Dot Menu Options (everyone but the author can report) */}
+          {(canEdit || canDelete || !isAuthor) && (
             <div className="relative">
               <button 
                 onClick={() => setShowMenu(!showMenu)} 
@@ -1235,8 +1237,22 @@ const PostCard = ({ post, index, lang, onShareClick, onPostUpdated, onPostDelete
                       🗑️ Delete Post
                     </button>
                   )}
+                  {!isAuthor && (
+                    <button
+                      onClick={() => { setShowMenu(false); setShowReport(true); }}
+                      className="w-full text-left px-3.5 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 flex items-center gap-2"
+                    >
+                      🚩 Report Post
+                    </button>
+                  )}
                 </div>
               )}
+              <ReportSheet
+                open={showReport}
+                targetType="post"
+                targetId={post._id || post.id}
+                onClose={() => setShowReport(false)}
+              />
             </div>
           )}
         </div>

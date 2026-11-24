@@ -101,8 +101,10 @@ const EditProfilePage = () => {
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
 
-  // Years range from 1940 to 2026
-  const years = Array.from({ length: 2027 - 1940 }, (_, i) => 2026 - i);
+  // Accounts are 18+: the newest selectable birthday is exactly 18 years ago
+  const maxDob = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setFullYear(d.getFullYear() - 18); return d; })();
+  const maxYear = maxDob.getFullYear();
+  const years = Array.from({ length: maxYear - 1940 + 1 }, (_, i) => maxYear - i);
 
   const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
   const getFirstDayOfMonth = (year, month) => new Date(year, month, 1).getDay();
@@ -448,13 +450,14 @@ const EditProfilePage = () => {
                           {day ? (
                             <button
                               type="button"
+                              disabled={new Date(pickerDate.year, pickerDate.month, day) > maxDob}
                               onClick={() => {
                                 const formattedDob = `${pickerDate.year}-${String(pickerDate.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                                 setFormData(prev => ({ ...prev, dob: formattedDob }));
                                 setPickerDate(prev => ({ ...prev, day }));
                                 setShowDatePicker(false);
                               }}
-                              className={`w-7 h-7 rounded-full flex items-center justify-center font-bold transition-all ${
+                              className={`w-7 h-7 rounded-full flex items-center justify-center font-bold transition-all disabled:opacity-25 disabled:cursor-not-allowed ${
                                 pickerDate.day === day
                                   ? 'bg-brand-primary text-white shadow-md'
                                   : 'hover:bg-purple-50 text-text-primary'

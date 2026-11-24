@@ -187,6 +187,7 @@ export const AdminLayout = () => {
           children: [
             { name: 'City Feed', path: '/admin/social/city-feed' },
             { name: 'Community Feed', path: '/admin/social/community-feed' },
+            { name: 'Safety Reports', path: '/admin/social/safety-reports' },
             { name: 'User Groups', path: '/admin/groups' }
           ]
         }

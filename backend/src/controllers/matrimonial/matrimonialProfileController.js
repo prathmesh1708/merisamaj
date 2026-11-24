@@ -27,6 +27,21 @@ const lockGenderToAccount = async (profile, userId) => {
   profile.personal.gender = locked;
 };
 
+// Prohibition of Child Marriage Act, 2006 (Child Safety Standards Policy, section 2):
+// no matrimonial profile below 18 (women) / 21 (men). Uses the profile's date of
+// birth, else the account's. Returns an error message, or null when allowed.
+const { ageOn, minMarriageAge } = require('../../utils/age');
+const legalAgeProblem = async (profile, userId) => {
+  let dob = profile.personal?.dateOfBirth;
+  if (!dob) dob = (await User.findById(userId).select('dob').lean())?.dob;
+  const age = ageOn(dob);
+  if (age === null) return null;
+  const min = minMarriageAge(profile.personal?.gender);
+  return age < min
+    ? `You must be at least ${min} to create a matrimonial profile, as Indian law requires.`
+    : null;
+};
+
 // First readable message of a Mongoose validation error (e.g. a missing disability type)
 const validationMessage = (err) => (err?.name === 'ValidationError'
   ? (Object.values(err.errors || {})[0]?.message || 'Please check the details you entered.')
@@ -95,6 +110,8 @@ exports.createProfile = async (req, res) => {
 
     const profile = new MatrimonialProfile(profileData);
     await lockGenderToAccount(profile, req.user._id);
+    const ageProblem = await legalAgeProblem(profile, req.user._id);
+    if (ageProblem) return res.status(400).json({ status: 'error', message: ageProblem });
     profile.status = 'active';
     profile.verificationStatus = 'verified';
     profile.visibility = req.body.visibility || 'all_members';
@@ -149,6 +166,8 @@ exports.updateProfile = async (req, res) => {
     }
 
     await lockGenderToAccount(profile, req.user._id);
+    const ageProblem = await legalAgeProblem(profile, req.user._id);
+    if (ageProblem) return res.status(400).json({ status: 'error', message: ageProblem });
     profile.updatedBy  = req.user._id;
     profile.lastActiveAt = new Date();
 

@@ -146,18 +146,31 @@ export const validateAge = (val) => {
   return { valid: true, error: '' };
 };
 
+/** Accounts are 18+ (Child Safety Standards Policy). Same rule as the server. */
+export const MIN_ACCOUNT_AGE = 18;
+
+/** Latest date of birth allowed today, as "YYYY-MM-DD" (for date inputs' `max`). */
+export const maxAdultDob = () => {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - MIN_ACCOUNT_AGE);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 /**
- * DOB: valid date, not future, age 5–120 years
+ * DOB: valid date, not future, age 18–120 years
  */
 export const validateDOB = (str) => {
   if (!str) return { valid: true, error: '' };
-  const date = new Date(str);
+  const match = String(str).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const date = match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : new Date(str);
   if (isNaN(date.getTime())) return { valid: false, error: 'Enter a valid date of birth.' };
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   if (date > today) return { valid: false, error: 'Date of birth cannot be in the future.' };
-  const age = Math.floor((today - date) / (365.25 * 24 * 60 * 60 * 1000));
-  if (age < 5) return { valid: false, error: 'Age must be at least 5 years.' };
+  let age = today.getFullYear() - date.getFullYear();
+  const m = today.getMonth() - date.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < date.getDate())) age -= 1;
+  if (age < MIN_ACCOUNT_AGE) return { valid: false, error: `You must be ${MIN_ACCOUNT_AGE} or older to use ApniSamaj.` };
   if (age > 120) return { valid: false, error: 'Please enter a valid date of birth.' };
   return { valid: true, error: '' };
 };

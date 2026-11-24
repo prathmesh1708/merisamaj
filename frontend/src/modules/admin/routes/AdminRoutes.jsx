@@ -27,6 +27,7 @@ import AdminLogin from '../pages/login/AdminLogin';
 import CityFeedManagement from '../pages/social/CityFeedManagement';
 import CommunityFeedManagement from '../pages/social/CommunityFeedManagement';
 import AdminPostDetailsPage from '../pages/social/PostDetailsPage';
+import SafetyReportsPage from '../pages/social/SafetyReportsPage';
 import { AdminGroupsPage } from '../pages/groups/AdminGroupsPage';
 import AdminDharmashalaManagement from '../pages/dharmashala/AdminDharmashalaManagement';
 import { AdminObituaryManagement } from '../pages/obituary/AdminObituaryManagement';
@@ -97,6 +98,7 @@ export const AdminRoutes = () => {
         <Route path="social">
           <Route path="city-feed" element={<CityFeedManagement />} />
           <Route path="community-feed" element={<CommunityFeedManagement />} />
+          <Route path="safety-reports" element={<SafetyReportsPage />} />
           <Route path="post/:id" element={<AdminPostDetailsPage />} />
         </Route>
 

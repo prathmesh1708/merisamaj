@@ -13,6 +13,11 @@ const authMiddleware = require('../../middleware/authMiddleware');
 router.use(authMiddleware.protect);
 router.use(authMiddleware.authorize('admin'));
 
+// Member reports (child-safety reports first)
+const safetyReportCtrl = require('../../controllers/safetyReportController');
+router.get('/safety-reports', safetyReportCtrl.listReports);
+router.put('/safety-reports/:id', safetyReportCtrl.resolveReport);
+
 // Dedicated City Feed & Community Feed Moderation Endpoints
 router.get('/city-feed', getCityFeedPosts);
 router.get('/community-feed', getCommunityFeedPosts);
