@@ -38,6 +38,12 @@ router.get('/', authorize('admin', 'head'), getCommunities);
 // POST /api/v1/admin/communities
 router.post('/', authorize('admin'), createCommunity);
 
+// Communities members asked for under "Other" (must come before '/:id')
+// GET /api/v1/admin/communities/requests?status=pending
+// PUT /api/v1/admin/communities/requests/:requestId  { action: create | merge | dismiss }
+router.get('/requests', authorize('admin'), require('../../controllers/admin/communityController').listCommunityRequests);
+router.put('/requests/:requestId', authorize('admin'), require('../../controllers/admin/communityController').resolveCommunityRequest);
+
 // GET  /api/v1/admin/communities/:id
 router.get('/:id', authorize('admin', 'head'), getCommunityById);
 

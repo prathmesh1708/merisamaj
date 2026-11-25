@@ -31,6 +31,7 @@ import {
 import { axiosPrivate } from '../../../../core/api/axiosPrivate';
 import { cropImageFile } from '../../../../core/components/ImageCropper';
 import ModuleAccessPicker, { saveModuleAccess } from '../../../../core/permissions/ModuleAccessPicker';
+import CommunityRequestsPanel from './CommunityRequestsPanel';
 
 // ─────────────────────────────────────────────
 // Head module permission controls (matching CommunityHeadForm)
@@ -5115,6 +5116,9 @@ const CommunitiesPage = () => {
                 ))}
               </div>
             )}
+
+            {/* Communities new members asked for under "Other" (admin creates / merges / dismisses) */}
+            <CommunityRequestsPanel communities={communities} onChanged={fetchCommunities} />
 
             {/* Header / Create Community Action */}
             <div className="communities-header">

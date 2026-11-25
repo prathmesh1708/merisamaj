@@ -25,7 +25,12 @@ const EMPTY_PLAN = {
     communityFilter: false,
     allSubCommunitiesAccess: false,
     superInterestsPerMonth: 0,
-    viewProfilePhotos: true
+    viewProfilePhotos: true,
+    // Does each limit reset every day or every month? (same defaults as the backend)
+    profileViewsPeriod: 'day',
+    interestPeriod: 'month',
+    messagePeriod: 'month',
+    superInterestPeriod: 'month'
   },
   // App plans only: perks in the Social feed and what the member may create
   appFeatures: {
@@ -49,6 +54,30 @@ const APP_PERMISSIONS = [
   { key: 'socialStories', label: 'Create social stories' },
   { key: 'professionalListing', label: 'Add professional info (business & services)' }
 ];
+
+// A plan limit with its own "Per day / Per month" switch
+const LimitField = ({ label, hint, value, onValue, period, onPeriod }) => (
+  <div className="min-w-0">
+    <label className="text-[10px] text-slate-500 font-bold block mb-1">{label} <span className="font-semibold text-slate-400">({hint})</span></label>
+    <div className="flex items-stretch gap-1.5">
+      <input type="number" value={value}
+        onChange={e => onValue(Number(e.target.value))}
+        className="w-full min-w-0 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none" />
+      <div className="flex shrink-0 rounded-xl border border-slate-200 bg-slate-50 p-0.5" role="group" aria-label={`${label} resets`}>
+        {[['day', 'Day'], ['month', 'Month']].map(([key, text]) => (
+          <button key={key} type="button" onClick={() => onPeriod(key)} aria-pressed={period === key}
+            className={`px-2.5 rounded-lg text-[11px] font-bold transition-colors ${period === key ? 'bg-rose-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
+            {text}
+          </button>
+        ))}
+      </div>
+    </div>
+  </div>
+);
+
+// "10 profile views/day", "Unlimited interests/month" for the plan cards
+const limitText = (value, period, what) =>
+  `${value === -1 ? 'Unlimited' : value} ${what}/${period === 'day' ? 'day' : 'month'}`;
 
 // Plans saved before "View Profile Photos" existed: on for paid plans, off for the Free plan
 // (backend services/planFeatureDefaults.js applies the same rule)
@@ -226,31 +255,22 @@ const PlanModal = ({ plan, planType, onClose, onSaved }) => {
         {!isApp && (
         <div className="border-t border-slate-100 pt-4 space-y-3">
           <p className="text-[10px] text-gray-500 font-black uppercase tracking-wider">Features</p>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-[10px] text-slate-500 font-bold block mb-1">Profile Views/Day (-1 = ∞)</label>
-              <input type="number" value={form.features.profileViewsPerDay}
-                onChange={e => setFeature('profileViewsPerDay', Number(e.target.value))}
-                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none" />
-            </div>
-            <div>
-              <label className="text-[10px] text-slate-500 font-bold block mb-1">Interests/Month (-1 = ∞)</label>
-              <input type="number" value={form.features.interestLimit}
-                onChange={e => setFeature('interestLimit', Number(e.target.value))}
-                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none" />
-            </div>
-            <div>
-              <label className="text-[10px] text-slate-500 font-bold block mb-1">Messages (-1 = ∞)</label>
-              <input type="number" value={form.features.messageLimit}
-                onChange={e => setFeature('messageLimit', Number(e.target.value))}
-                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none" />
-            </div>
-            <div>
-              <label className="text-[10px] text-slate-500 font-bold block mb-1">Super Interests/Month (0 = off, -1 = ∞)</label>
-              <input type="number" value={form.features.superInterestsPerMonth}
-                onChange={e => setFeature('superInterestsPerMonth', Number(e.target.value))}
-                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none" />
-            </div>
+          <p className="text-[11px] text-slate-500 font-semibold -mt-1">
+            Choose for each limit whether it resets every <b>day</b> (at midnight) or every <b>month</b> (on the 1st).
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <LimitField label="Profile Views" hint="-1 = ∞"
+              value={form.features.profileViewsPerDay} onValue={v => setFeature('profileViewsPerDay', v)}
+              period={form.features.profileViewsPeriod} onPeriod={p => setFeature('profileViewsPeriod', p)} />
+            <LimitField label="Interests" hint="-1 = ∞"
+              value={form.features.interestLimit} onValue={v => setFeature('interestLimit', v)}
+              period={form.features.interestPeriod} onPeriod={p => setFeature('interestPeriod', p)} />
+            <LimitField label="Messages" hint="-1 = ∞"
+              value={form.features.messageLimit} onValue={v => setFeature('messageLimit', v)}
+              period={form.features.messagePeriod} onPeriod={p => setFeature('messagePeriod', p)} />
+            <LimitField label="Super Interests" hint="0 = off, -1 = ∞"
+              value={form.features.superInterestsPerMonth} onValue={v => setFeature('superInterestsPerMonth', v)}
+              period={form.features.superInterestPeriod} onPeriod={p => setFeature('superInterestPeriod', p)} />
           </div>
           <div className="flex flex-wrap gap-4">
             {[
@@ -499,9 +519,9 @@ export const SubscriptionPlans = ({ data }) => {
               </div>
             ) : (
             <div className="min-w-0 space-y-1.5 text-[11px] text-slate-500 [&>p]:[overflow-wrap:anywhere]">
-              <p>• {plan.features?.profileViewsPerDay === -1 ? 'Unlimited' : plan.features?.profileViewsPerDay} profile views/day</p>
-              <p>• {plan.features?.interestLimit === -1 ? 'Unlimited' : plan.features?.interestLimit} interests/month</p>
-              <p>• {plan.features?.messageLimit === -1 ? 'Unlimited' : plan.features?.messageLimit} messages/month</p>
+              <p>• {limitText(plan.features?.profileViewsPerDay, plan.features?.profileViewsPeriod || 'day', 'profile views')}</p>
+              <p>• {limitText(plan.features?.interestLimit, plan.features?.interestPeriod || 'month', 'interests')}</p>
+              <p>• {limitText(plan.features?.messageLimit, plan.features?.messagePeriod || 'month', 'messages')}</p>
               {plan.features?.chat && <p>• Chat enabled</p>}
               {plan.features?.advancedFilters && <p>• Advanced filters</p>}
               {plan.features?.visitorHistory && <p>• Visitor history</p>}
@@ -509,8 +529,9 @@ export const SubscriptionPlans = ({ data }) => {
               {plan.features?.crossCommunityVisibility && <p>• Sees other-community profiles</p>}
               {plan.features?.communityFilter && <p>• Community & sub-community filter</p>}
               {plan.features?.allSubCommunitiesAccess && <p>• All sub-communities access</p>}
-              {plan.features?.superInterestsPerMonth === -1 && <p>• Unlimited Super Interests</p>}
-              {plan.features?.superInterestsPerMonth > 0 && <p>• {plan.features.superInterestsPerMonth} Super Interests/month</p>}
+              {(plan.features?.superInterestsPerMonth === -1 || plan.features?.superInterestsPerMonth > 0) && (
+                <p>• {limitText(plan.features.superInterestsPerMonth, plan.features?.superInterestPeriod || 'month', 'Super Interests')}</p>
+              )}
               <p className={photoAccessOf(plan) ? '' : 'line-through text-slate-300'}>• View profile photos</p>
               {(plan.customFeatures || []).map((label, i) => <p key={i}>• {label}</p>)}
             </div>

@@ -105,11 +105,12 @@ exports.getSubscriptionOverview = async (req, res) => {
     const now = new Date();
     const DAY = 24 * 60 * 60 * 1000;
 
-    const [{ features, subscription }, usage, purchases] = await Promise.all([
+    const [{ features, subscription }, purchases] = await Promise.all([
       getEffectiveFeatures(req.user._id),
-      getUsage(req.user._id),
       UserSubscription.find({ userId: req.user._id, planType: { $ne: 'app' } }).sort({ createdAt: -1 }).lean()
     ]);
+    // Counted over each limit's own period (day or month) from the member's plan
+    const usage = await getUsage(req.user._id, features);
 
     let current = null;
     if (subscription) {
@@ -167,6 +168,8 @@ exports.getSubscriptionOverview = async (req, res) => {
           messageLimit: limit(features.messageLimit),
           superInterestsPerMonth: limit(features.superInterestsPerMonth)
         },
+        // 'day' or 'month' for each limit above (the admin's choice on the plan)
+        limitPeriods: usage.periods,
         usage,
         features,
         history,

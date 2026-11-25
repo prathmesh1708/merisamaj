@@ -7,7 +7,7 @@
 const UserSubscription = require('../models/UserSubscription');
 const MatrimonialSettings = require('../models/MatrimonialSettings');
 const SubscriptionPlan = require('../models/SubscriptionPlan');
-const { withMatrimonialDefaults, getAppPermissions } = require('../services/planFeatureDefaults');
+const { withMatrimonialDefaults, getAppPermissions, LIMIT_PERIOD_DEFAULTS } = require('../services/planFeatureDefaults');
 
 // Fills any feature the Free plan document does not define.
 const FREE_FALLBACK = {
@@ -82,7 +82,8 @@ const getEffectiveFeatures = async (userId) => {
       viewAllSubCommunityProfiles: false,
       allSubCommunitiesAccess: false,
       superInterestsPerMonth: 0,
-      viewProfilePhotos: false
+      viewProfilePhotos: false,
+      ...LIMIT_PERIOD_DEFAULTS
     },
     subscription: null
   };
@@ -143,15 +144,16 @@ const checkInterestLimit = async (req, res, next) => {
       return next(); // Unlimited
     }
 
-    // Count the interests actually sent this calendar month (same count the
-    // "My Subscription" screen shows), for free and paid plans alike.
-    const { countInterestsThisMonth } = require('../services/matrimonialUsageService');
-    const used = await countInterestsThisMonth(req.user._id);
+    // Count the interests actually sent this day or month, as the plan says (same
+    // count the "My Subscription" screen shows), for free and paid plans alike.
+    const { countInterests } = require('../services/matrimonialUsageService');
+    const period = features.interestPeriod === 'day' ? 'day' : 'month';
+    const used = await countInterests(req.user._id, period);
     if (used >= limit) {
       return res.status(403).json({
         status:  'error',
         code:    'INTEREST_LIMIT_REACHED',
-        message: `You've reached your monthly interest limit of ${limit}. Upgrade to Premium for unlimited interests.`,
+        message: `You've reached your ${period === 'day' ? 'daily' : 'monthly'} interest limit of ${limit}. Upgrade to Premium for unlimited interests.`,
         used,
         limit
       });

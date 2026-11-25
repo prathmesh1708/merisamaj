@@ -174,20 +174,18 @@ const protect = async (req, res, next) => {
         });
       }
     } else if (user.community) {
-      // Dynamic Migration: Auto-migrate users with legacy community string to communityId reference
+      // Legacy accounts with only a community name: link them to that community if
+      // it exists and is active. Never create one here — only the admin creates
+      // communities (a typed name becomes a CommunityRequest instead).
       const Community = require('../models/Community');
-      let communityDoc = await Community.findOne({ name: user.community });
-      if (!communityDoc) {
-        communityDoc = await Community.create({
-          name: user.community,
-          city: user.city || 'Indore',
-          state: user.state || 'Madhya Pradesh',
-          country: 'India'
-        });
+      const communityDoc = await Community.findOne({ name: user.community, isActive: true });
+      if (communityDoc) {
+        user.communityId = communityDoc._id;
+        await user.save();
+        req.communityId = communityDoc._id;
+      } else {
+        req.communityId = null;
       }
-      user.communityId = communityDoc._id;
-      await user.save();
-      req.communityId = communityDoc._id;
     } else {
       req.communityId = null;
     }

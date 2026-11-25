@@ -220,16 +220,15 @@ exports.sendMessage = async (req, res) => {
     const { features } = await getEffectiveFeatures(req.user._id);
     const msgLimit = features.messageLimit;
     if (typeof msgLimit === 'number' && msgLimit !== -1) {
-      const monthStart = new Date();
-      monthStart.setDate(1);
-      monthStart.setHours(0, 0, 0, 0);
-      const myConversations = await Conversation.find({ participants: req.user._id, type: 'matrimonial' }).distinct('_id');
-      const sentThisMonth = await Message.countDocuments({ senderId: req.user._id, conversationId: { $in: myConversations }, createdAt: { $gte: monthStart } });
+      // Resets every day or every month, as the plan says
+      const { countMessages } = require('../../services/matrimonialUsageService');
+      const msgPeriod = features.messagePeriod === 'day' ? 'day' : 'month';
+      const sentThisMonth = await countMessages(req.user._id, msgPeriod);
       if (sentThisMonth >= msgLimit) {
         return res.status(403).json({
           status: 'error',
           code: 'MESSAGE_LIMIT_REACHED',
-          message: `You have reached your monthly limit of ${msgLimit} messages. Upgrade your plan to send more.`,
+          message: `You have reached your ${msgPeriod === 'day' ? 'daily' : 'monthly'} limit of ${msgLimit} messages. Upgrade your plan to send more.`,
           used: sentThisMonth,
           limit: msgLimit
         });

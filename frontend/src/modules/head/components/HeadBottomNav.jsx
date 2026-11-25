@@ -20,7 +20,7 @@ export const HeadBottomNav = ({ pendingApprovalsCount = 0 }) => {
 
   return (
     <div 
-      className="fixed bottom-0 left-0 right-0 z-50 md:hidden transition-all duration-300 ease-in-out pointer-events-none"
+      className="fixed bottom-0 left-0 right-0 z-[35] md:hidden transition-all duration-300 ease-in-out pointer-events-none"
       style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 6px)' }}
     >
       {/* ── Sleek Production Glassmorphism Floating Capsule (Matching User App) ── */}

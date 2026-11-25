@@ -37,30 +37,40 @@ export const MemberManagement = () => {
   // Local state representing the local scope of members for the current Samaj (head's assigned community)
   const assignedMembers = useMemo(() => filterMembersForHead(members || [], headUser), [members, headUser]);
 
+  // Real member data only. (This used to fill empty fields with invented values —
+  // gender / age group / blood group guessed from the id, a fake @gmail.com email,
+  // "Vijay Nagar", a made-up spouse and child — and family size came out as NaN.)
   const communityMembers = useMemo(() => {
+    const ageGroupOf = (dob) => {
+      const d = dob ? new Date(dob) : null;
+      if (!d || Number.isNaN(d.getTime())) return '';
+      const age = Math.floor((Date.now() - d.getTime()) / 31557600000);
+      return age >= 60 ? 'Senior (60+)' : age >= 36 ? 'Adult (36-59)' : age >= 18 ? 'Youth (18-35)' : '';
+    };
     return assignedMembers.map(m => {
-      const cityName = typeof m.city === 'object' && m.city?.name ? m.city.name : (m.city || 'Indore');
+      const cityName = typeof m.city === 'object' && m.city?.name ? m.city.name : (m.city || '');
+      const family = (Array.isArray(m.familyMembers) ? m.familyMembers : []).map(fm => ({
+        ...fm,
+        relationship: fm.relationship || fm.relation || '',
+        isVerified: fm.isVerified ?? fm.approvalStatus === 'approved'
+      }));
+      const registered = m.registrationDate || m.createdAt || '';
       return {
         ...m,
         city: cityName,
-        memberId: m.memberId || (m._id || m.id ? `MS-${String(m._id || m.id).slice(-4).toUpperCase()}` : 'MS-1001'),
-        email: m.email || `${(m.name || 'member').toLowerCase().replace(/\s/g, '')}@gmail.com`,
-        gender: m.gender || (Number(m.id || 1) % 2 === 0 ? 'Female' : 'Male'),
-        ageGroup: m.ageGroup || (Number(m.id || 1) % 3 === 0 ? 'Senior (60+)' : Number(m.id || 1) % 3 === 1 ? 'Youth (18-35)' : 'Adult (36-59)'),
-        maritalStatus: m.maritalStatus || (Number(m.id || 1) % 2 === 0 ? 'Unmarried' : 'Married'),
-        bloodGroup: m.bloodGroup || (Number(m.id || 1) % 4 === 0 ? 'B+' : Number(m.id || 1) % 4 === 1 ? 'A+' : 'O+'),
-        familySize: m.familySize || (Number(m.id || 1) % 3 + 2),
-        registrationDate: m.registrationDate || '2026-06-12',
-        lastActive: m.lastActive || '2 Hrs ago',
-        area: m.area || (Number(m.id || 1) % 2 === 0 ? 'Vijay Nagar' : 'Saket'),
-        familyMembers: m.familyMembers || [
-          { name: `${(m.name || 'Member').split(' ')[0]}'s Spouse`, relationship: 'Spouse', occupation: 'Homemaker', age: 34, isVerified: true },
-          { name: `${(m.name || 'Member').split(' ')[0]}'s Child`, relationship: 'Son', occupation: 'Student', age: 12, isVerified: false }
-        ],
-        activities: [
-          { date: '2026-07-06', time: '11:20 AM', action: 'Log In', status: 'Success', device: 'Chrome / Windows', location: 'Indore, India' },
-          { date: '2026-07-05', time: '04:15 PM', action: 'Profile Update', status: 'Success', device: 'Safari / iPhone', location: 'Indore, India' }
-        ]
+        memberId: m.memberId || (m._id || m.id ? `MS-${String(m._id || m.id).slice(-4).toUpperCase()}` : ''),
+        email: m.email || '',
+        gender: m.gender || '',
+        ageGroup: m.ageGroup || ageGroupOf(m.dob),
+        maritalStatus: m.maritalStatus || '',
+        bloodGroup: m.bloodGroup || '',
+        familyMembers: family,
+        // The member plus the family members on their tree
+        familySize: Number(m.familySize) > 0 ? Number(m.familySize) : family.length + 1,
+        registrationDate: registered ? String(registered).slice(0, 10) : '',
+        lastActive: m.lastActive || '',
+        area: m.area || m.areaAddress || '',
+        activities: Array.isArray(m.activities) ? m.activities : []
       };
     });
   }, [assignedMembers]);
@@ -474,13 +484,18 @@ export const MemberManagement = () => {
 
       {/* ─── STICKY BULK ACTIONS BAR ─── */}
       {selectedIds.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900 border border-slate-700 px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-4 text-xs font-bold text-white animate-slide-up">
-          <span>{selectedIds.length} members selected</span>
-          <div className="h-4 w-[1px] bg-white/20" />
-          <div className="flex gap-2">
-            <button onClick={() => handleBulkAction('verify')} className="px-3 py-1 bg-emerald-600 text-white hover:bg-emerald-700 rounded-lg transition-all font-bold cursor-pointer shadow-xs">Approve</button>
-            <button onClick={() => handleBulkAction('suspend')} className="px-3 py-1 bg-amber-600 text-white hover:bg-amber-700 rounded-lg transition-all font-bold cursor-pointer shadow-xs">Suspend</button>
-            <button onClick={() => setSelectedIds([])} className="px-2 py-1 text-slate-300 hover:text-white cursor-pointer font-semibold">Cancel</button>
+        // Phones: full width, above the bottom menu. Desktop: centred near the bottom.
+        <div className="fixed z-40 left-3 right-3 md:left-1/2 md:right-auto md:-translate-x-1/2 md:w-auto bottom-[calc(env(safe-area-inset-bottom,0px)+5.5rem)] md:bottom-6 bg-slate-900 border border-slate-700 px-3.5 md:px-5 py-2.5 md:py-3 rounded-2xl shadow-2xl flex items-center gap-2 md:gap-4 text-xs font-bold text-white animate-slide-up">
+          <span className="whitespace-nowrap shrink-0">
+            {selectedIds.length} <span className="hidden min-[380px]:inline">{selectedIds.length === 1 ? 'member' : 'members'}</span> selected
+          </span>
+          <div className="hidden md:block h-4 w-[1px] bg-white/20" />
+          <div className="flex gap-1.5 md:gap-2 ml-auto md:ml-0">
+            <button onClick={() => handleBulkAction('verify')} className="px-3 py-2 md:py-1 bg-emerald-600 text-white hover:bg-emerald-700 rounded-lg transition-all font-bold cursor-pointer shadow-xs">Approve</button>
+            <button onClick={() => handleBulkAction('suspend')} className="px-3 py-2 md:py-1 bg-amber-600 text-white hover:bg-amber-700 rounded-lg transition-all font-bold cursor-pointer shadow-xs">Suspend</button>
+            <button onClick={() => setSelectedIds([])} aria-label="Clear selection" className="px-2 py-2 md:py-1 text-slate-300 hover:text-white cursor-pointer font-semibold">
+              <X size={16} className="md:hidden" /><span className="hidden md:inline">Cancel</span>
+            </button>
           </div>
         </div>
       )}
@@ -668,13 +683,16 @@ export const MemberManagement = () => {
                       <div className="truncate">
                         <span className="text-slate-600 block text-xs font-bold uppercase">Location & Work</span>
                         <span className="font-bold text-slate-900 truncate block mt-0.5">
-                          {member.city} • {member.profession || 'Business'}
+                          {[member.city, member.profession].filter(Boolean).join(' • ') || '—'}
                         </span>
                       </div>
-                      <div className="truncate">
+                      <div className="min-w-0">
                         <span className="text-slate-600 block text-xs font-bold uppercase">Phone / Family</span>
                         <span className="font-bold text-slate-900 truncate block mt-0.5">
-                          {member.phone} ({member.familySize}M)
+                          {member.phone || '—'}
+                        </span>
+                        <span className="text-[11px] font-semibold text-slate-500 block">
+                          {member.familySize} {member.familySize === 1 ? 'member' : 'members'} in family
                         </span>
                       </div>
                     </div>
@@ -816,16 +834,16 @@ export const MemberManagement = () => {
                   <div className="space-y-4 text-xs text-slate-800">
                     <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-2">
                       <h4 className="text-xs font-bold text-indigo-700 uppercase tracking-wider block mb-1">Contact details</h4>
-                      <p><strong>Mobile:</strong> {activeDrawerMember.phone}</p>
-                      <p><strong>Email:</strong> {activeDrawerMember.email}</p>
-                      <p><strong>Gotra/Sub-gotra:</strong> Garg / Agrawal</p>
-                      <p><strong>Blood Group:</strong> {activeDrawerMember.bloodGroup}</p>
+                      <p><strong>Mobile:</strong> {activeDrawerMember.phone || '—'}</p>
+                      <p className="break-all"><strong>Email:</strong> {activeDrawerMember.email || '—'}</p>
+                      <p><strong>Gotra:</strong> {activeDrawerMember.gotra || '—'}</p>
+                      <p><strong>Blood Group:</strong> {activeDrawerMember.bloodGroup || '—'}</p>
                     </div>
 
                     <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-2">
                       <h4 className="text-xs font-bold text-indigo-700 uppercase tracking-wider block mb-1">Profession Details</h4>
-                      <p><strong>Profession:</strong> {activeDrawerMember.profession || 'CA'}</p>
-                      <p><strong>Location:</strong> {activeDrawerMember.area}, {activeDrawerMember.city}</p>
+                      <p><strong>Profession:</strong> {activeDrawerMember.profession || '—'}</p>
+                      <p><strong>Location:</strong> {[activeDrawerMember.area, activeDrawerMember.city].filter(Boolean).join(', ') || '—'}</p>
                     </div>
                   </div>
                 )}
@@ -837,11 +855,16 @@ export const MemberManagement = () => {
                       <button onClick={() => showToast('Redirected to node configuration')} className="text-xs text-indigo-700 font-bold uppercase cursor-pointer hover:underline">+ Add node</button>
                     </h4>
                     
+                    {activeDrawerMember.familyMembers.length === 0 && (
+                      <p className="text-xs text-slate-500 font-semibold py-4 text-center">No family members added yet.</p>
+                    )}
                     {activeDrawerMember.familyMembers.map((fm, idx) => (
-                      <div key={idx} className="p-3.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between text-xs text-slate-800 shadow-xs">
-                        <div>
-                          <p className="font-bold text-slate-900 text-sm">{fm.name}</p>
-                          <p className="text-xs text-slate-600 font-medium mt-0.5">{fm.relationship} • {fm.occupation} • Age: {fm.age}</p>
+                      <div key={idx} className="p-3.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between gap-3 text-xs text-slate-800 shadow-xs">
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-900 text-sm truncate">{fm.name || '—'}</p>
+                          <p className="text-xs text-slate-600 font-medium mt-0.5">
+                            {[fm.relationship, fm.occupation, fm.age ? `Age: ${fm.age}` : ''].filter(Boolean).join(' • ') || '—'}
+                          </p>
                         </div>
                         <span className={`px-2.5 py-1 rounded-md text-xs font-bold uppercase ${fm.isVerified ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-800 border border-amber-200'}`}>
                           {fm.isVerified ? 'Verified' : 'Pending'}
@@ -854,6 +877,9 @@ export const MemberManagement = () => {
                 {drawerTab === 'activities' && (
                   <div className="space-y-4">
                     <h4 className="text-xs font-bold text-indigo-700 uppercase tracking-wider block mb-1">Auditable activity timeline</h4>
+                    {activeDrawerMember.activities.length === 0 && (
+                      <p className="text-xs text-slate-500 font-semibold py-4 text-center">No activity recorded for this member yet.</p>
+                    )}
                     <div className="space-y-3 relative pl-4 border-l border-slate-200 ml-2">
                       {activeDrawerMember.activities.map((act, idx) => (
                         <div key={idx} className="relative space-y-1">
@@ -888,6 +914,9 @@ export const MemberManagement = () => {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Room under the last card so the selection bar never covers it on phones */}
+      {selectedIds.length > 0 && <div className="h-20 md:hidden" aria-hidden="true" />}
 
       {/* ─── DOCUMENT VERIFICATION ARCHIVE DRAWER ─── */}
       <AnimatePresence>

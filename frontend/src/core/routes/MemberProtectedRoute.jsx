@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
 import { useHeadAuth } from '../../modules/head/auth/useHeadAuth';
+import CommunityRequestedScreen from '../../modules/member/pages/onboarding/CommunityRequestedScreen';
 
 const MemberProtectedRoute = () => {
   const { auth, adoptSession } = useAuth();
@@ -36,6 +37,11 @@ const MemberProtectedRoute = () => {
     const isResumingOnboarding = !!localStorage.getItem('merisamaj_onboarding_resume_step') ||
                                  localStorage.getItem('merisamaj_just_registered') === 'true' ||
                                  localStorage.getItem('merisamaj_onboarding_from_home') === 'true';
+
+    // Asked for a community that doesn't exist yet ("Other"): wait for the admin
+    if (!hasCommunity && auth.user?.requestedCommunity && !isOnboardingPath) {
+      return <CommunityRequestedScreen />;
+    }
 
     // Redirect authenticated users without a community to the onboarding flow
     if (!hasCommunity && !isOnboardingPath) {

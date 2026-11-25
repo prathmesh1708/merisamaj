@@ -63,47 +63,13 @@ const safeSetLocalStorage = (key, val) => {
   }
 };
 
-// ─── MOCK DATA ───────────────────────────────────────────────────────────────
-const communityData = {
-  'Agrawal Samaj': {
-    subCommunities: ['Bisa Agrawal', 'Dasa Agrawal', 'Maheshwari', 'Oswal', 'Porwal'],
-    cities: ['Indore', 'Ujjain', 'Bhopal', 'Jaipur', 'Ratlam', 'Gwalior', 'Sagar']
-  },
-  'Jain Samaj': {
-    subCommunities: ['Digambar', 'Shwetambar', 'Sthanakvasi', 'Terapanthi'],
-    cities: ['Mumbai', 'Surat', 'Pune', 'Ahmedabad', 'Jaipur', 'Indore', 'Delhi']
-  },
-  'Gupta Samaj': {
-    subCommunities: ['Vaishya Gupta', 'Kayastha Gupta', 'Kshatriya Gupta'],
-    cities: ['Delhi', 'Lucknow', 'Kanpur', 'Agra', 'Allahabad', 'Varanasi']
-  },
-  'Sharma Samaj': {
-    subCommunities: ['Gaur Brahmin', 'Saraswat Brahmin', 'Kanyakubja', 'Maithil Brahmin'],
-    cities: ['Jaipur', 'Delhi', 'Udaipur', 'Ajmer', 'Jodhpur', 'Bhopal', 'Nagpur']
-  },
-  'Patel Samaj': {
-    subCommunities: ['Kadava Patel', 'Leuva Patel', 'Anjana Patel', 'Bhavssar Patel'],
-    cities: ['Ahmedabad', 'Surat', 'Vadodara', 'Rajkot', 'Anand', 'Gandhinagar']
-  },
-  'Mali Samaj': {
-    subCommunities: ['Phul Mali', 'Kachhi Mali', 'Dhakad Mali', 'Teli Mali'],
-    cities: ['Ujjain', 'Dewas', 'Ratlam', 'Indore', 'Bhopal', 'Mandsaur']
-  },
-  'Brahmin Samaj': {
-    subCommunities: ['Sharma', 'Dwivedi', 'Trivedi', 'Shukla', 'Mishra', 'Joshi', 'Pandey', 'Choubey'],
-    cities: ['Indore', 'Bhopal', 'Ujjain', 'Jaipur', 'Delhi', 'Kanpur', 'Varanasi']
-  },
-  'Rajput Samaj': {
-    subCommunities: ['Rathore', 'Chauhan', 'Parmar', 'Singh', 'Solanki', 'Sisodia', 'Tomar'],
-    cities: ['Jaipur', 'Udaipur', 'Jodhpur', 'Indore', 'Bhopal', 'Gwalior', 'Kota']
-  },
-  'Verma Samaj': {
-    subCommunities: ['Kayastha Verma', 'Kshatriya Verma', 'Kurmi Verma'],
-    cities: ['Lucknow', 'Kanpur', 'Gorakhpur', 'Agra', 'Delhi', 'Bhopal']
-  }
-};
 
-const COMMUNITY_KEYS = Object.keys(communityData);
+// Shown after the real communities, for people whose community isn't listed yet
+const OTHER_COMMUNITY = { label: 'Other', value: 'other', subCommunities: [] };
+// Value of the "Other (not in this list)" sub-community choice
+const SUB_COMMUNITY_OTHER = '__other_sub__';
+// Value of the "Other (type your city)" choice in the city list
+const CITY_OTHER = '__other_city__';
 
 const INDIAN_STATES = [
   'Madhya Pradesh', 'Rajasthan', 'Maharashtra', 'Gujarat', 'Delhi',
@@ -341,9 +307,35 @@ const CustomSelect = ({ value, onChange, options, placeholder = 'Select', disabl
 };
 
 // ─── VERIFICATION STEP COMPONENT ─────────────────────────────────────────────
+// The official Aadhaar logo is a UIDAI trademark: it is used only once the file is
+// added to frontend/public/images/aadhaar-logo.png (with UIDAI's permission or from
+// the verification provider's brand kit). Until then the generic icon below shows.
+const AADHAAR_LOGO_SRC = '/images/aadhaar-logo.png';
+const AadhaarLogo = () => {
+  const [failed, setFailed] = useState(false);
+  if (!failed) {
+    return <img src={AADHAAR_LOGO_SRC} alt="Aadhaar" className="w-10 h-10 object-contain" onError={() => setFailed(true)} />;
+  }
+  return (
+    <svg width="28" height="28" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="28" cy="22" r="12" fill="#FF8C00" opacity="0.15" />
+      <path d="M28 10 C18 10 10 18 10 28 C10 38 18 46 28 46 C38 46 46 38 46 28 C46 18 38 10 28 10Z" fill="none" stroke="#FF8C00" strokeWidth="2.5" />
+      <path d="M20 28 Q28 18 36 28 Q28 38 20 28Z" fill="#FF8C00" opacity="0.7" />
+      <circle cx="28" cy="28" r="4" fill="#FF8C00" />
+      <line x1="28" y1="42" x2="28" y2="46" stroke="#FF8C00" strokeWidth="2.5" strokeLinecap="round" />
+      <line x1="18" y1="44" x2="22" y2="41" stroke="#FF8C00" strokeWidth="2" strokeLinecap="round" />
+      <line x1="38" y1="44" x2="34" y2="41" stroke="#FF8C00" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+};
+
 const VerificationStep = ({ isFaceVerified, setIsFaceVerified, isAadharVerified, setIsAadharVerified, setToastMessage, auth, setAuth, focusVerification, onVerificationComplete, aadharEnabled = true }) => {
   // Aadhaar states
-  const [aadhaarStage, setAadhaarStage] = useState('idle'); // idle | input | otp | success | failed
+  // idle | input | otp | success | failed. Opened from Home's "Aadhaar Verification"
+  // card, it starts straight at the Aadhaar number form (no extra "Verify" tap).
+  const [aadhaarStage, setAadhaarStage] = useState(() => (
+    focusVerification === 'aadhaar' && !isAadharVerified ? 'input' : 'idle'
+  ));
   const [aadhaarNumber, setAadhaarNumber] = useState(''); // 12 digits, never stored by the server
   const [aadhaarOtp, setAadhaarOtp] = useState(['', '', '', '', '', '']);
   const [aadhaarLoading, setAadhaarLoading] = useState(false);
@@ -600,16 +592,8 @@ const VerificationStep = ({ isFaceVerified, setIsFaceVerified, isAadharVerified,
         {/* Card Header */}
         <div className="p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-[#FFF3E8] flex items-center justify-center shrink-0">
-              <svg width="28" height="28" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="28" cy="22" r="12" fill="#FF8C00" opacity="0.15" />
-                <path d="M28 10 C18 10 10 18 10 28 C10 38 18 46 28 46 C38 46 46 38 46 28 C46 18 38 10 28 10Z" fill="none" stroke="#FF8C00" strokeWidth="2.5" />
-                <path d="M20 28 Q28 18 36 28 Q28 38 20 28Z" fill="#FF8C00" opacity="0.7" />
-                <circle cx="28" cy="28" r="4" fill="#FF8C00" />
-                <line x1="28" y1="42" x2="28" y2="46" stroke="#FF8C00" strokeWidth="2.5" strokeLinecap="round" />
-                <line x1="18" y1="44" x2="22" y2="41" stroke="#FF8C00" strokeWidth="2" strokeLinecap="round" />
-                <line x1="38" y1="44" x2="34" y2="41" stroke="#FF8C00" strokeWidth="2" strokeLinecap="round" />
-              </svg>
+            <div className="w-12 h-12 rounded-2xl bg-[#FFF3E8] flex items-center justify-center shrink-0 overflow-hidden">
+              <AadhaarLogo />
             </div>
             <div>
               <p className="text-sm font-black text-slate-800">Aadhaar Verification</p>
@@ -645,6 +629,12 @@ const VerificationStep = ({ isFaceVerified, setIsFaceVerified, isAadharVerified,
             <div className="bg-[#FFF8F0] rounded-2xl p-3 border border-orange-100">
               <p className="text-[11px] text-orange-700 font-semibold leading-relaxed">
                 Enter your <strong>12-digit Aadhaar number</strong>. UIDAI will send an OTP to the <strong>mobile number linked with your Aadhaar</strong>.
+              </p>
+            </div>
+            <div className="flex items-start gap-2 bg-emerald-50 rounded-2xl p-3 border border-emerald-100">
+              <ShieldCheck size={15} className="text-emerald-600 shrink-0 mt-0.5" />
+              <p className="text-[11px] text-emerald-800 font-semibold leading-relaxed">
+                We use your Aadhaar <strong>only to verify your name</strong>. Other members will see only your verified name.
               </p>
             </div>
             <div>
@@ -787,74 +777,73 @@ const OnboardingScreen = () => {
   // Step 3 Selection
   const [selectedCommunity, setSelectedCommunity] = useState('');
   const [customCommunity, setCustomCommunity] = useState('');
+  // Sub-community typed under "Other" — sent to the admin as a request
+  const [customSubCommunity, setCustomSubCommunity] = useState('');
   const [selectedSubCommunity, setSelectedSubCommunity] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
+  // City not in the list: "Other" was chosen and selectedCity holds what they typed
+  const [cityIsOther, setCityIsOther] = useState(false);
   const [pincode, setPincode] = useState('');
   const [district, setDistrict] = useState('');
   const [stateName, setStateName] = useState('');
   
-  const DEFAULT_COMMUNITIES = [
-    { label: 'Brahmin Samaj', value: 'Brahmin Samaj' },
-    { label: 'Rajput Samaj', value: 'Rajput Samaj' },
-    { label: 'Jain Samaj', value: 'Jain Samaj' },
-    { label: 'Namdev Samaj', value: 'Namdev Samaj' },
-    { label: 'Agrawal Samaj', value: 'Agrawal Samaj' },
-    { label: 'Gupta Samaj', value: 'Gupta Samaj' },
-    { label: 'Mali Samaj', value: 'Mali Samaj' },
-    { label: 'Patel Samaj', value: 'Patel Samaj' },
-    { label: 'Verma Samaj', value: 'Verma Samaj' },
-    { label: 'Other', value: 'other' },
-  ];
-
-  // Dynamic API Data
-  const [apiCommunities, setApiCommunities] = useState(DEFAULT_COMMUNITIES);
+  // Only the real, active communities from the server. (A built-in sample list used to be
+  // mixed in here, so communities the admin had deleted — "Rajput Samaj", "Jain Samaj", …
+  // — kept showing up.) "Other" stays for people whose community isn't listed yet.
+  const [apiCommunities, setApiCommunities] = useState([OTHER_COMMUNITY]);
   const [apiCities, setApiCities] = useState([]);
+  // The listed cities, the member's own city if it isn't listed (e.g. typed earlier), then "Other"
+  const cityOptions = useMemo(() => {
+    const listed = apiCities.some(c => (c.value || c.name || c.label) === selectedCity);
+    return [
+      ...apiCities,
+      ...(selectedCity && !cityIsOther && !listed ? [{ label: selectedCity, value: selectedCity }] : []),
+      { label: 'Other (type your city)', value: CITY_OTHER }
+    ];
+  }, [apiCities, selectedCity, cityIsOther]);
 
   useEffect(() => {
-    const loadCommunities = async () => {
+    let cancelled = false;
+    const loadCommunities = async (attempt = 1) => {
       try {
         const res = await axiosPublic.get('/auth/communities');
-        if (res.data.success && res.data.data.length > 0) {
-          const fetched = res.data.data.map(c => ({
-            label: c.name,
+        if (cancelled) return;
+        const byName = new Map();
+        (res.data?.success && Array.isArray(res.data.data) ? res.data.data : []).forEach(c => {
+          const label = String(c.name || '').trim();
+          if (!label || label.toLowerCase() === 'other') return;
+          byName.set(label.toLowerCase(), {
+            label,
             value: c._id,
             subCommunities: Array.isArray(c.subCommunities) ? c.subCommunities : []
-          }));
-          const mergedMap = new Map();
-          fetched.forEach(item => {
-            if (item.label.toLowerCase() !== 'other') {
-              mergedMap.set(item.label.toLowerCase(), item);
-            }
           });
-          DEFAULT_COMMUNITIES.forEach(item => {
-            if (item.value !== 'other' && !mergedMap.has(item.label.toLowerCase())) {
-              mergedMap.set(item.label.toLowerCase(), item);
-            }
-          });
-          const list = Array.from(mergedMap.values());
-          list.push({ label: 'Other', value: 'other', subCommunities: [] });
-          setApiCommunities(list);
-        } else {
-          setApiCommunities(DEFAULT_COMMUNITIES);
-        }
+        });
+        setApiCommunities([...byName.values(), OTHER_COMMUNITY]);
       } catch (err) {
         console.error('Failed to load public communities:', err);
-        setApiCommunities(DEFAULT_COMMUNITIES);
+        // One quiet retry for a flaky connection; never fall back to made-up names
+        if (!cancelled && attempt < 2) setTimeout(() => loadCommunities(attempt + 1), 2000);
       }
     };
     loadCommunities();
+    return () => { cancelled = true; };
   }, []);
 
   // Compute available sub-communities dynamically for the selected community
+  // The community's real sub-communities only. (A made-up "General" used to fill in
+  // when a community had none.) "Other" lets the member type theirs; the admin then
+  // creates it from the request.
   const availableSubCommunities = useMemo(() => {
-    if (!selectedCommunity) return [];
-    if (selectedCommunity === 'other') return ['General'];
+    if (!selectedCommunity || selectedCommunity === 'other') return [];
     const matched = apiCommunities.find(c => c.value === selectedCommunity || c.label === selectedCommunity);
-    if (matched && Array.isArray(matched.subCommunities) && matched.subCommunities.length > 0) {
-      return matched.subCommunities;
-    }
-    return ['General'];
+    return matched && Array.isArray(matched.subCommunities) ? matched.subCommunities : [];
   }, [selectedCommunity, apiCommunities]);
+  const subCommunityOptions = useMemo(() => (
+    !selectedCommunity || selectedCommunity === 'other'
+      ? []
+      : [...availableSubCommunities, { label: 'Other (not in this list)', value: SUB_COMMUNITY_OTHER }]
+  ), [selectedCommunity, availableSubCommunities]);
+  const isOtherSub = selectedSubCommunity === SUB_COMMUNITY_OTHER;
 
   const DEFAULT_INDIAN_CITIES = [
     { label: 'Indore', value: 'Indore' },
@@ -876,7 +865,7 @@ const OnboardingScreen = () => {
     const loadCities = async () => {
       try {
         // Locations & Local Heads of the chosen sub-community only
-        const subParam = selectedSubCommunity ? `&subCommunity=${encodeURIComponent(selectedSubCommunity)}` : '';
+        const subParam = selectedSubCommunity && selectedSubCommunity !== SUB_COMMUNITY_OTHER ? `&subCommunity=${encodeURIComponent(selectedSubCommunity)}` : '';
         const url = selectedCommunity && selectedCommunity !== 'other'
           ? `/auth/cities?communityId=${selectedCommunity}${subParam}`
           : '/auth/cities';
@@ -1016,6 +1005,10 @@ const OnboardingScreen = () => {
         }
       }
       if (userToLoad.subCommunity) setSelectedSubCommunity(userToLoad.subCommunity);
+      else if (userToLoad.requestedSubCommunity) {
+        setSelectedSubCommunity(SUB_COMMUNITY_OTHER);
+        setCustomSubCommunity(userToLoad.requestedSubCommunity);
+      }
       if (userToLoad.city) setSelectedCity(userToLoad.city);
       if (userToLoad.pincode) setPincode(userToLoad.pincode);
       if (userToLoad.district) setDistrict(userToLoad.district);
@@ -1171,8 +1164,11 @@ const OnboardingScreen = () => {
       } else if (selectedCommunity === 'other' && !customCommunity.trim()) {
         errors.customCommunity = 'Please write your community name.';
       }
-      if (!selectedCity) errors.city = 'Please select your city.';
+      if (!selectedCity.trim()) errors.city = cityIsOther ? 'Please write your city name.' : 'Please select your city.';
       // The member's sub-community was deleted by the admin: they must pick a new one
+      if (isOtherSub && !customSubCommunity.trim()) {
+        errors.subCommunity = 'Please write your sub-community name.';
+      }
       if (auth.user?.mustChooseSubCommunity && availableSubCommunities.length > 0 && !selectedSubCommunity) {
         errors.subCommunity = 'Your sub-community was removed. Please choose your sub-community.';
       }
@@ -1240,9 +1236,12 @@ const OnboardingScreen = () => {
       name: String(name || auth.user?.name || ''),
       phone: String(phone || auth.user?.phone || ''),
       email: String(email || auth.user?.email || ''),
-      community: communityName || auth.user?.community || 'Jain Samaj',
-      communityId: String(communityIdVal || auth.user?.communityId || 'Jain Samaj'),
-      subCommunity: String(selectedSubCommunity || ''),
+      // No made-up fallback community: an unknown typed name becomes a request the
+      // admin handles, and the server's reply below sets the real community (or none)
+      community: communityName || auth.user?.community || '',
+      communityId: String(communityIdVal || auth.user?.communityId || ''),
+      subCommunity: isOtherSub ? '' : String(selectedSubCommunity || ''),
+      requestedSubCommunity: isOtherSub ? customSubCommunity.trim() : '',
       city: String(selectedCity || ''),
       district: String(district || ''),
       state: String(stateName || ''),
@@ -1292,6 +1291,7 @@ const OnboardingScreen = () => {
       formData.append('community', completeUserObj.community);
       formData.append('communityId', completeUserObj.communityId);
       formData.append('subCommunity', completeUserObj.subCommunity);
+      formData.append('requestedSubCommunity', completeUserObj.requestedSubCommunity);
       formData.append('city', completeUserObj.city);
       formData.append('district', completeUserObj.district);
       formData.append('state', completeUserObj.state);
@@ -1549,7 +1549,7 @@ const OnboardingScreen = () => {
                       setSelectedCommunity(val); 
                       if (val !== 'other') setCustomCommunity('');
                       setSelectedSubCommunity(''); 
-                      setSelectedCity(''); 
+                      setSelectedCity(''); setCityIsOther(false); 
                       setStepErrors(prev => ({ ...prev, community: '', customCommunity: '' })); 
                     }}
                     options={apiCommunities}
@@ -1596,37 +1596,65 @@ const OnboardingScreen = () => {
                     </label>
                     {availableSubCommunities.length > 0 && (
                       <span className="text-xs font-bold text-[#6D28D9]">
-                        {availableSubCommunities.length} Options
+                        {availableSubCommunities.length} {availableSubCommunities.length === 1 ? 'Option' : 'Options'}
                       </span>
                     )}
                   </div>
                   <CustomSelect
                     value={selectedSubCommunity}
-                    onChange={setSelectedSubCommunity}
-                    options={availableSubCommunities}
-                    placeholder="Select sub-community"
-                    disabled={!selectedCommunity || (selectedCommunity === 'other' && !customCommunity.trim())}
+                    onChange={(val) => { setSelectedSubCommunity(val); if (val !== SUB_COMMUNITY_OTHER) setCustomSubCommunity(''); setStepErrors(prev => ({ ...prev, subCommunity: '' })); }}
+                    options={subCommunityOptions}
+                    placeholder={availableSubCommunities.length ? 'Select sub-community' : 'No sub-communities yet — choose Other'}
+                    disabled={!selectedCommunity || selectedCommunity === 'other'}
                     searchable
                   />
                   {stepErrors.subCommunity && <p role="alert" className="text-[10px] text-red-500 font-bold mt-1 ml-1">{stepErrors.subCommunity}</p>}
-                  {availableSubCommunities.length > 0 && availableSubCommunities[0] !== 'General' && (
-                    <p className="text-[10px] text-slate-400 font-semibold mt-1">
-                      Choose from registered sub-communities for this Samaj.
-                    </p>
+                  {isOtherSub && (
+                    <input
+                      type="text"
+                      value={customSubCommunity}
+                      onChange={(e) => { setCustomSubCommunity(e.target.value.slice(0, 80)); setStepErrors(prev => ({ ...prev, subCommunity: '' })); }}
+                      placeholder="Write your sub-community name"
+                      className="w-full mt-2 bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-base sm:text-sm font-bold text-slate-800 outline-none focus:border-[#7C3AED]"
+                    />
                   )}
+                  <p className="text-[10px] text-slate-400 font-semibold mt-1">
+                    {selectedCommunity === 'other'
+                      ? 'You can add your sub-community once your community is created.'
+                      : isOtherSub
+                        ? 'We will send this to the admin. You join the community now, and the sub-community is added once the admin creates it.'
+                        : 'Not in the list? Choose "Other" and write its name.'}
+                  </p>
                 </div>
                 <div>
                   <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
                     SELECT CITY (COMMUNITY LOCAL HEAD GROUP)
                   </label>
                   <CustomSelect
-                    value={selectedCity}
-                    onChange={(val) => { setSelectedCity(val); setStepErrors(prev => ({ ...prev, city: '' })); }}
-                    options={apiCities}
+                    value={cityIsOther ? CITY_OTHER : selectedCity}
+                    onChange={(val) => {
+                      if (val === CITY_OTHER) { setCityIsOther(true); setSelectedCity(''); }
+                      else { setCityIsOther(false); setSelectedCity(val); }
+                      setStepErrors(prev => ({ ...prev, city: '' }));
+                    }}
+                    options={cityOptions}
                     placeholder="Select city"
                     disabled={!selectedCommunity || (selectedCommunity === 'other' && !customCommunity.trim())}
                     searchable
                   />
+                  {cityIsOther && (
+                    <input
+                      type="text"
+                      autoFocus
+                      value={selectedCity}
+                      onChange={(e) => { setSelectedCity(e.target.value.slice(0, 60)); setStepErrors(prev => ({ ...prev, city: '' })); }}
+                      placeholder="Write your city or village name"
+                      className="w-full mt-2 bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-base sm:text-sm font-bold text-slate-800 outline-none focus:border-[#7C3AED]"
+                    />
+                  )}
+                  {!cityIsOther && !stepErrors.city && (
+                    <p className="text-[10px] text-slate-400 font-semibold mt-1">Your city is not in the list? Choose "Other" and write it.</p>
+                  )}
                   {stepErrors.city && <p role="alert" className="text-[10px] text-red-500 font-semibold mt-1">{stepErrors.city}</p>}
 
                   {/* Visual Status Card for Selected City — shows the Local Head (or Community Head) who will approve this request */}

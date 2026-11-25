@@ -66,6 +66,12 @@ const subscriptionPlanSchema = new mongoose.Schema(
       viewOtherSubCommunityProfile: { type: Boolean, default: false }, // Open a single profile from another sub-community
       viewAllSubCommunityProfiles:  { type: Boolean, default: false }, // Feed & search list every sub-community
       superInterestsPerMonth: { type: Number, default: 0 },    // Highlighted interests; -1 = unlimited
+      // Whether each limit above resets every day or every month (admin's choice per plan).
+      // The field names above keep their old wording ("PerDay", "PerMonth") for compatibility.
+      profileViewsPeriod:     { type: String, enum: ['day', 'month'], default: 'day' },
+      interestPeriod:         { type: String, enum: ['day', 'month'], default: 'month' },
+      messagePeriod:          { type: String, enum: ['day', 'month'], default: 'month' },
+      superInterestPeriod:    { type: String, enum: ['day', 'month'], default: 'month' },
       viewProfilePhotos:      { type: Boolean, default: true }  // Clear photos of public profiles (private stay blurred until accepted)
     },
 

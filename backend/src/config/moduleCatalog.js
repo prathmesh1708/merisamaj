@@ -145,6 +145,22 @@ const MODULE_CATALOG = [
     headPermissionKeys: ['canViewHomeContent', 'canManageHomeContent'],
     headPaths: ['/head/home-content'],
     apiMounts: ['/app-content']
+  },
+  // These two used to be always on, so the admin could not switch them off.
+  {
+    key: 'communitySettings', label: 'Community Settings', category: 'Platform',
+    description: 'Community settings page: details, bank account and preferences',
+    headPermissionKeys: [],
+    headPaths: ['/head/settings'],
+    // Only the settings page's own calls; other screens read /dashboard/community/details
+    apiMounts: ['/dashboard/community/settings', '/dashboard/community/account-details']
+  },
+  {
+    key: 'modulePermissions', label: 'Module Permissions', category: 'Platform',
+    description: 'Give or take modules from the Local Heads / Sub-Heads below them',
+    headPermissionKeys: [],
+    headPaths: ['/head/module-permissions'],
+    apiMounts: [] // guarded in routes/modulePermissionRoutes.js (lives outside /head)
   }
 ];
 

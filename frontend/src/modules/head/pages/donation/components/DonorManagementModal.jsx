@@ -101,7 +101,8 @@ const DonorManagementModal = ({ isOpen, onClose, campaignId }) => {
                 <p className="text-gray-500 mt-1">There are no donations matching your criteria yet.</p>
               </div>
             ) : (
-              <table className="w-full text-left border-collapse">
+              <div className="overflow-x-auto">
+              <table className="w-full min-w-[560px] text-left border-collapse">
                 <thead className="sticky top-0 bg-gray-50 border-b border-gray-100 z-10">
                   <tr>
                     <th className="px-6 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Donor</th>
@@ -135,6 +136,7 @@ const DonorManagementModal = ({ isOpen, onClose, campaignId }) => {
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
         </motion.div>

@@ -38,8 +38,8 @@ export const MemberRecognition = () => {
       {!recognitionData?.length ? (
         <EmptyState icon={Award} title="No Badges Awarded" message="Start recognizing your community members' efforts!" />
       ) : (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <table className="w-full text-left border-collapse">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto">
+          <table className="w-full min-w-[520px] text-left border-collapse">
             <thead>
               <tr className="bg-gray-50/50 border-b border-gray-100 text-[12px] uppercase tracking-wider text-gray-500 font-bold">
                 <th className="p-4">Member Name</th>

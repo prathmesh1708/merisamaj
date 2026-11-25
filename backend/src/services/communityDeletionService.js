@@ -128,9 +128,13 @@ const deleteSubCommunityData = async (communityId, subName) => {
   const cid = new mongoose.Types.ObjectId(String(communityId));
   const subMatch = new RegExp(`^\\s*${escapeRe(String(subName).trim())}\\s*$`, 'i');
 
+  // Ask members to pick again only if there is still something to pick (with no
+  // sub-communities left they would be sent to onboarding with nothing to choose)
+  const community = await model('Community').findById(cid).select('subCommunities.isActive').lean();
+  const subsLeft = (community?.subCommunities || []).some(s => s.isActive !== false);
   const members = await User.updateMany(
     { communityId: cid, role: 'user', subCommunity: subMatch },
-    { $set: { subCommunity: '', mustChooseSubCommunity: true }, $inc: { sessionVersion: 1 } }
+    { $set: { subCommunity: '', mustChooseSubCommunity: subsLeft }, $inc: { sessionVersion: 1 } }
   );
   const staff = await User.updateMany(
     { $or: [{ communityId: cid }, { assignedCommunityIds: cid }], role: { $in: STAFF_ROLES }, subCommunity: subMatch },

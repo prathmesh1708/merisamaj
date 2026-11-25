@@ -1,9 +1,17 @@
 const { withAppDefaults, withMatrimonialDefaults } = require('./planFeatureDefaults');
 
+// Limits whose reset period the admin chooses per plan: [limit key, period key, name]
+const PERIOD_LIMITS = {
+  profileViewsPerDay: ['profileViewsPeriod', 'Profile views'],
+  interestLimit: ['interestPeriod', 'Interests'],
+  messageLimit: ['messagePeriod', 'Messages'],
+  superInterestsPerMonth: ['superInterestPeriod', 'Super interests']
+};
+
 const MATRIMONIAL_FEATURES = [
   ['profileViewsPerDay', 'Profile views per day', 'limit'],
   ['interestLimit', 'Interests per month', 'limit'],
-  ['messageLimit', 'Messages', 'limit'],
+  ['messageLimit', 'Messages per month', 'limit'],
   ['superInterestsPerMonth', 'Super interests per month', 'limit'],
   ['profileBoosts', 'Profile boosts per month', 'limit'],
   ['chat', 'Chat access', 'boolean'],
@@ -45,7 +53,11 @@ const buildPlanFeatures = (plan) => {
     ? withAppDefaults(plan.appFeatures || {})
     : withMatrimonialDefaults(plan.features || {}, { paid: Number(plan.price) > 0 });
   if (isApp) source.proBadge = source.proBadge !== false;
-  const rows = (isApp ? APP_FEATURES : MATRIMONIAL_FEATURES).map(([key, label, type]) => {
+  const rows = (isApp ? APP_FEATURES : MATRIMONIAL_FEATURES).map(([key, baseLabel, type]) => {
+    // "Profile views per day" / "… per month" follows the period chosen on this plan
+    const label = !isApp && PERIOD_LIMITS[key]
+      ? `${PERIOD_LIMITS[key][1]} per ${source[PERIOD_LIMITS[key][0]] === 'day' ? 'day' : 'month'}`
+      : baseLabel;
     const value = source[key];
     const numericValue = Number(value ?? 0);
     const included = type === 'boolean' ? value === true : Number.isFinite(numericValue) && numericValue !== 0;

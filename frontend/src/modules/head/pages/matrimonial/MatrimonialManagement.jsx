@@ -212,20 +212,21 @@ const ProfileDrawer = ({ profile, onClose, onVerify, onReject, loading }) => {
         </div>
 
         {/* Actions Footer */}
-        <div className="p-4 border-t border-slate-200 bg-white flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2.5">
+        <div className="px-3 sm:px-4 pt-3 sm:pt-4 border-t border-slate-200 bg-white flex items-center gap-2 shrink-0"
+          style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 12px)' }}>
+          <div className="flex flex-1 min-w-0 items-center gap-2 sm:gap-2.5">
             <button onClick={() => onVerify(p._id)} disabled={loading || p.verificationStatus === 'verified'}
-              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm">
-              {loading ? <Loader2 size={13} className="animate-spin" /> : <ShieldCheck size={14} />}
-              Approve & Verify Profile
+              className="flex-1 sm:flex-none min-w-0 px-3 sm:px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl text-[11px] sm:text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-sm">
+              {loading ? <Loader2 size={13} className="animate-spin shrink-0" /> : <ShieldCheck size={14} className="shrink-0" />}
+              <span className="truncate"><span className="sm:hidden">Approve</span><span className="hidden sm:inline">Approve & Verify Profile</span></span>
             </button>
             <button onClick={() => onReject(p._id, 'rejected')} disabled={loading}
-              className="px-4 py-2.5 bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer">
-              Reject / Request Fix
+              className="flex-1 sm:flex-none min-w-0 px-3 sm:px-4 py-2.5 bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-700 rounded-xl text-[11px] sm:text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer truncate">
+              <span className="sm:hidden">Reject</span><span className="hidden sm:inline">Reject / Request Fix</span>
             </button>
           </div>
-          <button onClick={() => onReject(p._id, 'hidden')}
-            className="p-2.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl transition-colors border border-rose-200 cursor-pointer" title="Hide Profile from Public Search">
+          <button onClick={() => onReject(p._id, 'hidden')} aria-label="Hide profile from public search"
+            className="shrink-0 p-2.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl transition-colors border border-rose-200 cursor-pointer" title="Hide Profile from Public Search">
             <Trash2 size={16} />
           </button>
         </div>

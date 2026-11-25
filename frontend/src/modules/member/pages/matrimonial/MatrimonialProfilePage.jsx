@@ -18,6 +18,7 @@ import {
 import MatchScoreBadge from './components/MatchScoreBadge';
 import MarriageSuccessScreen from './components/MarriageSuccessScreen';
 import { disabilityLabel } from './disabilityOptions';
+import { publicAppUrl } from '../../../../core/utils/publicUrl';
 
 // ─── Info Row ──────────────────────────────────────────────────────────────────
 const InfoRow = ({ label, value, icon: Icon }) => (
@@ -228,6 +229,29 @@ View plans?`)) navigate('/member/matrimonial/subscription');
     showToast(isShortlisted ? 'Removed from shortlist' : 'Shortlisted ⭐');
   };
 
+  // Share a link to this profile (phone share sheet, else copy the link). The text has
+  // no name or photo: whoever opens the link must log in, and the profile's privacy and
+  // visibility rules still decide what they can see.
+  const handleShareProfile = async () => {
+    setIsMenuOpen(false);
+    const url = `${publicAppUrl()}/member/matrimonial/${profileId}`; // route: matrimonial/:profileId
+    const text = 'Have a look at this matrimonial profile on ApniSamaj';
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: 'ApniSamaj Matrimony', text, url });
+        return;
+      }
+    } catch (err) {
+      if (err?.name === 'AbortError') return; // the member closed the share sheet
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast('Profile link copied 🔗');
+    } catch {
+      window.prompt('Copy this profile link:', url);
+    }
+  };
+
   const handleBlock = async () => {
     const res = isBlocked
       ? await matriCtx.unblockUser(targetId)
@@ -255,7 +279,7 @@ View plans?`)) navigate('/member/matrimonial/subscription');
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-28">
+    <div className="min-h-screen bg-slate-50 pb-28 w-full max-w-full overflow-x-hidden">
 
       {/* ─── MARRIAGE SUCCESS SCREEN ─── */}
       {showMarriageSuccess && (
@@ -268,7 +292,8 @@ View plans?`)) navigate('/member/matrimonial/subscription');
       {/* ─── PHOTO GALLERY ─── */}
       <div className="relative bg-zinc-900">
         {/* Sticky Overlay Header */}
-        <div className="absolute top-0 left-0 right-0 z-30 flex items-center justify-between px-4 pt-4">
+        <div className="absolute top-0 left-0 right-0 z-30 flex items-center justify-between px-3 sm:px-4"
+          style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 12px)' }}>
           <button onClick={() => navigate(-1)}
             className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white active:scale-90">
             <ArrowLeft size={20} />
@@ -286,16 +311,16 @@ View plans?`)) navigate('/member/matrimonial/subscription');
         </div>
 
         {/* Photo */}
-        <div className="relative aspect-[3/4] max-h-[480px] overflow-hidden">
+        <div className="relative w-full aspect-[3/4] max-h-[min(480px,72dvh)] overflow-hidden">
           {displayPhotos.length > 0 && isPhotoVisible ? (
             <img
               src={displayPhotos[activePhotoIndex]?.url}
               alt={name || 'Matrimonial profile'}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover object-[center_20%]"
             />
           ) : primaryPhoto && !isPhotoVisible ? (
             <>
-              <img src={primaryPhoto.url} alt={name || 'Matrimonial profile'} className="w-full h-full object-cover" />
+              <img src={primaryPhoto.url} alt={name || 'Matrimonial profile'} className="w-full h-full object-cover object-[center_20%]" />
               {/* Blurred only because the viewer's plan has no photo access */}
               {profile.photoLockedByPlan && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/25 text-white text-center px-6 z-10">
@@ -319,31 +344,30 @@ View plans?`)) navigate('/member/matrimonial/subscription');
             <>
               {activePhotoIndex > 0 && (
                 <button onClick={() => setActivePhotoIndex(p => p - 1)}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-12 bg-black/40 rounded-r-xl flex items-center justify-center text-white z-20">
+                  aria-label="Previous photo" className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 bg-black/35 backdrop-blur-sm rounded-full flex items-center justify-center text-white z-20 active:scale-90">
                   <ChevronLeft size={20} />
                 </button>
               )}
               {activePhotoIndex < displayPhotos.length - 1 && (
                 <button onClick={() => setActivePhotoIndex(p => p + 1)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-12 bg-black/40 rounded-l-xl flex items-center justify-center text-white z-20">
+                  aria-label="Next photo" className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 bg-black/35 backdrop-blur-sm rounded-full flex items-center justify-center text-white z-20 active:scale-90">
                   <ChevronRight size={20} />
                 </button>
               )}
             </>
           )}
 
-          {/* Dots */}
-          {displayPhotos.length > 1 && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 flex gap-1.5 z-20">
-              {displayPhotos.map((_, i) => (
-                <div key={i} className={`h-1 rounded-full transition-all ${i === activePhotoIndex ? 'w-6 bg-white' : 'w-1.5 bg-white/40'}`} />
-              ))}
-            </div>
-          )}
-
           {/* Bottom gradient */}
-          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent pt-20 pb-5 px-5 z-20">
-            <div className="flex items-center gap-2 mb-2">
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent pt-16 sm:pt-20 pb-4 sm:pb-5 px-4 sm:px-5 z-20 min-w-0">
+            {/* Photo dots — down here so they never sit under the top buttons */}
+            {displayPhotos.length > 1 && (
+              <div className="flex justify-center gap-1.5 mb-3">
+                {displayPhotos.map((_, i) => (
+                  <div key={i} className={`h-1 rounded-full transition-all ${i === activePhotoIndex ? 'w-6 bg-white' : 'w-1.5 bg-white/50'}`} />
+                ))}
+              </div>
+            )}
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-2">
               {profile.subscription?.isActive && (
                 <span className="inline-flex items-center gap-1 bg-amber-500 text-white text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase">
                   <Crown size={9} /> Premium
@@ -360,8 +384,8 @@ View plans?`)) navigate('/member/matrimonial/subscription');
                 </span>
               )}
             </div>
-            <h1 className="text-white text-[22px] font-black leading-tight">{name ? `${name}${age ? `, ${age}` : ''}` : (age ? `${age} yrs` : '')}</h1>
-            <p className="text-white/80 text-[12.5px] font-bold mt-1">
+            <h1 className="text-white text-[20px] sm:text-[22px] font-black leading-tight break-words">{name ? `${name}${age ? `, ${age}` : ''}` : (age ? `${age} yrs` : '')}</h1>
+            <p className="text-white/80 text-[12.5px] font-bold mt-1 break-words">
               {[profile.education?.profession, profile.personal?.community].filter(Boolean).join(' · ')}
             </p>
             {location && (
@@ -399,7 +423,7 @@ View plans?`)) navigate('/member/matrimonial/subscription');
         {/* About */}
         {profile.about?.biography && (
           <SectionCard title="About" icon={Sparkles}>
-            <p className="text-[13px] text-slate-700 leading-relaxed font-semibold">"{profile.about.biography}"</p>
+            <p className="text-[13px] text-slate-700 leading-relaxed font-semibold break-words [overflow-wrap:anywhere]">"{profile.about.biography}"</p>
             {profile.lifestyle?.hobbies?.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {profile.lifestyle.hobbies.map((h, i) => (
@@ -506,14 +530,14 @@ View plans?`)) navigate('/member/matrimonial/subscription');
       {/* ─── FIXED BOTTOM ACTION BAR ─── */}
       <div className="fixed bottom-0 inset-x-0 bg-white border-t border-slate-100 p-3 z-40 shadow-lg"
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 12px)' }}>
-        <div className="flex items-center gap-2.5">
-          <button onClick={() => navigate(-1)}
-            className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 active:scale-90">
+        <div className="flex items-center gap-2 min-[380px]:gap-2.5 w-full max-w-full min-w-0">
+          <button onClick={() => navigate(-1)} aria-label="Close"
+            className={`${isConnected ? 'hidden min-[400px]:flex' : 'flex'} w-11 h-11 min-[380px]:w-12 min-[380px]:h-12 shrink-0 rounded-xl bg-slate-100 items-center justify-center text-slate-500 active:scale-90`}>
             <X size={22} />
           </button>
 
           <button onClick={handleToggleShortlist}
-            className={`w-12 h-12 rounded-xl flex items-center justify-center active:scale-90 transition-all ${
+            className={`w-11 h-11 min-[380px]:w-12 min-[380px]:h-12 shrink-0 rounded-xl flex items-center justify-center active:scale-90 transition-all ${
               isShortlisted ? 'bg-amber-100 text-amber-500 border border-amber-200' : 'bg-amber-50 text-amber-400 border border-amber-100'
             }`}>
             <Star size={21} fill={isShortlisted ? 'currentColor' : 'none'} />
@@ -522,13 +546,13 @@ View plans?`)) navigate('/member/matrimonial/subscription');
           {/* Super Interest — new, or upgrading a pending interest */}
           {!isConnected && !isSuperSent && !profile.isClosed && (
             <button onClick={handleSuperInterest} disabled={actionLoading} aria-label="Send Super Interest" title="Send Super Interest"
-              className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center shadow-md shadow-amber-500/25 active:scale-90 disabled:opacity-60">
+              className="w-11 h-11 min-[380px]:w-12 min-[380px]:h-12 shrink-0 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center shadow-md shadow-amber-500/25 active:scale-90 disabled:opacity-60">
               <Sparkles size={21} />
             </button>
           )}
 
           <button onClick={handleInterest} disabled={actionLoading}
-            className={`flex-1 py-3.5 rounded-xl text-[14px] font-extrabold flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all disabled:opacity-60 ${
+            className={`flex-1 min-w-0 px-2 py-3 min-[380px]:py-3.5 rounded-xl text-[13px] min-[380px]:text-[14px] font-extrabold flex items-center justify-center gap-1.5 whitespace-nowrap overflow-hidden shadow-sm active:scale-95 transition-all disabled:opacity-60 ${
               isConnected
                 ? 'bg-emerald-500 text-white shadow-emerald-200'
                 : isInterestSent
@@ -547,7 +571,7 @@ View plans?`)) navigate('/member/matrimonial/subscription');
 
           {isConnected && (
             <a href={`tel:${profile.userId?.phone}`}
-              className="w-12 h-12 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-500 active:scale-90">
+              className="w-11 h-11 min-[380px]:w-12 min-[380px]:h-12 shrink-0 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-500 active:scale-90">
               <Phone size={21} />
             </a>
           )}
@@ -557,7 +581,7 @@ View plans?`)) navigate('/member/matrimonial/subscription');
             <button
               id="mark-as-married-btn"
               onClick={() => setMarriageModal(true)}
-              className="w-12 h-12 rounded-xl bg-pink-50 border border-pink-200 flex items-center justify-center active:scale-90 shrink-0"
+              className="w-11 h-11 min-[380px]:w-12 min-[380px]:h-12 shrink-0 rounded-xl bg-pink-50 border border-pink-200 flex items-center justify-center active:scale-90"
               title="Mark as Married"
             >
               <span style={{ fontSize: '20px', lineHeight: 1 }} role="img" aria-label="ring">💍</span>
@@ -579,7 +603,8 @@ View plans?`)) navigate('/member/matrimonial/subscription');
                 {isShortlisted ? <BookmarkCheck size={15} /> : <Bookmark size={15} />}
                 {isShortlisted ? 'Remove from Shortlist' : 'Shortlist Profile'}
               </button>
-              <button className="w-full py-3 bg-slate-50 text-slate-700 rounded-xl text-[13px] font-bold flex items-center justify-center gap-2">
+              <button onClick={handleShareProfile}
+                className="w-full py-3 bg-slate-50 text-slate-700 rounded-xl text-[13px] font-bold flex items-center justify-center gap-2">
                 <Share2 size={15} /> Share Profile
               </button>
               <button onClick={handleBlock}

@@ -95,6 +95,10 @@ export const MySubscriptionPanel = ({ refreshKey = 0 }) => {
   const { current, limits = {}, usage = {}, history = [], totalSpent = 0 } = data || {};
   const daysPct = current ? Math.min(100, Math.round((current.daysUsed / current.totalDays) * 100)) : 0;
   const monthlyReset = `resets ${fmtDate(usage.monthlyResetAt)}`;
+  // Each limit resets daily or monthly, as the member's plan says
+  const periods = usage.periods || { profileViews: 'day', interests: 'month', messages: 'month', superInterests: 'month' };
+  const when = (key) => (periods[key] === 'day' ? 'today' : 'this month');
+  const resetOf = (key) => (periods[key] === 'day' ? 'resets at midnight' : monthlyReset);
 
   return (
     <div className="space-y-4">
@@ -147,32 +151,32 @@ export const MySubscriptionPanel = ({ refreshKey = 0 }) => {
         <div className="space-y-2.5">
           <UsageMeter
             icon={Eye}
-            label="Profiles viewed today"
+            label={`Profiles viewed ${when('profileViews')}`}
             used={usage.profileViewsToday || 0}
             limit={limits.profileViewsPerDay}
-            resetText="resets at midnight"
+            resetText={resetOf('profileViews')}
           />
           <UsageMeter
             icon={Heart}
-            label="Interests sent this month"
+            label={`Interests sent ${when('interests')}`}
             used={usage.interestsThisMonth || 0}
             limit={limits.interestLimit}
-            resetText={monthlyReset}
+            resetText={resetOf('interests')}
           />
           <UsageMeter
             icon={MessageCircle}
-            label="Messages sent this month"
+            label={`Messages sent ${when('messages')}`}
             used={usage.messagesThisMonth || 0}
             limit={limits.messageLimit}
-            resetText={monthlyReset}
+            resetText={resetOf('messages')}
           />
           {Number(limits.superInterestsPerMonth) !== 0 && limits.superInterestsPerMonth !== undefined && (
             <UsageMeter
               icon={Sparkles}
-              label="Super Interests this month"
+              label={`Super Interests ${when('superInterests')}`}
               used={usage.superInterestsThisMonth || 0}
               limit={limits.superInterestsPerMonth}
-              resetText={monthlyReset}
+              resetText={resetOf('superInterests')}
             />
           )}
         </div>

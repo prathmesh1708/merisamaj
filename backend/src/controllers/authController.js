@@ -98,6 +98,8 @@ const getUserResponsePayload = (user) => {
     communityCity: user.communityId?.city || '',
     subCommunity: user.subCommunity,
     mustChooseSubCommunity: !!user.mustChooseSubCommunity,
+    requestedCommunity: user.requestedCommunity || '',
+    requestedSubCommunity: user.requestedSubCommunity || '',
     city: user.city,
     district: user.district,
     state: user.state,
@@ -699,52 +701,97 @@ const updateProfile = async (req, res) => {
       const Community = require('../models/Community');
       const mongoose = require('mongoose');
 
+      const CommunityRequest = require('../models/CommunityRequest');
+      const leavePendingRequests = (kind = 'community') => CommunityRequest.updateMany(
+        { status: 'pending', ...(kind === 'community' ? { kind: { $ne: 'subCommunity' } } : { kind }), 'requesters.userId': user._id },
+        { $pull: { requesters: { userId: user._id } } }
+      ).catch(() => {});
+
       if (req.body.communityId && mongoose.isValidObjectId(req.body.communityId)) {
         const targetComm = await Community.findById(req.body.communityId);
         if (targetComm && targetComm.isActive) {
           user.communityId = targetComm._id;
           user.community = targetComm.name;
+          if (user.requestedCommunity) { user.requestedCommunity = ''; await leavePendingRequests(); }
         }
       } else if (req.body.community || (req.body.communityId && typeof req.body.communityId === 'string')) {
-        const rawCommName = (req.body.community || req.body.communityId).toString().trim();
+        const rawCommName = (req.body.community || req.body.communityId).toString().trim().replace(/\s+/g, ' ').slice(0, 80);
         if (rawCommName && rawCommName.toLowerCase() !== 'other') {
-          const targetName = rawCommName.replace(/samaj/gi, '').trim();
-          let commDoc = await Community.findOne({
-            $or: [
-              { name: { $regex: new RegExp(`^${rawCommName}$`, 'i') } },
-              ...(targetName ? [{ name: { $regex: new RegExp(`^${targetName}`, 'i') } }] : [])
-            ]
-          });
-
-          if (!commDoc) {
-            try {
-              let baseSlug = rawCommName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-              if (!baseSlug) baseSlug = `comm-${Date.now()}`;
-              const existingSlug = await Community.findOne({ slug: baseSlug });
-              if (existingSlug) {
-                baseSlug = `${baseSlug}-${Date.now().toString().slice(-4)}`;
-              }
-              commDoc = await Community.create({
-                name: rawCommName,
-                slug: baseSlug,
-                isActive: true
-              });
-            } catch (err) {
-              console.warn('Auto-create community warning:', err);
-            }
-          }
+          // A typed name ("Other"): use an existing active community with that name
+          // ("Rajput" = "Rajput Samaj"). Members never create communities: an unknown
+          // name becomes a request the admin sees in Admin → Communities.
+          const key = CommunityRequest.keyOf(rawCommName);
+          const escapeRe = (v) => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const commDoc = key ? await Community.findOne({
+            isActive: true,
+            // "samaj" may appear anywhere in the stored name ("Agrawal Samaj Indore")
+            name: new RegExp(`^\\s*${escapeRe(key).replace(/ /g, '\\s+(?:(?:samaj|समाज)\\s+)?')}(\\s+(samaj|समाज))?\\s*$`, 'iu')
+          }) : null;
 
           if (commDoc) {
             user.communityId = commDoc._id;
             user.community = commDoc.name;
-          } else {
-            user.community = rawCommName;
+            if (user.requestedCommunity) { user.requestedCommunity = ''; await leavePendingRequests(); }
+          } else if (key) {
+            await leavePendingRequests(); // a member waits for one community at a time
+            const request = await CommunityRequest.findOneAndUpdate(
+              { kind: 'community', parentCommunityId: null, nameKey: key },
+              { $setOnInsert: { kind: 'community', parentCommunityId: null, name: rawCommName, nameKey: key } },
+              { upsert: true, new: true, setDefaultsOnInsert: true }
+            );
+            if (request.status !== 'pending') {
+              // Asked for again after it was dismissed / handled: open it again
+              request.status = 'pending'; request.resolvedAt = null; request.resolvedBy = null; request.note = '';
+            }
+            request.requesters.push({
+              userId: user._id, typedName: rawCommName,
+              city: req.body.city || user.city || '', state: req.body.state || user.state || ''
+            });
+            await request.save();
+            user.communityId = null;
+            user.community = '';
+            user.requestedCommunity = rawCommName;
           }
         }
       }
       user.subCommunity = req.body.subCommunity !== undefined ? req.body.subCommunity : user.subCommunity;
-      // A member asked to re-pick (their sub-community was deleted) is done once they choose one
-      if (user.mustChooseSubCommunity && String(user.subCommunity || '').trim()) user.mustChooseSubCommunity = false;
+
+      // Sub-community typed under "Other": use an existing one with that name, else it
+      // becomes a request the admin sees (members never create sub-communities).
+      const typedSub = String(req.body.requestedSubCommunity || '').trim().replace(/\s+/g, ' ').slice(0, 80);
+      if (String(user.subCommunity || '').trim()) {
+        if (user.requestedSubCommunity) { user.requestedSubCommunity = ''; await leavePendingRequests('subCommunity'); }
+      } else if (typedSub && user.communityId) {
+        const parentId = user.communityId._id || user.communityId;
+        const parent = await Community.findById(parentId).select('subCommunities.name subCommunities.isActive').lean();
+        const subKey = CommunityRequest.keyOf(typedSub);
+        const existingSub = (parent?.subCommunities || []).find(s => s.isActive !== false && CommunityRequest.keyOf(s.name) === subKey);
+        await leavePendingRequests('subCommunity');
+        if (existingSub) {
+          user.subCommunity = existingSub.name;
+          user.requestedSubCommunity = '';
+        } else if (subKey) {
+          const subRequest = await CommunityRequest.findOneAndUpdate(
+            { kind: 'subCommunity', parentCommunityId: parentId, nameKey: subKey },
+            { $setOnInsert: { kind: 'subCommunity', parentCommunityId: parentId, name: typedSub, nameKey: subKey } },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+          );
+          if (subRequest.status !== 'pending') {
+            subRequest.status = 'pending'; subRequest.resolvedAt = null; subRequest.resolvedBy = null; subRequest.note = '';
+          }
+          subRequest.requesters.push({
+            userId: user._id, typedName: typedSub,
+            city: req.body.city || user.city || '', state: req.body.state || user.state || ''
+          });
+          await subRequest.save();
+          user.subCommunity = '';
+          user.requestedSubCommunity = typedSub;
+        }
+      }
+
+      // A member asked to re-pick (their sub-community was deleted) is done once they
+      // choose one, or ask for a new one
+      if (user.mustChooseSubCommunity && (String(user.subCommunity || '').trim() || user.requestedSubCommunity)) user.mustChooseSubCommunity = false;
       
       // Location
       user.city = req.body.city || user.city;

@@ -38,7 +38,7 @@ const legalAgeProblem = async (profile, userId) => {
   if (age === null) return null;
   const min = minMarriageAge(profile.personal?.gender);
   return age < min
-    ? `You must be at least ${min} to create a matrimonial profile, as Indian law requires.`
+    ? `Your date of birth makes you ${age}. A matrimonial profile needs age ${min} or more (${min === 21 ? 'men' : 'women'}, as Indian law requires). If the date of birth is wrong, correct it and save again.`
     : null;
 };
 
@@ -329,18 +329,20 @@ exports.getUserProfile = async (req, res) => {
     // ─── Daily profile-view limit from the viewer's plan (-1 = unlimited) ──────
     // Re-opening a profile already viewed today does not use up another view.
     if (!profileOwnerUserId.equals(viewerId)) {
+      // The plan decides whether this limit resets every day or every month
       const viewLimit = features.profileViewsPerDay;
       if (typeof viewLimit === 'number' && viewLimit !== -1) {
-        const dayStart = new Date();
-        dayStart.setHours(0, 0, 0, 0);
-        const seenToday = await ProfileVisitor.exists({ visitorId: viewerId, profileId: profile._id, lastVisited: { $gte: dayStart } });
+        const { periodStart } = require('../../services/matrimonialUsageService');
+        const viewPeriod = features.profileViewsPeriod === 'month' ? 'month' : 'day';
+        const windowStart = periodStart(viewPeriod);
+        const seenToday = await ProfileVisitor.exists({ visitorId: viewerId, profileId: profile._id, lastVisited: { $gte: windowStart } });
         if (!seenToday) {
-          const viewedToday = await ProfileVisitor.countDocuments({ visitorId: viewerId, lastVisited: { $gte: dayStart } });
+          const viewedToday = await ProfileVisitor.countDocuments({ visitorId: viewerId, lastVisited: { $gte: windowStart } });
           if (viewedToday >= viewLimit) {
             return res.status(403).json({
               status: 'error',
               code: 'PROFILE_VIEW_LIMIT',
-              message: `You have reached your limit of ${viewLimit} profile views today. Upgrade your plan to view more.`,
+              message: `You have reached your limit of ${viewLimit} profile views ${viewPeriod === 'month' ? 'this month' : 'today'}. Upgrade your plan to view more.`,
               used: viewedToday,
               limit: viewLimit
             });

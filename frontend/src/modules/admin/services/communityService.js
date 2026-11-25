@@ -129,6 +129,17 @@ export const deleteSubCommunity = async (communityId, subId) => {
   return response.data;
 };
 
+// Communities members asked for under "Other" at registration (they don't exist yet)
+export const getCommunityRequests = async (status = 'pending') => {
+  const response = await axiosPrivate.get(`${API_BASE}/requests`, { params: { status } });
+  return response.data;
+};
+// action: 'create' (optional name) | 'merge' (communityId) | 'dismiss' (optional note)
+export const resolveCommunityRequest = async (requestId, body) => {
+  const response = await axiosPrivate.put(`${API_BASE}/requests/${requestId}`, body);
+  return response.data;
+};
+
 // GET /admin/communities/:id/deletion-impact → how many people a delete affects (changes nothing)
 export const getDeletionImpact = async (communityId, subCommunity = '') => {
   const response = await axiosPrivate.get(`${API_BASE}/${communityId}/deletion-impact`, { params: subCommunity ? { subCommunity } : {} });

@@ -976,6 +976,208 @@ exports.addSubCommunity = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────
+// @desc    Communities members asked for under "Other" that don't exist yet
+// @route   GET /api/v1/admin/communities/requests?status=pending
+// @access  Admin
+// ─────────────────────────────────────────────
+exports.listCommunityRequests = async (req, res) => {
+  try {
+    const CommunityRequest = require('../../models/CommunityRequest');
+    const status = ['pending', 'created', 'merged', 'dismissed', 'all'].includes(req.query.status) ? req.query.status : 'pending';
+    const requests = await CommunityRequest.find(status === 'all' ? {} : { status })
+      .sort({ updatedAt: -1 })
+      .limit(200)
+      .populate('requesters.userId', 'name phone city state avatar requestedCommunity requestedSubCommunity communityId subCommunity createdAt')
+      .populate('parentCommunityId', 'name subCommunities.name subCommunities.isActive')
+      .populate('resolvedCommunityId', 'name')
+      .populate('resolvedBy', 'name')
+      .lean();
+    const data = requests.map(r => ({
+      ...r,
+      requesters: (r.requesters || []).filter(q => q.userId), // accounts since deleted drop out
+      requesterCount: (r.requesters || []).filter(q => q.userId).length
+    }));
+    const pendingCount = status === 'pending' ? data.length : await CommunityRequest.countDocuments({ status: 'pending' });
+    res.json({ success: true, data, pendingCount });
+  } catch (error) {
+    console.error('listCommunityRequests error:', error);
+    res.status(500).json({ status: 'error', message: 'Server error' });
+  }
+};
+
+// ─────────────────────────────────────────────
+// @desc    Handle a community request:
+//            create  → create the community (name editable) and move the requesters in
+//            merge   → add the requesters to an existing community (typos, other spellings)
+//            dismiss → the requesters are asked to choose another community
+// @route   PUT /api/v1/admin/communities/requests/:requestId  { action, name?, communityId?, note? }
+// @access  Admin
+// ─────────────────────────────────────────────
+exports.resolveCommunityRequest = async (req, res) => {
+  try {
+    const CommunityRequest = require('../../models/CommunityRequest');
+    const { createNotification } = require('../../services/notificationService');
+    const { action } = req.body || {};
+    const note = String(req.body?.note || '').trim().slice(0, 300);
+    if (!['create', 'merge', 'dismiss'].includes(action)) {
+      return res.status(400).json({ status: 'error', message: 'Unknown action.' });
+    }
+    if (!mongoose.Types.ObjectId.isValid(req.params.requestId)) {
+      return res.status(400).json({ status: 'error', message: 'Invalid request' });
+    }
+    const request = await CommunityRequest.findById(req.params.requestId);
+    if (!request) return res.status(404).json({ status: 'error', message: 'Request not found' });
+    if (request.status !== 'pending') return res.status(400).json({ status: 'error', message: 'This request was already handled.' });
+
+    // ── A new SUB-community of an existing community ──
+    if (request.kind === 'subCommunity') {
+      const parent = await Community.findById(request.parentCommunityId);
+      if (!parent) return res.status(404).json({ status: 'error', message: 'The community of this request no longer exists.' });
+      const keyOf = CommunityRequest.keyOf;
+      const waiting = await User.find({
+        _id: { $in: (request.requesters || []).map(r => r.userId) },
+        communityId: parent._id,
+        requestedSubCommunity: { $nin: [null, ''] }
+      }).select('_id').lean();
+      const waitingIds = waiting.map(u => u._id);
+
+      let subName = '';
+      if (action === 'create') {
+        subName = String(req.body.name || request.name).trim().replace(/\s+/g, ' ').slice(0, 80);
+        if (!subName) return res.status(400).json({ status: 'error', message: 'Enter the sub-community name.' });
+        const clash = (parent.subCommunities || []).find(s => keyOf(s.name) === keyOf(subName));
+        if (clash) {
+          return res.status(400).json({ status: 'error', message: `"${parent.name}" already has "${clash.name}"${clash.isActive === false ? ' (inactive)' : ''}. Use "Add to existing" instead.` });
+        }
+        parent.subCommunities.push({ name: subName, isActive: true });
+        await parent.save();
+      } else if (action === 'merge') {
+        const target = (parent.subCommunities || []).find(s => s.isActive !== false && s.name === String(req.body.subCommunityName || ''));
+        if (!target) return res.status(400).json({ status: 'error', message: 'Choose the sub-community to add them to.' });
+        subName = target.name;
+      }
+
+      if (subName) {
+        await User.updateMany({ _id: { $in: waitingIds } }, { $set: { subCommunity: subName, requestedSubCommunity: '', mustChooseSubCommunity: false } });
+        waitingIds.forEach(userId => createNotification({
+          userId, module: 'community', type: 'sub_community_request_approved',
+          title: `You are now in ${subName}`,
+          message: `${subName} has been added to ${parent.name}, and you are now a member of it.`,
+          icon: '🎉', priority: 'normal', actionUrl: '/member/home'
+        }));
+      } else {
+        // Dismissed: if the community has sub-communities they pick one; otherwise none is needed
+        const hasSubs = (parent.subCommunities || []).some(s => s.isActive !== false);
+        await User.updateMany({ _id: { $in: waitingIds } }, { $set: { requestedSubCommunity: '', ...(hasSubs ? { mustChooseSubCommunity: true } : {}) } });
+        waitingIds.forEach(userId => createNotification({
+          userId, module: 'community', type: 'sub_community_request_dismissed',
+          title: `"${request.name}" was not added to ${parent.name}`,
+          message: note || (hasSubs ? 'Please choose your sub-community from the list.' : 'You stay in the community without a sub-community.'),
+          icon: 'ℹ️', priority: 'normal', actionUrl: hasSubs ? '/member/onboarding' : '/member/home'
+        }));
+      }
+
+      request.status = action === 'create' ? 'created' : action === 'merge' ? 'merged' : 'dismissed';
+      request.resolvedCommunityId = parent._id;
+      request.resolvedBy = req.user?._id || null;
+      request.resolvedAt = new Date();
+      request.note = subName ? `${note ? `${note} — ` : ''}sub-community: ${subName}` : note;
+      await request.save();
+      require('../../utils/cacheService').invalidate('auth_user_');
+      require('../../utils/cacheService').invalidate('app_content_');
+
+      const who = `${waitingIds.length} member${waitingIds.length === 1 ? '' : 's'}`;
+      return res.json({
+        success: true,
+        message: action === 'create'
+          ? `Sub-community "${subName}" added to ${parent.name}; ${who} moved into it.`
+          : action === 'merge'
+            ? `${who} added to "${subName}" in ${parent.name}.`
+            : `Request dismissed; ${who} notified.`,
+        data: { communityId: parent._id, subCommunity: subName || null, membersMoved: waitingIds.length }
+      });
+    }
+
+    // Only requesters still waiting for this community (not those who chose another since)
+    const requesterIds = (request.requesters || []).map(r => r.userId);
+    const waiting = await User.find({
+      _id: { $in: requesterIds },
+      $or: [{ communityId: null }, { communityId: { $exists: false } }],
+      requestedCommunity: { $nin: [null, ''] }
+    }).select('_id').lean();
+    const waitingIds = waiting.map(u => u._id);
+
+    let community = null;
+    if (action === 'create') {
+      const name = String(req.body.name || request.name).trim().replace(/\s+/g, ' ').slice(0, 80);
+      if (!name) return res.status(400).json({ status: 'error', message: 'Enter the community name.' });
+      const escapeRe = (v) => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const clash = await Community.findOne({ name: new RegExp(`^${escapeRe(name)}$`, 'i') }).select('name isActive').lean();
+      if (clash) {
+        return res.status(400).json({ status: 'error', message: `A community called "${clash.name}" already exists${clash.isActive === false ? ' (inactive)' : ''}. Use "Add to existing" instead.` });
+      }
+      let slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `community-${Date.now()}`;
+      if (await Community.exists({ slug })) slug = `${slug}-${Date.now().toString().slice(-5)}`;
+      const firstCity = (request.requesters || []).find(r => r.city)?.city || '';
+      community = await Community.create({ name, slug, isActive: true, ...(firstCity ? { city: firstCity } : {}) });
+    } else if (action === 'merge') {
+      if (!mongoose.Types.ObjectId.isValid(String(req.body.communityId || ''))) {
+        return res.status(400).json({ status: 'error', message: 'Choose the community to add them to.' });
+      }
+      community = await Community.findById(req.body.communityId);
+      if (!community || community.isActive === false) {
+        return res.status(400).json({ status: 'error', message: 'Choose an active community.' });
+      }
+    }
+
+    if (community) {
+      // Into the community like any new member: the Head still approves them
+      await User.updateMany(
+        { _id: { $in: waitingIds } },
+        { $set: { communityId: community._id, community: community.name, requestedCommunity: '', accountStatus: 'pending verification', verificationStatus: 'pending' } }
+      );
+      waitingIds.forEach(userId => createNotification({
+        userId, module: 'community', type: 'community_request_approved',
+        title: `${community.name} is now on ApniSamaj`,
+        message: `You have been added to ${community.name}. Finish your profile so your community Head can approve you.`,
+        icon: '🎉', priority: 'high', actionUrl: '/member/home'
+      }));
+    } else {
+      // Dismissed: they choose another community (or "Other" again) in onboarding
+      await User.updateMany({ _id: { $in: waitingIds } }, { $set: { requestedCommunity: '' } });
+      waitingIds.forEach(userId => createNotification({
+        userId, module: 'community', type: 'community_request_dismissed',
+        title: `"${request.name}" was not added`,
+        message: note || 'Please choose your community from the list, or contact support.',
+        icon: 'ℹ️', priority: 'normal', actionUrl: '/member/onboarding'
+      }));
+    }
+
+    request.status = action === 'create' ? 'created' : action === 'merge' ? 'merged' : 'dismissed';
+    request.resolvedCommunityId = community?._id || null;
+    request.resolvedBy = req.user?._id || null;
+    request.resolvedAt = new Date();
+    request.note = note;
+    await request.save();
+    require('../../utils/cacheService').invalidate('auth_user_');
+
+    const who = `${waitingIds.length} member${waitingIds.length === 1 ? '' : 's'}`;
+    res.json({
+      success: true,
+      message: action === 'create'
+        ? `Community "${community.name}" created; ${who} added (they still need Head approval).`
+        : action === 'merge'
+          ? `${who} added to "${community.name}" (they still need Head approval).`
+          : `Request dismissed; ${who} will choose another community.`,
+      data: { communityId: community?._id || null, membersMoved: waitingIds.length }
+    });
+  } catch (error) {
+    console.error('resolveCommunityRequest error:', error);
+    res.status(500).json({ status: 'error', message: error.message || 'Server error' });
+  }
+};
+
+// ─────────────────────────────────────────────
 // @desc    Who and what a delete would affect (counts only, changes nothing)
 // @route   GET /api/v1/admin/communities/:id/deletion-impact?subCommunity=
 // @access  Admin

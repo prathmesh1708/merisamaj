@@ -152,6 +152,8 @@ export const MatrimonialVisibilityManager = ({
   const [photoUploading, setPhotoUploading] = useState(false);
 
   const [saving, setSaving] = useState(false);
+  // Shown under Date of Birth when the server refuses the save for the legal marriage age
+  const [dobError, setDobError] = useState('');
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -535,7 +537,14 @@ export const MatrimonialVisibilityManager = ({
       setCurrentScreen('menu');
     } catch (err) {
       const apiMsg = err.response?.data?.errors?.[0]?.msg || err.response?.data?.message;
-      showToast(apiMsg || 'Could not save profile');
+      // Under the legal marriage age: keep the reason on screen next to the date of
+      // birth (a toast alone was missed, and the edits looked lost after a refresh)
+      if (apiMsg && /date of birth makes you|at least \d+ to create a matrimonial profile/i.test(apiMsg)) {
+        setDobError(apiMsg);
+        showToast('Not saved — please check your date of birth.');
+      } else {
+        showToast(apiMsg || 'Could not save profile');
+      }
     } finally {
       setSaving(false);
     }
@@ -1746,11 +1755,16 @@ export const MatrimonialVisibilityManager = ({
                 <input
                   type="date"
                   value={editForm.dateOfBirth}
-                  onChange={e => setEditForm({ ...editForm, dateOfBirth: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-rose-500"
+                  onChange={e => { setEditForm({ ...editForm, dateOfBirth: e.target.value }); setDobError(''); }}
+                  className={`w-full bg-slate-50 border rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-rose-500 ${dobError ? 'border-rose-400 ring-2 ring-rose-100' : 'border-slate-200'}`}
                   required
                 />
               </div>
+              {dobError && (
+                <p role="alert" className="col-span-2 order-last text-[11px] font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2 leading-relaxed">
+                  {dobError}
+                </p>
+              )}
               <div>
                 <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Gender</label>
                 {accountGender ? (

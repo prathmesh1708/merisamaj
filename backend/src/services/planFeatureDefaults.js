@@ -10,13 +10,24 @@
  */
 const SubscriptionPlan = require('../models/SubscriptionPlan');
 
+// Reset period of each limit: 'day' or 'month'. Missing = how it always worked
+// (profile views per day; interests, messages, Super Interests per month).
+const LIMIT_PERIOD_DEFAULTS = {
+  profileViewsPeriod: 'day',
+  interestPeriod: 'month',
+  messagePeriod: 'month',
+  superInterestPeriod: 'month'
+};
+const periodOr = (value, fallback) => (value === 'day' || value === 'month' ? value : fallback);
+
 const withMatrimonialDefaults = (features = {}, { paid = false } = {}) => ({
   ...features,
   viewOtherSubCommunityProfile: features.viewOtherSubCommunityProfile ?? false,
   viewAllSubCommunityProfiles:  features.viewAllSubCommunityProfiles ?? false,
   allSubCommunitiesAccess:      features.allSubCommunitiesAccess ?? false,
   superInterestsPerMonth:       features.superInterestsPerMonth ?? 0,
-  viewProfilePhotos:            features.viewProfilePhotos ?? paid
+  viewProfilePhotos:            features.viewProfilePhotos ?? paid,
+  ...Object.fromEntries(Object.entries(LIMIT_PERIOD_DEFAULTS).map(([key, def]) => [key, periodOr(features[key], def)]))
 });
 
 const APP_PERMISSION_KEYS = ['socialPosts', 'socialStories', 'professionalListing'];
@@ -53,4 +64,4 @@ const getAppPermissions = async (user) => {
   return Object.fromEntries(APP_PERMISSION_KEYS.map(key => [key, features[key]]));
 };
 
-module.exports = { withMatrimonialDefaults, withAppDefaults, getAppPermissions, APP_PERMISSION_KEYS, isLeader };
+module.exports = { withMatrimonialDefaults, withAppDefaults, getAppPermissions, APP_PERMISSION_KEYS, isLeader, LIMIT_PERIOD_DEFAULTS };

@@ -5,7 +5,7 @@
 const InterestRequest = require('../../models/InterestRequest');
 const UserNotification = require('../../models/UserNotification');
 
-const { countInterestsThisMonth, countSuperInterestsThisMonth } = require('../../services/matrimonialUsageService');
+const { countInterests, countSuperInterests } = require('../../services/matrimonialUsageService');
 const MatrimonialProfile = require('../../models/MatrimonialProfile');
 const Conversation = require('../../models/Conversation');
 const UserBlock = require('../../models/UserBlock');
@@ -26,9 +26,10 @@ const checkSuperInterestQuota = async (userId) => {
     return { ok: false, code: 'SUPER_INTEREST_NOT_IN_PLAN', message: 'Super Interest is not included in your plan. Upgrade to send one.' };
   }
   if (limit === -1) return { ok: true };
-  const used = await countSuperInterestsThisMonth(userId);
+  const period = features.superInterestPeriod === 'day' ? 'day' : 'month';
+  const used = await countSuperInterests(userId, period);
   if (used >= limit) {
-    return { ok: false, code: 'SUPER_INTEREST_LIMIT_REACHED', message: `You have used all ${limit} Super Interests for this month.`, used, limit };
+    return { ok: false, code: 'SUPER_INTEREST_LIMIT_REACHED', message: `You have used all ${limit} Super Interests for ${period === 'day' ? 'today' : 'this month'}.`, used, limit };
   }
   return { ok: true };
 };
@@ -136,10 +137,11 @@ exports.sendInterest = async (req, res) => {
     // ─── Plan limit check ─────────────────────────────────────────────────────
     const { userSubscription } = req;
     if (!wantsSuper && userSubscription && req.userFeatures?.interestLimit !== -1) {
-      const used = await countInterestsThisMonth(req.user._id);
+      const interestPeriod = req.userFeatures.interestPeriod === 'day' ? 'day' : 'month';
+      const used = await countInterests(req.user._id, interestPeriod);
       const limit = req.userFeatures.interestLimit;
       if (used >= limit) {
-        return res.status(403).json({ status: 'error', code: 'INTEREST_LIMIT_REACHED', message: `Monthly limit of ${limit} interests reached. Upgrade to Premium.` });
+        return res.status(403).json({ status: 'error', code: 'INTEREST_LIMIT_REACHED', message: `${interestPeriod === 'day' ? 'Daily' : 'Monthly'} limit of ${limit} interests reached. Upgrade to Premium.` });
       }
       await UserSubscription.findByIdAndUpdate(userSubscription._id, {
         $inc: { 'usage.interestsSentThisMonth': 1 }

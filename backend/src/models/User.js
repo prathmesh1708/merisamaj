@@ -128,6 +128,12 @@ const userSchema = new mongoose.Schema({
   // Set when the admin deleted this member's sub-community: the app asks them to
   // choose a sub-community again; cleared once they save one.
   mustChooseSubCommunity: { type: Boolean, default: false },
+  // Community typed under "Other" that doesn't exist yet: the member waits while the
+  // admin creates it (see CommunityRequest). Cleared once they get a community.
+  requestedCommunity: { type: String, trim: true, default: '' },
+  // Same for a sub-community typed under "Other": the member is in the community,
+  // waiting for the admin to create this sub-community.
+  requestedSubCommunity: { type: String, trim: true, default: '' },
 
   accountStatus: {
     type: String, 

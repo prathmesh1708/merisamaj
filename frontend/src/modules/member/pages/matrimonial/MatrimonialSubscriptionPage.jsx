@@ -238,8 +238,8 @@ const MatrimonialSubscriptionPage = () => {
 
               <div className="mt-5 pt-4 border-t border-white/15 grid grid-cols-3 gap-4 text-center">
                 {[
-                  { label: 'Profile Views', value: mySubscription.featuresSnapshot?.profileViewsPerDay === -1 ? '∞' : mySubscription.featuresSnapshot?.profileViewsPerDay ?? '–' },
-                  { label: 'Interests', value: mySubscription.featuresSnapshot?.interestLimit === -1 ? '∞' : mySubscription.featuresSnapshot?.interestLimit ?? '–' },
+                  { label: `Profile Views / ${mySubscription.featuresSnapshot?.profileViewsPeriod === 'month' ? 'month' : 'day'}`, value: mySubscription.featuresSnapshot?.profileViewsPerDay === -1 ? '∞' : mySubscription.featuresSnapshot?.profileViewsPerDay ?? '–' },
+                  { label: `Interests / ${mySubscription.featuresSnapshot?.interestPeriod === 'day' ? 'day' : 'month'}`, value: mySubscription.featuresSnapshot?.interestLimit === -1 ? '∞' : mySubscription.featuresSnapshot?.interestLimit ?? '–' },
                   { label: 'Other Communities', value: mySubscription.featuresSnapshot?.crossCommunityVisibility ? 'Yes' : 'No' },
                 ].map(({ label, value }) => (
                   <div key={label}>

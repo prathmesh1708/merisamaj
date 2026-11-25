@@ -252,7 +252,7 @@ export default function ProfessionalDirectoryManagement() {
     <div className="p-6 bg-slate-50 min-h-screen text-slate-800 font-sans rounded-3xl">
       {/* Toast Alert */}
       {toast && (
-        <div className={`fixed bottom-5 right-5 px-5 py-3.5 rounded-xl shadow-lg text-white font-bold text-sm z-50 flex items-center gap-2 ${
+        <div className={`fixed bottom-24 md:bottom-5 left-4 right-4 sm:left-auto sm:right-5 px-5 py-3.5 rounded-xl shadow-lg text-white font-bold text-sm z-50 flex items-center gap-2 ${
           toast.type === 'success' ? 'bg-emerald-600' : 'bg-rose-600'
         }`}>
           <CheckCircle size={16} />
