@@ -24,7 +24,7 @@ const cacheService = require('../utils/cacheService');
 const { ALL_MODULE_KEYS, MODULE_BY_KEY } = require('../config/moduleCatalog');
 
 const MASTER_ROLES = ['admin', 'super_admin', 'master_admin', 'master'];
-const USER_FIELDS = 'name email phone role accountType subHeadType parentHeadId communityId assignedCommunityIds moduleAccess headPermissions accountStatus city designation avatar createdAt';
+const USER_FIELDS = 'name email phone role accountType subHeadType parentHeadId communityId assignedCommunityIds moduleAccess headPermissions accountStatus city designation avatar createdAt subCommunity group';
 const EFFECTIVE_TTL = 30;      // seconds — cache is flushed on every change anyway
 const MAX_DEPTH = 6;           // hierarchy is 4 levels; guards against bad parent loops
 const MAX_DESCENDANTS = 5000;
@@ -66,18 +66,19 @@ const roleLabel = (u) => {
 /** The user's parent administrator (lean doc), or null when the parent is the Master Admin */
 const resolveParent = async (user) => {
   if (!user || user.role !== 'sub_head') return null;
+  const cid = communityIdOf(user);
   if (user.parentHeadId && idStr(user.parentHeadId) !== idStr(user._id)) {
     const parent = await loadUser(user.parentHeadId);
-    if (parent && isHierarchyUser(parent)) return parent;
+    // A saved parent from ANOTHER community is a stale link (e.g. a Mali Local Head
+    // pointing at a Brahmin Head) — ignore it and work the parent out again
+    const sameCommunity = !cid || parent?.role !== 'head' ||
+      [communityIdOf(parent), ...(parent.assignedCommunityIds || []).map(idStr)].includes(idStr(cid));
+    if (parent && isHierarchyUser(parent) && sameCommunity) return parent;
   }
-  // Legacy accounts created without parentHeadId → their community's Community Head
-  const cid = communityIdOf(user);
+  // Accounts saved without parentHeadId → the Community Head of their sub-community
+  // and group (falls back to the community's first Head)
   if (!cid) return null;
-  return User.findOne({
-    role: 'head',
-    accountStatus: { $ne: 'deleted' },
-    $or: [{ communityId: cid }, { assignedCommunityIds: cid }]
-  }).sort({ createdAt: 1 }).select(USER_FIELDS).lean();
+  return findGroupHead(cid, user.subCommunity, user.group);
 };
 
 /** Users whose direct parent is `manager` */
@@ -335,7 +336,36 @@ const assignModules = async ({ actor, targetId, modules, inheritAll = false, ipA
  *   parentId    parent of a user being created (defaults to the actor)
  *   communityId Master Admin creating a Local Head: parent = that community's Head
  */
-const getAssignable = async (actor, { targetId, parentId, communityId } = {}) => {
+/**
+ * The Community Head a new Local Head reports to: the Head of that sub-community and
+ * group; else the Head of that sub-community (any group); else the community's Head in
+ * that group; else the community's first Head. Used when appointing (parentHeadId) and
+ * by the Module Access picker, so both show the same parent.
+ */
+const findGroupHead = async (communityId, subCommunity = '', group = '') => {
+  if (!communityId) return null;
+  const esc = (v) => String(v).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const sub = String(subCommunity || '').trim();
+  const grp = String(group || '').trim() || 'Group 1';
+  const inCommunity = { role: 'head', accountStatus: { $ne: 'deleted' }, $or: [{ communityId }, { assignedCommunityIds: communityId }] };
+  const subCond = sub ? { subCommunity: new RegExp(`^\\s*${esc(sub)}\\s*$`, 'i') } : null;
+  const groupCond = grp === 'Group 1'
+    ? { $or: [{ group: 'Group 1' }, { group: { $in: [null, ''] } }, { group: { $exists: false } }] }
+    : { group: grp };
+  const tries = [
+    subCond && { $and: [inCommunity, subCond, groupCond] },
+    subCond && { $and: [inCommunity, subCond] },
+    { $and: [inCommunity, groupCond] },
+    inCommunity
+  ].filter(Boolean);
+  for (const q of tries) {
+    const head = await User.findOne(q).sort({ createdAt: 1 }).select(USER_FIELDS).lean();
+    if (head) return head;
+  }
+  return null;
+};
+
+const getAssignable = async (actor, { targetId, parentId, communityId, subCommunity, group } = {}) => {
   const actorIsMaster = isMasterAdmin(actor);
   if (!actorIsMaster && !isHierarchyUser(actor)) throw httpError(403, 'Not allowed.');
 
@@ -353,10 +383,8 @@ const getAssignable = async (actor, { targetId, parentId, communityId } = {}) =>
     parent = await loadUser(parentId);
     if (!parent || !isHierarchyUser(parent)) throw httpError(404, 'Parent administrator not found.');
   } else if (communityId && actorIsMaster) {
-    parent = await User.findOne({
-      role: 'head', accountStatus: { $ne: 'deleted' },
-      $or: [{ communityId }, { assignedCommunityIds: communityId }]
-    }).sort({ createdAt: 1 }).select(USER_FIELDS).lean();
+    // New account in the Admin panel: the same parent the appointment will get
+    parent = await findGroupHead(communityId, subCommunity, group);
   } else if (!actorIsMaster) {
     parent = await loadUser(actor._id);
   }
@@ -423,6 +451,7 @@ module.exports = {
   isHierarchyUser,
   roleLabel,
   resolveParent,
+  findGroupHead,
   getDirectChildren,
   getDescendants,
   getEffectiveModules,

@@ -68,6 +68,11 @@ const safeSetLocalStorage = (key, val) => {
 const OTHER_COMMUNITY = { label: 'Other', value: 'other', subCommunities: [] };
 // Value of the "Other (not in this list)" sub-community choice
 const SUB_COMMUNITY_OTHER = '__other_sub__';
+// The onboarding steps shown to members: 1 Mobile verified, 2 Community,
+// 3 Personal information, 8 Verification (optional). Other step numbers in this file
+// are no longer used.
+const ONBOARDING_STEPS = [1, 2, 3, 8];
+
 // Value of the "Other (type your city)" choice in the city list
 const CITY_OTHER = '__other_city__';
 
@@ -1047,7 +1052,9 @@ const OnboardingScreen = () => {
     // Resume flow step check
     const resumeStep = localStorage.getItem('merisamaj_onboarding_resume_step');
     if (resumeStep) {
-      setStep(resumeStep);
+      // Only the 4 onboarding steps (an older saved value may point at a removed step)
+      const resumeNum = parseInt(String(resumeStep).split('-')[1], 10);
+      if (ONBOARDING_STEPS.includes(resumeNum)) setStep(resumeStep);
       // Consume the resume target so later auth/profile updates cannot send the
       // user back to this old step after they have completed onboarding.
       localStorage.removeItem('merisamaj_onboarding_resume_step');
@@ -1079,7 +1086,10 @@ const OnboardingScreen = () => {
     }
   }, [pincode]);
 
-  const ONBOARDING_FLOW = [1, 2, 3, 8, 11];
+  // 4 steps: Mobile verified → Community → Personal information → Verification (optional).
+  // Finishing step 8 saves the profile and opens Home (step 11 "Congratulations" is no
+  // longer part of the flow).
+  const ONBOARDING_FLOW = ONBOARDING_STEPS;
 
   const calculateCompletion = () => {
     const sNum = parseInt(step.split('-')[1]);
@@ -1241,7 +1251,8 @@ const OnboardingScreen = () => {
       community: communityName || auth.user?.community || '',
       communityId: String(communityIdVal || auth.user?.communityId || ''),
       subCommunity: isOtherSub ? '' : String(selectedSubCommunity || ''),
-      requestedSubCommunity: isOtherSub ? customSubCommunity.trim() : '',
+      // Typed sub-community: for a listed community ("Other" sub-community) or a new one
+      requestedSubCommunity: (isOtherSub || selectedCommunity === 'other') ? customSubCommunity.trim() : '',
       city: String(selectedCity || ''),
       district: String(district || ''),
       state: String(stateName || ''),
@@ -1326,10 +1337,11 @@ const OnboardingScreen = () => {
     // update re-runs the profile-prefill effect, which must not reset this step.
     localStorage.removeItem('merisamaj_onboarding_resume_step');
 
-    // 3. Move smoothly to Step 11 Finish Screen
-    setStep('onboarding-11');
+    // 3. Done: straight to Home (the separate "Congratulations" step was removed,
+    //    onboarding is 4 steps now)
     setToastMessage('Profile saved successfully!');
     setTimeout(() => setToastMessage(''), 3000);
+    handleGoToHome();
   };
 
   const handleGoToHome = () => {
@@ -1339,17 +1351,15 @@ const OnboardingScreen = () => {
       localStorage.removeItem('merisamaj_onboarding_from_home');
     } catch (e) {}
 
+    // The copy merged with the server's reply first (it has the real community, or
+    // none while a requested community waits for the admin). No made-up fallback.
     let savedUser = {};
     try {
-      savedUser = JSON.parse(localStorage.getItem('merisamaj_registered_user') || 'null') ||
-                        JSON.parse(localStorage.getItem('merisamaj_user') || 'null') ||
+      savedUser = JSON.parse(localStorage.getItem('merisamaj_user') || 'null') ||
+                        JSON.parse(localStorage.getItem('merisamaj_registered_user') || 'null') ||
                         auth.user || {};
     } catch (e) {
       savedUser = auth.user || {};
-    }
-
-    if (!savedUser.community && !savedUser.communityId) {
-      savedUser = { ...savedUser, community: 'Jain Samaj', communityId: 'Jain Samaj' };
     }
 
     safeSetLocalStorage('merisamaj_user', savedUser);
@@ -1548,6 +1558,7 @@ const OnboardingScreen = () => {
                     onChange={(val) => { 
                       setSelectedCommunity(val); 
                       if (val !== 'other') setCustomCommunity('');
+                      setCustomSubCommunity('');
                       setSelectedSubCommunity(''); 
                       setSelectedCity(''); setCityIsOther(false); 
                       setStepErrors(prev => ({ ...prev, community: '', customCommunity: '' })); 
@@ -1600,16 +1611,29 @@ const OnboardingScreen = () => {
                       </span>
                     )}
                   </div>
-                  <CustomSelect
-                    value={selectedSubCommunity}
-                    onChange={(val) => { setSelectedSubCommunity(val); if (val !== SUB_COMMUNITY_OTHER) setCustomSubCommunity(''); setStepErrors(prev => ({ ...prev, subCommunity: '' })); }}
-                    options={subCommunityOptions}
-                    placeholder={availableSubCommunities.length ? 'Select sub-community' : 'No sub-communities yet — choose Other'}
-                    disabled={!selectedCommunity || selectedCommunity === 'other'}
-                    searchable
-                  />
+                  {/* A new community ("Other") has no sub-communities yet: they type theirs
+                      and the admin creates it together with the community */}
+                  {selectedCommunity === 'other' ? (
+                    <input
+                      type="text"
+                      value={customSubCommunity}
+                      onChange={(e) => { setCustomSubCommunity(e.target.value.slice(0, 80)); setStepErrors(prev => ({ ...prev, subCommunity: '' })); }}
+                      placeholder="Write your sub-community (optional)"
+                      disabled={!customCommunity.trim()}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-base sm:text-sm font-bold text-slate-800 outline-none focus:border-[#7C3AED] disabled:bg-slate-50 disabled:text-slate-400"
+                    />
+                  ) : (
+                    <CustomSelect
+                      value={selectedSubCommunity}
+                      onChange={(val) => { setSelectedSubCommunity(val); if (val !== SUB_COMMUNITY_OTHER) setCustomSubCommunity(''); setStepErrors(prev => ({ ...prev, subCommunity: '' })); }}
+                      options={subCommunityOptions}
+                      placeholder={availableSubCommunities.length ? 'Select sub-community' : 'No sub-communities yet — choose Other'}
+                      disabled={!selectedCommunity}
+                      searchable
+                    />
+                  )}
                   {stepErrors.subCommunity && <p role="alert" className="text-[10px] text-red-500 font-bold mt-1 ml-1">{stepErrors.subCommunity}</p>}
-                  {isOtherSub && (
+                  {isOtherSub && selectedCommunity !== 'other' && (
                     <input
                       type="text"
                       value={customSubCommunity}
@@ -1620,7 +1644,7 @@ const OnboardingScreen = () => {
                   )}
                   <p className="text-[10px] text-slate-400 font-semibold mt-1">
                     {selectedCommunity === 'other'
-                      ? 'You can add your sub-community once your community is created.'
+                      ? 'Your community and sub-community go to the admin together, and are added when the admin creates them.'
                       : isOtherSub
                         ? 'We will send this to the admin. You join the community now, and the sub-community is added once the admin creates it.'
                         : 'Not in the list? Choose "Other" and write its name.'}

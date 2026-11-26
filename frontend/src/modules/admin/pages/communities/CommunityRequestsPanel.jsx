@@ -36,6 +36,16 @@ const CommunityRequestsPanel = ({ communities = [], onChanged }) => {
       if (name === null) return;
       if (!name.trim()) return;
       body.name = name.trim();
+      if (!isSub) {
+        // Sub-communities created with it: what the requesters typed, editable
+        const typedSubs = [...new Set((request.requesters || []).map(q => (q.subCommunity || '').trim()).filter(Boolean))];
+        const subs = window.prompt(
+          `Sub-communities to create in "${body.name}" (separate with commas). Leave empty for none — you can add them later.`,
+          typedSubs.join(', ')
+        );
+        if (subs === null) return;
+        body.subCommunities = subs.split(',').map(s => s.trim()).filter(Boolean);
+      }
     } else if (action === 'merge' && isSub) {
       const subName = mergeTarget[request._id];
       if (!subName) { window.alert('Choose the sub-community to add them to.'); return; }
@@ -57,6 +67,7 @@ const CommunityRequestsPanel = ({ communities = [], onChanged }) => {
       const res = await resolveCommunityRequest(request._id, body);
       window.alert(res.message || 'Done.');
       setReloadKey(k => k + 1);
+      window.dispatchEvent(new Event('community-requests:changed')); // sidebar badge
       if (action !== 'dismiss') onChanged?.();
     } catch (err) {
       window.alert(err.response?.data?.message || 'Could not complete this.');
@@ -128,6 +139,9 @@ const CommunityRequestsPanel = ({ communities = [], onChanged }) => {
                       {q.userId.phone && <span className="text-slate-500 flex items-center gap-1"><Phone size={11} />{q.userId.phone}</span>}
                       {(q.city || q.userId.city) && <span className="text-slate-500 flex items-center gap-1"><MapPin size={11} />{[q.city || q.userId.city, q.state || q.userId.state].filter(Boolean).join(', ')}</span>}
                       {q.typedName && q.typedName !== r.name && <span className="text-slate-400">typed "{q.typedName}"</span>}
+                      {r.kind !== 'subCommunity' && q.subCommunity && (
+                        <span className="text-purple-700 font-bold">sub-community: {q.subCommunity}</span>
+                      )}
                       <span className="text-slate-400">{new Date(q.at).toLocaleDateString()}</span>
                       {r.kind !== 'subCommunity' && q.userId.communityId && <span className="text-emerald-600 font-bold">already joined another community</span>}
                       {r.kind === 'subCommunity' && q.userId.subCommunity && <span className="text-emerald-600 font-bold">already chose {q.userId.subCommunity}</span>}

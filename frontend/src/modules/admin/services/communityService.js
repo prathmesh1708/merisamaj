@@ -134,7 +134,12 @@ export const getCommunityRequests = async (status = 'pending') => {
   const response = await axiosPrivate.get(`${API_BASE}/requests`, { params: { status } });
   return response.data;
 };
-// action: 'create' (optional name) | 'merge' (communityId) | 'dismiss' (optional note)
+// How many requests are waiting (for the red badge in the admin sidebar)
+export const getCommunityRequestCount = async () => {
+  const response = await axiosPrivate.get(`${API_BASE}/requests/count`);
+  return Number(response.data?.count) || 0;
+};
+// action: 'create' (optional name, subCommunities) | 'merge' (communityId / subCommunityName) | 'dismiss' (optional note)
 export const resolveCommunityRequest = async (requestId, body) => {
   const response = await axiosPrivate.put(`${API_BASE}/requests/${requestId}`, body);
   return response.data;

@@ -980,24 +980,50 @@ exports.addSubCommunity = async (req, res) => {
 // @route   GET /api/v1/admin/communities/requests?status=pending
 // @access  Admin
 // ─────────────────────────────────────────────
+// Pending requests with the requesters still waiting for them. Someone who has since
+// picked another community (or sub-community), or whose account is gone, drops out;
+// a request nobody waits for any more is not shown ("Gdf – 0 people").
+const loadPendingRequests = async (status = 'pending') => {
+  const CommunityRequest = require('../../models/CommunityRequest');
+  const requests = await CommunityRequest.find(status === 'all' ? {} : { status })
+    .sort({ updatedAt: -1 })
+    .limit(200)
+    .populate('requesters.userId', 'name phone city state avatar requestedCommunity requestedSubCommunity communityId subCommunity createdAt')
+    .populate('parentCommunityId', 'name subCommunities.name subCommunities.isActive')
+    .populate('resolvedCommunityId', 'name')
+    .populate('resolvedBy', 'name')
+    .lean();
+  const stillWaiting = (r, q) => {
+    const u = q.userId;
+    if (!u) return false;
+    if (r.status !== 'pending') return true;
+    return r.kind === 'subCommunity'
+      ? !!u.requestedSubCommunity && !String(u.subCommunity || '').trim()
+      : !!u.requestedCommunity && !u.communityId;
+  };
+  return requests
+    .map(r => {
+      const requesters = (r.requesters || []).filter(q => stillWaiting(r, q));
+      return { ...r, requesters, requesterCount: requesters.length };
+    })
+    .filter(r => r.status !== 'pending' || r.requesterCount > 0);
+};
+
+// @route GET /api/v1/admin/communities/requests/count → { count } for the sidebar badge
+exports.countCommunityRequests = async (req, res) => {
+  try {
+    res.json({ success: true, count: (await loadPendingRequests('pending')).length });
+  } catch (error) {
+    console.error('countCommunityRequests error:', error);
+    res.status(500).json({ status: 'error', message: 'Server error' });
+  }
+};
+
 exports.listCommunityRequests = async (req, res) => {
   try {
-    const CommunityRequest = require('../../models/CommunityRequest');
     const status = ['pending', 'created', 'merged', 'dismissed', 'all'].includes(req.query.status) ? req.query.status : 'pending';
-    const requests = await CommunityRequest.find(status === 'all' ? {} : { status })
-      .sort({ updatedAt: -1 })
-      .limit(200)
-      .populate('requesters.userId', 'name phone city state avatar requestedCommunity requestedSubCommunity communityId subCommunity createdAt')
-      .populate('parentCommunityId', 'name subCommunities.name subCommunities.isActive')
-      .populate('resolvedCommunityId', 'name')
-      .populate('resolvedBy', 'name')
-      .lean();
-    const data = requests.map(r => ({
-      ...r,
-      requesters: (r.requesters || []).filter(q => q.userId), // accounts since deleted drop out
-      requesterCount: (r.requesters || []).filter(q => q.userId).length
-    }));
-    const pendingCount = status === 'pending' ? data.length : await CommunityRequest.countDocuments({ status: 'pending' });
+    const data = await loadPendingRequests(status);
+    const pendingCount = status === 'pending' ? data.length : (await loadPendingRequests('pending')).length;
     res.json({ success: true, data, pendingCount });
   } catch (error) {
     console.error('listCommunityRequests error:', error);
@@ -1119,7 +1145,18 @@ exports.resolveCommunityRequest = async (req, res) => {
       let slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `community-${Date.now()}`;
       if (await Community.exists({ slug })) slug = `${slug}-${Date.now().toString().slice(-5)}`;
       const firstCity = (request.requesters || []).find(r => r.city)?.city || '';
-      community = await Community.create({ name, slug, isActive: true, ...(firstCity ? { city: firstCity } : {}) });
+      // Sub-communities created with it: the admin's list (prefilled with what the
+      // requesters typed), one per name ("Rathore" = "rathore")
+      const subNames = [];
+      (Array.isArray(req.body.subCommunities) ? req.body.subCommunities : [])
+        .map(s => String(s || '').trim().replace(/\s+/g, ' ').slice(0, 80))
+        .filter(Boolean)
+        .forEach(s => { if (!subNames.some(x => CommunityRequest.keyOf(x) === CommunityRequest.keyOf(s))) subNames.push(s); });
+      community = await Community.create({
+        name, slug, isActive: true,
+        ...(firstCity ? { city: firstCity } : {}),
+        subCommunities: subNames.map(s => ({ name: s, isActive: true }))
+      });
     } else if (action === 'merge') {
       if (!mongoose.Types.ObjectId.isValid(String(req.body.communityId || ''))) {
         return res.status(400).json({ status: 'error', message: 'Choose the community to add them to.' });
@@ -1136,6 +1173,30 @@ exports.resolveCommunityRequest = async (req, res) => {
         { _id: { $in: waitingIds } },
         { $set: { communityId: community._id, community: community.name, requestedCommunity: '', accountStatus: 'pending verification', verificationStatus: 'pending' } }
       );
+      // The sub-community each of them typed: join it if the community has it now;
+      // otherwise it becomes a sub-community request for the admin
+      const fresh = await Community.findById(community._id).select('subCommunities.name subCommunities.isActive').lean();
+      const subsByKey = new Map((fresh?.subCommunities || []).filter(s => s.isActive !== false).map(s => [CommunityRequest.keyOf(s.name), s.name]));
+      const waitingUsers = await User.find({ _id: { $in: waitingIds } }).select('requestedSubCommunity city state').lean();
+      for (const u of waitingUsers) {
+        const typed = String(u.requestedSubCommunity || '').trim();
+        if (!typed) continue;
+        const key = CommunityRequest.keyOf(typed);
+        if (subsByKey.has(key)) {
+          await User.updateOne({ _id: u._id }, { $set: { subCommunity: subsByKey.get(key), requestedSubCommunity: '' } });
+        } else if (key) {
+          const subReq = await CommunityRequest.findOneAndUpdate(
+            { kind: 'subCommunity', parentCommunityId: community._id, nameKey: key },
+            { $setOnInsert: { kind: 'subCommunity', parentCommunityId: community._id, name: typed, nameKey: key } },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+          );
+          if (subReq.status !== 'pending') { subReq.status = 'pending'; subReq.resolvedAt = null; subReq.resolvedBy = null; subReq.note = ''; }
+          if (!subReq.requesters.some(q => String(q.userId) === String(u._id))) {
+            subReq.requesters.push({ userId: u._id, typedName: typed, city: u.city || '', state: u.state || '' });
+          }
+          await subReq.save();
+        }
+      }
       waitingIds.forEach(userId => createNotification({
         userId, module: 'community', type: 'community_request_approved',
         title: `${community.name} is now on ApniSamaj`,
@@ -1281,8 +1342,30 @@ exports.getSubCommunityLocationBreakdown = async (req, res) => {
       (community.headId && String(community.headId._id || community.headId) === String(u._id))
     );
 
-    // Heads tagged with a different sub-community belong to that sub-community only
-    const inThisSub = (u) => !subLower || !u.subCommunity || u.subCommunity.trim().toLowerCase() === subLower;
+    // Local leaders belong to exactly one sub-community. Old accounts saved before the
+    // sub-community was recorded have none — they used to appear inside EVERY
+    // sub-community's groups (e.g. the same Ujjain Local Head in each Mali sub-community).
+    // Now they're listed separately (unplacedLocalLeaders) for the admin to move or delete.
+    const subOf = (u) => String(u.subCommunity || '').trim().toLowerCase();
+    const inThisSub = (u) => !subLower || subOf(u) === subLower;
+    const isLocalHeadUser = (u) => u.accountType === 'local_head' || u.role === 'local_head' ||
+      (u.role === 'sub_head' && (u.accountType === 'local_head' || (!u.accountType && u.subHeadType === 'local')));
+    const isLocalSubHeadUser = (u) => u.accountType === 'local_sub_head';
+    const unplacedLocalLeaders = subLower
+      ? allUsers.filter(u => !subOf(u) && (isLocalHeadUser(u) || isLocalSubHeadUser(u))).map(u => ({
+          id: u._id,
+          name: u.name,
+          phone: u.phone,
+          email: u.email,
+          avatar: u.avatar,
+          city: u.city || '',
+          group: (u.group && u.group.trim()) || 'Group 1',
+          designation: u.designation,
+          accountType: isLocalHeadUser(u) ? 'local_head' : 'local_sub_head',
+          accountStatus: u.accountStatus || 'active',
+          headPermissions: u.headPermissions || {}
+        }))
+      : [];
 
     // Real Local Heads created in this community
     const localHeads = allUsers.filter(u => inThisSub(u) && (
@@ -1473,6 +1556,7 @@ exports.getSubCommunityLocationBreakdown = async (req, res) => {
         },
         locations,
         unlistedCities,
+        unplacedLocalLeaders,
         allLocalHeads: localHeads.map(h => ({
           id: h._id,
           name: h.name,
@@ -1635,7 +1719,13 @@ exports.assignLocalHeadToLocationGroup = async (req, res) => {
     // leadership directory can nest them under the right Community Head / Local Head
     // banner instead of just grouping by matching Group label.
     let parentHead = null;
-    if (targetAccountType === 'community_sub_head') {
+    if (targetAccountType === 'local_head') {
+      // A Local Head reports to the Community Head of THEIR sub-community and group
+      // (e.g. Sagarvanshi Mali / Group 1 → dolat ji), not the community's first Head.
+      // Without this they got no parent and fell back to the oldest Community Head.
+      const { findGroupHead } = require('../../services/modulePermissionService');
+      parentHead = await findGroupHead(community._id, decodedSubName, effectiveGroup);
+    } else if (targetAccountType === 'community_sub_head') {
       parentHead = await User.findOne({
         communityId: community._id,
         role: 'head',

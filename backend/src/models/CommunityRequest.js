@@ -16,6 +16,8 @@ const communityRequestSchema = new mongoose.Schema(
     requesters: [{
       userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
       typedName: { type: String, trim: true, default: '' },
+      // Sub-community they typed together with a NEW community (created along with it)
+      subCommunity: { type: String, trim: true, default: '' },
       city: { type: String, trim: true, default: '' },
       state: { type: String, trim: true, default: '' },
       at: { type: Date, default: Date.now }

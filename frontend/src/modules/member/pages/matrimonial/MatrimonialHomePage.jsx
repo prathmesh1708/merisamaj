@@ -31,6 +31,12 @@ const membershipRanks = {
 const PAID_MEMBER_RANK = Math.max(...Object.values(membershipRanks));
 const viewerRank = (membership, isSubscribed) =>
   membershipRanks[membership] ?? (isSubscribed ? PAID_MEMBER_RANK : membershipRanks.Normal);
+// "25/11/2026, 3:45 pm" — the date and time of the visit
+const formatVisitTime = (when) => {
+  const d = new Date(when);
+  return `${d.toLocaleDateString('en-IN')}, ${d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true })}`;
+};
+
 // ─── Filter sheet "Show matches from" controls (same look as the visibility screen) ───
 const FilterSwitch = ({ on, onChange, label }) => (
   <button type="button" role="switch" aria-checked={on} aria-label={label} onClick={() => onChange(!on)}
@@ -622,7 +628,7 @@ const MatrimonialHomePage = () => {
       activeStatus: p?.lastActiveAt
         ? (new Date(p.lastActiveAt) > new Date(Date.now() - 3600000) ? 'Online Now' : 'Active Recently')
         : '',
-      visitedDate: when ? new Date(when).toLocaleDateString('en-IN') : 'Recently'
+      visitedDate: when ? formatVisitTime(when) : 'Recently'
     };
   }, []);
 
@@ -637,7 +643,7 @@ const MatrimonialHomePage = () => {
           name: v.visitorId?.name || 'A member',
           avatar: v.visitorId?.avatar || null,
           visitCount: v.visitCount || 1,
-          visitedDate: v.lastVisited ? new Date(v.lastVisited).toLocaleDateString('en-IN') : 'Recently'
+          visitedDate: v.lastVisited ? formatVisitTime(v.lastVisited) : 'Recently'
         }),
     [visitors, toVisitCard]
   );
@@ -1523,10 +1529,6 @@ const MatrimonialHomePage = () => {
                         </p>
                       </div>
 
-                      {/* Translucent Managed-By Strip */}
-                      <div className="relative z-10 bg-black/35 backdrop-blur-xs py-2 px-5 text-center text-white/85 text-[11px] font-semibold italic border-y border-white/10 select-none pointer-events-none">
-                        Profile managed by {visitor.managedBy}
-                      </div>
 
                       {/* Action Circle overlays */}
                       <div className="relative z-10 py-4 px-4 flex justify-around items-center select-none bg-transparent">
@@ -1662,10 +1664,6 @@ const MatrimonialHomePage = () => {
                           </p>
                         </div>
 
-                        {/* Managed By Strip */}
-                        <div className="relative z-10 bg-black/35 backdrop-blur-xs py-2 px-5 text-center text-white/85 text-[11px] font-semibold italic border-y border-white/10 select-none pointer-events-none">
-                          Profile managed by {visited.managedBy}
-                        </div>
 
                         {/* Action Circular Buttons (Chat, Contact, Cancel) */}
                         <div className="relative z-10 py-4 px-4 flex justify-around items-center select-none bg-transparent">

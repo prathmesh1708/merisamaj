@@ -8,6 +8,8 @@
  *   targetUserId  existing account being edited (loads its current access)
  *   parentId      parent of a new account (Head panel: the logged-in Head)
  *   communityId   Admin panel, new account: parent = that community's Head
+ *   subCommunity, group  with communityId: parent = the Head of that sub-community
+ *                 and group (same rule the server uses when it saves the account)
  *   onChange      ({ mode: 'inherit' | 'custom', modules, dirty }) on every change
  *
  * Save with saveModuleAccess(userId, selection) after the account itself is saved.
@@ -30,14 +32,19 @@ export const saveModuleAccess = async (userId, selection) => {
   return res.data;
 };
 
-const ModuleAccessPicker = ({ targetUserId, parentId, communityId, onChange }) => {
+const ModuleAccessPicker = ({ targetUserId, parentId, communityId, subCommunity = '', group = '', onChange }) => {
   const [state, setState] = useState({ loading: true, error: '', catalog: [], available: [], parent: null, initial: null });
   const [mode, setMode] = useState('inherit');
   const [modules, setModules] = useState([]);
 
   useEffect(() => {
     let cancelled = false;
-    const params = targetUserId ? { targetId: targetUserId } : parentId ? { parentId } : communityId ? { communityId } : {};
+    const params = targetUserId ? { targetId: targetUserId }
+      : parentId ? { parentId }
+      : communityId ? { communityId, subCommunity: subCommunity || undefined, group: group || undefined }
+      : {};
+    // The group is typed, so wait for a pause before looking up its Head
+    const timer = setTimeout(() => {
     setState(s => ({ ...s, loading: true, error: '' }));
     axiosPrivate.get('/permissions/assignable', { params })
       .then(res => {
@@ -52,8 +59,9 @@ const ModuleAccessPicker = ({ targetUserId, parentId, communityId, onChange }) =
       .catch(err => {
         if (!cancelled) setState(s => ({ ...s, loading: false, error: err.response?.data?.message || 'Could not load modules.' }));
       });
-    return () => { cancelled = true; };
-  }, [targetUserId, parentId, communityId]);
+    }, communityId && !targetUserId && !parentId ? 350 : 0);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [targetUserId, parentId, communityId, subCommunity, group]);
 
   const availableModules = useMemo(
     () => state.catalog.filter(m => state.available.includes(m.key)),

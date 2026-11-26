@@ -743,14 +743,18 @@ const updateProfile = async (req, res) => {
               // Asked for again after it was dismissed / handled: open it again
               request.status = 'pending'; request.resolvedAt = null; request.resolvedBy = null; request.note = '';
             }
+            // A sub-community typed together with the new community is created with it
+            const typedSubForNew = String(req.body.requestedSubCommunity || '').trim().replace(/\s+/g, ' ').slice(0, 80);
             request.requesters.push({
-              userId: user._id, typedName: rawCommName,
+              userId: user._id, typedName: rawCommName, subCommunity: typedSubForNew,
               city: req.body.city || user.city || '', state: req.body.state || user.state || ''
             });
             await request.save();
             user.communityId = null;
             user.community = '';
+            user.subCommunity = '';
             user.requestedCommunity = rawCommName;
+            user.requestedSubCommunity = typedSubForNew;
           }
         }
       }

@@ -7,6 +7,7 @@ import { useData } from '../../member/context/DataProvider';
 import { Avatar } from '../../member/components/common/Avatar';
 import { useAdminAuth } from '../auth/useAdminAuth';
 import { NotificationBell } from '../../member/components/layout/NotificationBell';
+import { getCommunityRequestCount } from '../services/communityService';
 
 export const AdminLayout = () => {
   const navigate = useNavigate();
@@ -21,6 +22,19 @@ export const AdminLayout = () => {
 
   // Calculate real-time pending approvals count
   const pendingCount = members.filter(m => !m.isVerified).length;
+
+  // New communities / sub-communities members asked for ("Other") — red badge on Communities.
+  // Refreshed on every page change and when the Communities page handles a request.
+  const [communityRequestCount, setCommunityRequestCount] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => getCommunityRequestCount()
+      .then(n => { if (!cancelled) setCommunityRequestCount(n); })
+      .catch(() => {});
+    load();
+    window.addEventListener('community-requests:changed', load);
+    return () => { cancelled = true; window.removeEventListener('community-requests:changed', load); };
+  }, [location.pathname]);
 
   const isMasterAdmin = adminUser?.role === 'admin' || adminUser?.role === 'super_admin' || adminUser?.role === 'master_admin';
   const isSubHead = adminUser?.role === 'admin_sub_head' || (adminUser?.role === 'sub_head' && adminUser?.subHeadType === 'admin');
@@ -69,10 +83,11 @@ export const AdminLayout = () => {
           permKey: 'canManageSubHeads'
         },
         { 
-          name: 'Communities', 
-          path: '/admin/communities', 
+          name: 'Communities',
+          path: '/admin/communities',
           icon: Landmark,
-          permKey: 'canManageCommunities'
+          permKey: 'canManageCommunities',
+          badge: communityRequestCount > 0 ? communityRequestCount : null
         },
         { 
           name: 'Community Heads', 

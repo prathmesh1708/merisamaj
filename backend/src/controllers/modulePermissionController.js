@@ -35,7 +35,9 @@ exports.getAssignable = async (req, res) => {
     const { targetId, parentId, communityId } = req.query;
     const bad = [targetId, parentId, communityId].find(v => v && !mongoose.Types.ObjectId.isValid(v));
     if (bad) return res.status(400).json({ status: 'error', message: 'Invalid id.' });
-    const data = await svc.getAssignable(req.user, { targetId, parentId, communityId });
+    const subCommunity = typeof req.query.subCommunity === 'string' ? req.query.subCommunity.slice(0, 120) : '';
+    const group = typeof req.query.group === 'string' ? req.query.group.slice(0, 60) : '';
+    const data = await svc.getAssignable(req.user, { targetId, parentId, communityId, subCommunity, group });
     res.json({ status: 'success', data: { catalog: publicCatalog(), ...data } });
   } catch (err) { sendError(res, err); }
 };

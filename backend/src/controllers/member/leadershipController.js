@@ -178,10 +178,16 @@ exports.getCommunityLeadership = async (req, res) => {
     // 2. Local Heads represent a specific location — only visible on Home if the
     //    head's location matches the member's current location/city (and the
     //    member's sub-community, like Community Heads).
+    // A Local Head with no sub-community is an old account the admin hasn't placed yet;
+    // it is shown only to members who have no sub-community either (not to everyone).
+    const localServesMember = (head) => {
+      const headSubKey = String(head.subCommunity || '').trim().toLowerCase();
+      return headSubKey ? headSubKey === memberSubKey : !memberSubKey;
+    };
     const homeVisibleLocalGroups = localHeadGroups
       .filter(g => {
         if (g.head.groupVisibleOnHome === false) return false;
-        if (!servesMember(g.head)) return false;
+        if (!localServesMember(g.head)) return false;
         if (req.query.city === 'all') return true;
         if (activeMemberCity) {
           return isCityMatch(g.head.city, activeMemberCity);

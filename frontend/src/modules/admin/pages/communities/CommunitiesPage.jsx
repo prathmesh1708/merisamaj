@@ -1531,6 +1531,7 @@ const SubLocalHeadLocationWiseView = ({
   const [loadingAvailableCities, setLoadingAvailableCities] = useState(false);
   const [savingLocation, setSavingLocation] = useState(false);
   const [unlistedCities, setUnlistedCities] = useState([]);
+  const [unplacedLeaders, setUnplacedLeaders] = useState([]);
   const [showAddGroupModal, setShowAddGroupModal] = useState(null); // holds location object
   const [newGroupName, setNewGroupName] = useState('');
   const [editingLoc, setEditingLoc] = useState(null); // { id, name }
@@ -1649,6 +1650,7 @@ const SubLocalHeadLocationWiseView = ({
         setStats(res.data.stats || {});
         setAllLocalHeads(res.data.allLocalHeads || []);
         setUnlistedCities(res.data.unlistedCities || []);
+        setUnplacedLeaders(res.data.unplacedLocalLeaders || []);
       }
     } catch (err) {
       console.error('Failed to load location breakdown:', err);
@@ -2323,6 +2325,39 @@ Module access was not saved: ${moduleErr.response?.data?.message || moduleErr.me
         </div>
       )}
 
+      {/* Old Local Heads saved with no sub-community: no longer shown inside every
+          sub-community's groups. The admin moves each one here (Edit → Save stores this
+          sub-community) or deletes it. */}
+      {!loading && unplacedLeaders.length > 0 && (
+        <div style={{ margin: '16px 0 0', padding: '12px 16px', background: '#fff7ed', border: '1.5px solid #fed7aa', borderRadius: '14px', fontSize: '0.8rem', color: '#9a3412' }}>
+          <strong>{unplacedLeaders.length} old Local Head account{unplacedLeaders.length === 1 ? '' : 's'} in {commName} {unplacedLeaders.length === 1 ? 'has' : 'have'} no sub-community.</strong>{' '}
+          They are not shown in any group. Move the ones that belong to {subName} here, or delete the ones nobody uses.
+          <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {unplacedLeaders.map(h => (
+              <div key={h.id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', background: '#fff', border: '1px solid #fed7aa', borderRadius: '10px', padding: '8px 10px' }}>
+                <span style={{ fontWeight: 800, color: '#1e293b' }}>{h.name}</span>
+                <span style={{ color: '#64748b' }}>
+                  {h.accountType === 'local_head' ? 'Local Head' : 'Local Sub-Head'} · {h.city || 'no city'} · {h.group}
+                  {h.accountStatus !== 'active' ? ` · ${h.accountStatus}` : ''}
+                </span>
+                <span style={{ marginLeft: 'auto', display: 'flex', gap: '6px' }}>
+                  <button type="button"
+                    onClick={() => openEditLocalHeadModal(h, { name: h.city }, { name: h.group }, h.accountType)}
+                    style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid #c7d2fe', background: '#eef2ff', color: '#4338ca', fontWeight: 700, cursor: 'pointer' }}>
+                    Move to {subName}
+                  </button>
+                  <button type="button"
+                    onClick={() => handleDeleteLocalLeader(h, h.accountType)}
+                    style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid #fecaca', background: '#fef2f2', color: '#b91c1c', fontWeight: 700, cursor: 'pointer' }}>
+                    Delete
+                  </button>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Bottom Large "+ Add New Location" Button matching Image 2 */}
       <div className="subcomm-bottom-add-bar">
         <button
@@ -2911,6 +2946,8 @@ Module access was not saved: ${moduleErr.response?.data?.message || moduleErr.me
                   key={`${assignHeadModal.isEdit ? assignForm.userId : 'new'}-${assignForm.accountType}`}
                   targetUserId={assignHeadModal.isEdit ? assignForm.userId : undefined}
                   communityId={assignHeadModal.isEdit ? undefined : commId}
+                  subCommunity={subName}
+                  group={(assignForm.group || '').trim() || 'Group 1'}
                   onChange={setModuleSelection}
                 />
 
