@@ -125,6 +125,8 @@ const userSchema = new mongoose.Schema({
   // Bumped to end every login of this account at once (e.g. its community or
   // sub-community was deleted). Tokens carry it as `sv`; an older value is rejected.
   sessionVersion: { type: Number, default: 0 },
+  // App language chosen with the language switcher; restored on the next login
+  preferredLanguage: { type: String, enum: ['en', 'hi'] },
   // Set when the admin deleted this member's sub-community: the app asks them to
   // choose a sub-community again; cleared once they save one.
   mustChooseSubCommunity: { type: Boolean, default: false },

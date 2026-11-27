@@ -197,15 +197,11 @@ exports.acceptInterest = async (req, res) => {
       type: 'matrimonial',
       referenceId: interest._id
     });
-
+    // Both people may have sent each other an interest; accepting the second one must
+    // reuse their existing chat, not open a second empty one with the same person.
     if (!conversation) {
-      conversation = await Conversation.create({
-        participants: [interest.senderId, receiverId],
-        type: 'matrimonial',
-        referenceId: interest._id,
-        createdBy: receiverId,
-        isActive: true
-      });
+      const { findOrCreateConversation } = require('../../services/conversationService');
+      ({ conversation } = await findOrCreateConversation(receiverId, interest.senderId, 'matrimonial', interest._id));
     }
 
     interest.status         = 'accepted';

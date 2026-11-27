@@ -1903,6 +1903,25 @@ Module access was not saved: ${moduleErr.response?.data?.message || moduleErr.me
     }
   };
 
+  // Old Local Head accounts with no sub-community: "Delete" removes the account itself
+  // (same as Admin → Users → Delete), not just deactivates it — most are already
+  // inactive, so deactivating again left them on the list.
+  const handleDeleteUnplacedLeader = async (head) => {
+    const roleLabel = head.accountType === 'local_head' ? 'Local Head' : 'Local Sub-Head';
+    if (!window.confirm(`Delete the ${roleLabel} account "${head.name}"${head.phone ? ` (${head.phone})` : ''}?
+
+The account is removed and can no longer log in. This cannot be undone from here.`)) return;
+    try {
+      await axiosPrivate.delete(`/admin/users/${head.id || head._id}`);
+      setUnplacedLeaders(list => list.filter(h => String(h.id) !== String(head.id || head._id)));
+      fetchLocationData();
+      if (onRefreshCommunities) onRefreshCommunities();
+    } catch (err) {
+      console.error('Failed to delete account:', err);
+      alert(err.response?.data?.message || 'Could not delete this account.');
+    }
+  };
+
   // ── Open the full Group Detail view (rename, visibility, and every leader in it) ──
   const openGroupDetailModal = (loc, grp) => {
     setGroupDetailModal({ loc, grp });
@@ -2347,7 +2366,7 @@ Module access was not saved: ${moduleErr.response?.data?.message || moduleErr.me
                     Move to {subName}
                   </button>
                   <button type="button"
-                    onClick={() => handleDeleteLocalLeader(h, h.accountType)}
+                    onClick={() => handleDeleteUnplacedLeader(h)}
                     style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid #fecaca', background: '#fef2f2', color: '#b91c1c', fontWeight: 700, cursor: 'pointer' }}>
                     Delete
                   </button>

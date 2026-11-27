@@ -76,7 +76,8 @@ const URL_PATTERN = /((?:https?:\/\/|www\.)[^\s<]+[^\s<.,:;"')\]!?])/gi;
 const LinkifiedText = ({ text, isMine }) => {
   if (!text) return null;
   const parts = String(text).split(URL_PATTERN);
-  return parts.map((part, i) => {
+  // Private message text is never sent for translation
+  return <span translate="no" className="notranslate">{parts.map((part, i) => {
     if (i % 2 === 1) {
       const href = /^https?:\/\//i.test(part) ? part : `https://${part}`;
       return (
@@ -93,7 +94,7 @@ const LinkifiedText = ({ text, isMine }) => {
       );
     }
     return <React.Fragment key={i}>{part}</React.Fragment>;
-  });
+  })}</span>;
 };
 
 // ─── Main Chat Room Page ──────────────────────────────────────────────────────

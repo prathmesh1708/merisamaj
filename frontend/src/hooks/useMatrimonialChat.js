@@ -48,7 +48,10 @@ export const useMatrimonialChat = (userId) => {
 
     const socket = socketRef.current;
 
-    socket.on('connect', () => console.log('[Socket] Connected for matrimonial chat'));
+    socket.on('connect', () => {
+      console.log('[Socket] Connected for matrimonial chat');
+      socket.emit('matrimonial:get_online_users'); // current list, not only on changes
+    });
     socket.on('disconnect', () => console.log('[Socket] Disconnected'));
 
     socket.on('matrimonial:online_users', (users) => setOnlineUsers(users));
@@ -94,6 +97,18 @@ export const useMatrimonialChat = (userId) => {
           ? { ...m, seenBy: [...(m.seenBy || []), { userId: sid, seenAt: new Date() }] }
           : m;
       }));
+    });
+
+    // The other person came online later: everything they hadn't received in that chat
+    // is delivered now (grey double tick). The server sends this as chat:messages_delivered.
+    socket.on('chat:messages_delivered', ({ conversationId: cId, userId: rid }) => {
+      const idOf = (v) => String(v?._id || v || '');
+      setMessages(prev => prev.map(m =>
+        idOf(m.conversationId) === idOf(cId) && idOf(m.senderId) !== idOf(rid) &&
+        !(m.deliveredTo || []).some(id => idOf(id) === idOf(rid))
+          ? { ...m, deliveredTo: [...(m.deliveredTo || []), rid] }
+          : m
+      ));
     });
 
     socket.on('matrimonial:message_delivered', ({ messageId, userId: rid }) => {

@@ -15,6 +15,10 @@ import { useAuth } from '../../../core/auth/useAuth';
 
 // ─── Singleton socket instance (shared across components in same session) ──────
 let socketInstance = null;
+// Latest "who is online" list, kept for the whole app: every screen starts from it
+// (each screen used to start empty and only learnt it when someone else connected)
+let onlineUsersCache = [];
+export const getCachedOnlineUsers = () => onlineUsersCache;
 let currentSocketUserId = null;
 
 export const getResolvedSocketUrl = () => {
@@ -80,6 +84,10 @@ export const getSocket = (userId) => {
     reconnectionAttempts: 10
   });
 
+  onlineUsersCache = [];
+  socketInstance.on('chat:online_users', (users) => { onlineUsersCache = Array.isArray(users) ? users.map(String) : []; });
+  socketInstance.on('connect', () => socketInstance.emit('chat:get_online_users'));
+
   socketInstance.on('connect_error', (err) => {
     console.warn('[ChatSocket] Connection error to', backendUrl, ':', err?.message || err);
   });
@@ -125,7 +133,7 @@ export const useChatSocket = ({
   markSeenOnJoinRef.current = markSeenOnJoin;
   const { user } = useAuth();
   const [isConnected, setIsConnected]   = useState(false);
-  const [onlineUsers, setOnlineUsers]   = useState([]);
+  const [onlineUsers, setOnlineUsers]   = useState(getCachedOnlineUsers);
   const typingTimeoutRef = useRef(null);
   const socketRef        = useRef(null);
   const wasDisconnectedRef = useRef(false);
@@ -225,6 +233,7 @@ export const useChatSocket = ({
     socket.on('chat:member_promoted',      handleMemberPromoted);
     socket.on('chat:member_demoted',       handleMemberDemoted);
     socket.on('chat:online_users',         handleOnlineUsers);
+    if (socket.connected) socket.emit('chat:get_online_users'); // current list for this screen
 
     if (socket.connected) {
       setIsConnected(true);

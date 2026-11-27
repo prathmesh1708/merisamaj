@@ -115,6 +115,7 @@ const ProfileDetailDrawer = ({ profile: p, onClose }) => {
               <p className="flex items-center gap-2"><Mail size={14} className="text-slate-400" /> {p.userId?.email || '—'}</p>
               <p className="flex items-center gap-2"><MapPin size={14} className="text-slate-400" /> {[p.location?.city, p.location?.state, p.location?.country].filter(Boolean).join(', ') || '—'}</p>
               {p.communityId?.name && <p className="text-xs text-slate-500">Community: <b>{p.communityId.name}</b></p>}
+              {p.userId?.subCommunity && <p className="text-xs text-slate-500">Sub-community: <b>{p.userId.subCommunity}</b></p>}
             </div>
           </Section>
 
@@ -127,6 +128,7 @@ const ProfileDetailDrawer = ({ profile: p, onClose }) => {
               ['Marital status', p.personal?.maritalStatus],
               ['Religion', p.personal?.religion],
               ['Community', p.personal?.community],
+              ['Sub-community', p.userId?.subCommunity],
               ['Gotra', p.personal?.gotra],
               ['Mother tongue', p.personal?.motherTongue],
               ['Managed by', p.managedBy || p.profileCreatedBy],

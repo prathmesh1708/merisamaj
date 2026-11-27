@@ -204,7 +204,10 @@ export const useMemberChat = (conversationId) => {
       ));
     },
 
-    onMessagesSeen: ({ userId: seenByUserId, messageIds }) => {
+    onMessagesSeen: ({ userId: seenByUserId, messageIds, conversationId: seenConvId }) => {
+      // Events for other chats arrive here too (personal room): ignore them, or opening
+      // one chat could turn this chat's ticks blue
+      if (seenConvId && seenConvId.toString() !== conversationId?.toString()) return;
       setMessages(prev => prev.map(m =>
         (!messageIds || messageIds.includes(m._id))
           ? {

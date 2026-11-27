@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, Sparkles, ShieldCheck, ChevronRight, User, Users, Briefcase, 
-  Package, Globe, Lock, Bell, Shield, Info, LogOut, Gift, Check, X, Moon, Sun, Send
+  Package, Globe, Lock, Bell, Shield, Info, LogOut, Gift, Check, X, Moon, Sun, Send, Languages
 } from 'lucide-react';
 import { useData } from '../../context/DataProvider';
-import { appSubscriptionService } from '../../../../core/api/matrimonialService';
+import { appSubscriptionService, matrimonialModerationService } from '../../../../core/api/matrimonialService';
 import { Avatar } from '../../components/common/Avatar';
+import LanguageSwitcher from '../../../../core/i18n/LanguageSwitcher';
 
 export const SettingsPage = () => {
   const navigate = useNavigate();
@@ -17,8 +18,6 @@ export const SettingsPage = () => {
     updateProfile,
     profilePrivacy,
     followRelations,
-    blockedUsers,
-    members,
     updateProfilePrivacy,
     updateGranularPrivacy,
     granularPrivacy,
@@ -66,6 +65,42 @@ export const SettingsPage = () => {
 
   // Blocked Users Modal State
   const [showBlockedModal, setShowBlockedModal] = useState(false);
+  // Everyone this member blocked (from a matrimonial or member profile), from the server.
+  // null = loading. Loads each time the list is opened.
+  const [serverBlocked, setServerBlocked] = useState(null);
+  const [unblockingId, setUnblockingId] = useState('');
+  useEffect(() => {
+    if (!showBlockedModal) return undefined;
+    let cancelled = false;
+    matrimonialModerationService.getBlockedUsers()
+      .then(res => {
+        if (cancelled) return;
+        const rows = (res.data?.data?.blockedUsers || [])
+          .filter(b => b.blockedUserId)
+          .map(b => ({
+            id: String(b.blockedUserId._id || b.blockedUserId),
+            name: b.blockedUserId.name || 'Member',
+            avatar: b.blockedUserId.avatar || '',
+            blockedAt: b.createdAt
+          }));
+        setServerBlocked(rows);
+      })
+      .catch(() => { if (!cancelled) setServerBlocked([]); });
+    return () => { cancelled = true; };
+  }, [showBlockedModal]);
+  const handleUnblock = async (person) => {
+    if (!window.confirm(`Unblock ${person.name}? They will be able to see your profile and contact you again.`)) return;
+    setUnblockingId(person.id);
+    try {
+      await matrimonialModerationService.unblockUser(person.id);
+      unblockUser(person.id); // clear the local copy too
+      setServerBlocked(list => (list || []).filter(p => p.id !== person.id));
+    } catch (err) {
+      alert(err?.response?.data?.message || 'Could not unblock. Please try again.');
+    } finally {
+      setUnblockingId('');
+    }
+  };
 
   // Privacy Settings Modal State
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
@@ -170,9 +205,6 @@ export const SettingsPage = () => {
     }
   };
 
-  // Blocked Members derivation
-  const blockedMembersIds = blockedUsers?.filter(b => b.blockerId === myId).map(b => b.blockedId) || [];
-  const blockedMembersList = members?.filter(m => blockedMembersIds.includes(m.id)) || [];
 
   
   return (
@@ -390,7 +422,7 @@ export const SettingsPage = () => {
 
             {/* Action: Blocked Users */}
             <button 
-              onClick={() => setShowBlockedModal(true)}
+              onClick={() => { setServerBlocked(null); setShowBlockedModal(true); }}
               className="w-full flex items-center justify-between p-3.5 hover:bg-purple-50/30 transition-colors text-left group"
             >
               <div className="flex items-center gap-3">
@@ -446,6 +478,20 @@ export const SettingsPage = () => {
               </div>
               <ChevronRight size={16} className="text-slate-400 group-hover:text-purple-600 transition-colors" />
             </button>
+
+            {/* Language: English / हिंदी (whole app; saved to the account) */}
+            <div className="w-full flex items-center justify-between gap-3 p-3.5">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 border border-purple-100">
+                  <Languages size={18} />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-[13px] font-extrabold text-slate-800 block">Language</span>
+                  <span className="text-[10.5px] font-semibold text-slate-400 mt-0.5 block leading-none">App language</span>
+                </div>
+              </div>
+              <LanguageSwitcher />
+            </div>
 
             {/* Action: About */}
             <button 
@@ -771,26 +817,40 @@ export const SettingsPage = () => {
               </button>
             </div>
 
-            {blockedMembersList.length === 0 ? (
+            <p className="text-[11.5px] text-slate-500 mb-3 leading-snug">
+              People you blocked can't see your profile or contact you. You won't see them either.
+            </p>
+            {serverBlocked === null ? (
+              <div className="py-8 text-center text-slate-400 font-medium text-xs">Loading...</div>
+            ) : serverBlocked.length === 0 ? (
               <div className="py-8 text-center text-slate-400 font-medium text-xs">
-                No blocked users found.
+                You haven't blocked anyone. To block someone, open their profile, tap ⋮ and choose Block.
               </div>
             ) : (
-              <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1">
-                {blockedMembersList.map(blockedUser => (
-                  <div key={blockedUser.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100">
-                    <div className="flex items-center gap-2.5">
-                      <Avatar initials={blockedUser.initials} size="sm" color="bg-purple-50 text-brand-primary" />
-                      <div>
-                        <h4 className="text-[13px] font-bold text-slate-800 leading-none">{blockedUser.name}</h4>
-                        <p className="text-[10px] text-slate-400 mt-1">{blockedUser.city}</p>
+              <div className="space-y-2.5 max-h-[50dvh] overflow-y-auto pr-1">
+                {serverBlocked.map(person => (
+                  <div key={person.id} className="flex items-center justify-between gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {person.avatar ? (
+                        <img src={person.avatar} alt={person.name} className="w-9 h-9 rounded-full object-cover border border-slate-200 shrink-0" />
+                      ) : (
+                        <Avatar initials={(person.name || 'M').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()} size="sm" color="bg-purple-50 text-brand-primary" />
+                      )}
+                      <div className="min-w-0">
+                        <h4 className="text-[13px] font-bold text-slate-800 leading-none truncate">{person.name}</h4>
+                        {person.blockedAt && (
+                          <p className="text-[10px] text-slate-400 mt-1">
+                            Blocked on {new Date(person.blockedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </p>
+                        )}
                       </div>
                     </div>
-                    <button 
-                      onClick={() => unblockUser(blockedUser.id)}
-                      className="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-xl text-[11px] font-bold hover:bg-slate-300 transition-colors"
+                    <button
+                      onClick={() => handleUnblock(person)}
+                      disabled={unblockingId === person.id}
+                      className="shrink-0 px-3 py-1.5 bg-slate-200 text-slate-700 rounded-xl text-[11px] font-bold hover:bg-slate-300 transition-colors disabled:opacity-50"
                     >
-                      Unblock
+                      {unblockingId === person.id ? 'Unblocking...' : 'Unblock'}
                     </button>
                   </div>
                 ))}

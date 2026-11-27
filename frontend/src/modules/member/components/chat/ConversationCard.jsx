@@ -59,7 +59,9 @@ const ConversationCard = ({ conv, onClick }) => {
         </div>
         <div className="flex items-center justify-between gap-2">
           <p className={`text-[12.5px] truncate leading-snug ${unreadCount > 0 ? 'text-slate-900 font-extrabold' : 'text-slate-500 font-medium'}`}>
-            {lastMessagePreview || (type === 'group' ? 'Start chatting...' : 'No messages yet')}
+            {lastMessagePreview
+              ? <span translate="no" className="notranslate">{lastMessagePreview}</span>
+              : (type === 'group' ? 'Start chatting...' : 'No messages yet')}
           </p>
           {unreadCount > 0 && (
             <div className="min-w-[20px] h-5 px-1.5 rounded-full bg-purple-600 text-white flex items-center justify-center text-[10px] font-black shadow-2xs shrink-0">

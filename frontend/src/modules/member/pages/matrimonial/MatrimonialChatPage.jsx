@@ -105,7 +105,7 @@ const MessageBubble = ({ msg, currentUserId, onReply, onDelete, onCopy, onImageC
               onClick={() => onImageClick(msg.mediaUrl)} 
             />
           ) : (
-            <p>{msg.message}</p>
+            <p translate="no" className="notranslate">{msg.message}</p>
           )}
 
           <div className={`flex items-center gap-1 mt-1 ${isMine ? 'justify-end' : 'justify-start'}`}>

@@ -80,6 +80,8 @@ const chatSocketService = (io) => {
 
     // Broadcast updated online list to all connected clients
     io.emit('chat:online_users', Array.from(onlineUsers.keys()));
+    // Screens opened later ask for the current list (green dots in Messages)
+    socket.on('chat:get_online_users', () => socket.emit('chat:online_users', Array.from(onlineUsers.keys())));
 
     // Their device is online now: messages sent while they were offline are delivered
     markAllPendingDelivered(userId)

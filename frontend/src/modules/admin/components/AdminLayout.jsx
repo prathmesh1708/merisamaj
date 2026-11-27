@@ -8,6 +8,7 @@ import { Avatar } from '../../member/components/common/Avatar';
 import { useAdminAuth } from '../auth/useAdminAuth';
 import { NotificationBell } from '../../member/components/layout/NotificationBell';
 import { getCommunityRequestCount } from '../services/communityService';
+import LanguageSwitcher from '../../../core/i18n/LanguageSwitcher';
 
 export const AdminLayout = () => {
   const navigate = useNavigate();
@@ -528,12 +529,15 @@ export const AdminLayout = () => {
           </div>
         </div>
 
-        <button 
-          onClick={() => setIsMobileOpen(true)}
-          className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-600 active:bg-slate-50 border border-slate-200"
-        >
-          <Menu size={20} />
-        </button>
+        <div className="flex items-center gap-2">
+          <LanguageSwitcher />
+          <button 
+            onClick={() => setIsMobileOpen(true)}
+            className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-600 active:bg-slate-50 border border-slate-200"
+          >
+            <Menu size={20} />
+          </button>
+        </div>
       </header>
 
       {/* ─── MOBILE DRAWER MENU ─── */}
@@ -641,6 +645,7 @@ export const AdminLayout = () => {
             <h2 className="text-gray-800 font-bold text-sm tracking-wide">Master Administration</h2>
           </div>
           <div className="flex items-center gap-5">
+            <LanguageSwitcher />
             {/* Real-time Notifications Bell */}
             <NotificationBell />
 

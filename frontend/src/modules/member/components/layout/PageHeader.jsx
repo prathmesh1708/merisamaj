@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useScrollDirection } from '../../hooks/useScrollDirection';
 import { motion } from 'framer-motion';
 import { NotificationBell } from './NotificationBell';
+import LanguageSwitcher from '../../../../core/i18n/LanguageSwitcher';
 
 export const PageHeader = ({ title, subtitle = null, showBack = true, rightContent = null, autoHide = false, showBell = true }) => {
   const navigate = useNavigate();
@@ -58,7 +59,8 @@ export const PageHeader = ({ title, subtitle = null, showBack = true, rightConte
               )}
             </div>
           </div>
-          <div className="flex items-center gap-1 shrink-0 ml-2">
+          <div className="flex items-center gap-1.5 shrink-0 ml-2">
+            <LanguageSwitcher />
             {showBell && !isNotifPage && <NotificationBell />}
             {rightContent && <div className="flex items-center gap-2">{rightContent}</div>}
           </div>

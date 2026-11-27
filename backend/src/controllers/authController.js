@@ -293,9 +293,17 @@ const loginUser = async (req, res) => {
       return res.status(403).json({ message: 'Your Community Head account is currently inactive.' });
     }
 
-    const isMatch = await user.matchPassword(password);
+    // Exact password first; then without spaces before/after it (browser autofill and
+    // copy-paste often add one, which made a correct password fail).
+    let isMatch = await user.matchPassword(password);
+    if (!isMatch && typeof password === 'string' && password.trim() && password.trim() !== password) {
+      isMatch = await user.matchPassword(password.trim());
+    }
     if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+      // The account exists (unknown accounts get a 404 above), so say which field is
+      // wrong — the login screens show `errors.password` under the password box.
+      const msg = 'Incorrect password. Please try again, or use Forgot Password.';
+      return res.status(401).json({ message: msg, errors: { password: msg } });
     }
 
     if (isMatch) {

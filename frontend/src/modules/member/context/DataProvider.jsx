@@ -16,9 +16,10 @@ import invitationService from '../../../core/api/invitationService';
 import obituaryService from '../../../core/api/obituaryService';
 import { eventService } from '../services/eventService';
 import { headEventService } from '../../../core/api/headEventService';
-import { matrimonialProfileService, notificationService as serverNotificationService } from '../../../core/api/matrimonialService';
+import { matrimonialProfileService, matrimonialModerationService, notificationService as serverNotificationService } from '../../../core/api/matrimonialService';
 import socialService from '../../../core/api/socialService';
 import { formatCommentTime } from '../utils/timeAgo';
+import { useLanguage } from '../../../core/i18n/languageContext';
 
 const getCommunitySurname = (community) => {
   if (!community) return 'Agrawal';
@@ -874,7 +875,8 @@ export const DataProvider = ({ children }) => {
   // mutate profile objects passed in by reference (updateMatrimonialProfileStatus, etc.)
   // Do NOT initialise from mockMatrimonial — that data is served by the backend.
   const [matrimonialProfiles, setMatrimonialProfiles] = useState([]);
-  const [language, setLanguage] = useState(() => loadState('language', 'en'));
+  // App-wide language (core/i18n) — kept under the old names for existing pages
+  const { language, setLanguage } = useLanguage();
   const [notifications, setNotifications] = useState([]);
   // Remove the demo notifications older app versions saved in this browser
   useEffect(() => {
@@ -1017,7 +1019,6 @@ export const DataProvider = ({ children }) => {
   useEffect(() => saveState('events', events), [events]);
   // useEffect(() => saveState('obituaries', obituaries), [obituaries]); // Managed dynamically via backend now
   // NOTE: matrimonialProfiles localStorage sync removed — managed by MatrimonialContext
-  useEffect(() => saveState('language', language), [language]);
   useEffect(() => saveState('professionals', professionals), [professionals]);
   // Groups localStorage sync DEPRECATED — useGroups hook manages its own state
   // useEffect(() => saveState('groups', groups), [groups]);
@@ -1222,8 +1223,14 @@ export const DataProvider = ({ children }) => {
     });
   };
 
+  // Blocks are saved on the server (the same list matrimonial and member profiles
+  // check, shown in Settings → Blocked users); the local copy keeps the UI instant.
   const blockUser = (targetUserId) => {
     const myId = currentUser?.id || currentUser?._id || 'u1';
+    if (targetUserId) {
+      matrimonialModerationService.blockUser({ userId: targetUserId, reason: 'Blocked from member profile' })
+        .catch(err => console.error('Block failed on server:', err?.response?.data?.message || err.message));
+    }
     setBlockedUsers(prev => {
       if (prev.some(b => b.blockerId === myId && b.blockedId === targetUserId)) return prev;
       return [...prev, { blockerId: myId, blockedId: targetUserId }];
@@ -1236,6 +1243,10 @@ export const DataProvider = ({ children }) => {
 
   const unblockUser = (targetUserId) => {
     const myId = currentUser?.id || currentUser?._id || 'u1';
+    if (targetUserId) {
+      matrimonialModerationService.unblockUser(targetUserId)
+        .catch(err => console.error('Unblock failed on server:', err?.response?.data?.message || err.message));
+    }
     setBlockedUsers(prev => prev.filter(b => !(b.blockerId === myId && b.blockedId === targetUserId)));
   };
 

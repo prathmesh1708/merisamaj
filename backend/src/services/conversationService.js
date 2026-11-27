@@ -14,27 +14,45 @@ const Message = require('../models/Message');
  * @param {string|null} referenceId - Optional linked document ID
  * @returns {Promise<{conversation: Conversation, isNew: boolean}>}
  */
-const findOrCreateConversation = async (userAId, userBId, type = 'member', referenceId = null) => {
-  // Look for existing conversation between these two users
-  let conversation = await Conversation.findOne({
-    type,
-    participants: { $all: [userAId, userBId], $size: 2 },
-    isDeleted: false
-  });
+const pairKeyOf = (type, a, b) => type + ':' + [String(a), String(b)].sort().join(':');
+const pairLocks = new Map(); // requests for the same pair on this server run one after another
 
-  const isNew = !conversation;
-
-  if (!conversation) {
-    conversation = await Conversation.create({
-      participants: [userAId, userBId],
+const findOrCreateConversation = (userAId, userBId, type = 'member', referenceId = null) => {
+  const pairKey = pairKeyOf(type, userAId, userBId);
+  const run = async () => {
+    // Existing chat between these two (older chats have no pairKey). With duplicates
+    // from before this fix, use the one most recently active.
+    const existing = await Conversation.findOne({
       type,
-      referenceId,
-      createdBy: userAId,
-      isActive: true
-    });
-  }
+      participants: { $all: [userAId, userBId], $size: 2 },
+      isDeleted: false
+    }).sort({ lastMessageAt: -1, createdAt: 1 });
+    if (existing) return { conversation: existing, isNew: false };
 
-  return { conversation, isNew };
+    try {
+      const conversation = await Conversation.create({
+        participants: [userAId, userBId],
+        type,
+        referenceId,
+        createdBy: userAId,
+        isActive: true,
+        pairKey
+      });
+      return { conversation, isNew: true };
+    } catch (err) {
+      // Another request created it first (unique pairKey): use that one
+      if (err && err.code === 11000) {
+        const conversation = await Conversation.findOne({ pairKey });
+        if (conversation) return { conversation, isNew: false };
+      }
+      throw err;
+    }
+  };
+  const prev = pairLocks.get(pairKey) || Promise.resolve();
+  const next = prev.catch(() => {}).then(run);
+  pairLocks.set(pairKey, next);
+  next.finally(() => { if (pairLocks.get(pairKey) === next) pairLocks.delete(pairKey); }).catch(() => {});
+  return next;
 };
 
 // ─── Get or Create a Group/Channel Conversation ───────────────────────────────
@@ -183,6 +201,7 @@ const getUnreadChatTotal = async (userId) => {
 };
 
 module.exports = {
+  pairKeyOf,
   getUnreadChatTotal,
   findOrCreateConversation,
   findOrCreateGroupConversation,

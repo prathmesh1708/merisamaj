@@ -753,7 +753,7 @@ const GroupDetailPage = () => {
 
                       {/* Text */}
                       {msg.text && (
-                        <div className={`${
+                        <div translate="no" className={`notranslate ${
                           isOnlyEmojis 
                             ? 'text-[38px] leading-normal' 
                             : 'text-[15px] leading-[22px] font-normal'

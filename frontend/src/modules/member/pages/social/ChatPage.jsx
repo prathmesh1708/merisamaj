@@ -146,7 +146,7 @@ const ChatPage = ({ memberId: propMemberId }) => {
               <div className={`max-w-[80%] rounded-2xl p-3 shadow-sm ${msg.sender === 'self' ? 'bg-brand-primary text-white rounded-tr-sm' : 'bg-white border border-gray-100 text-gray-800 rounded-tl-sm'}`}>
                 
                 {msg.type === 'text' && (
-                  <p className="text-[15px] leading-snug">{msg.content}</p>
+                  <p translate="no" className="notranslate text-[15px] leading-snug">{msg.content}</p>
                 )}
                 
                 {msg.type === 'audio' && (

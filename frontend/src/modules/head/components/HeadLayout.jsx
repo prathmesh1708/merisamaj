@@ -10,6 +10,7 @@ import { filterMembersForHead } from '../utils/headCommunityFilter';
 import { NotificationBell } from '../../member/components/layout/NotificationBell';
 import { HeadBottomNav } from './HeadBottomNav';
 import { useModuleAccess, ModuleRouteGuard } from '../../../core/permissions/ModuleAccessContext';
+import LanguageSwitcher from '../../../core/i18n/LanguageSwitcher';
 
 export const HeadLayout = () => {
   const { headAuth, headLogout } = useHeadAuth();
@@ -489,12 +490,15 @@ export const HeadLayout = () => {
           </div>
         </div>
 
-        <button 
-          onClick={() => setIsMobileOpen(true)}
-          className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-600 active:bg-slate-50 border border-slate-200 cursor-pointer"
-        >
-          <Menu size={20} />
-        </button>
+        <div className="flex items-center gap-2">
+          <LanguageSwitcher />
+          <button 
+            onClick={() => setIsMobileOpen(true)}
+            className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-600 active:bg-slate-50 border border-slate-200 cursor-pointer"
+          >
+            <Menu size={20} />
+          </button>
+        </div>
       </header>
 
       {/* ─── MOBILE DRAWER MENU ─── */}
@@ -601,6 +605,7 @@ export const HeadLayout = () => {
             <h2 className="text-slate-800 font-semibold text-sm tracking-wide">Council Workspace</h2>
           </div>
           <div className="flex items-center gap-4">
+            <LanguageSwitcher />
             <NotificationBell />
             <div className="h-6 w-[1px] bg-slate-200" />
             <div className="flex items-center gap-3">

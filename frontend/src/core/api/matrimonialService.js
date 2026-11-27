@@ -87,6 +87,8 @@ export const matrimonialShortlistService = {
   addToShortlist:     (data)      => axiosPrivate.post(`${BASE}/shortlist`, data),
   removeFromShortlist:(profileId) => axiosPrivate.delete(`${BASE}/shortlist/${profileId}`),
   getShortlist:       (params)    => axiosPrivate.get(`${BASE}/shortlist`, { params }),
+  // Members who shortlisted ME ("They Shortlisted"); only a count when the plan lacks visitor history
+  getShortlistedMe:   ()          => axiosPrivate.get(`${BASE}/shortlisted-me`),
   updateNotes:        (profileId, notes) => axiosPrivate.put(`${BASE}/shortlist/${profileId}`, { notes }),
 };
 

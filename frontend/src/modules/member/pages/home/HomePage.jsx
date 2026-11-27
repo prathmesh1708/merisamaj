@@ -22,6 +22,7 @@ import { useNotifications } from '../../context/NotificationContext';
 import { isMemberApproved, showApprovalRequiredNotice } from '../../utils/approvalUtils';
 import { isRealPhoto, getInitials } from '../../../../core/utils/photo';
 import { optimizeImage } from '../../../../core/utils/optimizeImage';
+import LanguageSwitcher from '../../../../core/i18n/LanguageSwitcher';
 
 
 
@@ -197,7 +198,7 @@ const HomePage = () => {
   const navigate = useNavigate();
   const { auth } = useAuth();
   const { latestNotification, decrementUnreadCount } = useNotifications();
-  const { currentUser, members: mockMembers, admins: contextAdmins, posts: mockPosts, events: mockEvents, language, setLanguage, notifications, getUnreadCountForModule, markModuleAsVisited } = useData();
+  const { currentUser, members: mockMembers, admins: contextAdmins, posts: mockPosts, events: mockEvents, notifications, getUnreadCountForModule, markModuleAsVisited } = useData();
   const effectiveUser = auth?.isAuthenticated ? auth?.user : currentUser;
   // Stable keys for the home data effect (see below)
   const homeCommunityKey = String(currentUser?.communityId?._id || currentUser?.communityId || (typeof currentUser?.community === 'string' ? currentUser.community : '') || '');
@@ -636,13 +637,7 @@ const HomePage = () => {
 
         {/* Right Actions: Language Switcher & Notification Bell */}
         <div className="flex items-center gap-2 shrink-0">
-          <button 
-            onClick={() => setLanguage(language === 'en' ? 'hi' : 'en')}
-            className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-700 bg-slate-100/90 hover:bg-purple-50 hover:text-purple-700 hover:border-purple-200 text-[11.5px] font-black uppercase press-scale transition-all border border-slate-200/80 shadow-2xs"
-            title={language === 'en' ? 'Switch to Hindi' : 'Switch to English'}
-          >
-            {language === 'en' ? 'HI' : 'EN'}
-          </button>
+          <LanguageSwitcher />
           <button 
             className="relative w-9 h-9 rounded-xl flex items-center justify-center press-scale transition-all bg-slate-100/90 hover:bg-purple-50 hover:text-purple-700 hover:border-purple-200 text-slate-700 border border-slate-200/80 shadow-2xs"
             onClick={() => navigate('/member/notifications?module=home')}

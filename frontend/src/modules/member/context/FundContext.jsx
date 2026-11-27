@@ -1,11 +1,24 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import fundService from '../../../core/api/fundService';
 import { useAuth } from '../../../core/auth/useAuth';
 import { loadRazorpayScript } from '../../../core/utils/razorpayLoader';
 
 const FundContext = createContext();
 
-export const useFund = () => useContext(FundContext);
+/**
+ * Fund data for the fund pages. Opening any fund page loads the data (FundProvider
+ * sits at the app root, so it can't see navigation). Before this, data loaded only
+ * when the app was opened directly on a /fund URL — navigating there from Home
+ * showed ₹0 and "No Funds" even though funds existed.
+ */
+export const useFund = () => {
+  const ctx = useContext(FundContext);
+  const ensureFundsLoaded = ctx?.ensureFundsLoaded;
+  useEffect(() => { ensureFundsLoaded?.(); }, [ensureFundsLoaded]);
+  return ctx;
+};
+
+const FUNDS_FRESH_MS = 30 * 1000;
 
 export const FundProvider = ({ children }) => {
   const { auth } = useAuth();
@@ -24,9 +37,13 @@ export const FundProvider = ({ children }) => {
   // User info for Razorpay prefill
   const currentUser = auth.user || null;
 
-  const fetchFundsData = async () => {
+  // Who the data was last loaded for, and when (see ensureFundsLoaded)
+  const lastFetchRef = useRef({ user: '', at: 0, inFlight: false });
+
+  const fetchFundsData = async ({ silent = false } = {}) => {
+    lastFetchRef.current = { ...lastFetchRef.current, inFlight: true };
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError(null);
       const res = await fundService.getFundsData();
       if (res.success && res.data) {
@@ -39,9 +56,23 @@ export const FundProvider = ({ children }) => {
       console.error('Failed to fetch funds data:', err);
       setError('Failed to load Samaj funds data.');
     } finally {
+      lastFetchRef.current = { user: currentUserId, at: Date.now(), inFlight: false };
       setLoading(false);
     }
   };
+
+  // Called by every fund page on open: loads once per user, then refreshes quietly
+  // (no spinner) if the data is older than 30 s, so new funds show without a reload.
+  const fetchRef = useRef(fetchFundsData);
+  useEffect(() => { fetchRef.current = fetchFundsData; });
+  const ensureFundsLoaded = useCallback(() => {
+    if (!auth.isAuthenticated) return;
+    const last = lastFetchRef.current;
+    if (last.inFlight) return;
+    const sameUser = last.user === currentUserId && last.at > 0;
+    if (sameUser && Date.now() - last.at < FUNDS_FRESH_MS) return;
+    fetchRef.current({ silent: sameUser });
+  }, [auth.isAuthenticated, currentUserId]);
 
   useEffect(() => {
     if (auth.isAuthenticated) {
@@ -51,7 +82,8 @@ export const FundProvider = ({ children }) => {
         setLoading(false);
       }
     } else {
-      // Reset state on logout
+      // Reset state on logout (and forget the last load, so the next login refetches)
+      lastFetchRef.current = { user: '', at: 0, inFlight: false };
       setFunds([]);
       setContributions({});
       setExpenses({});
@@ -244,7 +276,8 @@ export const FundProvider = ({ children }) => {
       addFund,
       addExpense,
       mockUsers,
-      fetchFundsData
+      fetchFundsData,
+      ensureFundsLoaded
     }}>
       {children}
     </FundContext.Provider>

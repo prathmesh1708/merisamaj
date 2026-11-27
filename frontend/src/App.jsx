@@ -17,6 +17,9 @@ import { ImageCropHost } from './core/components/ImageCropper';
 import LoginAsPage from './pages/LoginAsPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import ChildSafetyPage from './pages/ChildSafetyPage';
+import LanguageProvider from './core/i18n/LanguageProvider';
+import LanguageSync from './core/i18n/LanguageSync';
+import FloatingLanguageSwitcher from './core/i18n/FloatingLanguageSwitcher';
 
 const AxiosInterceptorProvider = ({ children }) => {
   const [isReady, setIsReady] = useState(false);
@@ -38,6 +41,7 @@ const AppContent = () => {
       <div className="aura-bg" />
       <BrowserRouter>
         <ScrollToTop />
+        <FloatingLanguageSwitcher />
         <Routes>
           {/* Default entry → splash screen, which then opens the "Login as" chooser */}
           <Route path="/" element={<Navigate to="/member/splash" replace />} />
@@ -66,10 +70,12 @@ const AppContent = () => {
 
 const App = () => {
   return (
+    <LanguageProvider>
     <AuthProvider>
     <NotificationProvider>
     <HeadAuthProvider>
     <AdminAuthProvider>
+    <LanguageSync />
     <AxiosInterceptorProvider>
       <DataProvider>
         <PostUploadProvider>
@@ -85,6 +91,7 @@ const App = () => {
     </HeadAuthProvider>
     </NotificationProvider>
     </AuthProvider>
+    </LanguageProvider>
   );
 };
 

@@ -132,10 +132,6 @@ exports.getCommunityLeadership = async (req, res) => {
     const communityHeadGroups = buildGroups(communityHeadsRaw, communitySubHeadsRaw, 'Community Head', 'Sub-Community Head');
     const localHeadGroups = buildGroups(localHeadsRaw, localSubHeadsRaw, 'Local Head', 'Local Sub-Head');
 
-    const availableLocalCities = Array.from(new Set(
-      localHeadGroups.map(g => g.head.city).filter(Boolean)
-    ));
-
     const isCityMatch = (headCity, userCity) => {
       if (!headCity || !userCity) return false;
       const h = headCity.trim().toLowerCase();
@@ -164,15 +160,25 @@ exports.getCommunityLeadership = async (req, res) => {
     // 1. Community Heads represent the community across ALL locations (city is not
     //    checked), limited to the member's own sub-community as above.
     const visibleCommunityHeadGroups = communityHeadGroups.filter(g => g.head.groupVisibleOnHome !== false);
-    let homeVisibleCommunityGroups = visibleCommunityHeadGroups.filter(g => servesMember(g.head));
-    if (homeVisibleCommunityGroups.length === 0 && visibleCommunityHeadGroups.length > 0) {
-      // Nobody heads this member's sub-community yet: show the community's main head
-      // (Community.headId) rather than every sub-community's head, or an empty widget.
-      const Community = require('../../models/Community');
-      const comm = await Community.findById(targetCommunityId).select('headId').lean().catch(() => null);
-      const mainHead = comm?.headId && visibleCommunityHeadGroups.find(g => String(g.head._id) === String(comm.headId));
-      homeVisibleCommunityGroups = mainHead ? [mainHead] : [];
-    }
+    // Nobody heads this member's sub-community yet: show the community's main head
+    // (Community.headId) rather than every sub-community's head, or an empty list.
+    let mainHeadIdCache;
+    const mainHeadId = async () => {
+      if (mainHeadIdCache === undefined) {
+        const Community = require('../../models/Community');
+        const comm = await Community.findById(targetCommunityId).select('headId').lean().catch(() => null);
+        mainHeadIdCache = comm?.headId ? String(comm.headId) : null;
+      }
+      return mainHeadIdCache;
+    };
+    const forMember = async (groups) => {
+      const own = groups.filter(g => servesMember(g.head));
+      if (own.length || !groups.length) return own;
+      const id = await mainHeadId();
+      const main = id && groups.find(g => String(g.head._id) === id);
+      return main ? [main] : [];
+    };
+    let homeVisibleCommunityGroups = await forMember(visibleCommunityHeadGroups);
     homeVisibleCommunityGroups = homeVisibleCommunityGroups.map(g => ({ ...g, scope: 'community_head' }));
 
     // 2. Local Heads represent a specific location — only visible on Home if the
@@ -195,6 +201,14 @@ exports.getCommunityLeadership = async (req, res) => {
         return false;
       })
       .map(g => ({ ...g, scope: 'local_head' }));
+
+    // "View All" leadership directory: the same sub-community rule as Home, so a
+    // member sees their own sub-community's Community Head and Local Heads, not every
+    // sub-community's (Mali members were seeing raao/Rathore, Aadiwashi/gore, …). The
+    // Show-on-Home toggle still doesn't apply here, and every city is still listed.
+    const directoryCommunityGroups = await forMember(communityHeadGroups);
+    const directoryLocalGroups = localHeadGroups.filter(g => localServesMember(g.head));
+    const directoryCities = Array.from(new Set(directoryLocalGroups.map(g => g.head.city).filter(Boolean)));
 
     // Back-compat single-head fields, used by older consumers of this endpoint —
     // the first visible community-head group. If every group has been hidden,
@@ -297,9 +311,9 @@ exports.getCommunityLeadership = async (req, res) => {
       data: {
         // New grouped shape — used by the redesigned leadership directory ("View All" —
         // always the full unfiltered list, regardless of the Home-page visibility toggle).
-        communityHeadGroups,
-        localHeadGroups,
-        availableLocalCities,
+        communityHeadGroups: directoryCommunityGroups,
+        localHeadGroups: directoryLocalGroups,
+        availableLocalCities: directoryCities,
         // Groups the admin has switched "Yes" for on the Home page — the Home widget
         // renders every one of these, both Community Head and Local Head groups.
         homeVisibleCommunityGroups,

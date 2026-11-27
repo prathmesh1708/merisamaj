@@ -94,7 +94,19 @@ exports.getConversations = async (req, res) => {
 
     // Attach "other user" info for 1-to-1 display
     const myId = req.user._id.toString();
-    const enriched = conversations.map(conv => {
+    // One row per person: older double "open chat" requests created two chats for some
+    // pairs, so that person was listed twice. Keep the most recently active one (the
+    // list is sorted newest first); new messages go to that same chat.
+    const seenOthers = new Set();
+    const unique = conversations.filter(conv => {
+      const other = (conv.participants || []).find(p => String(p?._id || p) !== myId);
+      const key = other ? String(other._id || other) : '';
+      if (!key) return true;
+      if (seenOthers.has(key)) return false;
+      seenOthers.add(key);
+      return true;
+    });
+    const enriched = unique.map(conv => {
       const other = conv.participants.find(p => p._id.toString() !== myId);
       const baseConv = typeof conv.toObject === 'function' ? conv.toObject() : conv;
       return {

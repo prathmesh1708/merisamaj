@@ -70,6 +70,49 @@ exports.getShortlist = async (req, res) => {
   }
 };
 
+// ─── Who Shortlisted Me ───────────────────────────────────────────────────────
+// The "They Shortlisted" tab. Seeing WHO is the same kind of information as profile
+// visitors, so it follows the plan's visitorHistory feature: with it, the profiles
+// (each shown as this member may see it); without it, only how many. People blocked
+// either way, and profiles that are not active, are left out.
+exports.getWhoShortlistedMe = async (req, res) => {
+  try {
+    const myProfile = await MatrimonialProfile.findOne({ userId: req.user._id, isDeleted: false }).select('_id').lean();
+    if (!myProfile) return res.json({ status: 'success', data: { items: [], total: 0, locked: false } });
+
+    const rows = await Shortlist.find({ profileId: myProfile._id, userId: { $ne: req.user._id } })
+      .sort({ createdAt: -1 }).limit(200).lean();
+    const blocks = await UserBlock.find({
+      $or: [{ userId: req.user._id }, { blockedUserId: req.user._id }]
+    }).select('userId blockedUserId').lean();
+    const blocked = new Set(blocks.flatMap(b => [String(b.userId), String(b.blockedUserId)]));
+    blocked.delete(String(req.user._id));
+
+    const theirProfiles = await MatrimonialProfile.find({
+      userId: { $in: rows.map(r => r.userId).filter(id => !blocked.has(String(id))) },
+      status: 'active',
+      isDeleted: false
+    }).populate('userId', 'name avatar verificationStatus isAadharVerified aadhaarVerifiedName').lean({ virtuals: true });
+    const profileByUser = new Map(theirProfiles.map(p => [String(p.userId?._id || p.userId), p]));
+    const visibleRows = rows.filter(r => profileByUser.has(String(r.userId)));
+
+    const { getEffectiveFeatures } = require('../../middleware/subscriptionMiddleware');
+    const { features } = await getEffectiveFeatures(req.user._id);
+    const allowed = features.visitorHistory === true || (typeof features.visitorHistory === 'number' && features.visitorHistory !== 0);
+    if (!allowed) {
+      return res.json({ status: 'success', data: { items: [], total: visibleRows.length, locked: true } });
+    }
+
+    const shown = await presentProfiles(req.user._id, theirProfiles);
+    const items = visibleRows
+      .map(r => ({ _id: r._id, shortlistedAt: r.createdAt, profileId: shown.get(String(profileByUser.get(String(r.userId))._id)) || null }))
+      .filter(i => i.profileId);
+    res.json({ status: 'success', data: { items, total: items.length, locked: false } });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
 // ─── Visitors (Premium Only) ─────────────────────────────────────────────────
 exports.getMyVisitors = async (req, res) => {
   try {

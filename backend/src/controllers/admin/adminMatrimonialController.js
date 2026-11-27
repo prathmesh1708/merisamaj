@@ -88,11 +88,16 @@ exports.listProfiles = async (req, res) => {
     if (status) query.status = status;
     if (verificationStatus) query.verificationStatus = verificationStatus;
     if (communityId) query.communityId = communityId;
-    if (search) query['personal.fullName'] = new RegExp(search, 'i');
+    if (search) {
+      // Name or city, as the search box says (typed text is matched literally)
+      const re = new RegExp(String(search).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      query.$or = [{ 'personal.fullName': re }, { 'location.city': re }];
+    }
 
     const total = await MatrimonialProfile.countDocuments(query);
     const profiles = await MatrimonialProfile.find(query)
-      .populate('userId', 'name phone email')
+      // subCommunity lives on the member's account, not on the matrimonial profile
+      .populate('userId', 'name phone email subCommunity')
       .populate('communityId', 'name')
       .sort({ createdAt: -1 })
       .skip((Number(page) - 1) * Number(limit))

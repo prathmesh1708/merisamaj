@@ -14,6 +14,7 @@ router.get('/dashboard', attachSubscription, dashboardCtrl.getDashboard);
 router.post('/shortlist',              modCtrl.addToShortlist);
 router.delete('/shortlist/:profileId', modCtrl.removeFromShortlist);
 router.get('/shortlist',               modCtrl.getShortlist);
+router.get('/shortlisted-me',          modCtrl.getWhoShortlistedMe);   // "They Shortlisted" tab
 
 // ─── Visitors (Premium Only) ─────────────────────────────────────────────────
 router.get('/visitors', checkFeature('visitorHistory'), modCtrl.getMyVisitors);

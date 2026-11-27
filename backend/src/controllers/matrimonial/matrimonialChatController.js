@@ -42,22 +42,10 @@ exports.openConversation = async (req, res) => {
       return res.status(403).json({ status: 'error', message: 'Chat is only available after an interest is accepted.' });
     }
 
-    // Find existing conversation or create one
-    let conversation = await Conversation.findOne({
-      type: 'matrimonial',
-      participants: { $all: [req.user._id, otherUserId] },
-      isDeleted: false
-    });
-
-    if (!conversation) {
-      conversation = await Conversation.create({
-        participants: [req.user._id, otherUserId],
-        type: 'matrimonial',
-        referenceId: interest._id,
-        createdBy: req.user._id,
-        isActive: true
-      });
-      // Link conversation to interest
+    // Find the pair's chat or create it: one chat per pair, even on a double tap
+    const { findOrCreateConversation } = require('../../services/conversationService');
+    const { conversation } = await findOrCreateConversation(req.user._id, otherUserId, 'matrimonial', interest._id);
+    if (String(interest.conversationId || '') !== String(conversation._id)) {
       interest.conversationId = conversation._id;
       await interest.save();
     }
@@ -74,11 +62,31 @@ exports.getConversations = async (req, res) => {
     const { getUserConversations } = require('../../services/conversationService');
     let conversations = await getUserConversations(req.user._id, 'matrimonial', 50);
 
+    // One row per person: two accepted interests between the same pair (each sent one)
+    // used to create two conversations, so the list showed that person twice. Keep the
+    // most recently active one (the list is sorted by lastMessageAt, newest first).
+    const myIdStr = req.user._id.toString();
+    const partnerIdOf = (c) => {
+      const p = (c.participants || []).find(x => String(x?._id || x) !== myIdStr);
+      return p ? String(p._id || p) : '';
+    };
+    const seenPartners = new Set();
+    conversations = conversations.filter(c => {
+      const pid = partnerIdOf(c);
+      if (!pid) return true;
+      if (seenPartners.has(pid)) return false;
+      seenPartners.add(pid);
+      return true;
+    });
+
     // Inject partnerProfileId so the frontend can navigate to the partner's profile
     const MatrimonialProfile = require('../../models/MatrimonialProfile');
     conversations = await Promise.all(conversations.map(async (conv) => {
       const convObj = conv.toObject ? conv.toObject() : conv;
-      const partner = convObj.participants?.find(p => p._id.toString() !== req.user._id.toString());
+      const partner = convObj.participants?.find(p => String(p?._id || p) !== myIdStr);
+      // The other person, worked out here so the app never shows the viewer as "partner"
+      // ("otherUser" is the name the main Chat tab reads, as for member chats)
+      if (partner && partner._id) { convObj.partner = partner; convObj.otherUser = partner; }
       if (partner) {
         const partnerProfile = await MatrimonialProfile.findOne({ userId: partner._id, isDeleted: false }).select('_id').lean();
         if (partnerProfile) {
@@ -278,6 +286,15 @@ exports.sendMessage = async (req, res) => {
       lastMessageAt:      newMsg.createdAt,
       lastMessagePreview: type === 'text' ? (message || '').substring(0, 80) : '📷 Photo'
     });
+
+    // Recipients whose app is connected have it now: grey double tick straight away
+    // (this path never marked delivery, so photos stayed at a single tick)
+    const { isOnline } = require('../../services/chatSocketService');
+    const onlineRecipients = conversation.participants.filter(p => !p.equals(req.user._id) && isOnline(p.toString()));
+    if (onlineRecipients.length) {
+      await Message.updateOne({ _id: newMsg._id }, { $addToSet: { deliveredTo: { $each: onlineRecipients } } });
+      populatedMsg.deliveredTo = [...(populatedMsg.deliveredTo || []), ...onlineRecipients];
+    }
 
     // Safely emit to socket room if io is attached
     const io = req.app.get('io');

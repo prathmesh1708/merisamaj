@@ -19,8 +19,17 @@ export const useAxiosPrivate = () => {
           const isAdminApi = url.includes('/admin/') || url.includes('/admin');
           const isMemberApi = url.includes('/member/') || url.includes('/auth/');
 
+          // In the Admin panel, admin and /head/... endpoints (several admin screens use
+          // them, e.g. deleting a Local Head) must go out with the ADMIN login. Picking by
+          // URL alone sent a member's token when the same browser was also logged into the
+          // user app, and the server answered "User role 'user' is not authorized".
+          const adminToken = localStorage.getItem('admin_auth_token') || localStorage.getItem('merisamaj_admin_token');
+          const onAdminPanel = window.location.pathname.startsWith('/admin');
+
           let token = null;
-          if (isHeadApi) {
+          if (onAdminPanel && adminToken && (isHeadApi || isAdminApi)) {
+            token = adminToken;
+          } else if (isHeadApi) {
             token = localStorage.getItem('head_auth_token') || localStorage.getItem('merisamaj_token') || localStorage.getItem('admin_auth_token');
           } else if (isAdminApi) {
             token = localStorage.getItem('admin_auth_token') || localStorage.getItem('head_auth_token') || localStorage.getItem('merisamaj_token');
@@ -51,11 +60,15 @@ export const useAxiosPrivate = () => {
       async (error) => {
         const prevRequest = error?.config;
         const requestUrl = prevRequest?.url || '';
-        const isHeadTarget = requestUrl.includes('/head/') || (!requestUrl.includes('/member/') && !requestUrl.includes('/admin/') && window.location.pathname.startsWith('/head'));
-        const isAdminTarget = requestUrl.includes('/admin/') || (!requestUrl.includes('/member/') && !requestUrl.includes('/head/') && window.location.pathname.startsWith('/admin'));
+        const sentToken = String(prevRequest?.headers?.Authorization || prevRequest?.headers?.authorization || '').replace(/^Bearer\s+/i, '');
+        // An Admin-panel call to a /head/... endpoint went out with the admin login, so an
+        // expired token there must renew the ADMIN session, not the Head one.
+        const adminTokenNow = localStorage.getItem('admin_auth_token') || localStorage.getItem('merisamaj_admin_token');
+        const sentAdminToken = !!sentToken && sentToken === adminTokenNow;
+        const isHeadTarget = !sentAdminToken && (requestUrl.includes('/head/') || (!requestUrl.includes('/member/') && !requestUrl.includes('/admin/') && window.location.pathname.startsWith('/head')));
+        const isAdminTarget = sentAdminToken || requestUrl.includes('/admin/') || (!requestUrl.includes('/member/') && !requestUrl.includes('/head/') && window.location.pathname.startsWith('/admin'));
 
         // Was this user-app request sent with the Head Panel login (a Head using the user app)?
-        const sentToken = String(prevRequest?.headers?.Authorization || prevRequest?.headers?.authorization || '').replace(/^Bearer\s+/i, '');
         const headToken = localStorage.getItem('head_auth_token');
         const usedHeadToken = !isHeadTarget && !isAdminTarget && !!sentToken && sentToken === headToken;
 

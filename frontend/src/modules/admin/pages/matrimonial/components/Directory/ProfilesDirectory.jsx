@@ -139,7 +139,10 @@ export const ProfilesDirectory = ({ data }) => {
                         </div>
                         <div>
                           <p className="font-bold text-slate-900 text-sm hover:text-rose-600">{name}{age ? `, ${age}` : ''}</p>
-                          <p className="text-[10px] text-slate-500">{p.personal?.gender || ''} · {p.personal?.community || ''}</p>
+                          <p className="text-[10px] text-slate-500">
+                            {[p.personal?.gender, p.personal?.community || p.communityId?.name].filter(Boolean).join(' · ')}
+                            {p.userId?.subCommunity && <span className="text-purple-600 font-semibold"> · {p.userId.subCommunity}</span>}
+                          </p>
                         </div>
                       </div>
                     </td>

@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { useData } from '../../context/DataProvider';
 import { useMatrimonial } from './MatrimonialContext';
-import { matrimonialChatService, matrimonialProfileService, matrimonialMarriageService } from '../../../../core/api/matrimonialService';
+import { matrimonialChatService, matrimonialProfileService, matrimonialMarriageService, matrimonialShortlistService } from '../../../../core/api/matrimonialService';
 import ReopenProfileSheet from './components/ReopenProfileSheet';
 import PlanLockScreen from './components/PlanLockScreen';
 import { MatrimonialVisibilityManager } from './components/MatrimonialVisibilityManager';
@@ -78,6 +78,36 @@ const FilterCard = ({ icon, title, subtitle, on, onToggle, children }) => (
     {on && children}
   </div>
 );
+
+// One profile in the Shortlisted view ("They Shortlisted" / "I Shortlisted")
+const ShortlistRow = ({ profile, date, dateLabel, onOpen, onRemove }) => {
+  const name = profile?.personal?.fullName || profile?.userId?.name || 'Member';
+  const photo = profile?.photos?.[0]?.url || profile?.userId?.avatar ||
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=f43f5e&color=fff&size=128`;
+  const city = profile?.location?.city;
+  const when = date ? new Date(date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-3 flex items-center gap-3">
+      <button type="button" onClick={onOpen} className="flex items-center gap-3 min-w-0 flex-1 text-left active:scale-[0.99]">
+        <img
+          src={photo}
+          alt={name}
+          className={`w-14 h-14 rounded-2xl object-cover border border-slate-200 shrink-0 ${profile?.photoBlurred ? 'blur-[2px]' : ''}`}
+        />
+        <div className="min-w-0">
+          <p className="text-[14.5px] font-black text-slate-800 truncate">{name}{profile?.age ? `, ${profile.age}` : ''}</p>
+          {city && <p className="text-[11.5px] text-slate-500 font-semibold truncate">{city}</p>}
+          {when && <p className="text-[11px] text-slate-400 font-semibold mt-0.5">{dateLabel} {when}</p>}
+        </div>
+      </button>
+      {onRemove && (
+        <button type="button" onClick={onRemove} className="shrink-0 px-3 py-1.5 rounded-full border border-slate-200 text-[11.5px] font-bold text-slate-500 hover:text-rose-600 hover:border-rose-200 active:scale-95">
+          Remove
+        </button>
+      )}
+    </div>
+  );
+};
 
 const MatrimonialHomePage = () => {
   const navigate = useNavigate();
@@ -332,6 +362,21 @@ const MatrimonialHomePage = () => {
   }, [location.search]); // eslint-disable-line react-hooks/exhaustive-deps
   const [contactsTab, setContactsTab] = useState('viewed-my'); // 'viewed-my' | 'i-viewed'
   const [shortlistTab, setShortlistTab] = useState('they-shortlisted'); // 'they-shortlisted' | 'i-shortlisted'
+  // Shortlisted view data: null = loading. Both tabs load when the view opens, and
+  // "I Shortlisted" reloads when the member stars / un-stars someone elsewhere.
+  const [shortlistedMe, setShortlistedMe] = useState(null);   // { items, total, locked }
+  const [myShortlist, setMyShortlist] = useState(null);       // items
+  useEffect(() => {
+    if (currentSubView !== 'shortlisted') return undefined;
+    let cancelled = false;
+    matrimonialShortlistService.getShortlistedMe()
+      .then(res => { if (!cancelled) setShortlistedMe(res.data?.data || { items: [], total: 0, locked: false }); })
+      .catch(() => { if (!cancelled) setShortlistedMe({ items: [], total: 0, locked: false, failed: true }); });
+    matrimonialShortlistService.getShortlist({ limit: 100 })
+      .then(res => { if (!cancelled) setMyShortlist((res.data?.data?.items || []).filter(i => i.profileId)); })
+      .catch(() => { if (!cancelled) setMyShortlist([]); });
+    return () => { cancelled = true; };
+  }, [currentSubView, shortlistedIds.length]);
   
   // Messenger layout state
   const [messengerTab, setMessengerTab] = useState('accepted'); // 'accepted' | 'interests'
@@ -1826,7 +1871,7 @@ const MatrimonialHomePage = () => {
                 shortlistTab === 'they-shortlisted' ? 'text-slate-800' : 'text-slate-400'
               }`}
             >
-              They Shortlisted
+              They Shortlisted{shortlistedMe ? ` (${shortlistedMe.total})` : ''}
               {shortlistTab === 'they-shortlisted' && <div className="absolute bottom-0 inset-x-0 h-0.5 bg-rose-500" />}
             </button>
             <button
@@ -1835,15 +1880,46 @@ const MatrimonialHomePage = () => {
                 shortlistTab === 'i-shortlisted' ? 'text-slate-800' : 'text-slate-400'
               }`}
             >
-              I Shortlisted
+              I Shortlisted{myShortlist ? ` (${myShortlist.length})` : ''}
               {shortlistTab === 'i-shortlisted' && <div className="absolute bottom-0 inset-x-0 h-0.5 bg-rose-500" />}
             </button>
           </div>
 
           {/* List or Empty states */}
           <div className="flex-1 bg-white p-4 flex flex-col overflow-y-auto">
-            {shortlistTab === 'they-shortlisted' ? (
-              /* Empty state (Cloned from Image 5) */
+            {shortlistTab === 'they-shortlisted' && shortlistedMe === null ? (
+              <p className="text-slate-400 text-center py-10 font-semibold text-[13px]">Loading...</p>
+            ) : shortlistTab === 'they-shortlisted' && shortlistedMe.locked && shortlistedMe.total > 0 ? (
+              /* Plan without visitor history: how many, not who */
+              <div className="flex-1 flex flex-col items-center justify-center py-12 text-center">
+                <div className="w-14 h-14 mx-auto rounded-full bg-rose-50 flex items-center justify-center mb-3">
+                  <Lock size={22} className="text-rose-500" />
+                </div>
+                <p className="text-[14px] font-bold text-slate-700">
+                  {shortlistedMe.total} {shortlistedMe.total === 1 ? 'person has' : 'people have'} shortlisted you
+                </p>
+                <p className="text-[12px] text-slate-400 mt-1 max-w-[260px] mx-auto">Upgrade your plan to see who they are.</p>
+                <button
+                  onClick={() => navigate('/member/matrimonial/subscription')}
+                  className="mt-4 px-5 py-2.5 bg-rose-500 text-white rounded-full text-[12.5px] font-black active:scale-95"
+                >
+                  Upgrade to view
+                </button>
+              </div>
+            ) : shortlistTab === 'they-shortlisted' && shortlistedMe.items.length > 0 ? (
+              <div className="space-y-3">
+                {shortlistedMe.items.map(item => (
+                  <ShortlistRow
+                    key={item._id}
+                    profile={item.profileId}
+                    date={item.shortlistedAt}
+                    dateLabel="Shortlisted you on"
+                    onOpen={() => navigate(`/member/matrimonial/${item.profileId._id}`)}
+                  />
+                ))}
+              </div>
+            ) : shortlistTab === 'they-shortlisted' ? (
+              /* Nobody yet: tips to get noticed */
               <div className="flex-1 flex flex-col items-center justify-center py-12 text-center">
                 <div className="w-20 h-20 bg-rose-50/50 rounded-full flex items-center justify-center mb-6 relative">
                   <div className="w-14 h-14 bg-rose-100 rounded-2xl flex items-center justify-center text-rose-500 shadow-sm">
@@ -1867,15 +1943,29 @@ const MatrimonialHomePage = () => {
                 </button>
               </div>
             ) : (
-              /* Dynamic list of shortlisted profiles from Context */
+              /* Profiles I shortlisted */
               <div className="space-y-3">
-                {shortlistedIds.length > 0 ? (
-                  <p className="text-slate-500 text-center py-6 font-semibold text-[13px]">
-                    You have {shortlistedIds.length} shortlisted profile{shortlistedIds.length > 1 ? 's' : ''}.{' '}
-                    <button onClick={() => navigate('/member/matrimonial/shortlist')} className="text-rose-500 underline">View all</button>
-                  </p>
+                {myShortlist === null ? (
+                  <p className="text-slate-400 text-center py-10 font-semibold text-[13px]">Loading...</p>
+                ) : myShortlist.length > 0 ? (
+                  myShortlist.map(item => (
+                    <ShortlistRow
+                      key={item._id}
+                      profile={item.profileId}
+                      date={item.createdAt}
+                      dateLabel="Shortlisted on"
+                      onOpen={() => navigate(`/member/matrimonial/${item.profileId._id}`)}
+                      onRemove={() => {
+                        setMyShortlist(list => (list || []).filter(i => i._id !== item._id));
+                        toggleShortlist(item.profileId._id);
+                      }}
+                    />
+                  ))
                 ) : (
-                  <p className="text-slate-400 text-center py-10 font-semibold text-[13px]">You haven't shortlisted any matches yet.</p>
+                  <div className="text-center py-10">
+                    <p className="text-slate-400 font-semibold text-[13px]">You haven't shortlisted any matches yet.</p>
+                    <p className="text-slate-400 text-[12px] mt-1">Tap the star on a profile to save it here.</p>
+                  </div>
                 )}
               </div>
             )}
@@ -1986,7 +2076,7 @@ const MatrimonialHomePage = () => {
                     messengerTab === 'accepted' ? 'text-slate-800' : 'text-slate-450'
                   }`}
                 >
-                  Accepted (1)
+                  Accepted ({conversations.length})
                   {messengerTab === 'accepted' && <div className="absolute bottom-0 inset-x-0 h-0.5 bg-rose-500" />}
                 </button>
                 <button
@@ -2007,7 +2097,13 @@ const MatrimonialHomePage = () => {
                     <div className="p-4 text-center text-slate-400 text-[13px]">Loading...</div>
                   ) : conversations.length > 0 ? (
                     conversations.map((conv) => {
-                      const otherUser = conv.participants?.find(p => p._id !== currentUser?._id) || conv.participants?.[0];
+                      // The server sends the other person (`partner`); the fallback compares ids as
+                      // strings — currentUser may carry `id` instead of `_id`, which made
+                      // the viewer show up as their own chat partner.
+                      const myId = String(currentUser?._id || currentUser?.id || '');
+                      const otherUser = conv.partner
+                        || conv.participants?.find(p => String(p?._id || p) !== myId)
+                        || conv.participants?.[0];
                       const lastMsg = conv.lastMessageId;
                       let msgText = 'No messages yet';
                       if (lastMsg) {
@@ -2037,7 +2133,7 @@ const MatrimonialHomePage = () => {
                               <span className="text-[10px] font-bold text-slate-400">{dateStr}</span>
                             </div>
                             <div className="flex justify-between items-center mt-1">
-                              <p className="text-[11.5px] font-semibold text-slate-500 truncate">{msgText}</p>
+                              <p translate="no" className="notranslate text-[11.5px] font-semibold text-slate-500 truncate">{msgText}</p>
                               {unread > 0 && (
                                 <span className="w-4 h-4 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
                                   {unread}

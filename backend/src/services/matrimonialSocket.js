@@ -10,8 +10,12 @@ const { notifyNewMessage, chatMessagePreview } = require('../services/notificati
 const User          = require('../models/User');
 const { markConversationSeen, markMessagesSeen } = require('../services/messageService');
 
-// Track online users: { userId: socketId }
+// Online users: { userId: Set<socketId> }. A person has several connections (the
+// app-wide one and the matrimonial chat one); they stay online until ALL are closed.
+// It used to keep one socket per person, so closing either marked them offline and
+// their messages stayed at a single tick.
 const onlineUsers = new Map();
+const onlineIds = () => Array.from(onlineUsers.keys());
 
 const matrimonialSocket = (io) => {
   io.on('connection', (socket) => {
@@ -19,8 +23,12 @@ const matrimonialSocket = (io) => {
     if (!userId) return socket.disconnect();
 
     // ─── Online Presence ─────────────────────────────────────────────────────
-    onlineUsers.set(userId, socket.id);
-    io.emit('matrimonial:online_users', Array.from(onlineUsers.keys()));
+    if (!onlineUsers.has(userId)) onlineUsers.set(userId, new Set());
+    onlineUsers.get(userId).add(socket.id);
+    io.emit('matrimonial:online_users', onlineIds());
+    // A screen that opens later asks for the current list instead of waiting for
+    // someone else to connect or disconnect
+    socket.on('matrimonial:get_online_users', () => socket.emit('matrimonial:online_users', onlineIds()));
     console.log(`[Socket.io] ${userId} connected. Online: ${onlineUsers.size}`);
 
     // ─── Join own user room ──────────────────────────────────────────────────
@@ -101,8 +109,7 @@ const matrimonialSocket = (io) => {
         // Mark as delivered to other participants currently online
         for (const participantId of conversation.participants) {
           if (participantId.toString() !== userId) {
-            const pSocketId = onlineUsers.get(participantId.toString());
-            if (pSocketId) {
+            if (onlineUsers.has(participantId.toString())) {
               // Participant is online — mark delivered
               await Message.findByIdAndUpdate(newMsg._id, {
                 $addToSet: { deliveredTo: participantId }
@@ -160,8 +167,11 @@ const matrimonialSocket = (io) => {
 
     // ─── Disconnect ───────────────────────────────────────────────────────────
     socket.on('disconnect', () => {
+      const sockets = onlineUsers.get(userId);
+      if (sockets) sockets.delete(socket.id);
+      if (sockets && sockets.size > 0) return; // still connected on another screen/tab
       onlineUsers.delete(userId);
-      io.emit('matrimonial:online_users', Array.from(onlineUsers.keys()));
+      io.emit('matrimonial:online_users', onlineIds());
       io.emit('matrimonial:user_offline', { userId, lastSeen: new Date() });
       console.log(`[Socket.io] ${userId} disconnected. Online: ${onlineUsers.size}`);
     });
