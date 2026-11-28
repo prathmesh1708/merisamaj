@@ -9,7 +9,7 @@ const InterestRequest     = require('../../models/InterestRequest');
 const UserBlock           = require('../../models/UserBlock');
 const ProfileVisitor      = require('../../models/ProfileVisitor');
 const { calculateMatchPercentage, calcAge } = require('../../services/matchService');
-const { buildRestrictedProfile, buildFullProfile, buildProfileForViewer, connectedUserIds, visibleNameOf, isPhotoPrivate } = require('../../middleware/matrimonialPrivacy');
+const { buildRestrictedProfile, buildFullProfile, buildProfileForViewer, buildReceivedInterestProfile, connectedUserIds, visibleNameOf, isPhotoPrivate } = require('../../middleware/matrimonialPrivacy');
 const { ensureBlurredPhotos } = require('../../services/matrimonialPhotoBlur');
 const { notifyProfileViewed, createNotification } = require('../../services/notificationService');
 const { getEffectiveFeatures } = require('../../middleware/subscriptionMiddleware');
@@ -393,12 +393,12 @@ exports.getUserProfile = async (req, res) => {
     });
 
     // ─── Check for Pending Interest ─────────────────────────────────────────
-    const pendingInterest = !acceptedInterest ? await InterestRequest.findOne({
-      $or: [
-        { senderId: viewerId, receiverId: profileOwnerUserId, status: 'pending' },
-        { senderId: profileOwnerUserId, receiverId: viewerId, status: 'pending' }
-      ]
-    }) : null;
+    // Pending: an interest sent TO me comes first, so the page offers Accept/Decline.
+    // (If both sent one, a single findOne could return mine and show "Interest Sent".)
+    const pendingInterest = !acceptedInterest
+      ? (await InterestRequest.findOne({ senderId: profileOwnerUserId, receiverId: viewerId, status: 'pending' }).lean()) ||
+        (await InterestRequest.findOne({ senderId: viewerId, receiverId: profileOwnerUserId, status: 'pending' }).lean())
+      : null;
 
     // ─── Build interestRelationship summary ──────────────────────────────────
     let interestRelationship = null;
@@ -434,7 +434,12 @@ exports.getUserProfile = async (req, res) => {
     // Photos of public profiles also need the viewer's plan photo access
     const canViewPhotos = !!features.viewProfilePhotos || profileOwnerUserId.equals(viewerId);
     if (!acceptedInterest) await ensureBlurredPhotos([profile], { includePublic: !canViewPhotos });
-    const profileData = buildProfileForViewer(profile, { isConnected: !!acceptedInterest, features, canViewPhotos });
+    // They sent ME an interest that is still pending: full details so I can check they
+    // are genuine before accepting (photos and contact details stay as for strangers)
+    const theySentMe = !acceptedInterest && pendingInterest && String(pendingInterest.senderId) === String(profileOwnerUserId);
+    const profileData = theySentMe
+      ? buildReceivedInterestProfile(profile, { canViewPhotos })
+      : buildProfileForViewer(profile, { isConnected: !!acceptedInterest, features, canViewPhotos });
 
     res.json({
       status: 'success',

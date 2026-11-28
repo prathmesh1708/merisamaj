@@ -100,6 +100,27 @@ exports.sendInterest = async (req, res) => {
       return res.status(403).json({ status: 'error', message: 'You cannot send interest to this user.' });
     }
 
+    // ─── They already sent ME an interest ────────────────────────────────────
+    // Answer theirs instead of crossing it with a second request (both stayed pending,
+    // and their profile showed "Interest Sent" while my list showed "Accept").
+    const theirs = await InterestRequest.findOne({
+      senderId: receiverId,
+      receiverId: senderId,
+      status: { $in: ['pending', 'accepted'] }
+    }).select('_id status isSuper').lean();
+    if (theirs?.status === 'accepted') {
+      return res.status(400).json({ status: 'error', message: 'You are already connected with this person.', currentStatus: 'accepted' });
+    }
+    if (theirs) {
+      return res.status(409).json({
+        status: 'error',
+        code: 'INTEREST_RECEIVED',
+        interestId: theirs._id,
+        isSuper: !!theirs.isSuper,
+        message: 'This member has already sent you an interest. Accept it to connect.'
+      });
+    }
+
     // ─── Duplicate check: block if already pending or accepted ────────────────
     const existing = await InterestRequest.findOne({
       senderId,
@@ -208,6 +229,13 @@ exports.acceptInterest = async (req, res) => {
     interest.acceptedAt     = new Date();
     interest.conversationId = conversation._id;
     await interest.save();
+
+    // If I had also sent them an interest (both sent one), that one is answered too:
+    // it belongs to the same match and must not stay "pending" in their list.
+    await InterestRequest.updateMany(
+      { senderId: receiverId, receiverId: interest.senderId, status: 'pending' },
+      { $set: { status: 'accepted', acceptedAt: new Date(), conversationId: conversation._id } }
+    );
 
     // The incoming-interest alert is no longer actionable after acceptance.
     // Clear its unread badge; the sender receives a separate accepted alert below.

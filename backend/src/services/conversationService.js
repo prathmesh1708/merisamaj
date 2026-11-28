@@ -165,8 +165,24 @@ const getUserConversations = async (userId, type, limit = 30) => {
   ]);
 
   const populated = await Conversation.populate(conversations, [
-    { path: 'lastMessageId', select: 'message type senderId createdAt' }
+    { path: 'lastMessageId', select: 'message type senderId createdAt deliveredTo seenBy' }
   ]);
+
+  // Tick for the Messages list (like WhatsApp): only when the last message is mine.
+  // 'seen' = someone else read it, 'delivered' = reached someone else's phone, else 'sent'.
+  const me = String(userObjId);
+  const idStr = (v) => String(v?.userId?._id || v?.userId || v?._id || v || '');
+  for (const conv of populated) {
+    const last = conv.lastMessageId;
+    let status = null;
+    if (last && idStr(last.senderId) === me) {
+      if ((last.seenBy || []).some(s => idStr(s) && idStr(s) !== me)) status = 'seen';
+      else if ((last.deliveredTo || []).some(d => idStr(d) && idStr(d) !== me)) status = 'delivered';
+      else status = 'sent';
+    }
+    conv.lastMessageStatus = status;
+    if (last) { last.deliveredTo = undefined; last.seenBy = undefined; } // not needed by the list
+  }
 
   if (typeQuery !== 'group' && (!Array.isArray(typeQuery) || !typeQuery.includes('group'))) {
     return Conversation.populate(populated, [

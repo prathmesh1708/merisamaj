@@ -79,10 +79,16 @@ exports.getConversations = async (req, res) => {
       return true;
     });
 
+    // Blue "seen" ticks in the list follow the plan, like inside the chat
+    const { getEffectiveFeatures } = require('../../middleware/subscriptionMiddleware');
+    const readReceipts = await getEffectiveFeatures(req.user._id).then(r => !!r.features?.readReceipts).catch(() => false);
+
     // Inject partnerProfileId so the frontend can navigate to the partner's profile
     const MatrimonialProfile = require('../../models/MatrimonialProfile');
     conversations = await Promise.all(conversations.map(async (conv) => {
       const convObj = conv.toObject ? conv.toObject() : conv;
+      convObj.readReceipts = readReceipts;
+      if (!readReceipts && convObj.lastMessageStatus === 'seen') convObj.lastMessageStatus = 'delivered';
       const partner = convObj.participants?.find(p => String(p?._id || p) !== myIdStr);
       // The other person, worked out here so the app never shows the viewer as "partner"
       // ("otherUser" is the name the main Chat tab reads, as for member chats)

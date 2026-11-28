@@ -2413,7 +2413,7 @@ export const MatrimonialVisibilityManager = ({
             <div className="flex items-center justify-between pt-3 border-t border-slate-100">
               <div>
                 <h4 className="text-[13px] font-bold text-slate-800">Screenshot Protection</h4>
-                <p className="text-[11px] text-slate-400">Prevents screenshots and watermarks photos</p>
+                <p className="text-[11px] text-slate-400">Shows the viewer's name as a watermark on your photos and blocks saving them</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer shrink-0">
                 <input

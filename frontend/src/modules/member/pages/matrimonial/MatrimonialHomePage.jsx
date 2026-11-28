@@ -17,6 +17,7 @@ import PlanLockScreen from './components/PlanLockScreen';
 import { MatrimonialVisibilityManager } from './components/MatrimonialVisibilityManager';
 import InterestsPage from './InterestsPage';
 import { useMatrimonialChat } from '../../../../hooks/useMatrimonialChat';
+import PhotoGuard from '../../../../core/components/PhotoGuard';
 
 const membershipRanks = {
   'Normal': 1,
@@ -158,6 +159,21 @@ const MatrimonialHomePage = () => {
   }, [activityInterestTab, receivedInterests, sentInterests, acceptedInterests]);
   const [ignoredIds, setIgnoredIds] = useState([]);
   const [locallySentIds, setLocallySentIds] = useState(new Set());
+
+  // A pending interest this profile sent ME. The card then offers Accept instead of
+  // "Sent" — when both had sent one, the card only looked at mine and showed "Sent".
+  const getReceivedPendingInterest = useCallback((profile) => {
+    if (!profile) return null;
+    const profileId = (profile._id || profile.id)?.toString();
+    const targetUserId = (profile.userId?._id || profile.userId)?.toString();
+    return (receivedInterests || []).find(item => {
+      if (item.status && item.status !== 'pending') return false;
+      const sndProfileId = (item.senderProfile?._id || item.senderProfile)?.toString();
+      const sndUserId = (item.senderId?._id || item.senderId)?.toString();
+      return (profileId && (sndProfileId === profileId || sndUserId === profileId)) ||
+        (targetUserId && (sndUserId === targetUserId || sndProfileId === targetUserId));
+    }) || null;
+  }, [receivedInterests]);
 
   const getProfileInterestStatus = useCallback((profile) => {
     if (!profile) return 'none';
@@ -1042,7 +1058,9 @@ const MatrimonialHomePage = () => {
                   const targetProfileId = profile._id || profile.id;
                   const interestStatus = getProfileInterestStatus(profile);
                   const isAccepted = interestStatus === 'accepted';
-                  const isSent = interestStatus === 'sent';
+                  const receivedPending = isAccepted ? null : getReceivedPendingInterest(profile);
+                  const isReceived = !!receivedPending;
+                  const isSent = !isReceived && interestStatus === 'sent';
                   const isSentOrAccepted = isAccepted || isSent;
                   const isShort = isShortlisted(targetProfileId);
 
@@ -1082,13 +1100,16 @@ const MatrimonialHomePage = () => {
                         style={{ minHeight: '520px' }}
                         onClick={handleCardClick}
                       >
+                        <PhotoGuard enabled={profile.photoProtection !== false && !!profile.photos?.[0]?.url} className="absolute inset-0">
                         <img
                           src={profile.photos?.[0]?.url || profile.userId?.avatar || profile.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name || 'Member')}&background=0f172a&color=fff&size=400`}
                           alt={profile.name || 'Matrimonial profile'}
+                          draggable={false}
                           className={`absolute inset-0 w-full h-full object-cover transition-all duration-300 ${
                             !hasMembershipAccess ? 'blur-[3px] brightness-95 scale-105' : ''
                           }`}
                         />
+                        </PhotoGuard>
                         
                         <div className="absolute top-4 right-4 flex flex-col items-end gap-2 pointer-events-none z-10">
                           {/* Premium profile: big golden tick */}
@@ -1191,6 +1212,8 @@ const MatrimonialHomePage = () => {
                               e.stopPropagation();
                               if (isAccepted) {
                                 openChatWithProfile(profile._id || profile.id);
+                              } else if (isReceived) {
+                                handleInterestResponse(receivedPending._id, 'accept');
                               } else if (isSent) {
                                 showToast('Interest already sent and is pending! 💕');
                               } else {
@@ -1202,12 +1225,16 @@ const MatrimonialHomePage = () => {
                             <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
                               isAccepted
                                 ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/40 ring-2 ring-emerald-300'
+                                : isReceived
+                                ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/40 ring-2 ring-rose-300'
                                 : isSent
                                 ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/30'
                                 : 'bg-[#9E2045] text-white hover:bg-[#B82B55]'
                             }`}>
                               {isAccepted ? (
                                 <CheckCheck size={22} strokeWidth={2.8} />
+                              ) : isReceived ? (
+                                <Heart size={20} fill="currentColor" />
                               ) : isSent ? (
                                 <Check size={20} strokeWidth={2.8} />
                               ) : (
@@ -1217,7 +1244,7 @@ const MatrimonialHomePage = () => {
                             <span className={`text-[10px] tracking-wide ${
                               isSentOrAccepted ? 'font-black text-emerald-400' : 'font-bold text-white'
                             }`}>
-                              {isAccepted ? 'Accepted' : isSent ? 'Sent' : 'Interest'}
+                              {isAccepted ? 'Accepted' : isReceived ? 'Accept' : isSent ? 'Sent' : 'Interest'}
                             </span>
                           </button>
 
@@ -1580,7 +1607,8 @@ const MatrimonialHomePage = () => {
                         {(() => {
                           const status = getProfileInterestStatus(visitor);
                           const isVisAccepted = status === 'accepted';
-                          const isVisSent = status === 'sent';
+                          const visReceived = isVisAccepted ? null : getReceivedPendingInterest(visitor);
+                          const isVisSent = !visReceived && status === 'sent';
                           const isVisSentOrAccepted = isVisAccepted || isVisSent;
 
                           return (
@@ -1589,6 +1617,8 @@ const MatrimonialHomePage = () => {
                                 e.stopPropagation();
                                 if (isVisAccepted) {
                                   openChatWithProfile(visitor._id || visitor.id);
+                                } else if (visReceived) {
+                                  handleInterestResponse(visReceived._id, 'accept');
                                 } else if (isVisSent) {
                                   showToast('Interest already sent and is pending! 💕');
                                 } else {
@@ -1615,7 +1645,7 @@ const MatrimonialHomePage = () => {
                               <span className={`text-[10px] tracking-wide ${
                                 isVisSentOrAccepted ? 'font-black text-emerald-400' : 'font-bold text-white'
                               }`}>
-                                {isVisAccepted ? 'Accepted' : isVisSent ? 'Sent' : 'Interest'}
+                                {isVisAccepted ? 'Accepted' : visReceived ? 'Accept' : isVisSent ? 'Sent' : 'Interest'}
                               </span>
                             </button>
                           );

@@ -82,6 +82,8 @@ const buildRestrictedProfile = (profile, { canViewPhotos = true } = {}) => {
     photoLockedByPlan: !isPrivate && !canViewPhotos,
     photos,
     photoCount: activePhotos(profile).length,
+    // Owner's "Screenshot Protection" (watermark + no saving on viewers' screens)
+    photoProtection: profile.privacy?.protectPhotosScreenshot !== false,
     // Manglik status is an explicit matchmaking detail; make it available on cards
     // even when the rest of the profile is privacy-restricted.
     personal: {
@@ -161,8 +163,39 @@ const buildFullProfile = (profile, features = {}, { isOwner = false } = {}) => {
     }
   }
   full.photoPrivate = isPhotoPrivate(profile);
+  full.photoProtection = profile.privacy?.protectPhotosScreenshot !== false;
   full.photoBlurred = false;
   full.isRestricted = false;
+  return full;
+};
+
+/**
+ * buildReceivedInterestProfile
+ * The owner sent THIS viewer an interest that is still pending (user's choice,
+ * 2026-11-28): the viewer may check the sender is genuine before accepting, so they
+ * get the full details, but
+ *   - photos follow the usual rules (private → blurred; public → clear only with the
+ *     plan's viewProfilePhotos), exactly as for any unconnected viewer;
+ *   - contact details (account phone/email, street address) stay hidden until accepted;
+ *   - age / date of birth stay hidden (never sent to other members).
+ */
+const buildReceivedInterestProfile = (profile, { canViewPhotos = true } = {}) => {
+  const full = buildFullProfile(profile, { contactDetailsAccess: false });
+  const restricted = buildRestrictedProfile(profile, { canViewPhotos });
+  full.photos = restricted.photos;
+  full.photoBlurred = restricted.photoBlurred;
+  full.photoLockedByPlan = restricted.photoLockedByPlan;
+  full.photoCount = restricted.photoCount;
+  if (full.userId && typeof full.userId === 'object') {
+    const { phone, email, ...account } = full.userId;
+    full.userId = account;
+  }
+  full.contactSharing = { phone: false, email: false };
+  if (full.location) {
+    const { address, ...location } = full.location;
+    full.location = location;
+  }
+  full.detailsUnlockedByInterest = true;
   return full;
 };
 
@@ -190,5 +223,5 @@ const connectedUserIds = async (viewerId, userIds) => {
 
 module.exports = {
   isPhotoPrivate, primaryPhotoOf, visibleNameOf,
-  buildRestrictedProfile, buildFullProfile, buildProfileForViewer, connectedUserIds
+  buildRestrictedProfile, buildFullProfile, buildProfileForViewer, buildReceivedInterestProfile, connectedUserIds
 };

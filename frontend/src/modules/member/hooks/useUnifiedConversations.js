@@ -45,6 +45,7 @@ export const useUnifiedConversations = () => {
             lastMessageAt: c.lastMessageAt || c.createdAt,
             unreadCount: c.unreadCount || 0,
             route: `/member/chat/conv/${c._id}`,
+            lastMessageStatus: c.lastMessageStatus || null,
             isOnline: false, // Updated by socket if needed
             isPinned: false,
             metadata: {
@@ -101,6 +102,8 @@ export const useUnifiedConversations = () => {
             lastMessageAt: c.lastMessageAt || c.createdAt,
             unreadCount: c.unreadCount || 0,
             route: `/member/matrimonial/chat/${c._id}`,
+            lastMessageStatus: c.lastMessageStatus || null,
+            readReceipts: c.readReceipts !== false,
             isOnline: false,
             isPinned: false,
             metadata: {
@@ -132,6 +135,16 @@ export const useUnifiedConversations = () => {
 
   // Socket Updates
   const { isConnected, isUserOnline } = useChatSocket({
+    // The other person's phone received my messages (they came online): ✓ → ✓✓
+    onMessagesDelivered: ({ conversationId, userId: deliveredTo }) => {
+      const myId = (user?.id || user?._id)?.toString();
+      if (!deliveredTo || deliveredTo.toString() === myId) return;
+      setConversations(prev => prev.map(c =>
+        c.conversationId?.toString() === conversationId?.toString() && c.lastMessageStatus === 'sent'
+          ? { ...c, lastMessageStatus: 'delivered' }
+          : c
+      ));
+    },
     onNewMessage: (msg) => {
       const msgId = msg._id?.toString();
       if (msgId) {
@@ -152,10 +165,13 @@ export const useUnifiedConversations = () => {
         const isFromOther = senderId && senderId !== myId;
 
         const current = prev[idx];
+        // My own message: ✓, or ✓✓ if it already reached the other phone
+        const deliveredToOther = (msg.deliveredTo || []).some(d => String(d?._id || d) !== myId && String(d?._id || d) !== senderId);
         const updated = {
           ...current,
           lastMessageAt: msg.createdAt,
           lastMessagePreview: msg.message || '📷',
+          lastMessageStatus: isFromOther ? null : (deliveredToOther ? 'delivered' : 'sent'),
           unreadCount: isFromOther ? (current.unreadCount + 1) : current.unreadCount,
           metadata: {
             ...current.metadata,
@@ -173,7 +189,15 @@ export const useUnifiedConversations = () => {
     onMessagesSeen: ({ conversationId, userId: seenBy }) => {
       // Only *my* reading clears my unread count (not the other person reading my messages)
       const myId = (user?.id || user?._id)?.toString();
-      if (seenBy && seenBy.toString() !== myId) return;
+      if (seenBy && seenBy.toString() !== myId) {
+        // The other person read the chat: my last message there turns blue
+        setConversations(prev => prev.map(c =>
+          c.conversationId?.toString() === conversationId?.toString() && c.lastMessageStatus
+            ? { ...c, lastMessageStatus: c.readReceipts === false ? 'delivered' : 'seen' }
+            : c
+        ));
+        return;
+      }
       setConversations(prev => prev.map(c =>  
         c.conversationId?.toString() === conversationId?.toString()
           ? { ...c, unreadCount: 0 }

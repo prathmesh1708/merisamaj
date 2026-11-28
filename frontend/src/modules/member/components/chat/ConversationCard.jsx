@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, Heart } from 'lucide-react';
+import { Users, Heart, Check, CheckCheck } from 'lucide-react';
 import { Avatar } from '../../components/common/Avatar';
 
 const formatTime = (isoString) => {
@@ -18,7 +18,8 @@ const formatTime = (isoString) => {
 };
 
 const ConversationCard = ({ conv, onClick }) => {
-  const { title, avatar, type, lastMessagePreview, lastMessageAt, unreadCount, isOnline } = conv;
+  const { title, avatar, type, lastMessagePreview, lastMessageAt, unreadCount, isOnline, lastMessageStatus } = conv;
+  const hasBadge = type === 'matrimonial' || type === 'group';
   
   const initials = title ? title.substring(0, 2).toUpperCase() : 'U';
   
@@ -36,7 +37,8 @@ const ConversationCard = ({ conv, onClick }) => {
           )}
         </div>
         {isOnline && (
-          <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-white shadow-xs" />
+          // Top-right when the bottom-right corner holds the matrimonial/group badge
+          <div className={`absolute ${hasBadge ? 'top-0' : 'bottom-0'} right-0 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-white shadow-xs`} title="Online" />
         )}
         {type === 'matrimonial' && (
           <div className="absolute -bottom-0.5 -right-0.5 w-4.5 h-4.5 bg-pink-500 rounded-full flex items-center justify-center border-2 border-white shadow-xs text-white">
@@ -58,9 +60,13 @@ const ConversationCard = ({ conv, onClick }) => {
           </span>
         </div>
         <div className="flex items-center justify-between gap-2">
-          <p className={`text-[12.5px] truncate leading-snug ${unreadCount > 0 ? 'text-slate-900 font-extrabold' : 'text-slate-500 font-medium'}`}>
+          <p className={`text-[12.5px] truncate leading-snug flex items-center gap-1 min-w-0 ${unreadCount > 0 ? 'text-slate-900 font-extrabold' : 'text-slate-500 font-medium'}`}>
+            {/* My last message: ✓ sent · ✓✓ delivered · blue ✓✓ seen */}
+            {lastMessagePreview && lastMessageStatus === 'seen' && <CheckCheck size={15} className="shrink-0 text-[#53bdeb]" aria-label="Seen" />}
+            {lastMessagePreview && lastMessageStatus === 'delivered' && <CheckCheck size={15} className="shrink-0 text-slate-400" aria-label="Delivered" />}
+            {lastMessagePreview && lastMessageStatus === 'sent' && <Check size={15} className="shrink-0 text-slate-400" aria-label="Sent" />}
             {lastMessagePreview
-              ? <span translate="no" className="notranslate">{lastMessagePreview}</span>
+              ? <span translate="no" className="notranslate truncate">{lastMessagePreview}</span>
               : (type === 'group' ? 'Start chatting...' : 'No messages yet')}
           </p>
           {unreadCount > 0 && (

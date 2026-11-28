@@ -19,6 +19,7 @@ import MatchScoreBadge from './components/MatchScoreBadge';
 import MarriageSuccessScreen from './components/MarriageSuccessScreen';
 import { disabilityLabel } from './disabilityOptions';
 import { publicAppUrl } from '../../../../core/utils/publicUrl';
+import PhotoGuard from '../../../../core/components/PhotoGuard';
 
 // ─── Info Row ──────────────────────────────────────────────────────────────────
 const InfoRow = ({ label, value, icon: Icon }) => (
@@ -51,7 +52,7 @@ const MatrimonialProfilePage = () => {
   const navigate = useNavigate();
 
   const matriCtx = useMatrimonial();
-  const { sendInterest, cancelInterest, actionLoading } = useInterests();
+  const { sendInterest, cancelInterest, acceptInterest, rejectInterest, actionLoading } = useInterests();
 
   const [profile, setProfile]         = useState(null);
   const [loading, setLoading]         = useState(true);
@@ -59,7 +60,8 @@ const MatrimonialProfilePage = () => {
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
   const [isMenuOpen, setIsMenuOpen]   = useState(false);
   const [toast, setToast]             = useState('');
-  const [interestStatus, setInterestStatus] = useState(null); // null | 'sent' | 'accepted'
+  const [interestStatus, setInterestStatus] = useState(null); // null | 'sent' | 'received' | 'accepted'
+  const [receivedInterest, setReceivedInterest] = useState(null); // { id, isSuper } — they sent ME one
   const [myInterestId, setMyInterestId] = useState(null);
   const [isSuperSent, setIsSuperSent] = useState(false);
   const [errorCode, setErrorCode] = useState(null);
@@ -90,6 +92,10 @@ const MatrimonialProfilePage = () => {
         setInterestStatus('sent');
         setMyInterestId(rel._id);
         setIsSuperSent(!!rel.isSuper);
+      } else if (rel?.status === 'pending') {
+        // They sent me an interest: answer it here (Accept / Decline)
+        setInterestStatus('received');
+        setReceivedInterest({ id: rel._id, isSuper: !!rel.isSuper });
       }
     } catch (err) {
       if (err.response?.status === 404) setError('Profile not found.');
@@ -142,7 +148,17 @@ const MatrimonialProfilePage = () => {
   const displayPhotos = photos.length > 0 ? photos : [];
 
   const isConnected    = interestStatus === 'accepted';
+  // Owner's Screenshot Protection: watermark + no saving (never on my own profile)
+  const isMyOwnProfile = (() => {
+    try {
+      const me = JSON.parse(localStorage.getItem('merisamaj_user') || 'null');
+      const myId = String(me?._id || me?.id || '');
+      return !!myId && String(profile.userId?._id || profile.userId || '') === myId;
+    } catch { return false; }
+  })();
+  const protectPhotos  = profile.photoProtection !== false && !isMyOwnProfile;
   const isInterestSent = interestStatus === 'sent';
+  const isInterestReceived = interestStatus === 'received' && !!receivedInterest;
   // Private profile, interest not accepted yet: the server sent only a blurred photo
   const isPhotoVisible = !profile.photoBlurred || isConnected;
   // Restricted profiles don't carry the account id; the server accepts the profile id
@@ -186,8 +202,37 @@ const MatrimonialProfilePage = () => {
       setInterestStatus('sent');
       setMyInterestId(res.interest?._id);
       showToast('Interest sent! 💕');
+    } else if (res.code === 'INTEREST_RECEIVED') {
+      // They had already sent me one: switch to Accept / Decline
+      loadProfile();
+      showToast(res.error);
     } else {
       showToast(res.error || 'Failed to send interest.');
+    }
+  };
+
+  // ─── Answer an interest they sent me ─────────────────────────────────────────
+  const handleAcceptReceived = async () => {
+    if (!receivedInterest) return;
+    const res = await acceptInterest(receivedInterest.id);
+    if (res.success) {
+      showToast('Interest accepted! You can chat now 💕');
+      setReceivedInterest(null);
+      loadProfile(); // details and photos unlock once connected
+    } else {
+      showToast(res.error || 'Could not accept the interest.');
+    }
+  };
+  const handleDeclineReceived = async () => {
+    if (!receivedInterest) return;
+    if (!window.confirm('Decline this interest?')) return;
+    const res = await rejectInterest(receivedInterest.id);
+    if (res.success) {
+      showToast('Interest declined.');
+      setReceivedInterest(null);
+      setInterestStatus(null);
+    } else {
+      showToast(res.error || 'Could not decline the interest.');
     }
   };
 
@@ -313,14 +358,19 @@ View plans?`)) navigate('/member/matrimonial/subscription');
         {/* Photo */}
         <div className="relative w-full aspect-[3/4] max-h-[min(480px,72dvh)] overflow-hidden">
           {displayPhotos.length > 0 && isPhotoVisible ? (
-            <img
-              src={displayPhotos[activePhotoIndex]?.url}
-              alt={name || 'Matrimonial profile'}
-              className="w-full h-full object-cover object-[center_20%]"
-            />
+            <PhotoGuard enabled={protectPhotos} className="absolute inset-0">
+              <img
+                src={displayPhotos[activePhotoIndex]?.url}
+                alt={name || 'Matrimonial profile'}
+                className="w-full h-full object-cover object-[center_20%]"
+                draggable={false}
+              />
+            </PhotoGuard>
           ) : primaryPhoto && !isPhotoVisible ? (
             <>
-              <img src={primaryPhoto.url} alt={name || 'Matrimonial profile'} className="w-full h-full object-cover object-[center_20%]" />
+              <PhotoGuard enabled={protectPhotos} className="absolute inset-0">
+                <img src={primaryPhoto.url} alt={name || 'Matrimonial profile'} className="w-full h-full object-cover object-[center_20%]" draggable={false} />
+              </PhotoGuard>
               {/* Blurred only because the viewer's plan has no photo access */}
               {profile.photoLockedByPlan && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/25 text-white text-center px-6 z-10">
@@ -434,6 +484,17 @@ View plans?`)) navigate('/member/matrimonial/subscription');
           </SectionCard>
         )}
 
+        {/* They sent me an interest: full details so I can check they are genuine */}
+        {profile.detailsUnlockedByInterest && !isConnected && (
+          <div className="mb-4 rounded-2xl border border-rose-100 bg-rose-50/70 px-4 py-3 flex items-start gap-2.5">
+            <ShieldCheck size={18} className="text-rose-500 shrink-0 mt-0.5" />
+            <p className="text-[12px] font-semibold text-rose-900 leading-relaxed">
+              {name || 'This member'} sent you an interest, so you can see their full details to check they are genuine.
+              Photos and contact details unlock when you accept.
+            </p>
+          </div>
+        )}
+
         {/* Before an accepted interest only these details are shared (owner's privacy setting) */}
         {isLimitedView ? (
           <SectionCard title="Profile Details" icon={Users}>
@@ -544,13 +605,25 @@ View plans?`)) navigate('/member/matrimonial/subscription');
           </button>
 
           {/* Super Interest — new, or upgrading a pending interest */}
-          {!isConnected && !isSuperSent && !profile.isClosed && (
+          {!isConnected && !isSuperSent && !isInterestReceived && !profile.isClosed && (
             <button onClick={handleSuperInterest} disabled={actionLoading} aria-label="Send Super Interest" title="Send Super Interest"
               className="w-11 h-11 min-[380px]:w-12 min-[380px]:h-12 shrink-0 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center shadow-md shadow-amber-500/25 active:scale-90 disabled:opacity-60">
               <Sparkles size={21} />
             </button>
           )}
 
+          {isInterestReceived ? (
+            <>
+              <button onClick={handleDeclineReceived} disabled={actionLoading}
+                className="flex-1 min-w-0 px-2 py-3 min-[380px]:py-3.5 rounded-xl text-[13px] min-[380px]:text-[14px] font-extrabold flex items-center justify-center gap-1.5 whitespace-nowrap bg-white border border-slate-200 text-slate-600 active:scale-95 disabled:opacity-60">
+                <X size={17} /> Decline
+              </button>
+              <button onClick={handleAcceptReceived} disabled={actionLoading}
+                className="flex-1 min-w-0 px-2 py-3 min-[380px]:py-3.5 rounded-xl text-[13px] min-[380px]:text-[14px] font-extrabold flex items-center justify-center gap-1.5 whitespace-nowrap bg-gradient-to-r from-rose-500 to-pink-500 text-white shadow-sm shadow-rose-200 active:scale-95 disabled:opacity-60">
+                {actionLoading ? <Loader2 size={18} className="animate-spin" /> : <><Check size={17} strokeWidth={3} /> {receivedInterest.isSuper ? 'Accept ⭐' : 'Accept'}</>}
+              </button>
+            </>
+          ) : (
           <button onClick={handleInterest} disabled={actionLoading}
             className={`flex-1 min-w-0 px-2 py-3 min-[380px]:py-3.5 rounded-xl text-[13px] min-[380px]:text-[14px] font-extrabold flex items-center justify-center gap-1.5 whitespace-nowrap overflow-hidden shadow-sm active:scale-95 transition-all disabled:opacity-60 ${
               isConnected
@@ -568,6 +641,7 @@ View plans?`)) navigate('/member/matrimonial/subscription');
               : <><Heart size={17} fill="currentColor" /> Express Interest</>
             }
           </button>
+          )}
 
           {isConnected && (
             <a href={`tel:${profile.userId?.phone}`}

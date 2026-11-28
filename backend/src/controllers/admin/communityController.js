@@ -21,8 +21,13 @@ const COMMUNITY_MODULE_SETTING_KEYS = [
 // isActive flag and _id instead of resetting it — so editing the tag list doesn't
 // silently re-activate something the admin had deactivated from the drill-down view.
 // ─────────────────────────────────────────────
-const sanitizeSubCommunitiesInput = (subCommunities, existing = []) => {
+// `renames` (optional array) collects { from, to } for existing entries whose name changed
+const sanitizeSubCommunitiesInput = (subCommunities, existing = [], renames = null) => {
   if (!Array.isArray(subCommunities)) return [];
+  // Match an existing sub-community by its id first (the Edit form sends ids, so a
+  // renamed entry stays the same sub-community with its locations, plan and modules),
+  // then by name (older clients send names only).
+  const existingById = new Map((existing || []).filter(s => s && s._id).map(s => [String(s._id), s]));
 
   const existingByName = new Map(
     (existing || [])
@@ -39,7 +44,9 @@ const sanitizeSubCommunitiesInput = (subCommunities, existing = []) => {
     if (seen.has(key)) continue;
     seen.add(key);
 
-    const match = existingByName.get(key);
+    const rawId = raw && typeof raw === 'object' && raw._id ? String(raw._id) : null;
+    const match = (rawId && existingById.get(rawId)) || existingByName.get(key);
+    if (match && renames && String(match.name).trim() !== name) renames.push({ from: String(match.name).trim(), to: name });
     result.push({
       _id: match?._id || new mongoose.Types.ObjectId(),
       name,
@@ -336,6 +343,7 @@ exports.updateCommunity = async (req, res) => {
   try {
     const { name, description, logoUrl, bannerUrl, isActive, settings, city, cityIds, subCommunities, headId } = req.body;
 
+    let subCommunityRenames = [];
     const community = await Community.findById(req.params.id).session(session);
     if (!community) {
       await session.abortTransaction();
@@ -350,7 +358,8 @@ exports.updateCommunity = async (req, res) => {
     if (city !== undefined) community.city = city.trim();
     if (cityIds !== undefined && Array.isArray(cityIds)) community.cityIds = cityIds;
     if (subCommunities !== undefined && Array.isArray(subCommunities)) {
-      community.subCommunities = sanitizeSubCommunitiesInput(subCommunities, community.subCommunities);
+      subCommunityRenames = [];
+      community.subCommunities = sanitizeSubCommunitiesInput(subCommunities, community.subCommunities, subCommunityRenames);
     }
     if (isActive !== undefined) community.isActive = isActive;
     if (settings && typeof settings === 'object') {
@@ -418,6 +427,14 @@ exports.updateCommunity = async (req, res) => {
     await community.save({ session });
     await session.commitTransaction();
     session.endSession();
+
+    // Sub-communities renamed in the Edit form: move members, Heads and content to the new name
+    if (subCommunityRenames.length) {
+      const { cascadeSubCommunityRename } = require('../../services/subCommunityRenameService');
+      for (const r of subCommunityRenames) {
+        await cascadeSubCommunityRename(community._id, r.from, r.to).catch(err => console.error('sub-community rename cascade failed:', err.message));
+      }
+    }
 
     const finalCommunity = await Community.findById(req.params.id)
       .populate('headId', 'name email phone avatar')
@@ -931,10 +948,20 @@ exports.renameSubCommunity = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'A sub-community with this name already exists.' });
     }
 
+    const oldName = sub.name;
     sub.name = trimmed;
     await community.save();
 
-    res.json({ success: true, message: 'Sub-community renamed successfully.', data: { _id: sub._id, name: sub.name, isActive: sub.isActive } });
+    // Members, Heads and app content store the sub-community by name: rename it there
+    // too, or they stay on the old name and the renamed one looks new and empty.
+    const { cascadeSubCommunityRename } = require('../../services/subCommunityRenameService');
+    const moved = await cascadeSubCommunityRename(community._id, oldName, trimmed);
+
+    res.json({
+      success: true,
+      message: `Sub-community renamed successfully. ${moved.users} member/leader account(s) moved to the new name.`,
+      data: { _id: sub._id, name: sub.name, isActive: sub.isActive, moved }
+    });
   } catch (error) {
     console.error('renameSubCommunity error:', error);
     res.status(500).json({ status: 'error', message: 'Server error' });

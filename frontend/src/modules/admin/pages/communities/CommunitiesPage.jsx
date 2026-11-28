@@ -685,6 +685,10 @@ const EditCommunityModal = ({ community, onClose, onUpdated }) => {
     // Sub-Communities drill-down view, and the backend preserves each entry's
     // isActive flag by matching name when this list is saved.
     subCommunities: (community.subCommunities || []).map(s => (typeof s === 'string' ? s : s.name)),
+    // Same order as subCommunities: the existing sub-community's id, or null for new ones.
+    // Sent on save so a renamed entry stays the same sub-community (locations, plan,
+    // modules) and its members move to the new name.
+    subIds: (community.subCommunities || []).map(s => (typeof s === 'string' ? null : s._id || null)),
     logoUrl: community.logoUrl || '',
     bannerUrl: community.bannerUrl || '',
     isActive: community.isActive !== undefined ? community.isActive : true,
@@ -703,7 +707,8 @@ const EditCommunityModal = ({ community, onClose, onUpdated }) => {
     if (unaddedSuggestions.length === 0) return;
     setForm(f => ({
       ...f,
-      subCommunities: [...f.subCommunities, ...unaddedSuggestions]
+      subCommunities: [...f.subCommunities, ...unaddedSuggestions],
+      subIds: [...f.subIds, ...unaddedSuggestions.map(() => null)]
     }));
   };
 
@@ -714,15 +719,34 @@ const EditCommunityModal = ({ community, onClose, onUpdated }) => {
       setNewSubCommunity('');
       return;
     }
-    setForm(f => ({ ...f, subCommunities: [...f.subCommunities, trimmed] }));
+    setForm(f => ({ ...f, subCommunities: [...f.subCommunities, trimmed], subIds: [...f.subIds, null] }));
     setNewSubCommunity('');
   };
 
   const handleRemoveSubCommunity = (indexToRemove) => {
+    // Existing sub-communities are deleted from their own card (that moves/logs out
+    // their members). Removing one here only dropped it from the list and left its
+    // members behind — and "remove + add a new name" created a new, empty one.
+    if (form.subIds[indexToRemove]) {
+      alert('To change this name, use ✏️ next to it.\nTo delete this sub-community, use Delete on its card in the Sub-Communities view.');
+      return;
+    }
     setForm(f => ({
       ...f,
-      subCommunities: f.subCommunities.filter((_, idx) => idx !== indexToRemove)
+      subCommunities: f.subCommunities.filter((_, idx) => idx !== indexToRemove),
+      subIds: f.subIds.filter((_, idx) => idx !== indexToRemove)
     }));
+  };
+
+  const handleRenameSubCommunity = (index) => {
+    const current = form.subCommunities[index];
+    const next = (window.prompt('New name for this sub-community (its members and leaders move with it):', current) || '').trim();
+    if (!next || next === current) return;
+    if (form.subCommunities.some((s, i) => i !== index && s.toLowerCase() === next.toLowerCase())) {
+      alert('A sub-community with this name already exists.');
+      return;
+    }
+    setForm(f => ({ ...f, subCommunities: f.subCommunities.map((s, i) => (i === index ? next : s)) }));
   };
 
   const toggleCity = (cityId) => {
@@ -742,7 +766,11 @@ const EditCommunityModal = ({ community, onClose, onUpdated }) => {
     setLoading(true);
     setError('');
     try {
-      await updateCommunity(community._id, form);
+      const { subIds, ...rest } = form;
+      await updateCommunity(community._id, {
+        ...rest,
+        subCommunities: form.subCommunities.map((name, i) => (subIds[i] ? { _id: subIds[i], name } : name))
+      });
       onUpdated();
       onClose();
     } catch (err) {
@@ -953,7 +981,7 @@ const EditCommunityModal = ({ community, onClose, onUpdated }) => {
                           type="button"
                           onClick={() => {
                             if (!added) {
-                              setForm(f => ({ ...f, subCommunities: [...f.subCommunities, s] }));
+                              setForm(f => ({ ...f, subCommunities: [...f.subCommunities, s], subIds: [...f.subIds, null] }));
                             }
                           }}
                           disabled={added}
@@ -1018,6 +1046,17 @@ const EditCommunityModal = ({ community, onClose, onUpdated }) => {
                       }}
                     >
                       {sub}
+                      {form.subIds[idx] && (
+                        <button
+                          type="button"
+                          onClick={() => handleRenameSubCommunity(idx)}
+                          title="Rename"
+                          aria-label={`Rename ${sub}`}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: '0.75rem', lineHeight: 1 }}
+                        >
+                          ✏️
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => handleRemoveSubCommunity(idx)}
